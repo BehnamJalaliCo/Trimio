@@ -29,8 +29,12 @@ import androidx.lifecycle.viewModelScope
 import io.trimio.core.data.AppSettings
 import io.trimio.core.data.CrashLog
 import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.Entitlements
+import io.trimio.core.data.PurchaseResult
+import io.trimio.core.data.StoreProduct
 import io.trimio.core.data.Sharer
 import io.trimio.core.data.SettingsRepository
+import io.trimio.core.designsystem.component.ButtonKind
 import io.trimio.core.designsystem.component.ComposerField
 import io.trimio.core.designsystem.component.GlassChip
 import io.trimio.core.designsystem.component.GlassIconButton
@@ -40,6 +44,7 @@ import io.trimio.core.designsystem.component.ProgressLine
 import io.trimio.core.designsystem.component.SectionLabel
 import io.trimio.core.designsystem.component.SurfaceCard
 import io.trimio.core.designsystem.component.TrimioScreen
+import io.trimio.core.designsystem.component.TrimioButton
 import io.trimio.core.designsystem.component.TrimioSwitch
 import io.trimio.core.designsystem.component.TrimioTopBar
 import io.trimio.core.designsystem.icon.TrimioIcons
@@ -60,6 +65,7 @@ import io.trimio.engine.models.ModelState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -70,7 +76,28 @@ class SettingsViewModel(
     val device: DeviceInfo,
     private val crashLog: CrashLog? = null,
     private val sharer: Sharer? = null,
+    private val entitlements: Entitlements? = null,
 ) : ViewModel() {
+    private val _offer = MutableStateFlow<ProOffer?>(null)
+
+    /** The paid tier as the store sells it; null while the paywall is off (everything is free). */
+    val offer: StateFlow<ProOffer?> = _offer.asStateFlow()
+
+    fun buyPro() {
+        val e = entitlements ?: return
+        val id = e.product.value ?: return
+        viewModelScope.launch {
+            _offer.update { it?.copy(busy = true, result = null) }
+            val result = e.billing.purchase(id)
+            _offer.update { it?.copy(busy = false, result = result) }
+        }
+    }
+
+    fun restorePurchases() {
+        val e = entitlements ?: return
+        viewModelScope.launch { e.billing.refresh() }
+    }
+
     /** Number of stored crash reports, shown next to the consent switch. */
     val crashReports: Int get() = crashLog?.reports()?.size ?: 0
 
@@ -88,6 +115,13 @@ class SettingsViewModel(
     init {
         models.refresh()
         viewModelScope.launch { refreshKeys() }
+        entitlements?.let { e ->
+            viewModelScope.launch {
+                combine(e.product, e.billing.owned) { id, owned -> id to owned }.collect { (id, owned) ->
+                    _offer.value = id?.let { ProOffer(e.billing.product(it), owned = it in owned, result = _offer.value?.result) }
+                }
+            }
+        }
     }
 
     fun update(change: (AppSettings) -> AppSettings) = viewModelScope.launch { settings.update(change) }
@@ -114,6 +148,7 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val settings by viewModel.state.collectAsStateWithLifecycle()
     val modelStates by viewModel.models.states.collectAsStateWithLifecycle()
     val keys by viewModel.keys.collectAsStateWithLifecycle()
+    val offer by viewModel.offer.collectAsStateWithLifecycle()
     SettingsScreen(
         settings = settings,
         catalog = viewModel.models.catalog,
@@ -129,8 +164,14 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
         onRemoveKey = { viewModel.removeKey(it) },
         crashReports = viewModel.crashReports,
         onShareCrash = viewModel::shareLatestCrash,
+        offer = offer,
+        onBuyPro = viewModel::buyPro,
+        onRestore = viewModel::restorePurchases,
     )
 }
+
+/** What the store offers: [product] is null when the store cannot be reached. */
+data class ProOffer(val product: StoreProduct?, val owned: Boolean, val busy: Boolean = false, val result: PurchaseResult? = null)
 
 @Composable
 fun SettingsScreen(
@@ -148,6 +189,9 @@ fun SettingsScreen(
     onRemoveKey: (CloudProvider) -> Unit,
     crashReports: Int = 0,
     onShareCrash: () -> Unit = {},
+    offer: ProOffer? = null,
+    onBuyPro: () -> Unit = {},
+    onRestore: () -> Unit = {},
 ) {
     TrimioScreen(dimAurora = 0.65f) {
         Column(Modifier.fillMaxSize()) {
@@ -156,6 +200,8 @@ fun SettingsScreen(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = TrimioSpacing.screenGutter),
                 verticalArrangement = Arrangement.spacedBy(TrimioSpacing.lg),
             ) {
+                offer?.let { ProSection(it, onBuyPro, onRestore) }
+
                 Section(tr("زبان برنامه", "App language")) {
                     PillSelector(
                         options = listOf<Language?>(null, Language.Persian, Language.English),
@@ -234,6 +280,31 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(TrimioSpacing.xxl))
             }
+        }
+    }
+}
+
+@Composable
+private fun ProSection(offer: ProOffer, onBuy: () -> Unit, onRestore: () -> Unit) {
+    Section("Trimio Pro") {
+        Column(verticalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {
+            when {
+                offer.owned -> ListRow(tr("فعال است — ممنون از حمایتت", "Active — thank you for your support"), icon = TrimioIcons.Check)
+                offer.product == null -> Text(
+                    tr("فروشگاه در دسترس نیست؛ بعداً دوباره امتحان کن.", "The store is not reachable; try again later."),
+                    style = Trimio.type.body, color = Trimio.colors.textSecondary,
+                )
+                else -> TrimioButton(
+                    localizedNumber(tr("خرید · ${offer.product.price}", "Buy · ${offer.product.price}")),
+                    onBuy, Modifier.fillMaxWidth(), enabled = !offer.busy,
+                )
+            }
+            when (val r = offer.result) {
+                is PurchaseResult.Pending -> Text(tr("پرداخت در حال تأیید است.", "Payment is being confirmed."), style = Trimio.type.caption, color = Trimio.colors.textTertiary)
+                is PurchaseResult.Failed -> Text(tr("خرید انجام نشد.", "The purchase did not go through.") + " " + r.reason, style = Trimio.type.caption, color = Trimio.colors.textTertiary)
+                else -> Unit
+            }
+            if (!offer.owned) TrimioButton(tr("بازگردانی خرید", "Restore purchase"), onRestore, Modifier.fillMaxWidth(), kind = ButtonKind.Ghost)
         }
     }
 }

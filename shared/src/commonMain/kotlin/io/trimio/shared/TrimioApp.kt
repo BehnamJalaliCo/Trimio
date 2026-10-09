@@ -20,11 +20,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import io.trimio.core.api.RemoteRepository
+import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.Entitlements
 import io.trimio.core.data.MediaKind
 import io.trimio.core.data.MediaPicker
 import io.trimio.core.data.ProjectRepository
@@ -43,9 +47,12 @@ import io.trimio.feature.settings.SettingsRoute
 import io.trimio.feature.stream.BuildStreamRoute
 import io.trimio.feature.studio.OnboardingScreen
 import io.trimio.feature.studio.StudioRoute
+import io.trimio.shared.di.AppScope
 import io.trimio.shared.di.CreateArgs
 import io.trimio.shared.di.appModule
 import io.trimio.shared.navigation.Route
+import io.trimio.shared.ui.UpdateRequiredScreen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -66,13 +73,24 @@ fun initTrimio(platform: Module) {
 fun TrimioApp(systemLanguage: Language, systemPreferences: TrimioPreferences = TrimioPreferences()) {
     val settingsRepo = koinInject<SettingsRepository>()
     val projects = koinInject<ProjectRepository>()
+    val remote = koinInject<RemoteRepository>()
+    val entitlements = koinInject<Entitlements>()
+    val appScope = koinInject<CoroutineScope>(AppScope)
+    val device = koinInject<DeviceInfo>()
     var ready by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         settingsRepo.load()
         projects.load()
         ready = true
+        // Config, catalogue and pack updates arrive in the background; the app never waits for them.
+        appScope.launch {
+            remote.refresh()
+            entitlements.billing.refresh()
+        }
     }
     val settings by settingsRepo.settings.collectAsStateWithLifecycle()
+    val remoteState by remote.state.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
     val preferences = TrimioPreferences(
         reduceMotion = systemPreferences.reduceMotion || settings.reduceMotion,
         reduceTransparency = systemPreferences.reduceTransparency || settings.reduceTransparency,
@@ -81,6 +99,10 @@ fun TrimioApp(systemLanguage: Language, systemPreferences: TrimioPreferences = T
     TrimioTheme(language = settings.language ?: systemLanguage, preferences = preferences) {
         if (!ready) {
             Box(Modifier.fillMaxSize().background(io.trimio.core.designsystem.theme.Trimio.colors.canvas))
+            return@TrimioTheme
+        }
+        if (remoteState.updateRequired) {
+            UpdateRequiredScreen(onUpdate = device.storeUrl?.let { url -> { runCatching { uriHandler.openUri(url) } } })
             return@TrimioTheme
         }
         val backStack = remember { listOf<Route>(if (settings.onboardingDone) Route.Studio else Route.Onboarding).toMutableStateList() }
@@ -95,6 +117,7 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
     val models = koinInject<ModelManager>()
     val picker = koinInject<MediaPicker>()
     val projects = koinInject<ProjectRepository>()
+    val remoteState by koinInject<RemoteRepository>().state.collectAsStateWithLifecycle()
     val motion = io.trimio.core.designsystem.theme.Trimio.motion
     val rtl = language.isRtl
 
@@ -134,6 +157,7 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     onOpen = { p -> go(if (p.status == ProjectStatus.Ready) Route.Editor(p.id) else Route.Build(p.id)) },
                     onGallery = { go(Route.Gallery) },
                     onSettings = { go(Route.Settings) },
+                    announcement = if (language == Language.Persian) remoteState.config.announcementFa else remoteState.config.announcementEn,
                 )
             }
             entry<Route.Create> { route ->

@@ -30,6 +30,8 @@ shared (ریشهٔ UI، DI با Koin، ناوبری) ← در آینده iosApp 
 feature/*   (stream، studio، prompt، gallery، editor، export)
    │
 core/designsystem   (Trimio DS: توکن‌ها، شیدرها، کامپوننت‌ها)
+core/data           (پروژه‌ها، تنظیمات، صف کار، پرداخت و Entitlement)
+core/api            (قرارداد و کلاینت سرور: Remote Config، کاتالوگ، پکیج امضاشده)
 core/pipeline       (Orchestrator، مراحل، پیشرفت وزن‌دار، چک‌پوینت)
 core/model          (Timeline DSL، رونوشت، سبک‌ها، ورودی‌ها)
    │
@@ -41,6 +43,8 @@ engine/*  (پیاده‌سازی پلتفرمی پشت رابط‌های مشت�
    director : Brief، موتور قوانین، LLM، ترکیب تایم‌لاین، کنترل کیفیت  (Kotlin مشترک)
    render   : Skia + Skottie + Filament + شیدرها                  (C++ مشترک)
    mixer    : میکس، داکینگ، رمزگذاری AAC
+
+server (Ktor، JVM): کاتالوگ و پکیج‌های امضاشده — بدون هیچ دادهٔ کاربر (docs/SERVER.md)
 ```
 
 تحلیل صدا به‌جای C++ با Kotlin مشترک نوشته شده: روی همهٔ پلتفرم‌ها یکسان است، روی JVM تست می‌شود و سرعتش کافی است (۱۰ دقیقه صدا در حدود ۳ ثانیه). فقط مدل‌های عصبی (Whisper، RNNoise، LLM) native هستند.

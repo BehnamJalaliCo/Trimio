@@ -4,11 +4,17 @@ import io.trimio.core.model.input.CanvasSpec
 import io.trimio.core.model.input.InputSource
 import io.trimio.core.model.input.MediaUri
 import io.trimio.core.model.input.Resolution
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DataTest {
@@ -53,5 +59,31 @@ class DataTest {
         val reports = log.reports()
         assertEquals(3, reports.size)
         assertTrue(log.read(reports.first()).contains("boom 4"))
+    }
+}
+
+class EntitlementsTest {
+    private class FakeBilling : Billing {
+        override val owned = MutableStateFlow(emptySet<String>())
+        override suspend fun product(id: String) = StoreProduct(id, "Pro", "1")
+        override suspend fun refresh() = Unit
+        override suspend fun purchase(id: String): PurchaseResult {
+            owned.value += id
+            return PurchaseResult.Purchased
+        }
+    }
+
+    @Test
+    fun everythingIsFreeUntilThePaywallIsSwitchedOn() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val paywall = MutableStateFlow<String?>(null)
+        val billing = FakeBilling()
+        val entitlements = Entitlements(billing, paywall, scope)
+        assertTrue(entitlements.pro.value)
+        paywall.value = "pro"
+        assertFalse(entitlements.pro.value)
+        billing.purchase("pro")
+        assertTrue(entitlements.pro.value)
+        scope.cancel()
     }
 }

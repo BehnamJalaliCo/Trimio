@@ -1,7 +1,15 @@
 package io.trimio.shared.di
 
 import io.ktor.client.HttpClient
+import io.trimio.core.api.FilePackStore
+import io.trimio.core.api.MemoryPackStore
+import io.trimio.core.api.RemoteRepository
+import io.trimio.core.api.RemoteService
+import io.trimio.core.data.Billing
+import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.Entitlements
 import io.trimio.core.data.FileProjectStore
+import io.trimio.core.data.NoBilling
 import io.trimio.core.data.JobRunner
 import io.trimio.core.data.MediaKind
 import io.trimio.core.data.MemoryProjectStore
@@ -11,6 +19,7 @@ import io.trimio.core.pipeline.PipelineOrchestrator
 import io.trimio.engine.assets.AssetLibrary
 import io.trimio.engine.llm.CloudModels
 import io.trimio.engine.llm.LanguageModel
+import io.trimio.engine.models.ModelCatalog
 import io.trimio.engine.models.ModelManager
 import io.trimio.engine.models.ModelStore
 import io.trimio.engine.styles.StylePackRepository
@@ -24,6 +33,7 @@ import io.trimio.feature.studio.StudioViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.map
 import kotlinx.io.files.Path
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
@@ -35,6 +45,10 @@ data class AppPaths(
     val projects: Path?,
     val settingsFile: Path?,
     val models: Path,
+    /** Downloaded style packs. */
+    val packs: Path? = null,
+    /** Last good remote config and catalogue. */
+    val remoteCache: Path? = null,
 )
 
 /** Builds the two pipelines with each platform's engines (see `platformModule`s). */
@@ -63,18 +77,25 @@ data class CreateArgs(val uri: String, val kind: MediaKind, val styleId: String?
 /**
  * The dependency graph shared by every platform. A platform module must provide: [AppPaths],
  * SecretStore, MediaPicker, Sharer, DeviceInfo, MediaProbe, [HttpClient], [PipelineFactory] and
- * optionally [ClaudeFactory] and [DownloadHooks].
+ * optionally [ClaudeFactory], [DownloadHooks] and a store [Billing].
  */
 val appModule: Module = module {
     single(AppScope) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     single { ProjectRepository(get<AppPaths>().projects?.let(::FileProjectStore) ?: MemoryProjectStore()) }
     single { SettingsRepository(get<AppPaths>().settingsFile) }
-    single { StylePackRepository() }
+    single { StylePackRepository(get<AppPaths>().packs?.let(::FilePackStore) ?: MemoryPackStore()) }
+    single { RemoteService(get()) }
+    single { RemoteRepository(get(), get<AppPaths>().remoteCache, get(), get<DeviceInfo>().versionCode) }
+    single { Entitlements(getOrNull<Billing>() ?: NoBilling, get<RemoteRepository>().state.map { it.config.paywallProduct }, get(AppScope)) }
     single { AssetLibrary() }
     single { CloudModels(get(), get(), getOrNull<ClaudeFactory>()?.let { f -> { key: String, model: String -> f.create(key, model) } }) }
     single {
         val hooks = getOrNull<DownloadHooks>()
-        ModelManager(ModelStore(get<AppPaths>().models, get<HttpClient>()), get(AppScope), onActiveChanged = { hooks?.onActiveChanged(it) })
+        ModelManager(
+            ModelStore(get<AppPaths>().models, get<HttpClient>()), get(AppScope),
+            catalog = get<RemoteRepository>().models(ModelCatalog.all),
+            onActiveChanged = { hooks?.onActiveChanged(it) },
+        )
     }
     single { JobRunner(get(AppScope), get(), { get<PipelineFactory>().build() }, { get<PipelineFactory>().export() }) }
 
@@ -83,6 +104,6 @@ val appModule: Module = module {
     viewModel { (projectId: String) -> BuildStreamViewModel(get(), get(), projectId) }
     viewModel { (projectId: String) -> EditorViewModel(projectId, get(), get()) }
     viewModel { (projectId: String) -> ExportViewModel(projectId, get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get(), get(), get(), getOrNull(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get(), getOrNull(), get(), get()) }
     viewModel { GalleryViewModel(get()) }
 }

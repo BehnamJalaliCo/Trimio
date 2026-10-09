@@ -1,0 +1,65 @@
+name: Release
+
+# Push a tag like v1.2.0 to build signed store bundles for Google Play and Cafe Bazaar and attach
+# them to a GitHub release. Store upload stays a manual, reviewed step in each console.
+#
+# Secrets: TRIMIO_KEYSTORE_BASE64 (upload keystore, base64), TRIMIO_KEYSTORE_PASSWORD,
+# TRIMIO_KEY_ALIAS, TRIMIO_KEY_PASSWORD, and optionally TRIMIO_BAZAAR_RSA_KEY (Bazaar billing).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Tests
+        run: ./gradlew jvmTest :server:test
+
+      - name: Restore the upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TRIMIO_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "::error::TRIMIO_KEYSTORE_BASE64 is not set"; exit 1; fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "TRIMIO_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+
+      - name: Signed bundles (Play AAB, Bazaar AAB + APK)
+        env:
+          TRIMIO_KEYSTORE_PASSWORD: ${{ secrets.TRIMIO_KEYSTORE_PASSWORD }}
+          TRIMIO_KEY_ALIAS: ${{ secrets.TRIMIO_KEY_ALIAS }}
+          TRIMIO_KEY_PASSWORD: ${{ secrets.TRIMIO_KEY_PASSWORD }}
+          BAZAAR_RSA_KEY: ${{ secrets.TRIMIO_BAZAAR_RSA_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Monotonic build number from the version: 1.2.3 -> 1020300 (last two digits spare for hotfix rebuilds).
+          CODE=$(echo "$VERSION" | awk -F. '{ printf "%d%02d%02d%02d", $1, $2, $3, 0 }')
+          ./gradlew :androidApp:bundlePlayRelease :androidApp:bundleBazaarRelease :androidApp:assembleBazaarRelease \
+            -Ptrimio.versionName="$VERSION" -Ptrimio.versionCode="$CODE" -Ptrimio.bazaarRsaKey="$BAZAAR_RSA_KEY"
+          ./gradlew --no-configuration-cache :androidApp:checkLicenses
+          mkdir -p dist
+          cp androidApp/build/outputs/bundle/playRelease/*.aab "dist/trimio-$VERSION-play.aab"
+          cp androidApp/build/outputs/bundle/bazaarRelease/*.aab "dist/trimio-$VERSION-bazaar.aab"
+          cp androidApp/build/outputs/apk/bazaar/release/*.apk "dist/trimio-$VERSION-bazaar.apk"
+          cp androidApp/build/reports/licenses.txt dist/licenses.txt
+          (cd dist && sha256sum * > SHA256SUMS)
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "Trimio $GITHUB_REF_NAME" --generate-notes --draft

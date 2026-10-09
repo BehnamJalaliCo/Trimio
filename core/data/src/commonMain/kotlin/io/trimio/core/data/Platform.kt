@@ -23,4 +23,8 @@ data class DeviceInfo(
     val ramGb: Int,
     val platform: String,
     val appVersion: String,
+    /** Monotonic build number, compared with the server's minimum supported build. */
+    val versionCode: Int = 0,
+    /** Where this build updates from (its store page), for the forced-update prompt. */
+    val storeUrl: String? = null,
 )

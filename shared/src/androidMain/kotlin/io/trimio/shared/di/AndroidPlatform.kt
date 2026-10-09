@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.font.FontFamily
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.trimio.core.data.Billing
 import io.trimio.core.data.DeviceInfo
 import io.trimio.core.data.DeviceProfile
 import io.trimio.core.data.ThermalMonitor
@@ -46,6 +47,10 @@ import java.io.File
 fun androidPlatformModule(
     context: Context,
     appVersion: String,
+    versionCode: Int,
+    /** The store flavour's billing (Google Play or Cafe Bazaar). */
+    billing: Billing,
+    storeUrl: String,
     /** Starts the app's user-initiated data-transfer job that keeps model downloads alive. */
     onDownloadsStarted: () -> Unit,
 ) = module {
@@ -56,13 +61,16 @@ fun androidPlatformModule(
             settingsFile = Path(File(app.filesDir, "settings.json").absolutePath),
             // Models live in no-backup storage: multi-gigabyte files must never go to cloud backup.
             models = Path(File(app.noBackupFilesDir, "models").absolutePath),
+            packs = Path(File(app.filesDir, "packs").absolutePath),
+            remoteCache = Path(File(app.filesDir, "remote.json").absolutePath),
         )
     }
     single<SecretStore> { KeystoreSecretStore(app) }
+    single { billing }
     single { ActivityMediaPicker() }
     single<MediaPicker> { get<ActivityMediaPicker>() }
     single<Sharer> { AndroidSharer(app) }
-    single { DeviceInfo(ramGb = ramGb(app), platform = "Android ${android.os.Build.VERSION.RELEASE}", appVersion = appVersion) }
+    single { DeviceInfo(ramGb = ramGb(app), platform = "Android ${android.os.Build.VERSION.RELEASE}", appVersion = appVersion, versionCode = versionCode, storeUrl = storeUrl) }
     single<MediaProbe> { AndroidMediaProbe(app) }
     single<ThermalMonitor> { AndroidThermalMonitor(app) }
     single { io.trimio.core.data.CrashLog(Path(File(app.filesDir, "crashes").absolutePath)) }
@@ -84,7 +92,7 @@ fun androidPlatformModule(
                 (installed.firstOrNull { it.id == settings.settings.value.speechModelId } ?: installed.maxByOrNull { it.sizeBytes })?.let(models::pathOf)
             },
             styles = get(),
-            directors = DefaultDirectorModels(get<CloudModels>()) { LocalModels(store, ram).best(settings.settings.value.localModelId) },
+            directors = DefaultDirectorModels(get<CloudModels>()) { LocalModels(store, ram, models.catalog).best(settings.settings.value.localModelId) },
             library = get(),
             exporter = FontsFirst { fonts -> AndroidVideoExporter(app, fonts) },
             publisher = MediaStorePublisher(app),

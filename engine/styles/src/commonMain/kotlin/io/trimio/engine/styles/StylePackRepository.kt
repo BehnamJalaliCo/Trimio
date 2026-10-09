@@ -41,6 +41,9 @@ class StylePackRepository(
         return pack
     }
 
+    /** Re-reads installed packs on next access (after the trusted keys changed). */
+    suspend fun invalidate() = mutex.withLock { cache = null }
+
     private suspend fun load(): Map<String, StylePack> = mutex.withLock {
         cache ?: buildMap {
             for (pack in bundled()) put(pack.id, pack)
@@ -58,21 +61,22 @@ class StylePackRepository(
         StylePackCodec.decodeBundled(Res.readBytes("files/styles/$id.json").decodeToString())
     }
 
-    private fun newer(a: String, b: String): Boolean {
-        val x = a.split('.').map { it.toIntOrNull() ?: 0 }
-        val y = b.split('.').map { it.toIntOrNull() ?: 0 }
-        for (i in 0 until maxOf(x.size, y.size)) {
-            val d = x.getOrElse(i) { 0 } - y.getOrElse(i) { 0 }
-            if (d != 0) return d > 0
-        }
-        return false
-    }
-
     /** Gallery order follows the canonical 28-style list. */
     private fun order(id: String) = DesignStyle.fromId(id)?.ordinal ?: Int.MAX_VALUE
 
     companion object {
         /** Packs shipped in the APK (resources cannot be listed at runtime, so they are named here): all 28 styles. */
         val BUNDLED: List<String> = DesignStyle.entries.map { it.id }
+
+        /** True when semantic version [a] is higher than [b]. */
+        fun newer(a: String, b: String): Boolean {
+            val x = a.split('.').map { it.toIntOrNull() ?: 0 }
+            val y = b.split('.').map { it.toIntOrNull() ?: 0 }
+            for (i in 0 until maxOf(x.size, y.size)) {
+                val d = x.getOrElse(i) { 0 } - y.getOrElse(i) { 0 }
+                if (d != 0) return d > 0
+            }
+            return false
+        }
     }
 }

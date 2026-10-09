@@ -7,6 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import io.trimio.android.billing.ActivityBilling
+import io.trimio.core.data.Billing
 import io.trimio.core.designsystem.theme.TrimioPreferences
 import io.trimio.shared.TrimioApp
 import io.trimio.shared.di.ActivityMediaPicker
@@ -19,6 +21,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         get<ActivityMediaPicker>().attach(this)
+        (get<Billing>() as? ActivityBilling)?.attach(this)
         // Build and download progress live in notifications (Android 13+ asks once).
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
 

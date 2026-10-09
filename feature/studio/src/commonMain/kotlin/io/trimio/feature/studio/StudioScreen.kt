@@ -65,6 +65,7 @@ fun StudioRoute(
     onOpen: (Project) -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit,
+    announcement: String? = null,
 ) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     StudioScreen(
@@ -74,6 +75,7 @@ fun StudioRoute(
         onOpen = onOpen,
         onGallery = onGallery,
         onSettings = onSettings,
+        announcement = announcement,
     )
 }
 
@@ -90,6 +92,7 @@ fun StudioScreen(
     onOpen: (Project) -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit,
+    announcement: String? = null,
 ) {
     TrimioScreen(dimAurora = 0.25f) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -103,6 +106,7 @@ fun StudioScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) { Header(onSettings) }
+                if (!announcement.isNullOrBlank()) item(span = { GridItemSpan(maxLineSpan) }) { Announcement(announcement) }
                 item(span = { GridItemSpan(maxLineSpan) }) { NewProjectCard(onNew) }
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(Modifier.fillMaxWidth().padding(top = TrimioSpacing.md), verticalAlignment = Alignment.CenterVertically) {
@@ -136,6 +140,17 @@ private fun Header(onSettings: () -> Unit) {
             Text(tr("ویدیو یا صدا بده، موشن\u200Cگرافی بگیر", "Bring a video or a voice. Get motion graphics."), style = Trimio.type.label, color = Trimio.colors.textSecondary)
         }
         GlassIconButton(TrimioIcons.Settings, tr("تنظیمات", "Settings"), onSettings)
+    }
+}
+
+/** A short note from the team (remote config), e.g. a new style pack or a known issue. */
+@Composable
+private fun Announcement(text: String) {
+    GlassPanel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = TrimioSpacing.md, vertical = TrimioSpacing.sm), tint = Trimio.colors.accentCyan.copy(alpha = 0.08f)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {
+            TrimioIcon(TrimioIcons.Sparkle, null, tint = Trimio.colors.accentCyan)
+            Text(text, style = Trimio.type.label, color = Trimio.colors.textPrimary)
+        }
     }
 }
 

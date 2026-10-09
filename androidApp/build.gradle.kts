@@ -12,8 +12,9 @@ android {
         applicationId = "io.trimio.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        // Release builds take both from the tag workflow (-Ptrimio.versionCode / -Ptrimio.versionName).
+        versionCode = providers.gradleProperty("trimio.versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("trimio.versionName").orNull ?: "0.1.0"
 
         // High-end phones only: 64-bit ARM. ARMv8.2 dot-product and fp16 cover every flagship SoC
         // since 2020 and give whisper.cpp/llama.cpp their fast int8/fp16 kernels.
@@ -40,17 +41,38 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     // Two store channels: Cafe Bazaar (Iran) and Google Play. Billing/CDN differ per flavor.
     flavorDimensions += "store"
     productFlavors {
         create("play") { dimension = "store" }
-        create("bazaar") { dimension = "store" }
+        create("bazaar") {
+            dimension = "store"
+            // Bazaar's per-app RSA key for local purchase verification (Bazaar panel → In-app billing).
+            // Public by design; billing stays off in builds without it.
+            buildConfigField("String", "BAZAAR_RSA_KEY", "\"${providers.gradleProperty("trimio.bazaarRsaKey").orNull.orEmpty()}\"")
+        }
+    }
+
+    // Upload key from the environment (CI secrets). The private key never enters the repository;
+    // without it release builds are unsigned, which is fine for local R8 checks.
+    val keystore = System.getenv("TRIMIO_KEYSTORE")?.let(::file)?.takeIf { it.exists() }
+    signingConfigs {
+        if (keystore != null) create("upload") {
+            storeFile = keystore
+            storePassword = System.getenv("TRIMIO_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("TRIMIO_KEY_ALIAS")
+            keyPassword = System.getenv("TRIMIO_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
+            if (keystore != null) signingConfig = signingConfigs.getByName("upload")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -79,6 +101,8 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.compose.runtime)
     implementation(libs.compose.ui)
+    "playImplementation"(libs.play.billing)
+    "bazaarImplementation"(libs.poolakey)
 }
 
 // Licence audit of everything that ships in the Play release: `./gradlew :androidApp:checkLicenses`.

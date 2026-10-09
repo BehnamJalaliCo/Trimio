@@ -24,6 +24,8 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        // Cafe Bazaar's billing library (Poolakey) is published only on JitPack.
+        maven("https://jitpack.io") { mavenContent { includeGroup("com.github.cafebazaar.Poolakey") } }
     }
 }
 
@@ -37,6 +39,8 @@ include(":core:model")
 include(":core:pipeline")
 include(":core:designsystem")
 include(":core:data")
+include(":core:api")
+include(":server")
 include(":feature:stream")
 include(":feature:studio")
 include(":feature:create")

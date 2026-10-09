@@ -8,6 +8,7 @@ kotlin {
             api(projects.core.model)
             api(projects.core.pipeline)
             api(projects.core.data)
+            api(projects.core.api)
             api(projects.core.designsystem)
             api(projects.feature.stream)
             api(projects.feature.studio)

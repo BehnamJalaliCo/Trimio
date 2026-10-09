@@ -29,7 +29,7 @@ jobs:
         run: ./gradlew detekt
 
       - name: Unit, shader, screenshot and golden-frame tests
-        run: ./gradlew jvmTest
+        run: ./gradlew jvmTest :server:test
 
       - name: Compile web target
         run: ./gradlew compileKotlinWasmJs
