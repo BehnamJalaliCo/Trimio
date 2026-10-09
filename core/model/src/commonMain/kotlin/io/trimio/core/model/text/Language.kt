@@ -36,11 +36,11 @@ object ScriptDetector {
 
     /** Arabic, Arabic Supplement and Arabic Presentation Forms A/B (covers Persian letters and ZWNJ-joined forms). */
     fun Char.isArabicScript(): Boolean =
-        this in '؀'..'ۿ' ||
-            this in 'ݐ'..'ݿ' ||
-            this in 'ﭐ'..'﷿' ||
-            this in 'ﹰ'..'﻿'
+        this in '\u0600'..'\u06FF' ||
+            this in '\u0750'..'\u077F' ||
+            this in '\uFB50'..'\uFDFF' ||
+            this in '\uFE70'..'\uFEFF'
 
     /** Persian digits ۰-۹ and Arabic-Indic digits ٠-٩. */
-    fun Char.isEasternDigit(): Boolean = this in '۰'..'۹' || this in '٠'..'٩'
+    fun Char.isEasternDigit(): Boolean = this in '\u06F0'..'\u06F9' || this in '\u0660'..'\u0669'
 }

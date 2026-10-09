@@ -12,9 +12,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - uses: actions/setup-java@v5
         with:
@@ -23,11 +25,36 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Unit tests (shared code)
+      - name: Unit, shader and screenshot tests
         run: ./gradlew jvmTest
 
       - name: Compile web target
         run: ./gradlew compileKotlinWasmJs
 
-      - name: Assemble Android (both store flavors)
+      # AGP installs the pinned NDK and CMake on first use.
+      - name: Assemble Android with native engines (both store flavors)
         run: ./gradlew :androidApp:assemblePlayDebug :androidApp:assembleBazaarDebug
+
+  native-speech:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Cache Whisper test model
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/trimio-test-models
+          key: whisper-tiny-v1
+
+      - name: whisper.cpp through JNI on the host
+        run: ./gradlew :engine:asr:jvmTest -Ptrimio.nativeTests --tests '*WhisperNativeTest*'

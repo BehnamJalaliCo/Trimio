@@ -25,7 +25,7 @@ import kotlin.random.Random
 object DemoPipeline {
 
     val sampleSentence: List<String> =
-        "سلام دوستان، امروز بیت‌کوین پنج درصد رشد کرد و سیگنال خرید ما به تارگت اول رسید. BTC الان بالای حمایت مهمه!"
+        "سلام دوستان، امروز بیت\u200Cکوین پنج درصد رشد کرد و سیگنال خرید ما به تارگت اول رسید. BTC الان بالای حمایت مهمه!"
             .split(" ")
 
     fun stages(speed: Float = 1f, seed: Long = 7): List<PipelineStage> {
@@ -111,20 +111,20 @@ object DemoPipeline {
         }
     }
 
-    private val KEYWORDS = setOf("بیت‌کوین", "سیگنال", "تارگت", "BTC", "رشد", "پنج")
+    private val KEYWORDS = setOf("بیت\u200Cکوین", "سیگنال", "تارگت", "BTC", "رشد", "پنج")
 
     private val PLAN = listOf(
-        "قلاب: زوم ضربه‌ای روی «بیت‌کوین» در ثانیهٔ اول" to "Hook: punch-zoom on «Bitcoin» in the first second",
-        "شمارندهٔ عدد برای «پنج درصد» با فلش سبز" to "Number counter for «5%» with a green arrow",
-        "کارت شیشه‌ای برای «سیگنال خرید»" to "Glass card for «buy signal»",
+        "قلاب: زوم ضربه\u200Cای روی «بیت\u200Cکوین» در ثانیه\u0654 اول" to "Hook: punch-zoom on «Bitcoin» in the first second",
+        "شمارنده\u0654 عدد برای «پنج درصد» با فلش سبز" to "Number counter for «5%» with a green arrow",
+        "کارت شیشه\u200Cای برای «سیگنال خرید»" to "Glass card for «buy signal»",
         "نوار تارگت با پر شدن مایع" to "Target bar with liquid fill",
         "دعوت به اقدام: لوگو + صدای کلیک" to "CTA: logo + click sound",
     )
 
     private val ASSETS = listOf(
-        Triple("icon/bitcoin", "آیکون بیت‌کوین", "Bitcoin icon"),
+        Triple("icon/bitcoin", "آیکون بیت\u200Cکوین", "Bitcoin icon"),
         Triple("lottie/arrow-up-green", "فلش صعودی", "Arrow up"),
-        Triple("counter/percent", "شمارندهٔ درصد", "Percent counter"),
+        Triple("counter/percent", "شمارنده\u0654 درصد", "Percent counter"),
         Triple("sfx/whoosh-soft", "صدای ووش", "Whoosh"),
         Triple("sfx/cash-register", "صدای صندوق", "Cash register"),
         Triple("music/lofi-bed-02", "موسیقی لوفای", "Lo-fi bed"),

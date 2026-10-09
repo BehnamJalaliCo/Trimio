@@ -6,13 +6,13 @@ package io.trimio.core.pipeline
  */
 enum class StageId(val weight: Int, val titleFa: String, val titleEn: String) {
     Ingest(2, "خواندن فایل", "Reading media"),
-    AudioCleanup(5, "پاک‌سازی صدا", "Cleaning audio"),
+    AudioCleanup(5, "پاک\u200Cسازی صدا", "Cleaning audio"),
     Transcription(25, "تشخیص کلمات", "Recognising speech"),
-    Alignment(8, "زمان‌بندی دقیق کلمات", "Aligning words"),
+    Alignment(8, "زمان\u200Cبندی دقیق کلمات", "Aligning words"),
     Analysis(5, "تحلیل تأکید و ریتم", "Analysing emphasis"),
-    Direction(10, "طراحی نقشهٔ ادیت", "Directing the edit"),
+    Direction(10, "طراحی نقشه\u0654 ادیت", "Directing the edit"),
     AssetMatching(5, "انتخاب المان و صدا", "Picking elements"),
-    Render(35, "رندر موشن‌گرافی", "Rendering motion"),
+    Render(35, "رندر موشن\u200Cگرافی", "Rendering motion"),
     Export(5, "ساخت خروجی نهایی", "Exporting");
 
     companion object {

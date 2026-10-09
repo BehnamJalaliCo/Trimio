@@ -29,7 +29,7 @@ class IngestStage(private val probe: MediaProbe) : PipelineStage {
         }
         context.emit(LiveSignal.Note(Numerals.toPersian(fa), en))
         if (!info.hasAudio) {
-            context.emit(LiveSignal.Note("ویدیو صدا ندارد؛ مراحل گفتار رد می‌شوند", "No audio track; speech stages are skipped"))
+            context.emit(LiveSignal.Note("ویدیو صدا ندارد؛ مراحل گفتار رد می\u200Cشوند", "No audio track; speech stages are skipped"))
         }
         context.progress(1f)
     }

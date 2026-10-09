@@ -62,7 +62,7 @@ class ModelBasicsTest {
     fun scriptDetectorHandlesMixedPersianEnglish() {
         assertEquals(Language.Persian, ScriptDetector.detect("سیگنال"))
         assertEquals(Language.English, ScriptDetector.detect("BTC"))
-        assertEquals(Language.Persian, ScriptDetector.detect("می‌خواهم")) // with ZWNJ
+        assertEquals(Language.Persian, ScriptDetector.detect("می\u200Cخواهم")) // with ZWNJ
         assertEquals(Language.English, ScriptDetector.detect("123", fallback = Language.English))
     }
 
@@ -80,13 +80,13 @@ class ModelBasicsTest {
         val transcript = Transcript(
             Language.Persian,
             listOf(
-                w("امروز", 0, 300), w("بیت‌کوین", 320, 700), w("رشد", 720, 900), w("کرد.", 920, 1200),
+                w("امروز", 0, 300), w("بیت\u200Cکوین", 320, 700), w("رشد", 720, 900), w("کرد.", 920, 1200),
                 w("این", 2000, 2200), w("یعنی", 2220, 2400),
                 w("یک", 3500, 3600), w("دو", 3620, 3700), w("سه", 3720, 3800), w("چهار", 3820, 3900), w("پنج", 3920, 4000),
             ),
         )
         val lines = transcript.lines(pauseMs = 450, maxWords = 4).map { line -> line.joinToString(" ") { it.text } }
-        assertEquals(listOf("امروز بیت‌کوین رشد کرد.", "این یعنی", "یک دو سه چهار", "پنج"), lines)
+        assertEquals(listOf("امروز بیت\u200Cکوین رشد کرد.", "این یعنی", "یک دو سه چهار", "پنج"), lines)
     }
 
     @Test

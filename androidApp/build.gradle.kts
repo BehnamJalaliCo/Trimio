@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "io.trimio.android"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
         applicationId = "io.trimio.app"
@@ -13,6 +14,29 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+
+        // High-end phones only: 64-bit ARM. ARMv8.2 dot-product and fp16 cover every flagship SoC
+        // since 2020 and give whisper.cpp/llama.cpp their fast int8/fp16 kernels.
+        ndk { abiFilters += "arm64-v8a" }
+        externalNativeBuild {
+            cmake {
+                arguments += listOf(
+                    "-DANDROID_STL=c++_shared",
+                    "-DGGML_NATIVE=OFF",
+                    "-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16",
+                    "-DGGML_OPENMP=OFF",
+                    "-DTRIMIO_WHISPER=ON",
+                )
+                cppFlags += listOf("-O3")
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("../native/CMakeLists.txt")
+            version = "4.1.2"
+        }
     }
 
     buildFeatures { compose = true }

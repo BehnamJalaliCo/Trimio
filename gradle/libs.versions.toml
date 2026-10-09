@@ -19,6 +19,10 @@ androidx-lifecycle = "2.11.0"
 koin = "4.2.2"
 turbine = "1.2.1"
 haze = "2.0.1"
+ktor = "3.6.0"
+kotlinx-io = "0.9.1"
+kotlincrypto-sha2 = "0.8.0"
+ndk = "30.0.16248370"
 
 [libraries]
 # build-logic (convention plugins compile against these)
@@ -50,6 +54,15 @@ androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycl
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+
+# Networking, files, hashing (model and pack downloads)
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
+kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+kotlincrypto-sha2 = { module = "org.kotlincrypto.hash:sha2", version.ref = "kotlincrypto-sha2" }
 
 # Backdrop blur for glass surfaces (Compose Multiplatform)
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }

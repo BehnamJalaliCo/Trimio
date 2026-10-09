@@ -173,7 +173,7 @@ private fun Header(state: BuildStreamState, styleName: String?, onDevice: Boolea
 private fun currentLabel(state: BuildStreamState): String = when (state.status) {
     JobStatus.Completed -> tr("تمام شد", "Done")
     JobStatus.Failed -> tr("خطا", "Error")
-    else -> state.current?.let { tr(it.titleFa, it.titleEn) } ?: tr("آماده‌سازی", "Preparing")
+    else -> state.current?.let { tr(it.titleFa, it.titleEn) } ?: tr("آماده\u200Cسازی", "Preparing")
 }
 
 @Composable
@@ -214,7 +214,7 @@ private fun LivePanel(state: BuildStreamState) {
 
             AnimatedVisibility(state.plan.isNotEmpty(), enter = fadeIn() + expandVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(TrimioSpacing.xs)) {
-                    SectionTitle(tr("نقشهٔ کارگردان", "Director's plan"))
+                    SectionTitle(tr("نقشه\u0654 کارگردان", "Director's plan"))
                     state.plan.forEachIndexed { i, line ->
                         Row(verticalAlignment = Alignment.Top) {
                             Text(localizedNumber("${i + 1}."), style = Trimio.type.numeric, color = colors.accentCyan)
