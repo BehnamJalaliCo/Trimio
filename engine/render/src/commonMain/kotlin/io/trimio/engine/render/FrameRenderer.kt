@@ -8,6 +8,8 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import io.trimio.core.model.audio.AudioFeatures
 import io.trimio.core.model.style.StyleSpec
+import io.trimio.core.model.style.CaptionMode
+import io.trimio.core.model.timeline.Anchor
 import io.trimio.core.model.timeline.BackgroundClip
 import io.trimio.core.model.timeline.CaptionClip
 import io.trimio.core.model.timeline.ElementClip
@@ -52,6 +54,14 @@ class FrameRenderer(
     private val palette = ResolvedPalette(style.palette)
     private val backgrounds = BackgroundLayer(style, palette, options)
     private val captions = CaptionLayer(timeline.clipsOf<CaptionClip>(), style, palette, textMeasurer, fontFamily)
+
+    /** With no footage the type is the picture: the style's audio-only layout applies. */
+    private val audioOnlyCaptions by lazy {
+        val c = style.captions
+        val spec = style.copy(captions = c.copy(anchor = style.audioOnly.captionAnchor, size = c.size * style.audioOnly.captionScale))
+        CaptionLayer(timeline.clipsOf<CaptionClip>(), spec, palette, textMeasurer, fontFamily)
+    }
+    private val visualizer = VisualizerLayer(style.audioOnly.visualizer, palette)
     private val elements = ElementLayer(timeline.clipsOf<ElementClip>(), style, palette, textMeasurer, fontFamily)
     private val overlay = OverlayLayer(style.overlay, options)
     private val camera = CameraMotion(timeline, style)
@@ -76,8 +86,17 @@ class FrameRenderer(
             withTransform({ scale(zoom, zoom, canvas.center) }) { drawFootage(canvas) }
         }
 
-        with(elements) { draw(t) }
-        with(captions) { draw(t) }
+        if (!hasFootage) with(visualizer) { draw(t, frame.audio) }
+        val captionAnchor = if (hasFootage) style.captions.anchor else style.audioOnly.captionAnchor
+        val centred = style.captions.mode == CaptionMode.SingleWord || captionAnchor in CENTRE_ANCHORS
+        // Keep elements clear of centred type, and of the visualiser ring around it.
+        val elementsY = when {
+            centred && !hasFootage && style.audioOnly.visualizer == "ring" -> 0.13f
+            centred -> 0.22f
+            else -> 0.4f
+        }
+        with(elements) { draw(t, middleY = elementsY) }
+        with(if (hasFootage) captions else audioOnlyCaptions) { draw(t) }
         with(overlay) { draw(t) }
     }
 
@@ -88,6 +107,8 @@ class FrameRenderer(
     fun render(scope: DrawScope, frame: FrameContext) = with(scope) { drawFrame(frame) }
 
     companion object {
+        private val CENTRE_ANCHORS = setOf(Anchor.CenterStart, Anchor.Center, Anchor.CenterEnd)
+
         /** Short edge of the canvas; all style sizes are fractions of it. */
         fun unit(size: Size): Float = minOf(size.width, size.height)
     }

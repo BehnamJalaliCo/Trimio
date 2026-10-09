@@ -22,6 +22,12 @@ Frames from the production renderer (Persian RTL captions, emphasis, glass/karao
 
 <img src="docs/screenshots/render-engine.png" width="900">
 
+## Style packs
+
+Kinetic Typography · Neobrutalism · Liquid Glass — audio-only and over footage ([format](docs/STYLE_PACKS.md)):
+
+<img src="docs/screenshots/style-packs.png" width="600">
+
 ## Stack
 
 Kotlin Multiplatform · Compose Multiplatform · Media3 · whisper.cpp · llama.cpp · Skia / Filament
@@ -40,6 +46,7 @@ Kotlin Multiplatform · Compose Multiplatform · Media3 · whisper.cpp · llama.
 | `engine/asr` | Speech recognition: whisper.cpp over JNI, Persian normalisation, word assembly and alignment |
 | `engine/models` | Model catalogue, resumable verified downloads (CDN mirror + upstream) |
 | `engine/render` | Motion-graphics renderer (captions, elements, backgrounds, overlays), audio mix, Media3/desktop exporters, live preview |
+| `engine/styles` | Style packs (JSON), validation, signed downloads, repository, desktop preview/signing tool |
 | `native/` | C++ engines (CMake): whisper.cpp now, llama.cpp next; built by the NDK and for the host |
 | `engine/audio` | Resampling, EBU R128 loudness, VAD, pitch and word emphasis; real pipeline stages |
 

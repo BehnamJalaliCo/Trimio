@@ -44,7 +44,11 @@ internal class ElementLayer(
     private val success = Color(0xFF3DFFA0)
     private val danger = Color(0xFFFF5470)
 
-    fun DrawScope.draw(timeMs: Long) {
+    /**
+     * @param middleY vertical position (fraction of height) for centre-anchored elements. The renderer
+     *   lowers it into the top third when captions or a visualiser occupy the middle of the frame.
+     */
+    fun DrawScope.draw(timeMs: Long, middleY: Float = 0.4f) {
         for (clip in clips) {
             if (timeMs !in clip.range) continue
             val t = (timeMs - clip.range.startMs).toFloat()
@@ -53,7 +57,7 @@ internal class ElementLayer(
             val exit = 1f - Motion.progress(220f - remaining, 220f)
             val unit = FrameRenderer.unit(size)
             val base = unit * 0.24f * clip.scale
-            val center = anchorPoint(clip.anchor)
+            val center = anchorPoint(clip.anchor, middleY)
 
             withTransform({
                 translate(center.x, center.y + (1f - enter) * unit * 0.05f)
@@ -76,14 +80,14 @@ internal class ElementLayer(
         }
     }
 
-    private fun DrawScope.anchorPoint(anchor: Anchor): Offset {
+    private fun DrawScope.anchorPoint(anchor: Anchor, middle: Float): Offset {
         val (fx, fy) = when (anchor) {
             Anchor.TopStart -> 0.25f to 0.2f
             Anchor.TopCenter -> 0.5f to 0.18f
             Anchor.TopEnd -> 0.75f to 0.2f
-            Anchor.CenterStart -> 0.25f to 0.42f
-            Anchor.Center -> 0.5f to 0.4f
-            Anchor.CenterEnd -> 0.75f to 0.42f
+            Anchor.CenterStart -> 0.25f to middle + 0.02f
+            Anchor.Center -> 0.5f to middle
+            Anchor.CenterEnd -> 0.75f to middle + 0.02f
             Anchor.BottomStart -> 0.25f to 0.86f
             Anchor.BottomCenter -> 0.5f to 0.88f
             Anchor.BottomEnd -> 0.75f to 0.86f

@@ -33,8 +33,18 @@ internal class BackgroundLayer(
     private var lowRes: ImageBitmap? = null
     private val lowResScope = CanvasDrawScope()
 
+    /** Pack shaders, compiled on first use; null entries failed to compile and fall back. */
+    private val packShaders = HashMap<String, TrimioShader?>()
+
     fun DrawScope.draw(preset: String, timeMs: Long, energy: Float, audio: AudioFeatures?) {
         val e = if (style.background.audioReactive) energy else 0f
+        if (preset.startsWith(SHADER_PREFIX)) {
+            val name = preset.removePrefix(SHADER_PREFIX)
+            val shader = packShaders.getOrPut(name) { style.shaders[name]?.let { src -> runCatching { TrimioShader(src) }.getOrNull() } }
+            if (shader == null) return gradient(timeMs)
+            if (options.shaderScale < 1f) lowResolution { paletteShader(shader, timeMs, e) } else paletteShader(shader, timeMs, e)
+            return
+        }
         when (preset) {
             "aurora" -> aurora(timeMs, e)
             "gradient" -> gradient(timeMs)
@@ -60,7 +70,10 @@ internal class BackgroundLayer(
         drawImage(bitmap, dstSize = IntSize(size.width.toInt(), size.height.toInt()), filterQuality = FilterQuality.Medium)
     }
 
-    private fun DrawScope.auroraFull(shader: TrimioShader, timeMs: Long, energy: Float) {
+    private fun DrawScope.auroraFull(shader: TrimioShader, timeMs: Long, energy: Float) = paletteShader(shader, timeMs, energy)
+
+    /** Any background shader with the standard uniform set. */
+    private fun DrawScope.paletteShader(shader: TrimioShader, timeMs: Long, energy: Float) {
         shader.uniform("iResolution", size.width, size.height)
         shader.uniform("iTime", timeMs / 1000f)
         shader.uniform("iEnergy", energy)
@@ -129,5 +142,9 @@ internal class BackgroundLayer(
             drawLine(color.copy(alpha = 0.85f), Offset(x, mid - h), Offset(x, mid + h), gap * 0.55f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         }
         drawCircle(Color.White.copy(alpha = 0.05f), FrameRenderer.unit(size) * 0.4f, center, style = Stroke(FrameRenderer.unit(size) * 0.004f))
+    }
+
+    private companion object {
+        const val SHADER_PREFIX = "shader:"
     }
 }

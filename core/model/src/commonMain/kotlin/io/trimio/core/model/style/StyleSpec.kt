@@ -22,6 +22,22 @@ data class StyleSpec(
     val motion: MotionSpec = MotionSpec(),
     /** Sound design per event, e.g. "caption.emphasis" → "sfx/pop". */
     val sfx: Map<String, String> = emptyMap(),
+    /** Layout changes when there is no footage and the style paints the whole picture. */
+    val audioOnly: AudioOnlySpec = AudioOnlySpec(),
+    /**
+     * Extra SkSL/AGSL runtime shaders shipped with the pack, by name. A background preset
+     * `shader:<name>` uses one with the standard uniforms (iResolution, iTime, iEnergy, cBase, cA, cB, cC).
+     */
+    val shaders: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class AudioOnlySpec(
+    val captionAnchor: Anchor = Anchor.Center,
+    /** Multiplies caption size: with no footage, type is the picture. */
+    val captionScale: Float = 1.25f,
+    /** ring, bars or none. */
+    val visualizer: String = "ring",
 )
 
 @Serializable

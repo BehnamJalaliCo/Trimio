@@ -24,6 +24,7 @@ kotlinx-io = "0.9.1"
 kotlincrypto-sha2 = "0.8.0"
 ndk = "30.0.16248370"
 media3 = "1.11.1"
+cryptography = "0.6.0"
 
 [libraries]
 # build-logic (convention plugins compile against these)
@@ -70,6 +71,10 @@ ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "kto
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
 kotlincrypto-sha2 = { module = "org.kotlincrypto.hash:sha2", version.ref = "kotlincrypto-sha2" }
+
+# Signature verification for downloaded packs (ECDSA P-256 on every platform)
+cryptography-core = { module = "dev.whyoleg.cryptography:cryptography-core", version.ref = "cryptography" }
+cryptography-provider-optimal = { module = "dev.whyoleg.cryptography:cryptography-provider-optimal", version.ref = "cryptography" }
 
 # Backdrop blur for glass surfaces (Compose Multiplatform)
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }

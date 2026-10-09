@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "id": "neobrutalism",
+  "version": "1.0.0",
+  "nameFa": "نئوبروتالیسم",
+  "nameEn": "Neobrutalism",
+  "descriptionFa": "قاب‌های تخت با حاشیهٔ ضخیم مشکی، سایهٔ سخت و رنگ‌های جسور؛ خوانا و بازیگوش.",
+  "descriptionEn": "Flat cards with thick black borders, hard offset shadows and bold colours: loud, legible, playful.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "playful",
+    "bold",
+    "flat",
+    "education",
+    "tutorial",
+    "startup",
+    "بازیگوش",
+    "آموزشی",
+    "جسور",
+    "فان"
+  ],
+  "spec": {
+    "id": "neobrutalism",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#FFF4E0",
+        "#1B1B1B",
+        "#FF6B6B",
+        "#4D96FF"
+      ],
+      "text": "#111111",
+      "accent": "#FF6B6B",
+      "accent2": "#4D96FF",
+      "emphasisText": "#111111",
+      "shadow": "#00000000"
+    },
+    "captions": {
+      "mode": "Phrase",
+      "size": 0.088,
+      "weight": 900,
+      "uppercase": false,
+      "letterSpacingEm": 0.0,
+      "maxWordsPerLine": 3,
+      "anchor": "BottomCenter",
+      "entry": "pop",
+      "exit": "fall",
+      "box": "Brutal",
+      "boxColor": "#FFD93D",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.0,
+      "emphasis": {
+        "scale": 1.12,
+        "colorRole": "accent",
+        "box": "Highlight",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "preset": "grid",
+      "audioReactive": true
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.0,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "brutal",
+      "cornerRadius": 0.012
+    },
+    "motion": {
+      "energy": 0.7,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/pop",
+      "element.enter": "sfx/click"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.2,
+      "visualizer": "bars"
+    }
+  }
+}

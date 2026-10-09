@@ -92,9 +92,14 @@ internal class CaptionLayer(
         val unit = FrameRenderer.unit(size)
         val single = spec.mode == CaptionMode.SingleWord
         val fontPx = unit * spec.size * (if (single) 1.9f else 1f)
-        val texts = group.words.map { measure(it, fontPx) }
-        val gap = fontPx * 0.34f
         val maxWidth = size.width * 0.84f
+        // Single-word mode shrinks any word (plus its emphasis punch) that would overflow the screen.
+        val texts = group.words.map { word ->
+            val first = measure(word, fontPx)
+            val needed = first.size.width * emphasisScaleFor(word)
+            if (single && needed > maxWidth) measure(word, fontPx * maxWidth / needed) else first
+        }
+        val gap = fontPx * 0.34f
 
         // Greedy wrap in reading order, by width and word count.
         val lines = mutableListOf<MutableList<Int>>()
@@ -188,7 +193,10 @@ internal class CaptionLayer(
             val alpha = (a.alpha * exit.alpha).coerceIn(0f, 1f)
             if (alpha <= 0.001f) continue
 
+            val highlighter = spec.emphasis.box == BoxStyle.Highlight
             val color = when {
+                // With a highlighter the marker carries the role colour and the word stays readable on it.
+                highlighter && (emphasised || (spec.mode == CaptionMode.Phrase && active)) -> palette.emphasisText
                 emphasised -> palette.role(spec.emphasis.colorRole)
                 spec.mode == CaptionMode.Phrase && active -> palette.accent
                 else -> palette.text
@@ -200,8 +208,12 @@ internal class CaptionLayer(
                 scale(scale, scale * a.scaleY, Offset.Zero)
             }) {
                 val topLeft = Offset(-w.width / 2, -w.height / 2)
-                if (emphasised && spec.emphasis.box == BoxStyle.Highlight) {
-                    drawHighlight(w, topLeft, entryT, group.rtl, unit)
+                // Styles with a highlighter mark emphasis, and the spoken word in Phrase mode, with the
+                // marker rather than a colour change (keeps contrast on bold boxes).
+                val marked = spec.emphasis.box == BoxStyle.Highlight && (emphasised || (spec.mode == CaptionMode.Phrase && active))
+                if (marked) {
+                    val markerT = if (emphasised) entryT else (t - w.clip.range.startMs).toFloat()
+                    drawHighlight(w, topLeft, markerT, group.rtl, unit)
                 }
                 if (spec.mode == CaptionMode.Karaoke) {
                     drawKaraokeWord(w, topLeft, t, group.rtl, alpha, unit)
@@ -305,7 +317,7 @@ internal class CaptionLayer(
         val width = (w.width + padX * 2) * p
         val left = if (rtl) topLeft.x + w.width + padX - width else topLeft.x - padX
         drawRoundRect(
-            color = parseColor(spec.boxColor ?: "#FFD60A"),
+            color = palette.role(spec.emphasis.colorRole),
             topLeft = Offset(left, topLeft.y + w.height * 0.18f),
             size = Size(width, w.height * 0.7f),
             cornerRadius = CornerRadius(unit * 0.008f),

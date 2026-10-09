@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "id": "liquid-glass",
+  "version": "1.0.0",
+  "nameFa": "لیکوئید گلس",
+  "nameEn": "Liquid Glass",
+  "descriptionFa": "شیشهٔ مایع روی نورهای شفق؛ لوکس، آرام و سینمایی.",
+  "descriptionEn": "Liquid glass floating over aurora light: premium, calm and cinematic.",
+  "family": "ShaderFx",
+  "cost": "Heavy",
+  "tags": [
+    "premium",
+    "luxury",
+    "calm",
+    "cinematic",
+    "tech",
+    "crypto",
+    "finance",
+    "لوکس",
+    "سینمایی",
+    "آرام",
+    "کریپتو",
+    "فارکس",
+    "مالی"
+  ],
+  "spec": {
+    "id": "liquid-glass",
+    "family": "ShaderFx",
+    "palette": {
+      "background": [
+        "#05050A",
+        "#2B1A7A",
+        "#0A5C78",
+        "#B0249C"
+      ],
+      "text": "#FFFFFF",
+      "accent": "#3DE8FF",
+      "accent2": "#FF4FD8",
+      "emphasisText": "#3DE8FF",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.1,
+      "weight": 800,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "pop",
+      "exit": "fade",
+      "box": "Glass",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.22,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "preset": "aurora",
+      "audioReactive": true
+    },
+    "overlay": {
+      "grain": 0.025,
+      "vignette": 0.35,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "glass",
+      "cornerRadius": 0.04
+    },
+    "motion": {
+      "energy": 0.6,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/shimmer",
+      "element.enter": "sfx/whoosh-soft"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "ring"
+    }
+  }
+}
