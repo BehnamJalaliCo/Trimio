@@ -9,8 +9,8 @@ enum class CloudProvider(val secretName: String, val defaultModel: String, val t
 }
 
 /**
- * Builds cloud director models from stored keys. The Claude client comes from the platform
- * ([claude] is the official SDK on Android/desktop), OpenAI is plain HTTP and works everywhere.
+ * Builds cloud director models from stored keys. On Android/desktop [claude] is the official Java
+ * SDK; elsewhere (web, iOS) Claude goes over plain HTTP. OpenAI is plain HTTP everywhere.
  */
 class CloudModels(
     private val secrets: SecretStore,
@@ -23,11 +23,11 @@ class CloudModels(
 
     suspend fun removeKey(provider: CloudProvider) = secrets.delete(provider.secretName)
 
-    /** The model for [provider], or null without a key (or without a client on this platform). */
+    /** The model for [provider], or null without a key. */
     suspend fun create(provider: CloudProvider, model: String = provider.defaultModel): LanguageModel? {
         val key = secrets.read(provider.secretName)?.takeIf { it.isNotBlank() } ?: return null
         return when (provider) {
-            CloudProvider.Anthropic -> claude?.invoke(key, model)
+            CloudProvider.Anthropic -> claude?.invoke(key, model) ?: ClaudeHttpLanguageModel(http, key, model)
             CloudProvider.OpenAI -> OpenAiLanguageModel(http, key, model)
         }
     }

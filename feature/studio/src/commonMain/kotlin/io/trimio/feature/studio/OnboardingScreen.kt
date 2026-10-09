@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -62,12 +64,20 @@ fun OnboardingScreen(
     onConnectCloud: () -> Unit,
     onFinish: () -> Unit,
 ) {
-    var step by remember { mutableIntStateOf(0) }
+    // Platforms that cannot store models (web) skip the download page.
+    val pages = if (defaults.isEmpty()) listOf(PAGE_WELCOME, PAGE_PRIVACY) else listOf(PAGE_WELCOME, PAGE_MODELS, PAGE_PRIVACY)
+    var index by remember { mutableIntStateOf(0) }
+    val step = pages[index]
+    fun next() { index = (index + 1).coerceAtMost(pages.lastIndex) }
     val rtl = language.isRtl
     val motion = Trimio.motion
-    TrimioScreen(dimAurora = 0.05f, energy = { 0.35f + step * 0.2f }) {
-        Column(Modifier.fillMaxSize().padding(TrimioSpacing.screenGutter), horizontalAlignment = Alignment.CenterHorizontally) {
-            Dots(step, 3)
+    TrimioScreen(dimAurora = 0.05f, energy = { 0.35f + index * 0.2f }) {
+        // Phone-width column, centred on tablets, desktops and the web.
+        Column(
+            Modifier.fillMaxHeight().widthIn(max = 560.dp).align(Alignment.Center).padding(TrimioSpacing.screenGutter),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Dots(index, pages.size)
             AnimatedContent(
                 targetState = step,
                 transitionSpec = {
@@ -80,17 +90,20 @@ fun OnboardingScreen(
             ) { page ->
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     when (page) {
-                        0 -> Welcome(language, onLanguage)
-                        1 -> Models(defaults)
+                        PAGE_WELCOME -> Welcome(language, onLanguage)
+                        PAGE_MODELS -> Models(defaults)
                         else -> Privacy()
                     }
                 }
             }
             when (step) {
-                0 -> TrimioButton(tr("شروع", "Get started"), { step = 1 }, Modifier.fillMaxWidth())
-                1 -> {
-                    TrimioButton(tr("دانلود مدل\u200Cها", "Download models"), { onDownloadDefaults(); step = 2 }, Modifier.fillMaxWidth(), leading = { TrimioIcon(TrimioIcons.Download, null, tint = Trimio.colors.onPrimary) })
-                    TrimioButton(tr("بعدا\u064B", "Later"), { step = 2 }, Modifier.fillMaxWidth(), kind = ButtonKind.Ghost)
+                PAGE_WELCOME -> TrimioButton(tr("شروع", "Get started"), ::next, Modifier.fillMaxWidth())
+                PAGE_MODELS -> {
+                    TrimioButton(
+                        tr("دانلود مدل\u200Cها", "Download models"), { onDownloadDefaults(); next() }, Modifier.fillMaxWidth(),
+                        leading = { TrimioIcon(TrimioIcons.Download, null, tint = Trimio.colors.onPrimary) },
+                    )
+                    TrimioButton(tr("بعدا\u064B", "Later"), ::next, Modifier.fillMaxWidth(), kind = ButtonKind.Ghost)
                 }
                 else -> {
                     TrimioButton(tr("بزن بریم", "Let's go"), onFinish, Modifier.fillMaxWidth())
@@ -186,4 +199,13 @@ private fun Feature(icon: ImageVector, title: String) {
     Text(title, style = Trimio.type.headline.copy(textAlign = TextAlign.Center), color = Trimio.colors.textPrimary)
 }
 
-private fun size(bytes: Long): String = if (bytes >= 1_000_000_000) "${bytes / 100_000_000 / 10.0} GB" else "${bytes / 1_000_000} MB"
+/** Persian units read naturally in an RTL line ("۲٫۷ گیگ"); Latin units would be reordered by bidi. */
+@Composable
+private fun size(bytes: Long): String {
+    val tenths = kotlin.math.round(bytes / 100_000_000.0).toLong()
+    return if (tenths >= 10) tr("${tenths / 10}٫${tenths % 10} گیگ", "${tenths / 10}.${tenths % 10} GB") else tr("${bytes / 1_000_000} مگ", "${bytes / 1_000_000} MB")
+}
+
+private const val PAGE_WELCOME = 0
+private const val PAGE_MODELS = 1
+private const val PAGE_PRIVACY = 2

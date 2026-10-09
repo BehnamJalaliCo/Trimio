@@ -3,6 +3,14 @@ plugins {
 }
 
 kotlin {
+    // The iOS app (iosApp/) links the whole app as one static framework.
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "Shared"
+            isStatic = true
+        }
+    }
+
     sourceSets {
         commonMain.dependencies {
             api(projects.core.model)

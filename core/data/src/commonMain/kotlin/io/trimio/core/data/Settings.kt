@@ -35,14 +35,17 @@ data class AppSettings(
 )
 
 /** Settings as observable state, persisted as one small JSON file. */
-class SettingsRepository(private val file: Path?, private val fs: FileSystem = SystemFileSystem) {
+class SettingsRepository(private val file: Path?, private val fs: FileSystem? = null) {
+    // Resolved on first use: browsers have no file system, and web builds pass no file.
+    private val files by lazy { fs ?: SystemFileSystem }
+
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
     suspend fun load() = withContext(Dispatchers.Default) {
         val path = file ?: return@withContext
-        if (!fs.exists(path)) return@withContext
-        runCatching { DataJson.decodeFromString(AppSettings.serializer(), fs.source(path).buffered().use { it.readString() }) }
+        if (!files.exists(path)) return@withContext
+        runCatching { DataJson.decodeFromString(AppSettings.serializer(), files.source(path).buffered().use { it.readString() }) }
             .onSuccess { _settings.value = it }
     }
 
@@ -51,10 +54,10 @@ class SettingsRepository(private val file: Path?, private val fs: FileSystem = S
         _settings.value = next
         val path = file ?: return
         withContext(Dispatchers.Default) {
-            path.parent?.let(fs::createDirectories)
+            path.parent?.let(files::createDirectories)
             val tmp = Path("$path.tmp")
-            fs.sink(tmp).buffered().use { it.writeString(DataJson.encodeToString(AppSettings.serializer(), next)) }
-            fs.atomicMove(tmp, path)
+            files.sink(tmp).buffered().use { it.writeString(DataJson.encodeToString(AppSettings.serializer(), next)) }
+            files.atomicMove(tmp, path)
         }
     }
 }

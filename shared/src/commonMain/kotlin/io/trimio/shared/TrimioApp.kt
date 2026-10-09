@@ -118,6 +118,12 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
     val picker = koinInject<MediaPicker>()
     val projects = koinInject<ProjectRepository>()
     val remoteState by koinInject<RemoteRepository>().state.collectAsStateWithLifecycle()
+    val device = koinInject<DeviceInfo>()
+    val previewNotice = if (language == Language.Persian) {
+        "نسخهٔ نمایشی: ساخت روی این پلتفرم شبیه‌سازی می‌شود؛ پردازش واقعی ویدیو در اپ اندروید است."
+    } else {
+        "Preview: builds are simulated on this platform; real video processing runs in the Android app."
+    }
     val motion = io.trimio.core.designsystem.theme.Trimio.motion
     val rtl = language.isRtl
 
@@ -136,7 +142,7 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
             entry<Route.Onboarding> {
                 OnboardingScreen(
                     language = language,
-                    defaults = models.catalog.filter { it.isDefault },
+                    defaults = if (device.previewOnly) emptyList() else models.catalog.filter { it.isDefault },
                     onLanguage = { lang -> scope.launch { settingsRepo.update { it.copy(language = lang) } } },
                     onDownloadDefaults = models::downloadDefaults,
                     onConnectCloud = {
@@ -157,7 +163,8 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     onOpen = { p -> go(if (p.status == ProjectStatus.Ready) Route.Editor(p.id) else Route.Build(p.id)) },
                     onGallery = { go(Route.Gallery) },
                     onSettings = { go(Route.Settings) },
-                    announcement = if (language == Language.Persian) remoteState.config.announcementFa else remoteState.config.announcementEn,
+                    announcement = (if (language == Language.Persian) remoteState.config.announcementFa else remoteState.config.announcementEn)
+                        ?: previewNotice.takeIf { device.previewOnly },
                 )
             }
             entry<Route.Create> { route ->

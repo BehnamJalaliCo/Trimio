@@ -3,6 +3,7 @@ package io.trimio.server
 import io.ktor.http.CacheControl
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -14,6 +15,7 @@ import io.ktor.server.auth.bearer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.receive
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.cacheControl
@@ -42,6 +44,13 @@ private val PACK_ID = Regex("[a-z0-9][a-z0-9-]{0,47}")
 fun Application.trimio(settings: ServerSettings) {
     val store = CatalogStore(settings.dataDir, settings.trustedKeys)
     install(ContentNegotiation) { json(Api.json) }
+    // The web app reads the public routes from the browser; nothing here is per-user, so any origin may.
+    install(CORS) {
+        anyHost()
+        allowMethod(HttpMethod.Get)
+        exposeHeader(HttpHeaders.ETag)
+        allowHeader(HttpHeaders.IfNoneMatch)
+    }
     install(Authentication) {
         bearer(ADMIN) {
             authenticate { credential ->

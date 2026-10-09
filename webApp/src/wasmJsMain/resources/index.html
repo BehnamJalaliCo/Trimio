@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07070C">
+  <meta name="description" content="Trimio — ویدیو یا صدا بده، موشن‌گرافی حرفه‌ای بگیر. Bring a video or a voice, get motion graphics.">
+  <title>Trimio</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    html, body { margin: 0; height: 100%; background: #07070C; overflow: hidden; }
+    #splash { position: fixed; inset: 0; display: grid; place-items: center; }
+    #splash .orb {
+      width: 96px; height: 96px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #8BE9FF, #7B5CFF 45%, #FF4FD8 80%);
+      filter: blur(0.5px); box-shadow: 0 0 80px #7B5CFF88;
+      animation: breathe 1.6s ease-in-out infinite;
+    }
+    #splash noscript { color: #c9c9d6; font: 16px system-ui, sans-serif; }
+    @keyframes breathe { 50% { transform: scale(1.12); box-shadow: 0 0 120px #FF4FD8aa; } }
+    @media (prefers-reduced-motion: reduce) { #splash .orb { animation: none; } }
+  </style>
+</head>
+<body>
+  <div id="splash"><div class="orb"></div><noscript>Trimio needs JavaScript and WebAssembly.</noscript></div>
+  <script src="trimio.js"></script>
+</body>
+</html>

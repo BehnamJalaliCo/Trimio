@@ -126,6 +126,40 @@ class LanguageModelTest {
     }
 
     @Test
+    fun claudeOverHttpUsesStructuredOutputAndFallback(): Unit = runBlocking {
+        var sent: JsonObject? = null
+        val ok = HttpClient(
+            MockEngine { req ->
+                sent = Json.parseToJsonElement((req.body as TextContent).text).jsonObject
+                assertEquals("sk-ant", req.headers["x-api-key"])
+                assertEquals("server-side-fallback-2026-07-01", req.headers["anthropic-beta"])
+                respond(
+                    """{"model":"claude-opus-5-5","stop_reason":"end_turn","content":[{"type":"thinking","thinking":""},""" +
+                        """{"type":"text","text":"{\"style\":\"neobrutalism\",\"energy\":0.9,\"cues\":[{\"word\":4,\"kind\":\"chart\"}]}"}]}""",
+                    HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+        var served = ""
+        val plan = CloudModels(MemorySecretStore().apply { write(CloudProvider.Anthropic.secretName, "sk-ant") }, ok)
+            .create(CloudProvider.Anthropic)!!
+            .generateStructured(GenerationRequest("sys", listOf(ChatMessage(ChatRole.User, "hi")), schema), Plan.serializer(), onServed = { served = it })
+        assertEquals(Cue(4, "chart"), plan.cues.single())
+        assertEquals("claude-opus-5-5", served)
+        val body = sent!!
+        assertEquals("default", body["fallbacks"]!!.jsonPrimitive.content)
+        val output = body["output_config"]!!.jsonObject
+        assertEquals("medium", output["effort"]!!.jsonPrimitive.content)
+        assertEquals("json_schema", output["format"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+
+        val limited = HttpClient(MockEngine { respond("""{"type":"error","error":{"type":"rate_limit_error","message":"slow down"}}""", HttpStatusCode.TooManyRequests) })
+        val e = assertFailsWith<LanguageModelException> {
+            ClaudeHttpLanguageModel(limited, "k").generate(GenerationRequest("s", listOf(ChatMessage(ChatRole.User, "x"))))
+        }
+        assertEquals(LanguageModelException.Kind.RateLimited, e.kind)
+    }
+
+    @Test
     fun cloudModelsNeedAKey(): Unit = runBlocking {
         val secrets = MemorySecretStore()
         val models = CloudModels(secrets, HttpClient(MockEngine { respond("") }))

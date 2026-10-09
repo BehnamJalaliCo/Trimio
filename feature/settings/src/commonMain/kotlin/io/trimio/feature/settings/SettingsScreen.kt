@@ -221,7 +221,8 @@ fun SettingsScreen(
                     )
                 }
 
-                Section(tr("مدل\u200Cهای روی گوشی", "On-device models"), hint = localizedNumber(tr("رم این گوشی: ${device.ramGb} گیگ", "This phone: ${device.ramGb} GB RAM"))) {
+                val ramHint = localizedNumber(tr("رم این گوشی: ${device.ramGb} گیگ", "This phone: ${device.ramGb} GB RAM"))
+                if (!device.previewOnly) Section(tr("مدل\u200Cهای روی گوشی", "On-device models"), hint = ramHint) {
                     val groups = listOf(ModelKind.Speech to tr("تشخیص گفتار", "Speech"), ModelKind.Language to tr("کارگردان", "Director"))
                     groups.forEach { (kind, title) ->
                         Text(title, style = Trimio.type.label, color = Trimio.colors.accentCyan, modifier = Modifier.padding(top = TrimioSpacing.sm))

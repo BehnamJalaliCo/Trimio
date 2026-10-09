@@ -16,6 +16,9 @@ Trimio طوری ساخته شده که ویدیو و صدای شما **روی گ
 - **کاتالوگ:** اپ در شروع، پیکربندی، فهرست مدل‌ها و پکیج‌های سبک را از `api.trimio.app` می‌گیرد. هیچ شناسه، اطلاعات حساب یا محتوایی فرستاده نمی‌شود؛ سرور مثل هر وب‌سروری آدرس IP و نوع درخواست را در لاگ کوتاه‌مدت نگه می‌دارد.
 - **دانلود مدل:** فایل‌های مدل از CDN ما یا Hugging Face دانلود می‌شوند.
 
+## نسخهٔ وب
+در نسخهٔ وب فایل انتخاب‌شده داخل مرورگر می‌ماند و به هیچ سروری آپلود نمی‌شود. کلید API فقط تا بسته شدن صفحه در حافظهٔ مرورگر نگه داشته می‌شود.
+
 ## گزارش خطا
 گزارش خطا فقط روی گوشی ذخیره می‌شود (متن فنی خطا، مدل گوشی و نسخه‌ی اپ). فقط اگر خودتان در تنظیمات اجازه دهید و دکمه‌ی ارسال را بزنید، از طریق برگه‌ی اشتراک‌گذاری اندروید فرستاده می‌شود.
 
@@ -55,6 +58,9 @@ If you enter your own API key (Anthropic Claude or OpenAI) and choose the cloud 
 ## Our servers
 - **Catalogue:** at start the app fetches configuration, the model list and style packs from `api.trimio.app`. No identifiers, account data or content are sent; like any web server it keeps IP addresses and request lines in short-lived logs.
 - **Model downloads:** model files come from our CDN or Hugging Face.
+
+## Web version
+On the web, the file you pick stays inside your browser and is never uploaded. An API key is kept in the page's memory only until you close it.
 
 ## Crash reports
 Crash reports are stored on the phone only (the technical error, phone model and app version). They are sent only if you enable crash sharing in settings and tap send, through Android's share sheet.

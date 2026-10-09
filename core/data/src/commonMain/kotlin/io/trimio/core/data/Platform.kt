@@ -27,4 +27,6 @@ data class DeviceInfo(
     val versionCode: Int = 0,
     /** Where this build updates from (its store page), for the forced-update prompt. */
     val storeUrl: String? = null,
+    /** Engines are simulated on this platform (web/iOS until they are wired); the UI says so. */
+    val previewOnly: Boolean = false,
 )

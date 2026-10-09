@@ -36,6 +36,8 @@ fully offline with the last good copy (or the built-in defaults).
   (`revokedPackKeys`), never add one, so a compromised server cannot push shader code.
 - Remote models must use HTTPS URLs and carry a SHA-256; the download is verified before native code loads it.
 - Admin token: at least 32 characters, compared in constant time. Without it the admin routes are closed.
+- CORS: any origin may *read* the public routes (the web app needs them); the `Authorization` header is
+  not allowed cross-origin, so no web page can call the admin routes.
 
 ## Paywall switch
 

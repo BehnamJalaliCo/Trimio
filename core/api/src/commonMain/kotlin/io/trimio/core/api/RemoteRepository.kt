@@ -38,8 +38,11 @@ class RemoteRepository(
     private val packs: StylePackRepository,
     private val versionCode: Int,
     private val trustedKeys: MutableMap<String, ByteArray> = PackKeys.trusted,
-    private val fs: FileSystem = SystemFileSystem,
+    private val fs: FileSystem? = null,
 ) {
+    // Resolved on first use: browsers have no file system, and web builds pass no cache file.
+    private val files by lazy { fs ?: SystemFileSystem }
+
     private val _state = MutableStateFlow(stateOf(readCache() ?: RemoteSnapshot()))
     val state: StateFlow<RemoteState> = _state.asStateFlow()
 
@@ -51,8 +54,10 @@ class RemoteRepository(
     suspend fun refresh(): Boolean {
         val snapshot = try {
             RemoteSnapshot(service.config(), service.catalog())
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught", "SwallowedException") e: Throwable) {
+            // Throwable, not Exception: in the browser a failed fetch surfaces as a JsException.
             return false
         }
         val revokedNow = revoke(snapshot.config)
@@ -91,17 +96,17 @@ class RemoteRepository(
 
     private fun stateOf(snapshot: RemoteSnapshot) = RemoteState(snapshot, updateRequired = versionCode < snapshot.config.minVersionCode)
 
-    private fun readCache(): RemoteSnapshot? = cacheFile?.takeIf(fs::exists)?.let { file ->
-        runCatching { Api.json.decodeFromString(RemoteSnapshot.serializer(), fs.source(file).buffered().use { it.readString() }) }.getOrNull()
+    private fun readCache(): RemoteSnapshot? = cacheFile?.takeIf(files::exists)?.let { file ->
+        runCatching { Api.json.decodeFromString(RemoteSnapshot.serializer(), files.source(file).buffered().use { it.readString() }) }.getOrNull()
     }
 
     private fun writeCache(snapshot: RemoteSnapshot) {
         val file = cacheFile ?: return
         runCatching {
-            file.parent?.let(fs::createDirectories)
+            file.parent?.let(files::createDirectories)
             val tmp = Path("$file.tmp")
-            fs.sink(tmp).buffered().use { it.writeString(Api.json.encodeToString(RemoteSnapshot.serializer(), snapshot)) }
-            fs.atomicMove(tmp, file)
+            files.sink(tmp).buffered().use { it.writeString(Api.json.encodeToString(RemoteSnapshot.serializer(), snapshot)) }
+            files.atomicMove(tmp, file)
         }
     }
 

@@ -22,7 +22,6 @@ import io.trimio.engine.render.SampleTimelines
 import io.trimio.engine.llm.MemorySecretStore
 import io.trimio.engine.llm.SecretStore
 import io.trimio.engine.media.MediaProbe
-import kotlinx.io.files.Path
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -31,7 +30,7 @@ import org.koin.dsl.module
  * simulated pipeline, so the whole UI runs and can be reviewed. Phase 11 replaces it per platform.
  */
 fun previewPlatformModule(platform: String, picker: MediaPicker = MediaPicker { null }): Module = module {
-    single { AppPaths(projects = null, settingsFile = null, models = Path("models")) }
+    single { AppPaths(projects = null, settingsFile = null, models = null) }
     single<SecretStore> { MemorySecretStore() }
     single { picker }
     single<Sharer> {
@@ -39,7 +38,7 @@ fun previewPlatformModule(platform: String, picker: MediaPicker = MediaPicker { 
             override fun share(uri: String, title: String) = Unit
         }
     }
-    single { DeviceInfo(ramGb = 8, platform = platform, appVersion = "preview") }
+    single { DeviceInfo(ramGb = 8, platform = platform, appVersion = "preview", previewOnly = true) }
     single<ThermalMonitor> { ThermalMonitor.None }
     single { DeviceProfile.of(8, 8) }
     single<MediaProbe> {

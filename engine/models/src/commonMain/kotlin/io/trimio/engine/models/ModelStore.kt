@@ -35,23 +35,29 @@ class IncompleteDownloadException(message: String) : Exception(message)
  * atomic rename, so a model file that exists is always complete and authentic.
  */
 class ModelStore(
-    private val directory: Path,
+    /** Null where models cannot be stored (the browser). */
+    private val directory: Path?,
     private val client: HttpClient,
-    private val fs: FileSystem = SystemFileSystem,
+    private val fs: FileSystem? = null,
 ) {
-    fun pathOf(spec: ModelSpec): Path = Path(directory, spec.fileName)
+    /** Null without a directory (the browser): nothing is installed and installs fail. */
+    private val storage: FileSystem? by lazy { directory?.let { fs ?: SystemFileSystem } }
+    private val dir: Path get() = directory ?: throw UnsupportedOperationException("No model storage on this platform")
+    private val files: FileSystem get() = storage ?: throw UnsupportedOperationException("No file system on this platform")
 
-    fun isInstalled(spec: ModelSpec): Boolean =
-        fs.exists(pathOf(spec)) && fs.metadataOrNull(pathOf(spec))?.size == spec.sizeBytes
+    fun pathOf(spec: ModelSpec): Path = Path(dir, spec.fileName)
+
+    fun isInstalled(spec: ModelSpec): Boolean = storage != null &&
+        files.exists(pathOf(spec)) && files.metadataOrNull(pathOf(spec))?.size == spec.sizeBytes
 
     fun delete(spec: ModelSpec) {
-        fs.delete(pathOf(spec), mustExist = false)
-        fs.delete(partOf(spec), mustExist = false)
+        files.delete(pathOf(spec), mustExist = false)
+        files.delete(partOf(spec), mustExist = false)
     }
 
     suspend fun install(spec: ModelSpec, onState: (DownloadState) -> Unit = {}): Path {
         if (isInstalled(spec)) return pathOf(spec).also { onState(DownloadState.Done(it)) }
-        fs.createDirectories(directory)
+        files.createDirectories(dir)
         var lastError: Throwable? = null
         for (url in spec.urls) {
             try {
@@ -61,7 +67,7 @@ class ModelStore(
             } catch (e: CancellationException) {
                 throw e // keep the .part file: the next attempt resumes
             } catch (e: ModelIntegrityException) {
-                fs.delete(partOf(spec), mustExist = false)
+                files.delete(partOf(spec), mustExist = false)
                 lastError = e
             } catch (e: Exception) {
                 lastError = e
@@ -72,7 +78,7 @@ class ModelStore(
 
     private suspend fun download(spec: ModelSpec, url: String, onState: (DownloadState) -> Unit) {
         val part = partOf(spec)
-        var have = fs.metadataOrNull(part)?.size ?: 0L
+        var have = files.metadataOrNull(part)?.size ?: 0L
         if (have >= spec.sizeBytes) return
 
         client.prepareGet(url) {
@@ -83,7 +89,7 @@ class ModelStore(
             val append = have > 0 && response.status == HttpStatusCode.PartialContent
             if (!append) have = 0
             val channel = response.bodyAsChannel()
-            fs.sink(part, append = append).buffered().use { sink ->
+            files.sink(part, append = append).buffered().use { sink ->
                 while (!channel.isClosedForRead) {
                     val chunk = channel.readRemaining(CHUNK).readByteArray()
                     if (chunk.isEmpty()) continue
@@ -99,10 +105,10 @@ class ModelStore(
 
     private fun verifyAndCommit(spec: ModelSpec) {
         val part = partOf(spec)
-        val size = fs.metadataOrNull(part)?.size ?: 0L
+        val size = files.metadataOrNull(part)?.size ?: 0L
         if (size != spec.sizeBytes) throw ModelIntegrityException("${spec.id}: size $size, expected ${spec.sizeBytes}")
         val digest = SHA256()
-        fs.source(part).buffered().use { source ->
+        files.source(part).buffered().use { source ->
             val buffer = ByteArray(CHUNK.toInt())
             while (true) {
                 val n = source.readAtMostTo(buffer)
@@ -112,10 +118,10 @@ class ModelStore(
         }
         val hex = digest.digest().joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
         if (!hex.equals(spec.sha256, ignoreCase = true)) throw ModelIntegrityException("${spec.id}: checksum mismatch")
-        fs.atomicMove(part, pathOf(spec))
+        files.atomicMove(part, pathOf(spec))
     }
 
-    private fun partOf(spec: ModelSpec) = Path(directory, spec.fileName + ".part")
+    private fun partOf(spec: ModelSpec) = Path(dir, spec.fileName + ".part")
 
     private companion object {
         const val CHUNK = 256L * 1024

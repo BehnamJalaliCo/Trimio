@@ -44,7 +44,8 @@ import org.koin.dsl.module
 data class AppPaths(
     val projects: Path?,
     val settingsFile: Path?,
-    val models: Path,
+    /** Null where models cannot be stored (web). */
+    val models: Path?,
     /** Downloaded style packs. */
     val packs: Path? = null,
     /** Last good remote config and catalogue. */

@@ -6,6 +6,7 @@ import dev.whyoleg.cryptography.algorithms.ECDSA
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.options
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -63,6 +64,19 @@ class ServerTest {
         assertEquals(7, config.minVersionCode)
         assertTrue(config.flag(RemoteConfig.PRO))
         assertEquals(setOf("old"), config.revokedPackKeys)
+    }
+
+    @Test
+    fun browsersMayReadButNeverAuthenticate() = serve {
+        val read = client.get(Api.CATALOG) { header(HttpHeaders.Origin, "https://trimio.app") }
+        assertEquals("*", read.headers[HttpHeaders.AccessControlAllowOrigin])
+        // A page can never send the admin token: the Authorization header is not allowed cross-origin.
+        val preflight = client.options(Api.ADMIN_PACKS) {
+            header(HttpHeaders.Origin, "https://evil.example")
+            header(HttpHeaders.AccessControlRequestMethod, "POST")
+            header(HttpHeaders.AccessControlRequestHeaders, "authorization")
+        }
+        assertEquals(HttpStatusCode.Forbidden, preflight.status)
     }
 
     @Test

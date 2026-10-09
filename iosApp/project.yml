@@ -1,0 +1,29 @@
+# XcodeGen spec: `brew install xcodegen && cd iosApp && xcodegen` writes Trimio.xcodeproj.
+# The project file is generated, not committed, so it never drifts from this spec.
+name: Trimio
+options:
+  bundleIdPrefix: io.trimio
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  Trimio:
+    type: application
+    platform: iOS
+    sources: [Trimio]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.trimio.app
+        INFOPLIST_FILE: Trimio/Info.plist
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # The Kotlin framework built by the script below (Gradle's embedAndSign task).
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: ["-framework", "Shared"]
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+    preBuildScripts:
+      - name: Compile Kotlin (shared)
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode

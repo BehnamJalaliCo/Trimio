@@ -1,0 +1,40 @@
+name: iOS
+
+# Compiles the shared code for iOS and builds the app for the simulator (no signing).
+# macOS minutes are expensive, so it runs only when iOS-relevant files change, or on demand.
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "iosApp/**"
+      - "shared/src/iosMain/**"
+      - "shared/build.gradle.kts"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Kotlin framework for the simulator
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
+
+      - name: Generate the Xcode project
+        run: brew install xcodegen && cd iosApp && xcodegen
+
+      - name: Build the app (simulator, unsigned)
+        run: |
+          cd iosApp
+          xcodebuild -project Trimio.xcodeproj -scheme Trimio -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build

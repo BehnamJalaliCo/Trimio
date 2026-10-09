@@ -19,7 +19,7 @@
 | ۸ | ۲۸ سبک کامل | ✅ |
 | ۹ | کیفیت سطح Enterprise | 🔄 |
 | ۱۰ | سرور، پرداخت و انتشار | 🔄 |
-| ۱۱ | iOS و وب | ⬜ |
+| ۱۱ | iOS و وب | 🔄 |
 
 ## تعریف «انجام‌شده» (برای هر آیتم)
 
@@ -340,9 +340,19 @@
 
 ---
 
-## فاز ۱۱ — iOS و وب ⬜
+## فاز ۱۱ — iOS و وب 🔄
 
-- [ ] iOS: `engine/media` با AVFoundation، موتورهای C++ مشترک، Metal
-- [ ] وب: Compose برای Wasm، WebCodecs، WebGPU، موتورها با WebAssembly
-- [ ] کارگردان ابری روی وب و iOS (Claude از طریق HTTP، چون SDK رسمی برای Wasm/Native نیست)
-- [ ] انتشار در App Store و نسخهٔ وب
+### انجام‌شده
+- [x] اپ وب (`webApp/`، Compose برای Wasm): همان UI سینمایی، انتخاب فایل با دیالوگ مرورگر، چیدمان وسط‌چین برای صفحهٔ عریض — اجراشده و تست‌شده در Chromium
+- [x] انتشار وب: Workflow برای GitHub Pages (بیلد روی هر پوش، انتشار از `main` یا دستی) + صفحه‌های حقوقی
+- [x] کارگردان ابری روی وب و iOS: Claude از طریق HTTP (خروجی ساخت‌یافته، effort متوسط، Fallback سمت سرور)؛ اندروید همچنان SDK رسمی Java
+- [x] سرور: CORS فقط برای خواندن عمومی؛ مرورگر هرگز نمی‌تواند توکن ادمین بفرستد
+- [x] پایهٔ iOS: فریم‌ورک استاتیک `Shared`، پروژهٔ Xcode با XcodeGen (`iosApp/`)، Workflow بیلد شبیه‌ساز روی macOS
+- [x] پلتفرم‌های بدون فایل‌سیستم (مرورگر): تنظیمات، کش و مدل‌ها بدون کرش غیرفعال می‌شوند؛ صفحهٔ دانلود مدل حذف می‌شود
+- [x] برچسب «نسخهٔ نمایشی» در خانه وقتی موتورها روی آن پلتفرم شبیه‌سازی می‌شوند
+
+### باقی‌مانده
+- [ ] وب: دیکود با WebCodecs/WebAudio، whisper.cpp و llama.cpp با WebAssembly، رندر با WebGPU، ذخیرهٔ پروژه در IndexedDB
+- [ ] iOS: `engine/media` با AVFoundation، موتورهای C++ مشترک (whisper/llama با Metal)، Keychain، انتخاب‌گر PHPicker
+- [ ] فعال‌سازی GitHub Pages در تنظیمات مخزن و دامنهٔ `trimio.app`
+- [ ] حساب Apple Developer، امضا و انتشار در App Store
