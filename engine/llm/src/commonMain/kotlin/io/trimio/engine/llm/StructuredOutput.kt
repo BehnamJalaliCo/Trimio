@@ -15,9 +15,10 @@ import kotlinx.serialization.json.Json
 suspend fun <T> LanguageModel.generateStructured(
     request: GenerationRequest,
     serializer: KSerializer<T>,
-    onText: (String) -> Unit = {},
     /** Told which model actually answered (a refusal fallback may differ from [LanguageModel.id]). */
     onServed: (String) -> Unit = {},
+    /** Streamed text; last so a trailing lambda always means "show me the tokens". */
+    onText: (String) -> Unit = {},
 ): T {
     requireNotNull(request.schema) { "Structured generation needs a schema" }
     var current = request
@@ -38,7 +39,9 @@ suspend fun <T> LanguageModel.generateStructured(
                     ChatMessage(ChatRole.Assistant, generation.text.take(2_000)) +
                     ChatMessage(ChatRole.User, "That reply was not valid JSON for the schema (${e.message?.take(200)}). Reply again with the complete JSON only."),
             )
-        } catch (e: IllegalArgumentException) {
+        } catch (e: RuntimeException) {
+            // Any other parse failure (lenient parsing of odd model output can throw beyond
+            // SerializationException) is still just an unusable reply.
             if (attempt == 1) throw LanguageModelException(LanguageModelException.Kind.InvalidOutput, "Unparseable reply: ${e.message}", e)
             current = request.copy(
                 messages = request.messages + ChatMessage(ChatRole.User, "Reply with the complete JSON object only."),

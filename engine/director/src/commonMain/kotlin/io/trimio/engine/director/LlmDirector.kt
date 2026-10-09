@@ -39,7 +39,7 @@ class LlmDirector(private val model: LanguageModel) {
             temperature = 0.2f,
         )
         var servedBy = model.id
-        val plan = model.generateStructured(request, EditPlan.serializer(), onText) { servedBy = it }
+        val plan = model.generateStructured(request, EditPlan.serializer(), onServed = { servedBy = it }, onText = onText)
         return Result(plan, servedBy)
     }
 

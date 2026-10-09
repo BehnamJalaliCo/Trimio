@@ -38,7 +38,7 @@ class LlamaNativeTest {
                     system = "You are a video editor. Answer in JSON.",
                     messages = listOf(ChatMessage(ChatRole.User, "Words: 0:سلام 1:بیت\u200Cکوین 2:پنج 3:درصد 4:رشد. Pick a style, emphasised word indices and a short Persian headline.")),
                     schema = schema,
-                    maxTokens = 200,
+                    maxTokens = 400,
                     temperature = 0f,
                 ),
                 Pick.serializer(),
@@ -47,7 +47,7 @@ class LlamaNativeTest {
             println("llama: $pick in ${ms}ms (${LlamaLanguageModel.systemInfo().take(80)})")
             assertTrue(pick.style in setOf("liquid-glass", "neobrutalism", "kinetic-typography"))
             assertTrue(pick.emphasis.size <= 4 && pick.headline.length <= 40)
-            assertEquals(streamed.toString().trim(), streamed.toString().trim().let { it.substring(it.indexOf('{')) }, "nothing before the JSON")
+            assertTrue(streamed.trim().startsWith("{"), "nothing before the JSON: $streamed")
         }
     }
 }

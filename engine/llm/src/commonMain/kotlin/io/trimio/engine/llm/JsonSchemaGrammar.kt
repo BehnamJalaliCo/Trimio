@@ -94,10 +94,11 @@ object JsonSchemaGrammar {
     /** A GBNF string literal matching [text] exactly. */
     private fun literal(text: String) = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-    // Whitespace is limited so the model cannot stall on endless indentation.
+    // Whitespace is limited so the model cannot stall on endless indentation. Strings carry text as
+    // raw UTF-8: no \u escapes, which would cost a small model six tokens per Persian letter.
     private val PRIMITIVES = """
         |ws ::= [ \t\n]{0,4}
-        |char ::= [^"\\\x7F\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})
+        |char ::= [^"\\\x7F\x00-\x1F] | "\\" ["\\/nt]
         |string ::= "\"" char{0,400} "\""
         |integer ::= "-"? ([0-9] | [1-9] [0-9]{1,15})
         |number ::= "-"? ([0-9] | [1-9] [0-9]{1,15}) ("." [0-9]{1,6})?
