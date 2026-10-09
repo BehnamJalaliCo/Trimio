@@ -78,7 +78,8 @@ class TimelineTest {
 
     @Test
     fun audioOnlyInputRequiresFullBackground() {
-        val input = InputSource.AudioOnly(MediaUri("file://voice.m4a"), 5_000, CanvasSpec())
+        // The 400 ms cut leaves exactly the 5 s timeline from a 5.4 s source.
+        val input = InputSource.AudioOnly(MediaUri("file://voice.m4a"), 5_400, CanvasSpec())
         assertFalse(TimelineValidator().isRenderable(sample, input))
 
         val withBackground = sample.copy(

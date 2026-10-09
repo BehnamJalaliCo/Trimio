@@ -7,6 +7,7 @@ kotlin {
         commonMain.dependencies {
             api(projects.core.model)
             api(projects.core.pipeline)
+            implementation(libs.kotlinx.serialization.json)
         }
     }
 }

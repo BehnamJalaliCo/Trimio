@@ -28,7 +28,8 @@ class TimelineValidator(private val rules: Rules = Rules()) {
         }
 
         timeline.clips.forEachIndexed { index, clip ->
-            if (!clip.range.isWithin(timeline.durationMs)) {
+            // Cuts are in source time; they are checked against the input below.
+            if (clip !is CutClip && !clip.range.isWithin(timeline.durationMs)) {
                 add(Issue(Severity.Error, "out-of-bounds", "Clip ends after the timeline", index))
             }
             when (clip) {
@@ -47,6 +48,16 @@ class TimelineValidator(private val rules: Rules = Rules()) {
         }
 
         addCaptionOverlaps(timeline)
+
+        if (input != null) {
+            timeline.clips.withIndex().filter { it.value is CutClip && !it.value.range.isWithin(input.durationMs) }.forEach {
+                add(Issue(Severity.Error, "cut-out-of-bounds", "Cut extends past the source media", it.index))
+            }
+            val expected = EditMap.of(timeline, input.durationMs).outputDurationMs
+            if (kotlin.math.abs(expected - timeline.durationMs) > 1) {
+                add(Issue(Severity.Error, "duration-mismatch", "Timeline lasts ${timeline.durationMs} ms but cuts leave $expected ms"))
+            }
+        }
 
         if (input is InputSource.AudioOnly && !backgroundCoversTimeline(timeline)) {
             add(Issue(Severity.Error, "audio-only-background", "Audio-only input needs a background for the whole duration"))

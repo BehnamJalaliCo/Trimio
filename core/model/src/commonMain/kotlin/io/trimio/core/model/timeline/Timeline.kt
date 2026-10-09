@@ -58,6 +58,8 @@ data class CaptionClip(
     /** Index of the first transcript word this caption covers; links edits back to the transcript. */
     val wordIndex: Int,
     val anchor: Anchor = Anchor.BottomCenter,
+    /** Captions sharing a group are laid out together as one on-screen line/phrase. */
+    val group: Int = wordIndex,
 ) : Clip
 
 /** A visual element from the asset library: icon, Lottie, sticker, 3D object, number counter. */
@@ -108,9 +110,14 @@ data class BackgroundClip(
     val preset: String,
     val audioReactive: Boolean = false,
     val params: Map<String, Float> = emptyMap(),
-) : Clip
+) : Clip {
+    companion object {
+        /** Use the active style's own background preset. */
+        const val STYLE_PRESET = "style"
+    }
+}
 
-/** A source segment removed from the output (silence, filler words, retakes). */
+/** A segment removed from the output (silence, filler words, retakes). Its range is in **source** time. */
 @Serializable
 @SerialName("cut")
 data class CutClip(
