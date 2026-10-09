@@ -35,12 +35,14 @@ core/model          (Timeline DSL، رونوشت، سبک‌ها، ورودی‌
    │
 engine/*  (پیاده‌سازی پلتفرمی پشت رابط‌های مشترک)
    media    : Media3 (اندروید) │ AVFoundation (iOS) │ WebCodecs (وب)
-   audio    : RNNoise، libebur128، Silero VAD، تحلیل Pitch/انرژی  (C++ مشترک)
+   audio    : Resampler، EBU R128، VAD، YIN، تأکید  (Kotlin مشترک)؛ RNNoise/Silero بعداً native
    asr      : whisper.cpp + تراز CTC                             (C++ مشترک)
    llm      : llama.cpp (OpenCL/Vulkan/Hexagon) + آداپتور ابری
    render   : Skia + Skottie + Filament + شیدرها                  (C++ مشترک)
    mixer    : میکس، داکینگ، رمزگذاری AAC
 ```
+
+تحلیل صدا به‌جای C++ با Kotlin مشترک نوشته شده: روی همهٔ پلتفرم‌ها یکسان است، روی JVM تست می‌شود و سرعتش کافی است (۱۰ دقیقه صدا در حدود ۳ ثانیه). فقط مدل‌های عصبی (Whisper، RNNoise، LLM) native هستند.
 
 قاعده: `core/*` و `feature/*` هیچ وابستگی پلتفرمی ندارند. هر چیز پلتفرمی پشت یک `interface` در `core` تعریف و در `engine/*` پیاده می‌شود.
 

@@ -30,6 +30,8 @@ Kotlin Multiplatform · Compose Multiplatform · Media3 · whisper.cpp · llama.
 | `core/model` | Timeline DSL, transcript, styles, inputs |
 | `core/pipeline` | Job orchestration and weighted progress |
 | `core/designsystem` | Trimio design system |
+| `engine/media` | Media probing and audio decoding (MediaExtractor/MediaCodec on Android, WAV on desktop) |
+| `engine/audio` | Resampling, EBU R128 loudness, VAD, pitch and word emphasis; real pipeline stages |
 
 ## Build
 
