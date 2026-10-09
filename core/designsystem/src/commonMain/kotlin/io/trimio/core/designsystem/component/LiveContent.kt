@@ -25,7 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -37,25 +39,36 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import io.trimio.core.designsystem.theme.Trimio
 import io.trimio.core.designsystem.theme.TrimioMotion
 import io.trimio.core.designsystem.theme.TrimioRadius
 import io.trimio.core.designsystem.theme.TrimioSpacing
+import io.trimio.core.model.text.ScriptDetector
 
 @Immutable
 data class StreamWord(val key: Int, val text: String, val emphasis: Float = 0f, val isLatest: Boolean = false)
 
-/** Recognised words popping in one by one; emphasised words get a gradient pill. */
+/**
+ * Recognised words popping in one by one; emphasised words get a gradient pill.
+ * Flow direction follows the *spoken* language, not the UI language: a Persian recording reads
+ * right-to-left even in the English UI.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WordStream(words: List<StreamWord>, modifier: Modifier = Modifier) {
-    FlowRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.xs),
-        verticalArrangement = Arrangement.spacedBy(TrimioSpacing.xs),
-    ) {
-        words.forEach { word -> androidx.compose.runtime.key(word.key) { WordChip(word) } }
+    val spoken = ScriptDetector.detect(words.joinToString(" ") { it.text }, fallback = Trimio.language)
+    CompositionLocalProvider(LocalLayoutDirection provides if (spoken.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        FlowRow(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.xs),
+            verticalArrangement = Arrangement.spacedBy(TrimioSpacing.xs),
+        ) {
+            words.forEach { word -> key(word.key) { WordChip(word) } }
+        }
     }
 }
 
@@ -88,7 +101,8 @@ private fun WordChip(word: StreamWord) {
     ) {
         Text(
             text = word.text,
-            style = if (emphasised) Trimio.type.title else Trimio.type.body,
+            // Each word picks its own direction so punctuation stays on the correct side ("دوستان،", "BTC!").
+            style = (if (emphasised) Trimio.type.title else Trimio.type.body).copy(textDirection = TextDirection.Content),
             color = if (emphasised || word.isLatest) colors.textPrimary else colors.textSecondary,
         )
     }

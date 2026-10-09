@@ -13,3 +13,12 @@ kotlin {
         }
     }
 }
+
+kotlin {
+    sourceSets {
+        jvmTest.dependencies {
+            // Desktop Skia lets screenshot tests render the real screen off-screen.
+            implementation(compose.desktop.currentOs)
+        }
+    }
+}

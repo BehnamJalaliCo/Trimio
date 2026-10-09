@@ -81,8 +81,8 @@ object DemoPipeline {
                 }
             },
             SimpleStage(StageId.AssetMatching) { ctx ->
-                ASSETS.forEachIndexed { i, (id, label) ->
-                    ctx.emit(LiveSignal.AssetChosen(id, label))
+                ASSETS.forEachIndexed { i, (id, fa, en) ->
+                    ctx.emit(LiveSignal.AssetChosen(id, fa, en))
                     ctx.progress((i + 1f) / ASSETS.size)
                     delay(ms(350))
                 }
@@ -122,12 +122,12 @@ object DemoPipeline {
     )
 
     private val ASSETS = listOf(
-        "icon/bitcoin" to "Bitcoin",
-        "lottie/arrow-up-green" to "Arrow up",
-        "counter/percent" to "Counter",
-        "sfx/whoosh-soft" to "Whoosh",
-        "sfx/cash-register" to "Cash register",
-        "music/lofi-bed-02" to "Lo-fi bed",
+        Triple("icon/bitcoin", "آیکون بیت‌کوین", "Bitcoin icon"),
+        Triple("lottie/arrow-up-green", "فلش صعودی", "Arrow up"),
+        Triple("counter/percent", "شمارندهٔ درصد", "Percent counter"),
+        Triple("sfx/whoosh-soft", "صدای ووش", "Whoosh"),
+        Triple("sfx/cash-register", "صدای صندوق", "Cash register"),
+        Triple("music/lofi-bed-02", "موسیقی لوفای", "Lo-fi bed"),
     )
 }
 

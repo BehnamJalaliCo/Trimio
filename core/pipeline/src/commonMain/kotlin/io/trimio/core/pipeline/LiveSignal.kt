@@ -14,7 +14,7 @@ sealed interface LiveSignal {
     /** One human-readable decision of the Director, e.g. "Hook: zoom-punch on «سود»". */
     data class PlanStep(val textFa: String, val textEn: String) : LiveSignal
 
-    data class AssetChosen(val assetId: String, val label: String) : LiveSignal
+    data class AssetChosen(val assetId: String, val labelFa: String, val labelEn: String) : LiveSignal
 
     /** [previewRef] is a platform image handle/path; null while previews are disabled. */
     data class FrameRendered(val frameIndex: Int, val totalFrames: Int, val previewRef: String? = null) : LiveSignal

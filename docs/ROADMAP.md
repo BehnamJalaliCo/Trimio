@@ -6,8 +6,8 @@
 - [x] `core/model`: Timeline DSL، رونوشت، ورودی ویدیو/صدا، ۲۸ سبک
 - [x] `core/pipeline`: Orchestrator، پیشرفت وزن‌دار، چک‌پوینت، پایپ‌لاین نمایشی
 - [x] `core/designsystem`: Trimio DS (توکن‌ها، فونت Vazirmatn، شیدرهای Aurora/Liquid، شیشه)
-- [ ] `feature/stream`: صفحهٔ استریم ساخت ۰ تا ۱۰۰٪
-- [ ] `androidApp`: اجرای صفحهٔ استریم با پایپ‌لاین نمایشی
+- [x] `feature/stream`: صفحهٔ استریم ساخت ۰ تا ۱۰۰٪
+- [x] `androidApp`: اجرای صفحهٔ استریم با پایپ‌لاین نمایشی
 
 ## فاز ۱ — صدا و گفتار
 - [ ] `engine/media`: Media3 (ورودی، پیش‌نمایش، خروجی)
