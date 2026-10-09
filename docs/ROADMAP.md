@@ -5,7 +5,7 @@
 - [x] CI
 - [x] `core/model`: Timeline DSL، رونوشت، ورودی ویدیو/صدا، ۲۸ سبک
 - [x] `core/pipeline`: Orchestrator، پیشرفت وزن‌دار، چک‌پوینت، پایپ‌لاین نمایشی
-- [ ] `core/designsystem`: Trimio DS (توکن‌ها، فونت Vazirmatn، شیدرهای Aurora/Liquid، شیشه)
+- [x] `core/designsystem`: Trimio DS (توکن‌ها، فونت Vazirmatn، شیدرهای Aurora/Liquid، شیشه)
 - [ ] `feature/stream`: صفحهٔ استریم ساخت ۰ تا ۱۰۰٪
 - [ ] `androidApp`: اجرای صفحهٔ استریم با پایپ‌لاین نمایشی
 

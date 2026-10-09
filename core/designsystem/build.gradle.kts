@@ -6,3 +6,20 @@ compose.resources {
     publicResClass = true
     packageOfResClass = "io.trimio.core.designsystem.resources"
 }
+
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            api(projects.core.model)
+        }
+    }
+}
+
+kotlin {
+    sourceSets {
+        jvmTest.dependencies {
+            // Native Skia for the host, so shader tests can compile and rasterise SkSL.
+            implementation(compose.desktop.currentOs)
+        }
+    }
+}
