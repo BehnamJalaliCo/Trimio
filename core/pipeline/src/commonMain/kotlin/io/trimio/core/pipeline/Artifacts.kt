@@ -1,5 +1,8 @@
 package io.trimio.core.pipeline
 
+import io.trimio.core.model.audio.AudioFeatures
+import io.trimio.core.model.audio.PcmAudio
+import io.trimio.core.model.input.MediaInfo
 import io.trimio.core.model.timeline.Timeline
 import io.trimio.core.model.transcript.Transcript
 
@@ -27,8 +30,11 @@ class Artifacts {
 
 /** Well-known artifacts passed between the standard stages. */
 object StandardArtifacts {
-    /** Path of the denoised, loudness-normalised working audio. */
-    val CleanAudio = ArtifactKey<String>("clean-audio")
+    val MediaInfo = ArtifactKey<MediaInfo>("media-info")
+
+    /** Loudness-normalised mono speech audio at 16 kHz: the input of recognition and analysis. */
+    val CleanAudio = ArtifactKey<PcmAudio>("clean-audio")
+    val AudioFeatures = ArtifactKey<AudioFeatures>("audio-features")
     val Transcript = ArtifactKey<Transcript>("transcript")
     val Timeline = ArtifactKey<Timeline>("timeline")
 
