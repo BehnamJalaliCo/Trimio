@@ -80,3 +80,53 @@ dependencies {
     implementation(libs.compose.runtime)
     implementation(libs.compose.ui)
 }
+
+// Licence audit of everything that ships in the Play release: `./gradlew :androidApp:checkLicenses`.
+// Reads each dependency's POM (following parent POMs) and fails on copyleft licences, so no
+// GPL/LGPL/AGPL code can slip into the app. The report lands in build/reports/licenses.txt.
+val checkLicenses by tasks.registering {
+    group = "verification"
+    description = "Fails if a shipped dependency has a copyleft licence."
+    notCompatibleWithConfigurationCache("Resolves POMs through the project's dependency handler.")
+    doLast {
+        val graph = configurations.getByName("playReleaseRuntimeClasspath").incoming.resolutionResult
+        val modules = graph.allComponents.mapNotNull { it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+        val poms = mutableMapOf<String, groovy.util.Node?>()
+        fun pom(group: String, name: String, version: String): groovy.util.Node? = poms.getOrPut("$group:$name:$version") {
+            val id = org.gradle.internal.component.external.model.DefaultModuleComponentIdentifier.newId(
+                org.gradle.api.internal.artifacts.DefaultModuleIdentifier.newId(group, name), version,
+            )
+            val result = dependencies.createArtifactResolutionQuery()
+                .forComponents(id)
+                .withArtifacts(org.gradle.maven.MavenModule::class.java, org.gradle.maven.MavenPomArtifact::class.java)
+                .execute()
+            val file = result.resolvedComponents.flatMap { it.getArtifacts(org.gradle.maven.MavenPomArtifact::class.java) }
+                .filterIsInstance<org.gradle.api.artifacts.result.ResolvedArtifactResult>().firstOrNull()?.file
+            file?.let { groovy.xml.XmlParser(false, false).parse(it) }
+        }
+        fun child(node: groovy.util.Node, tag: String) = (node.children() as List<*>).filterIsInstance<groovy.util.Node>().firstOrNull { it.name().toString().substringAfter('}') == tag }
+        fun licenses(group: String, name: String, version: String, depth: Int = 0): List<String> {
+            val node = pom(group, name, version) ?: return emptyList()
+            val own = child(node, "licenses")?.let { l -> (l.children() as List<*>).filterIsInstance<groovy.util.Node>().mapNotNull { child(it, "name")?.text() } }.orEmpty()
+            if (own.isNotEmpty() || depth > 4) return own
+            val parent = child(node, "parent") ?: return own
+            return licenses(child(parent, "groupId")!!.text(), child(parent, "artifactId")!!.text(), child(parent, "version")!!.text(), depth + 1)
+        }
+        val copyleft = Regex("\\b(A?GPL|LGPL|GNU (Lesser |Affero )?General Public)\\b", RegexOption.IGNORE_CASE)
+        val report = StringBuilder()
+        val violations = mutableListOf<String>()
+        for (m in modules.sortedBy { "${it.group}:${it.module}" }) {
+            val found = licenses(m.group, m.module, m.version)
+            report.appendLine("${m.group}:${m.module}:${m.version}\t${found.joinToString(" | ").ifEmpty { "(no licence in POM)" }}")
+            // Dual-licensed modules are fine when one option is permissive (e.g. "EPL 2.0 | GPL 2.0 with Classpath Exception").
+            if (found.isNotEmpty() && found.all { copyleft.containsMatchIn(it) && !it.contains("Classpath", ignoreCase = true) }) {
+                violations += "${m.group}:${m.module}:${m.version} (${found.joinToString()})"
+            }
+        }
+        val out = layout.buildDirectory.file("reports/licenses.txt").get().asFile
+        out.parentFile.mkdirs()
+        out.writeText(report.toString())
+        logger.lifecycle("Licence audit: ${modules.size} dependencies, report at $out")
+        if (violations.isNotEmpty()) throw GradleException("Copyleft licences found:\n" + violations.joinToString("\n"))
+    }
+}

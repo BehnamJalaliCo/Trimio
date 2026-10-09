@@ -30,12 +30,16 @@ class StudioScreenshotTest {
     @Test
     fun studioPersian() = shoot("studio-fa", Language.Persian) { StudioScreen(projects, now, {}, {}, {}, {}) }
 
+    /** Accessibility: the largest common font scale must not break the layout. */
+    @Test
+    fun studioLargeFontPersian() = shoot("studio-font160-fa", Language.Persian, fontScale = 1.6f) { StudioScreen(projects, now, {}, {}, {}, {}) }
+
     @Test
     fun studioEmptyEnglish() = shoot("studio-empty-en", Language.English) { StudioScreen(emptyList(), now, {}, {}, {}, {}) }
 
-    private fun shoot(name: String, language: Language, content: @Composable () -> Unit) {
+    private fun shoot(name: String, language: Language, fontScale: Float = 1f, content: @Composable () -> Unit) {
         val density = 2.625f
-        ImageComposeScene((412 * density).toInt(), (915 * density).toInt(), Density(density)) {
+        ImageComposeScene((412 * density).toInt(), (915 * density).toInt(), Density(density, fontScale)) {
             TrimioTheme(language = language) { content() }
         }.use { scene ->
             // Several frames: effects launch on the first, entry springs start on the second.

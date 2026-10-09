@@ -8,6 +8,8 @@ import io.trimio.core.data.MediaKind
 import io.trimio.core.data.Project
 import io.trimio.core.data.ProjectRepository
 import io.trimio.core.data.SettingsRepository
+import io.trimio.core.data.ThermalLevel
+import io.trimio.core.data.ThermalMonitor
 import io.trimio.core.model.input.AspectRatio
 import io.trimio.core.model.input.CanvasSpec
 import io.trimio.core.model.input.InputSource
@@ -41,6 +43,8 @@ data class CreateState(
     val cloudConnected: Boolean = false,
     val aspect: AspectRatio = AspectRatio.Portrait9x16,
     val creating: Boolean = false,
+    /** The phone is throttling: builds will be slower and use fewer cores. */
+    val hot: Boolean = false,
 ) {
     val canCreate: Boolean get() = info != null && !creating
 }
@@ -55,6 +59,7 @@ class CreateViewModel(
     private val projects: ProjectRepository,
     private val runner: JobRunner,
     initialStyle: String? = null,
+    thermal: ThermalMonitor = ThermalMonitor.None,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CreateState(kind, director = settings.settings.value.director, styleId = initialStyle))
@@ -66,6 +71,7 @@ class CreateViewModel(
             _state.update { it.copy(probing = false, info = info.getOrNull(), probeError = info.exceptionOrNull()?.message) }
         }
         viewModelScope.launch { _state.update { it.copy(packs = styles.all()) } }
+        viewModelScope.launch { thermal.level.collect { level -> _state.update { it.copy(hot = level >= ThermalLevel.Hot) } } }
         viewModelScope.launch {
             val connected = cloud.firstAvailable() != null
             _state.update { it.copy(cloudConnected = connected, director = if (connected) it.director else DirectorBackend.OnDevice) }

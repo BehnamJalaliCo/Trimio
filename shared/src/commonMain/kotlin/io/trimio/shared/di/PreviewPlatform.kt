@@ -2,6 +2,8 @@ package io.trimio.shared.di
 
 import io.ktor.client.HttpClient
 import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.DeviceProfile
+import io.trimio.core.data.ThermalMonitor
 import io.trimio.core.data.MediaPicker
 import io.trimio.core.data.Sharer
 import io.trimio.core.model.input.MediaInfo
@@ -32,8 +34,14 @@ fun previewPlatformModule(platform: String, picker: MediaPicker = MediaPicker { 
     single { AppPaths(projects = null, settingsFile = null, models = Path("models")) }
     single<SecretStore> { MemorySecretStore() }
     single { picker }
-    single<Sharer> { Sharer { _, _ -> } }
+    single<Sharer> {
+        object : Sharer {
+            override fun share(uri: String, title: String) = Unit
+        }
+    }
     single { DeviceInfo(ramGb = 8, platform = platform, appVersion = "preview") }
+    single<ThermalMonitor> { ThermalMonitor.None }
+    single { DeviceProfile.of(8, 8) }
     single<MediaProbe> {
         object : MediaProbe {
             override suspend fun probe(uri: MediaUri) = MediaInfo(durationMs = 9_000, video = null, audio = null)

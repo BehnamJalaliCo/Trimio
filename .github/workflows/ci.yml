@@ -25,7 +25,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Unit, shader and screenshot tests
+      - name: Static analysis (detekt, new findings only)
+        run: ./gradlew detekt
+
+      - name: Unit, shader, screenshot and golden-frame tests
         run: ./gradlew jvmTest
 
       - name: Compile web target
@@ -34,6 +37,17 @@ jobs:
       # AGP installs the pinned NDK and CMake on first use.
       - name: Assemble Android with native engines (both store flavors)
         run: ./gradlew :androidApp:assemblePlayDebug :androidApp:assembleBazaarDebug
+
+      - name: Release build (R8) and licence audit
+        run: ./gradlew :androidApp:assemblePlayRelease && ./gradlew --no-configuration-cache :androidApp:checkLicenses
+
+      - name: Keep golden-frame diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: "**/build/golden-failures/"
+          if-no-files-found: ignore
 
   native-engines:
     runs-on: ubuntu-latest

@@ -1,0 +1,168 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:CaptionLayer.kt:CaptionLayer$current == null || single || current.size &gt;= spec.maxWordsPerLine || width + gap + w &gt; maxWidth</ID>
+    <ID>ComplexCondition:NumberWords.kt:NumberWords$consumed == 1 &amp;&amp; !sawScale &amp;&amp; unit == null &amp;&amp; clean(words[start]) in ambiguous</ID>
+    <ID>ComplexCondition:QualityControl.kt:QualityControl$input is InputSource.Video &amp;&amp; style.captions.box == BoxStyle.None &amp;&amp; style.captions.strokeWidth == 0f &amp;&amp; style.captions.shadowBlur &lt; 0.012f</ID>
+    <ID>ComplexCondition:RulesDirector.kt:RulesDirector$!forced &amp;&amp; (key in Lexicon.stopwords || key.length &lt; 2 &amp;&amp; !latinInPersian)</ID>
+    <ID>ComplexCondition:RulesDirector.kt:RulesDirector$Lexicon.topics.values.any { key in it } || key in Lexicon.rise || key in Lexicon.fall || key in Lexicon.signal || key in Lexicon.warning || key in Lexicon.star</ID>
+    <ID>CyclomaticComplexMethod:LlmDirector.kt:PlanSanitizer$fun sanitize: EditPlan</ID>
+    <ID>CyclomaticComplexMethod:NumberWords.kt:NumberWords$fun at: Match?</ID>
+    <ID>CyclomaticComplexMethod:RulesDirector.kt:RulesDirector$private fun elements: List&lt;ElementCue&gt;</ID>
+    <ID>CyclomaticComplexMethod:TimelineComposer.kt:TimelineComposer$fun compose: Timeline</ID>
+    <ID>CyclomaticComplexMethod:VectorIcons.kt:VectorIcons$fun DrawScope.drawIcon: Boolean</ID>
+    <ID>FunctionNaming:MainViewController.kt:fun MainViewController: UIViewController</ID>
+    <ID>LongMethod:VectorIcons.kt:VectorIcons$fun DrawScope.drawIcon: Boolean</ID>
+    <ID>LoopWithTooManyJumpStatements:JsonSchemaGrammar.kt:JsonSchemas$for</ID>
+    <ID>LoopWithTooManyJumpStatements:PipelineOrchestrator.kt:PipelineOrchestrator.Run$for</ID>
+    <ID>LoopWithTooManyJumpStatements:RulesDirector.kt:RulesDirector$for</ID>
+    <ID>LoopWithTooManyJumpStatements:TimelineComposer.kt:TimelineComposer$for</ID>
+    <ID>MatchingDeclarationName:LiquidProgressOrb.kt:RingSegment</ID>
+    <ID>MatchingDeclarationName:Routes.kt:Route</ID>
+    <ID>MatchingDeclarationName:SettingsScreen.kt:SettingsViewModel : ViewModel</ID>
+    <ID>MatchingDeclarationName:StyleGalleryScreen.kt:GalleryViewModel : ViewModel</ID>
+    <ID>MatchingDeclarationName:TimelinePreview.kt:PreviewClock</ID>
+    <ID>MatchingDeclarationName:TrimioShader.skiko.kt:TrimioShader</ID>
+    <ID>MaxLineLength:AssetMatchingStage.kt:AssetMatchingStage$is ElementClip -&gt; moved[clip.range.startMs]?.let { clip.copy(range = shifted(clip.range, it - clip.range.startMs, timeline.durationMs)!!) } ?: clip</ID>
+    <ID>MaxLineLength:AssetMatchingStage.kt:AssetMatchingStage$is SfxClip -&gt; moved[clip.range.startMs]?.let { new -&gt; shifted(clip.range, new - clip.range.startMs, timeline.durationMs)?.let { clip.copy(range = it) } } ?: clip</ID>
+    <ID>MaxLineLength:BuildStreamScreen.kt:tr("حدود ${localizedNumber(formatted)} ${if (seconds &gt;= 60) "دقیقه" else "ثانیه"} باقی مانده", "About $formatted ${if (seconds &gt;= 60) "min" else "s"} left")</ID>
+    <ID>MaxLineLength:BuildStreamScreenshotTest.kt:BuildStreamScreenshotTest$BuildStreamScreen(state, styleName = if (language == Language.Persian) "لیکوئید گلس" else "Liquid Glass", onDevice = true, onCancel = {}, onRestart = {})</ID>
+    <ID>MaxLineLength:CaptionLayer.kt:CaptionLayer$drawText(text, color = parseColor(spec.strokeColor), topLeft = topLeft, alpha = alpha, drawStyle = Stroke(unit * spec.strokeWidth, join = StrokeJoin.Round))</ID>
+    <ID>MaxLineLength:CaptionLayer.kt:CaptionLayer.Placed$fun rect</ID>
+    <ID>MaxLineLength:Controls.kt:visualTransformation = if (obscured) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None</ID>
+    <ID>MaxLineLength:CreateScreen.kt:.</ID>
+    <ID>MaxLineLength:CreateScreen.kt:if</ID>
+    <ID>MaxLineLength:CreateScreenshotTest.kt:CreateScreenshotTest$CreateScreen(state.copy(kind = MediaKind.Audio, prompt = "", brief = BriefParser.parse(""), info = MediaInfo(60_000, null, AudioTrackInfo(44_100, 1))), {}, {}, {}, {}, {}, {}, {}, {})</ID>
+    <ID>MaxLineLength:DesktopVideoExporter.kt:DesktopVideoExporter$footage = frame?.let { bmp -&gt; { dst -&gt; drawImage(bmp, dstOffset = IntOffset.Zero, dstSize = IntSize(dst.width.toInt(), dst.height.toInt())) } }</ID>
+    <ID>MaxLineLength:DirectionStage.kt:DirectionStage$context.emit(LiveSignal.Note(if (model.isLocal) "مدل روی گوشی در حال طراحی ادیت است" else "کارگردان ابری در حال طراحی ادیت است", "The ${if (model.isLocal) "on-device" else "cloud"} director is planning the edit"))</ID>
+    <ID>MaxLineLength:DirectorTest.kt:DirectorTest$assertEquals(listOf(ElementCue(4, "counter", "5"), ElementCue(13, "icon", "rocket")), clean.elements, "unknown icon names map to the closest drawable icon")</ID>
+    <ID>MaxLineLength:DirectorTest.kt:DirectorTest$val t = Transcript(Language.Persian, listOf(w("درآمد", 0, 400), w("بیست", 500, 800), w("درصد", 800, 1100), w("بیشتر", 1100, 1500), w("شد", 1500, 1700), w("ایده", 4000, 4400), w("طلایی", 4400, 4900)))</ID>
+    <ID>MaxLineLength:DirectorTest.kt:TimelineEditorTest$assertEquals(before.clipsOf&lt;CaptionClip&gt;().map { it.range }.sortedBy { it.startMs }, back.clipsOf&lt;CaptionClip&gt;().map { it.range }.sortedBy { it.startMs })</ID>
+    <ID>MaxLineLength:EditMap.kt:EditMap$val end = toOutput(range.endMs) ?: kept.lastOrNull { it.endMs in (range.startMs + 1)..range.endMs }?.let { toOutput(it.endMs - 1)?.plus(1) } ?: return null</ID>
+    <ID>MaxLineLength:EditorScreen.kt:)</ID>
+    <ID>MaxLineLength:EditorScreen.kt:.</ID>
+    <ID>MaxLineLength:EditorScreen.kt:FlowRow</ID>
+    <ID>MaxLineLength:EditorScreen.kt:Panels(state, Modifier.weight(1f).padding(horizontal = TrimioSpacing.screenGutter), onTab, onSelectWord, onEditWord, onToggleEmphasis, onToggleRemoved, onStyle, onMusic, onSfx)</ID>
+    <ID>MaxLineLength:EditorScreen.kt:Preview(project, timeline, style, clock, onTogglePlay, Modifier.fillMaxWidth().heightIn(max = previewMax).padding(horizontal = TrimioSpacing.screenGutter))</ID>
+    <ID>MaxLineLength:EditorScreen.kt:Row</ID>
+    <ID>MaxLineLength:EditorScreen.kt:Text(tr(pack.nameFa, pack.nameEn), style = Trimio.type.label, color = if (selected) colors.accentCyan else colors.textPrimary, modifier = Modifier.padding(top = TrimioSpacing.xs))</ID>
+    <ID>MaxLineLength:EditorScreen.kt:TimelineTracks(timeline, clock, project.input.durationMs, project.waveform, Project.WAVEFORM_STEP_MS, label = tr("تایم\u200Cلاین", "Timeline"))</ID>
+    <ID>MaxLineLength:EditorScreen.kt:androidx.compose.ui.platform.LocalLayoutDirection provides if (rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr</ID>
+    <ID>MaxLineLength:EditorScreen.kt:if (selected != null) WordActions(transcript.words[selected].text, selected, selected in state.emphasized, selected in state.removedWords, onEditWord, onToggleEmphasis, onToggleRemoved, onClose = { onSelectWord(null) })</ID>
+    <ID>MaxLineLength:EditorScreenshotTest.kt:EditorScreenshotTest$fun</ID>
+    <ID>MaxLineLength:EditorScreenshotTest.kt:EditorScreenshotTest$private</ID>
+    <ID>MaxLineLength:EditorScreenshotTest.kt:EditorScreenshotTest$private val transcript = Transcript(Language.Persian, timeline.clipsOf&lt;CaptionClip&gt;().map { Word(it.text, it.range, language = it.language, emphasis = it.emphasis) })</ID>
+    <ID>MaxLineLength:ElementLayer.kt:ElementLayer$drawCircle(Brush.radialGradient(listOf(Color(0xFFFFD36B), Color(0xFFF7931A)), Offset(-base * 0.2f, -base * 0.2f), base), base * 0.62f, Offset.Zero, alpha = alpha)</ID>
+    <ID>MaxLineLength:ElementLayer.kt:ElementLayer$val layout = measurer.measure(label, TextStyle(fontFamily = fontFamily, fontWeight = FontWeight(800), fontSize = (base * 0.28f).sp), softWrap = false, density = Density(1f))</ID>
+    <ID>MaxLineLength:ExportEndToEndTest.kt:ExportEndToEndTest$ProcessBuilder("ffmpeg", "-y", "-loglevel", "error", "-ss", "2.9", "-i", output.absolutePath, "-frames:v", "1", File(out, "e2e-frame.png").absolutePath).start().waitFor()</ID>
+    <ID>MaxLineLength:ExportEndToEndTest.kt:ExportEndToEndTest$val timeline = base.copy(clips = base.clips.filterNot { it is io.trimio.core.model.timeline.BackgroundClip } + CutClip(TimeRange(4_000, 5_000), CutReason.Silence))</ID>
+    <ID>MaxLineLength:ExportScreen.kt:"ویدیوهای HDR خودکار به SDR تبدیل می\u200Cشوند تا در همه\u0654 شبکه\u200Cها درست دیده شوند. صدا AAC ۴۸ کیلوهرتز با بلندی استاندارد."</ID>
+    <ID>MaxLineLength:ExportScreen.kt:ExportScreen(state, onBack, viewModel::setPreset, viewModel::setResolution, viewModel::setFrameRate, viewModel::export, viewModel::share, onDone, viewModel::shareForEditor)</ID>
+    <ID>MaxLineLength:ExportScreen.kt:TrimioButton(tr("اشتراک\u200Cگذاری", "Share"), onShare, Modifier.fillMaxWidth(), leading = { TrimioIcon(TrimioIcons.Share, null, tint = colors.onPrimary) })</ID>
+    <ID>MaxLineLength:ExportScreen.kt:tr("کات\u200Cها و زیرنویس (SRT) منتقل می\u200Cشوند؛ فایل اصلی را در برنامه\u0654 مقصد دوباره پیوند بده.", "Cuts and captions (SRT) travel; relink the original file in the other app.")</ID>
+    <ID>MaxLineLength:FfmpegMediaSource.kt:FfmpegMediaSource$VideoFormat(it.int("width"), it.int("height"), rate, ((rotation % 360) + 360) % 360, it.str("color_transfer") in setOf("smpte2084", "arib-std-b67"))</ID>
+    <ID>MaxLineLength:IconCatalog.kt:IconCatalog$Icon("coin", "سکه\u0654 بیت\u200Cکوین", "Bitcoin coin", listOf("بیت\u200Cکوین", "بیتکوین", "کوین", "سکه", "رمزارز", "کریپتو", "bitcoin", "btc", "coin", "crypto"))</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(" &lt;format&gt;&lt;samplecharacteristics&gt;&lt;width&gt;${timeline.canvas.widthPx}&lt;/width&gt;&lt;height&gt;${timeline.canvas.heightPx}&lt;/height&gt;$rate&lt;/samplecharacteristics&gt;&lt;/format&gt;")</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(" &lt;media&gt;${if (source.hasVideo) "&lt;video&gt;&lt;samplecharacteristics&gt;&lt;width&gt;${source.width}&lt;/width&gt;&lt;height&gt;${source.height}&lt;/height&gt;&lt;/samplecharacteristics&gt;&lt;/video&gt;" else ""}&lt;audio&gt;&lt;channelcount&gt;2&lt;/channelcount&gt;&lt;/audio&gt;&lt;/media&gt;")</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(""" &lt;asset id="r2" name="${esc(source.name)}" start="0s" duration="${t(source.durationMs)}" hasVideo="${if (source.hasVideo) 1 else 0}" hasAudio="1" format="r1" audioSources="1" audioChannels="2" audioRate="48000"&gt;""")</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(""" &lt;asset-clip ref="r2" name="${esc(source.name)}" offset="${t(outCursor)}" start="${t(segment.startMs)}" duration="${t(length)}" format="r1" tcFormat="NDF"&gt;""")</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(""" &lt;format id="r1" name="Trimio${timeline.canvas.widthPx}x${timeline.canvas.heightPx}p$fps" frameDuration="1/${fps}s" width="${timeline.canvas.widthPx}" height="${timeline.canvas.heightPx}"/&gt;""")</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(""" &lt;sequence format="r1" duration="${t(timeline.durationMs)}" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k"&gt;""")</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(""" &lt;text-style-def id="$id"&gt;&lt;text-style font="Vazirmatn" fontSize="72" fontFace="Bold" fontColor="1 1 1 1" alignment="center"/&gt;&lt;/text-style-def&gt;""")</ID>
+    <ID>MaxLineLength:Interchange.kt:Interchange$appendLine(""" &lt;title ref="r3" lane="1" name="${esc(text.take(24))}" offset="${t(localStart)}" duration="${t(range.durationMs)}" start="0s"&gt;""")</ID>
+    <ID>MaxLineLength:LanguageModelTest.kt:LanguageModelTest$"""{"model":"gpt-5","choices":[{"finish_reason":"stop","message":{"content":"{\"style\":\"neobrutalism\",\"energy\":0.9,\"cues\":[{\"word\":2,\"kind\":\"icon\"}]}"}}]}"""</ID>
+    <ID>MaxLineLength:LanguageModelTest.kt:LanguageModelTest$val replies = ArrayDeque(listOf("{\"style\":\"liquid-glass\",\"energy\":0.5,\"cues\":[{\"wo", "{\"style\":\"liquid-glass\",\"energy\":0.5,\"cues\":[]}"))</ID>
+    <ID>MaxLineLength:Lexicon.kt:Lexicon$"من"</ID>
+    <ID>MaxLineLength:Lexicon.kt:Lexicon$Topic.Business to set("کسبوکار", "بیزینس", "استارتاپ", "فروش", "مشتری", "برند", "درآمد", "business", "startup", "sales", "customer", "brand", "revenue", "marketing")</ID>
+    <ID>MaxLineLength:Lexicon.kt:Lexicon$Topic.Education to set("آموزش", "یادبگیریم", "درس", "نکته", "ترفند", "قدمبهقدم", "tutorial", "learn", "lesson", "tip", "tips", "howto", "guide", "step")</ID>
+    <ID>MaxLineLength:Lexicon.kt:Lexicon$Topic.Tech to set("هوشمصنوعی", "تکنولوژی", "اپلیکیشن", "برنامهنویسی", "گوشی", "ai", "tech", "technology", "app", "software", "coding", "iphone", "android")</ID>
+    <ID>MaxLineLength:Lexicon.kt:Lexicon$val</ID>
+    <ID>MaxLineLength:Lexicon.kt:Lexicon$val fall = set("ریزش", "سقوط", "کاهش", "ضرر", "دامپ", "نزولی", "اصلاح", "قرمز", "down", "fall", "falling", "drop", "crash", "loss", "bearish", "dump", "correction", "red")</ID>
+    <ID>MaxLineLength:Lexicon.kt:Lexicon$val rise = set("رشد", "صعود", "بالا", "افزایش", "سود", "پامپ", "صعودی", "ریباند", "سبز", "up", "rise", "rising", "growth", "gain", "gains", "profit", "bullish", "pump", "bounce", "breakout", "green", "moon")</ID>
+    <ID>MaxLineLength:LlamaNativeTest.kt:LlamaNativeTest$messages = listOf(ChatMessage(ChatRole.User, "Words: 0:سلام 1:بیت\u200Cکوین 2:پنج 3:درصد 4:رشد. Pick a style, emphasised word indices and a short Persian headline."))</ID>
+    <ID>MaxLineLength:LlmDirector.kt:LlmDirector$appendLine("Input: ${if (input is InputSource.AudioOnly) "audio only (the style paints the whole picture)" else "video"}, ${input.durationMs / 1000.0}s, spoken language: ${transcript.language.code}")</ID>
+    <ID>MaxLineLength:LlmDirector.kt:LlmDirector$private</ID>
+    <ID>MaxLineLength:LlmDirector.kt:PlanSanitizer$"icon" -&gt; if (cue.value in ElementCue.ICONS) cue else cue.copy(value = IconMatcher.match(cue.value + " " + cue.label + " " + words[cue.word].text) ?: "star")</ID>
+    <ID>MaxLineLength:LocalDirectorNativeTest.kt:LocalDirectorNativeTest$val transcript = Transcript(Language.Persian, words.mapIndexed { i, t -&gt; Word(t, TimeRange(300L + i * 480, 700L + i * 480), language = ScriptDetector.detect(t)) })</ID>
+    <ID>MaxLineLength:ModelDownloadJob.kt:ModelDownloadJob$setNotification(params, Notifications.DOWNLOAD_ID, Notifications.download(this, getString(R.string.downloading_models), null), JOB_END_NOTIFICATION_POLICY_REMOVE)</ID>
+    <ID>MaxLineLength:ModelDownloadJob.kt:ModelDownloadJob$setNotification(params, Notifications.DOWNLOAD_ID, Notifications.download(this@ModelDownloadJob, getString(R.string.downloading_models), fraction), JOB_END_NOTIFICATION_POLICY_REMOVE)</ID>
+    <ID>MaxLineLength:Notifications.kt:Notifications$manager.createNotificationChannel(NotificationChannel(DOWNLOAD_CHANNEL, context.getString(R.string.channel_downloads), NotificationManager.IMPORTANCE_LOW))</ID>
+    <ID>MaxLineLength:OnboardingScreen.kt:LiquidProgressOrb(progress = 0.62f, segments = List(9) { RingSegment(1f, if (it &lt; 6) 1f else 0f, active = it == 6) }, label = "", size = 220.dp, showValue = false)</ID>
+    <ID>MaxLineLength:OnboardingScreen.kt:TrimioButton(tr("دانلود مدل\u200Cها", "Download models"), { onDownloadDefaults(); step = 2 }, Modifier.fillMaxWidth(), leading = { TrimioIcon(TrimioIcons.Download, null, tint = Trimio.colors.onPrimary) })</ID>
+    <ID>MaxLineLength:OnboardingScreen.kt:TrimioButton(tr("کلید Claude / OpenAI دارم", "I have a Claude / OpenAI key"), onConnectCloud, Modifier.fillMaxWidth(), kind = ButtonKind.Ghost)</ID>
+    <ID>MaxLineLength:OnboardingScreen.kt:tr("یک\u200Cبار دانلود می\u200Cشود، روی Wi‑Fi پیشنهاد می\u200Cشود و اگر قطع شد از همان\u200Cجا ادامه می\u200Cدهد.", "Downloaded once. Wi‑Fi recommended; it resumes if interrupted.")</ID>
+    <ID>MaxLineLength:ProceduralMusic.kt:MusicMood$Chill : MusicMood</ID>
+    <ID>MaxLineLength:ProceduralMusic.kt:ProceduralMusic.Arrangement.Companion$MusicMood.Corporate -&gt; Arrangement(listOf(0.0, 2.0), listOf(1.0, 3.0), 0.5, hatLevel = 0.7f, bassPattern = listOf(0.0 to 0.9, 1.5 to 0.4, 2.0 to 0.9, 3.5 to 0.4), keys = true, arp = true)</ID>
+    <ID>MaxLineLength:RenderGoldenTest.kt:RenderGoldenTest$"karaoke-pill" to SampleTimelines.previewStyle.copy(captions = SampleTimelines.previewStyle.captions.copy(mode = CaptionMode.Karaoke, box = BoxStyle.Pill))</ID>
+    <ID>MaxLineLength:RenderGoldenTest.kt:RenderGoldenTest$"single-word-slam" to SampleTimelines.previewStyle.copy(captions = SampleTimelines.previewStyle.captions.copy(mode = CaptionMode.SingleWord, entry = "slam", box = BoxStyle.None))</ID>
+    <ID>MaxLineLength:RenderGoldenTest.kt:RenderGoldenTest$private</ID>
+    <ID>MaxLineLength:Resampler.kt:Resampler$val out = if (up &lt;= MAX_PHASES) polyphase(input.samples, up, down, cutoff, outSize) else interpolated(input.samples, up.toDouble() / down, cutoff, outSize)</ID>
+    <ID>MaxLineLength:RulesDirector.kt:RulesDirector$if (Lexicon.topics.values.any { key in it } || key in Lexicon.rise || key in Lexicon.fall || key in Lexicon.signal || key in Lexicon.warning || key in Lexicon.star) score += 0.35f</ID>
+    <ID>MaxLineLength:RulesDirector.kt:RulesDirector$val label = words.getOrNull(i + m.length)?.text?.takeIf { Lexicon.norm(it) !in Lexicon.stopwords }?.trimEnd('.', '،', ',', '!', '؟', '?').orEmpty()</ID>
+    <ID>MaxLineLength:RulesDirector.kt:RulesDirector$val n = if (m.value == kotlin.math.floor(m.value) &amp;&amp; abs(m.value) &lt; 1e12) m.value.toLong().toString() else ((m.value * 100).roundToInt() / 100.0).toString()</ID>
+    <ID>MaxLineLength:RulesDirector.kt:RulesDirector$words.any { Lexicon.norm(it.text).let { k -&gt; Lexicon.topics.getValue(Lexicon.Topic.Crypto).contains(k) || Lexicon.topics.getValue(Lexicon.Topic.Trading).contains(k) } }</ID>
+    <ID>MaxLineLength:SampleTimelines.kt:SampleTimelines$add(ElementClip(TimeRange(2_400, 4_000), assetId = "counter/percent", preset = "pop", anchor = Anchor.Center, params = mapOf("from" to "0", "to" to "5", "suffix" to "٪", "digits" to "fa", "label" to "رشد امروز")))</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:ComposerField(draft, { draft = it }, tr("کلید API را اینجا بچسبان", "Paste your API key"), Modifier.weight(1f).padding(vertical = TrimioSpacing.md), singleLine = true, obscured = true)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:Section</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:is ModelState.Failed -&gt; Text(tr("دانلود ناموفق؛ دوباره تلاش کن (از همان\u200Cجا ادامه می\u200Cدهد)", "Download failed; try again (it resumes)"), style = Trimio.type.caption, color = colors.danger)</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:onChoose = { onUpdate { s -&gt; if (kind == ModelKind.Language) s.copy(localModelId = spec.id) else s.copy(speechModelId = spec.id) } }</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:return if (tenths &gt;= 10) tr("${tenths / 10}٫${tenths % 10} گیگ", "${tenths / 10}.${tenths % 10} GB") else tr("${bytes / 1_000_000} مگ", "${bytes / 1_000_000} MB")</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:tr("همه\u0654 صداها، موسیقی\u200Cها و آیکون\u200Cها اختصاصی\u200Cاند؛ خروجی شما بدون محدودیت حق نشر است.", "All sounds, music and icons are original: your exports carry no licence restrictions.")</ID>
+    <ID>MaxLineLength:StructuredOutput.kt:ChatMessage(ChatRole.User, "That reply was not valid JSON for the schema (${e.message?.take(200)}). Reply again with the complete JSON only.")</ID>
+    <ID>MaxLineLength:StudioScreen.kt:Text(project.title, style = if (featured) Trimio.type.title else Trimio.type.label, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)</ID>
+    <ID>MaxLineLength:StudioScreen.kt:Text(tr("ویدیو یا صدا بده، موشن\u200Cگرافی بگیر", "Bring a video or a voice. Get motion graphics."), style = Trimio.type.label, color = Trimio.colors.textSecondary)</ID>
+    <ID>MaxLineLength:StudioScreen.kt:drawRoundRect(Color.White.copy(alpha = 0.12f), Offset(size.width * 0.05f, y - 6f), androidx.compose.ui.geometry.Size(14f, 12f), androidx.compose.ui.geometry.CornerRadius(3f))</ID>
+    <ID>MaxLineLength:StudioScreen.kt:drawRoundRect(Color.White.copy(alpha = 0.12f), Offset(size.width * 0.95f - 14f, y - 6f), androidx.compose.ui.geometry.Size(14f, 12f), androidx.compose.ui.geometry.CornerRadius(3f))</ID>
+    <ID>MaxLineLength:StudioScreen.kt:drawRoundRect(Color.White.copy(alpha = 0.25f), Offset(w * (2 * i + 0.5f), size.height * 0.45f - h / 2), androidx.compose.ui.geometry.Size(w, h), androidx.compose.ui.geometry.CornerRadius(w / 2))</ID>
+    <ID>MaxLineLength:StudioScreen.kt:if (projects.isNotEmpty()) Text(localizedNumber(projects.size.toString()), style = Trimio.type.numeric, color = Trimio.colors.textTertiary)</ID>
+    <ID>MaxLineLength:StudioScreen.kt:listOfNotNull(relativeTime(project.updatedAt, now), project.styleId?.let(DesignStyle::fromId)?.let { tr(it.nameFa, it.nameEn) }).joinToString(" · ")</ID>
+    <ID>MaxLineLength:StudioScreen.kt:tr("یه ویدیو یا ویس انتخاب کن و بگو چی می\u200Cخوای؛ بقیه\u200Cاش با Trimio.", "Pick a video or a voice note and say what you want. Trimio does the rest.")</ID>
+    <ID>MaxLineLength:StudioScreenshotTest.kt:StudioScreenshotTest$Project("a", "سیگنال امروز بیت\u200Cکوین", now - 3_600_000, now - 120_000, InputSource.Video(MediaUri("a"), 9_000, VideoFormat(1080, 1920, 30f)), "پرانرژی", "liquid-glass", status = ProjectStatus.Ready, timeline = sample, style = SampleTimelines.previewStyle)</ID>
+    <ID>MaxLineLength:StudioScreenshotTest.kt:StudioScreenshotTest$Project("b", "پادکست هفتگی", now - 7_200_000, now - 7_200_000, InputSource.AudioOnly(MediaUri("b"), 60_000, CanvasSpec()), "آرام", "kinetic-typography", status = ProjectStatus.Building)</ID>
+    <ID>MaxLineLength:StudioScreenshotTest.kt:StudioScreenshotTest$Project("c", "آموزش فارکس", now - 90_000_000, now - 90_000_000, InputSource.Video(MediaUri("c"), 60_000, VideoFormat(1920, 1080, 30f)), "", "neobrutalism", status = ProjectStatus.Ready, timeline = sample.copy(styleId = "liquid-glass"), style = SampleTimelines.previewStyle)</ID>
+    <ID>MaxLineLength:StyleGalleryScreen.kt:StyleCard(pack, sample, selected == pack.id, onClick = { selected = if (selected == pack.id) null else pack.id }, onUse = { onUse(pack.id) })</ID>
+    <ID>MaxLineLength:StyleGalleryScreen.kt:TrimioTopBar(tr("گالری سبک\u200Cها", "Style gallery"), subtitle = tr("هر سبک زنده پخش می\u200Cشود", "Every style plays live"), onBack = onBack, backLabel = tr("بازگشت", "Back"))</ID>
+    <ID>MaxLineLength:StylePackRenderTest.kt:StylePackRenderTest$drawCircle(Brush.radialGradient(listOf(Color(0xFFE8C4A0), Color(0x00E8C4A0)), Offset(r.center.x, r.height * 0.38f), r.width * 0.35f), r.width * 0.35f, Offset(r.center.x, r.height * 0.38f))</ID>
+    <ID>MaxLineLength:StyleTool.kt:drawCircle(Brush.radialGradient(listOf(Color(0xFFE8C4A0), Color.Transparent), Offset(r.center.x, r.height * 0.38f), r.width * 0.35f), r.width * 0.35f, Offset(r.center.x, r.height * 0.38f))</ID>
+    <ID>MaxLineLength:StyleTool.kt:val renderer = FrameRenderer(SampleTimelines.cryptoSignal().copy(styleId = pack.id), pack.spec, desktop.textMeasurer, fonts, RenderOptions(shaderScale = 0.5f))</ID>
+    <ID>MaxLineLength:TimelineComposer.kt:TimelineComposer$"chart-up", "chart-down" -&gt; ElementClip(range, assetId = "chart/candles", preset = "rise", params = mapOf("trend" to if (cue.kind == "chart-up") "up" else "down") + labelOf(cue))</ID>
+    <ID>MaxLineLength:TimelineComposer.kt:TimelineComposer$"progress" -&gt; ElementClip(range, assetId = "progress/bar", preset = "rise", params = mapOf("value" to ((cue.value.toFloatOrNull() ?: 100f) / 100f).toString()) + labelOf(cue))</ID>
+    <ID>MaxLineLength:TimelineEditor.kt:TimelineEditor$if</ID>
+    <ID>MaxLineLength:TimelineTracks.kt:edit.joinPointsMs.forEach { j -&gt; if (j in visibleFrom..visibleTo) drawLine(colors.accentAmber, Offset(x(j), ruler), Offset(x(j), size.height), 2f) }</ID>
+    <ID>MaxLineLength:TimelineTracks.kt:for (m in music) drawRoundRect(colors.success.copy(alpha = 0.22f), Offset(x(m.range.startMs), top3), Size(m.range.durationMs * pxPerMs, lane - gap * 2), CornerRadius(6f))</ID>
+    <ID>MaxLineLength:TimelineTracks.kt:for (s in sfx) if (s.range.startMs in visibleFrom..visibleTo) drawCircle(colors.accentAmber, 4.dp.toPx(), Offset(x(s.range.startMs), top3 + (lane - gap * 2) / 2))</ID>
+    <ID>MaxLineLength:TimelineTracks.kt:if (emphasized) Brush.horizontalGradient(listOf(colors.primary, colors.accentMagenta)) else Brush.horizontalGradient(listOf(colors.canvasRaised, colors.canvasRaised))</ID>
+    <ID>MaxLineLength:TimelineTracks.kt:if (layout.size.width &lt; w - 6f) drawText(layout, topLeft = Offset(left + (w - layout.size.width) / 2, top1 + (lane - gap * 2 - layout.size.height) / 2))</ID>
+    <ID>MaxLineLength:TrimioIcons.kt:TrimioIcons$moveTo(7.5f, 11f); arcTo(4f, 4f, 0f, true, true, 7.49f, 11f); moveTo(11f, 13f); lineTo(20f, 13f); lineTo(20f, 16f); moveTo(16.5f, 13f); lineTo(16.5f, 15.5f)</ID>
+    <ID>MaxLineLength:TrimioIcons.kt:TrimioIcons$val Text = icon("text") { moveTo(5f, 6f); lineTo(5f, 4f); lineTo(19f, 4f); lineTo(19f, 6f); moveTo(12f, 4f); lineTo(12f, 20f); moveTo(9f, 20f); lineTo(15f, 20f) }</ID>
+    <ID>MaxLineLength:TrimioIcons.kt:TrimioIcons$val Undo = icon("undo", mirrored = true) { moveTo(9f, 14f); lineTo(4f, 9f); lineTo(9f, 4f); moveTo(4f, 9f); lineTo(14f, 9f); arcTo(5.5f, 5.5f, 0f, false, true, 14f, 20f); lineTo(11f, 20f) }</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$drawArc(Color(0xFFB8C0CF), 180f, 180f, false, Offset(-s * 0.45f, -s * 0.95f), Size(s * 0.9f, s * 0.9f), alpha = alpha, style = Stroke(s * 0.16f))</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF7C2), amber), Offset(-s * 0.15f, -s * 0.35f), s), s * 0.62f, Offset(0f, -s * 0.2f), alpha = alpha)</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$drawLine(Color(0xFF222222), Offset((cos(a) * s * inner).toFloat(), (sin(a) * s * inner).toFloat()), Offset((cos(a) * s * 0.88f).toFloat(), (sin(a) * s * 0.88f).toFloat()), s * 0.06f, alpha = alpha)</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$drawLine(Color.White.copy(alpha = 0.6f), Offset(-s * 0.32f, -s * 0.62f), Offset(-s * 0.25f, -s * 0.05f), s * 0.08f, StrokeCap.Round, alpha = alpha)</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$drawLine(Color.White.copy(alpha = 0.7f), Offset(-s * 0.55f, dy - s * 0.12f), Offset(s * 0.3f, dy - s * 0.12f), s * 0.06f, StrokeCap.Round, alpha = alpha)</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$drawLine(amber, Offset((cos(a) * s * 0.85f).toFloat(), (sin(a) * s * 0.85f - s * 0.2f).toFloat()), Offset((cos(a) * s * 1.1f).toFloat(), (sin(a) * s * 1.1f - s * 0.2f).toFloat()), s * 0.08f, StrokeCap.Round, alpha = alpha)</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$drawRoundRect(Brush.verticalGradient(listOf(accent, accent2), -s * 0.15f, s), Offset(-s * 0.72f, -s * 0.15f), Size(s * 1.44f, s * 1.1f), CornerRadius(s * 0.18f), alpha = alpha)</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$listOf(-s * 0.95f to -s * 0.45f, 0f to -s * 0.75f, s * 0.95f to -s * 0.45f).forEach { (x, y) -&gt; drawCircle(accent2, s * 0.13f, Offset(x, y), alpha = alpha) }</ID>
+    <ID>MaxLineLength:VectorIcons.kt:VectorIcons$listOf(1f to red, 0.74f to Color.White, 0.48f to red, 0.22f to Color.White).forEach { (r, c) -&gt; drawCircle(c, s * r, Offset.Zero, alpha = alpha) }</ID>
+    <ID>MayBeConstant:ShaderSources.kt:ShaderSources$/** * A glass sphere filling with liquid up to `iProgress` (0..1): two travelling waves on the * surface, a bright meniscus, depth gradient and a glass rim. Transparent outside the circle. */ val liquidOrb: String = """ uniform float2 iResolution; uniform float iTime; uniform float iProgress; uniform float3 cDeep; uniform float3 cSurface; uniform float3 cGlow; half4 main(float2 fragCoord) { float2 uv = fragCoord / iResolution; float r = length(uv - 0.5); float body = 1.0 - smoothstep(0.49, 0.5, r); if (body &lt;= 0.0) { return half4(0.0); } float level = 1.0 - iProgress; float calm = 1.0 - abs(iProgress - 0.5) * 1.2; float wave = (0.020 * sin(uv.x * 11.0 + iTime * 2.3) + 0.012 * sin(uv.x * 23.0 - iTime * 3.4)) * max(calm, 0.15); float surface = level + wave; float liquid = smoothstep(surface - 0.006, surface + 0.006, uv.y); float depth = clamp((uv.y - surface) / max(1.0 - surface, 0.001), 0.0, 1.0); float3 col = mix(cSurface, cDeep, depth); float meniscus = exp(-abs(uv.y - surface) * 70.0); col += cGlow * meniscus * 0.8; // Caustic shimmer inside the liquid. float shimmer = sin(uv.x * 40.0 + iTime * 1.7) * sin(uv.y * 34.0 - iTime * 1.3); col += cGlow * max(shimmer, 0.0) * 0.06 * liquid; // Glass: faint fill, bright rim, specular highlight top-left. float rim = smoothstep(0.43, 0.5, r) * body; float spec = exp(-length(uv - float2(0.33, 0.28)) * 9.0) * 0.55; float glassAlpha = 0.025 + rim * 0.5 + spec; float3 glass = mix(float3(1.0), cSurface, 0.35); float alpha = max(liquid * body, glassAlpha * body); float3 outCol = mix(glass, col, liquid); outCol += float3(1.0) * spec * (1.0 - liquid * 0.5); return half4(half3(outCol * alpha), half(alpha)); } """</ID>
+    <ID>MayBeConstant:ShaderSources.kt:ShaderSources$/** * Animated film grain, premultiplied white/black specks around zero. Laid over dark canvases at * 2-3% to kill gradient banding and give footage-like texture (docs/DESIGN.md §6). */ val filmGrain: String = """ uniform float2 iResolution; uniform float iTime; uniform float iAmount; float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); } half4 main(float2 fragCoord) { // Grain changes 24 times a second, like film, not every display frame. float frame = floor(iTime * 24.0); float n = hash(floor(fragCoord) + frame * 17.0) - 0.5; float a = abs(n) * 2.0 * iAmount; float3 c = n &gt; 0.0 ? float3(1.0) : float3(0.0); return half4(half3(c * a), half(a)); } """</ID>
+    <ID>ReturnCount:NumberWords.kt:NumberWords$fun at: Match?</ID>
+    <ID>SwallowedException:DirectionStage.kt:DirectionStage$e: Exception</ID>
+    <ID>ThrowsCount:OpenAiLanguageModel.kt:OpenAiLanguageModel$override suspend fun generate: Generation</ID>
+    <ID>ThrowsCount:StructuredOutput.kt:suspend fun &lt;T&gt; LanguageModel.generateStructured: T</ID>
+    <ID>ThrowsCount:StylePackCodec.kt:StylePackCodec$suspend fun decodeSigned: StylePack</ID>
+    <ID>ThrowsCount:WavCodec.kt:WavCodec$fun readHeader: Header</ID>
+    <ID>TooGenericExceptionCaught:AndroidMediaProbe.kt:AndroidMediaProbe$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DirectionStage.kt:DirectionStage$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MediaStorePublisher.kt:MediaStorePublisher$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ModelManager.kt:ModelManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ModelStore.kt:ModelStore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:OpenAiLanguageModel.kt:OpenAiLanguageModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PipelineOrchestrator.kt:PipelineOrchestrator.Run$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:StructuredOutput.kt:e: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:StylePackCodec.kt:StylePackCodec$e: Exception</ID>
+    <ID>UnusedParameter:ProceduralMusic.kt:ProceduralMusic$s: Synth</ID>
+  </CurrentIssues>
+</SmellBaseline>

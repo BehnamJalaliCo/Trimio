@@ -55,3 +55,8 @@ val stylePreview by tasks.registering(JavaExec::class) {
         )
     }
 }
+
+tasks.named<Test>("jvmTest") {
+    // `-Pgolden.update` rewrites the golden frames after an intentional visual change.
+    if (providers.gradleProperty("golden.update").isPresent) systemProperty("golden.update", "true")
+}

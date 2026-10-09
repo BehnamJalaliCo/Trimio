@@ -30,6 +30,8 @@ data class AppSettings(
     val reduceMotion: Boolean = false,
     val reduceTransparency: Boolean = false,
     val haptics: Boolean = true,
+    /** Consent to share crash reports (off by default). */
+    val shareCrashReports: Boolean = false,
 )
 
 /** Settings as observable state, persisted as one small JSON file. */

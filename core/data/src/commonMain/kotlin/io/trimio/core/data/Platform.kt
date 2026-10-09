@@ -10,9 +10,12 @@ fun interface MediaPicker {
     suspend fun pick(kind: MediaKind): MediaUri?
 }
 
-/** Hands a finished video to other apps (Instagram, Telegram…). */
-fun interface Sharer {
+/** Hands a finished video, or project files for other editors, to other apps. */
+interface Sharer {
     fun share(uri: String, title: String)
+
+    /** Writes text files (name → content) to app storage and shares them together. */
+    fun shareFiles(files: Map<String, String>, title: String) {}
 }
 
 /** Facts about the device the UI adapts to. */

@@ -110,6 +110,9 @@ fun CreateScreen(
                 verticalArrangement = Arrangement.spacedBy(TrimioSpacing.lg),
             ) {
                 MediaCard(state)
+                if (state.hot) {
+                    GlassChip(tr("گوشی داغ است؛ ساخت با سرعت کمتر و خنک\u200Cتر انجام می\u200Cشود", "Your phone is hot: the build will run cooler and slower"), accent = colors.accentAmber)
+                }
 
                 AssistantBubble(tr("چی می\u200Cخوای بسازی؟ ساده بگو یا یه بریف کامل بنویس.", "What should we make? Say it simply, or write a full brief."))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.sm), verticalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {

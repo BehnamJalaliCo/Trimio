@@ -288,27 +288,30 @@
 
 ---
 
-## فاز ۹ — کیفیت سطح Enterprise ⬜
+## فاز ۹ — کیفیت سطح Enterprise 🔄
 
+### انجام‌شده
+- [x] بیلد Release با R8 و قوانین Keep (callbackهای JNI، kotlinx.serialization، مدل‌های Jackson در SDK Claude) — در CI
+- [x] ممیزی لایسنس همهٔ ۳۰۱ وابستگی بیلد Release از روی POM (و POM والد)؛ CI روی هر لایسنس Copyleft شکست می‌خورد
+- [x] تحلیل ایستا: detekt 2 با Baseline؛ CI فقط روی یافتهٔ جدید شکست می‌خورد
+- [x] مقایسهٔ پیکسلی Golden Frame برای هر ۲۸ سبک (با تحمل ۱٫۵٪؛ فریم‌های اختلاف به‌عنوان Artifact در CI)
+- [x] خروجی XML برای Premiere (FCP7 XML) و DaVinci / Final Cut (FCPXML 1.11) + زیرنویس SRT، از صفحهٔ خروجی
+- [x] پروفایل دستگاه (سطح، نخ‌ها، رزولوشن پیش‌فرض، کیفیت شیدر پیش‌نمایش)
+- [x] کنترل حرارت با Thermal API اندروید: نخ‌های گفتار با داغی گوشی کم می‌شوند و کاربر مطلع می‌شود
+- [x] گزارش خطا به‌صورت محلی، ارسال فقط با رضایت کاربر (بدون رسانه، صدا یا متن)
+- [x] دسترس‌پذیری: برچسب TalkBack برای کنترل‌ها، تست اسکرین‌شات با فونت ۱٫۶ برابر، حرکت و شفافیت کمتر
+- [x] تست واحد لایهٔ داده (پروژه، تنظیمات، پروفایل، گزارش خطا) و تست یکپارچهٔ کل اپ از طریق DI
+
+### نیازمند گوشی واقعی (باقی‌مانده)
 - [ ] تست مدیا روی گوشی واقعی: Probe و دیکود (MP4/MOV/M4A/MP3، HDR، چرخش)
-- [ ] حذف نویز عصبی RNNoise (C، از طریق NDK)
-- [ ] VAD عصبی Silero (ONNX) به‌عنوان حالت دقیق
-- [ ] تراز کلمه با wav2vec2-CTC (ONNX Runtime)
-- [ ] Whisper روی GPU (Vulkan)
-- [ ] llama.cpp روی GPU (OpenCL برای Adreno / Vulkan) و سنجش زمان پاسخ مدل پیش‌فرض (هدف زیر ۱۰ ثانیه برای نقشه)
+- [ ] سنجش زمان پاسخ مدل پیش‌فرض و سرعت رندر روی گوشی‌های مرجع (Snapdragon 8 Gen 3، Dimensity 9300، Tensor G4)
+- [ ] Macrobenchmark و Baseline Profiles (نیازمند شبیه‌ساز/گوشی)
+- [ ] llama.cpp و Whisper روی GPU (OpenCL برای Adreno / Vulkan)
+- [ ] حذف نویز عصبی RNNoise، VAD عصبی Silero، تراز wav2vec2-CTC
 - [ ] مجموعهٔ تست WER فارسی با صدای واقعی
-- [ ] مقایسهٔ پیکسلی Golden Frame برای همهٔ سبک‌ها
-- [ ] تحلیل ایستا: detekt + ktlint در CI
-- [ ] تست Golden Frame برای همهٔ سبک‌ها و پریست‌ها
-- [ ] Macrobenchmark و Baseline Profiles
-- [ ] سنجش سخت‌افزار و انتخاب خودکار سطح (مدل، رزولوشن)
-- [ ] کنترل حرارت با Thermal API
 - [ ] اجرای موتورها در پروسس جدا (`:engine`) برای جداسازی کرش
-- [ ] Certificate Pinning، امضای پکیج‌ها، R8
-- [ ] گزارش کرش با Sentry (سرور شخصی)، با رضایت کاربر
-- [ ] دسترس‌پذیری: TalkBack، اندازهٔ فونت، کنتراست
-- [ ] ممیزی لایسنس کتابخانه‌ها (بدون GPL)
-- [ ] خروجی XML برای Premiere (FCP7 XML) و DaVinci (FCPXML)
+- [ ] Certificate Pinning (پس از راه‌اندازی CDN در فاز ۱۰)
+- [ ] Shared Element، برش با کشیدن لبهٔ کلیپ، Lottie
 
 ---
 

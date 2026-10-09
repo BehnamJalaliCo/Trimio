@@ -79,10 +79,10 @@ val appModule: Module = module {
     single { JobRunner(get(AppScope), get(), { get<PipelineFactory>().build() }, { get<PipelineFactory>().export() }) }
 
     viewModel { StudioViewModel(get(), get()) }
-    viewModel { (args: CreateArgs) -> CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), get(), get(), args.styleId) }
+    viewModel { (args: CreateArgs) -> CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), get(), get(), args.styleId, get()) }
     viewModel { (projectId: String) -> BuildStreamViewModel(get(), get(), projectId) }
     viewModel { (projectId: String) -> EditorViewModel(projectId, get(), get()) }
     viewModel { (projectId: String) -> ExportViewModel(projectId, get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get(), getOrNull(), get()) }
     viewModel { GalleryViewModel(get()) }
 }

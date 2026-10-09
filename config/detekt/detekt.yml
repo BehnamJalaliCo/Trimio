@@ -1,0 +1,30 @@
+# Trimio detekt rules: the defaults, tuned for Compose and engine code.
+complexity:
+  LongParameterList:
+    # Composables take many state/callback parameters by design (stateless screens).
+    allowedFunctionParameters: 16
+    allowedConstructorParameters: 12
+    ignoreAnnotated: ['Composable']
+  LongMethod:
+    allowedLines: 120
+    ignoreAnnotated: ['Composable']
+  CyclomaticComplexMethod:
+    allowedComplexity: 25
+    ignoreAnnotated: ['Composable']
+  TooManyFunctions:
+    active: false
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][A-Za-z0-9_]*'
+style:
+  MagicNumber:
+    # Motion, colour and DSP code is made of tuned numbers; they are named where they carry meaning.
+    active: false
+  MaxLineLength:
+    maxLineLength: 160
+  WildcardImport:
+    active: true
+  ReturnCount:
+    max: 5

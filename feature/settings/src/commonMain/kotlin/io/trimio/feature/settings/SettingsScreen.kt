@@ -27,7 +27,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.trimio.core.data.AppSettings
+import io.trimio.core.data.CrashLog
 import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.Sharer
 import io.trimio.core.data.SettingsRepository
 import io.trimio.core.designsystem.component.ComposerField
 import io.trimio.core.designsystem.component.GlassChip
@@ -66,7 +68,19 @@ class SettingsViewModel(
     val models: ModelManager,
     private val cloud: CloudModels,
     val device: DeviceInfo,
+    private val crashLog: CrashLog? = null,
+    private val sharer: Sharer? = null,
 ) : ViewModel() {
+    /** Number of stored crash reports, shown next to the consent switch. */
+    val crashReports: Int get() = crashLog?.reports()?.size ?: 0
+
+    /** Shares the newest crash report (only offered once the user has consented). */
+    fun shareLatestCrash() {
+        val log = crashLog ?: return
+        val latest = log.reports().firstOrNull() ?: return
+        sharer?.shareFiles(mapOf(latest.name to log.read(latest)), "Trimio crash report")
+    }
+
     val state: StateFlow<AppSettings> = settings.settings
     private val _keys = MutableStateFlow(CloudProvider.entries.associateWith { false })
     val keys: StateFlow<Map<CloudProvider, Boolean>> = _keys.asStateFlow()
@@ -113,6 +127,8 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
         onDelete = viewModel.models::delete,
         onSaveKey = { p, k -> viewModel.saveKey(p, k) },
         onRemoveKey = { viewModel.removeKey(it) },
+        crashReports = viewModel.crashReports,
+        onShareCrash = viewModel::shareLatestCrash,
     )
 }
 
@@ -130,6 +146,8 @@ fun SettingsScreen(
     onDelete: (ModelSpec) -> Unit,
     onSaveKey: (CloudProvider, String) -> Unit,
     onRemoveKey: (CloudProvider) -> Unit,
+    crashReports: Int = 0,
+    onShareCrash: () -> Unit = {},
 ) {
     TrimioScreen(dimAurora = 0.65f) {
         Column(Modifier.fillMaxSize()) {
@@ -194,6 +212,16 @@ fun SettingsScreen(
                     }
                     ListRow(tr("لرزش لمسی", "Haptics")) {
                         TrimioSwitch(settings.haptics, { v -> onUpdate { it.copy(haptics = v) } })
+                    }
+                }
+
+                Section(tr("حریم خصوصی", "Privacy")) {
+                    ListRow(
+                        tr("گزارش خطا", "Crash reports"),
+                        description = tr("فقط خطای فنی و مدل گوشی؛ هیچ ویدیو، صدا یا متنی ارسال نمی\u200Cشود.", "Only the technical error and phone model; never your media, voice or text."),
+                    ) { TrimioSwitch(settings.shareCrashReports, { v -> onUpdate { it.copy(shareCrashReports = v) } }) }
+                    if (settings.shareCrashReports && crashReports > 0) {
+                        ListRow(localizedNumber(tr("ارسال آخرین گزارش ($crashReports)", "Send the latest report ($crashReports)")), icon = TrimioIcons.Share, onClick = onShareCrash)
                     }
                 }
 

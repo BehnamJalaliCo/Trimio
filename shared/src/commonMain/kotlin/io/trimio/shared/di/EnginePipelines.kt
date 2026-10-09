@@ -31,7 +31,8 @@ class EnginePipelines(
     private val exporter: VideoExporter,
     private val publisher: OutputPublisher,
     private val outputPath: (jobId: String) -> String,
-    private val threads: Int = 4,
+    /** Evaluated when each job starts, so a hot phone starts lighter jobs. */
+    private val threads: () -> Int = { 4 },
 ) : PipelineFactory {
     private val checkpoints = InMemoryCheckpointStore()
 
@@ -39,7 +40,7 @@ class EnginePipelines(
         listOf(
             IngestStage(probe),
             AudioCleanupStage(decoder),
-            TranscriptionStage(recognizer, threads),
+            TranscriptionStage(recognizer, threads()),
             AlignmentStage(),
             AnalysisStage(),
             DirectionStage(styles, directors),

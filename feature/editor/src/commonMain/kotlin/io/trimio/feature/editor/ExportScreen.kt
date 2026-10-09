@@ -51,6 +51,8 @@ import io.trimio.core.designsystem.theme.tr
 import io.trimio.core.model.input.AspectRatio
 import io.trimio.core.model.input.CanvasSpec
 import io.trimio.core.model.input.Resolution
+import io.trimio.core.model.interchange.Interchange
+import io.trimio.core.model.interchange.SourceMedia
 import io.trimio.core.pipeline.JobStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,6 +130,22 @@ class ExportViewModel(
         }
     }
 
+    /** Project files for Premiere (FCP7 XML + SRT) or DaVinci Resolve / Final Cut (FCPXML + SRT). */
+    fun shareForEditor(premiere: Boolean) {
+        val project = projects.get(projectId) ?: return
+        val timeline = project.timeline ?: return
+        val video = (project.input as? io.trimio.core.model.input.InputSource.Video)?.format
+        val name = project.input.uri.value.substringAfterLast('/').substringBefore('?').ifBlank { "source" }
+        val source = SourceMedia(project.input.uri.value, name, project.input.durationMs, video?.displayWidth ?: 0, video?.displayHeight ?: 0, video != null)
+        val base = project.title.replace(Regex("[^\\p{L}\\p{N}]+"), "-").trim('-').ifBlank { "trimio" }
+        val files = buildMap {
+            if (premiere) put("$base-premiere.xml", Interchange.xmeml(timeline, source, project.title))
+            else put("$base.fcpxml", Interchange.fcpxml(timeline, source, project.title))
+            put("$base.srt", Interchange.srt(timeline))
+        }
+        sharer.shareFiles(files, project.title)
+    }
+
     fun share() {
         val uri = _state.value.outputUri ?: return
         sharer.share(uri, _state.value.project?.title ?: "Trimio")
@@ -137,7 +155,7 @@ class ExportViewModel(
 @Composable
 fun ExportRoute(viewModel: ExportViewModel, onBack: () -> Unit, onDone: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    ExportScreen(state, onBack, viewModel::setPreset, viewModel::setResolution, viewModel::setFrameRate, viewModel::export, viewModel::share, onDone)
+    ExportScreen(state, onBack, viewModel::setPreset, viewModel::setResolution, viewModel::setFrameRate, viewModel::export, viewModel::share, onDone, viewModel::shareForEditor)
 }
 
 @Composable
@@ -150,6 +168,7 @@ fun ExportScreen(
     onExport: () -> Unit,
     onShare: () -> Unit,
     onDone: () -> Unit,
+    onShareForEditor: (premiere: Boolean) -> Unit = {},
 ) {
     val colors = Trimio.colors
     TrimioScreen(dimAurora = 0.45f, energy = { if (state.running) 0.6f else 0f }) {
@@ -202,6 +221,17 @@ fun ExportScreen(
                         color = colors.textTertiary,
                     )
                     state.error?.let { Text(it, style = Trimio.type.label, color = colors.danger) }
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {
+                        SectionLabel(tr("ادامه در نرم\u200Cافزار حرفه\u200Cای", "Continue in a pro editor"))
+                        Row(horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {
+                            TrimioButton("Premiere", { onShareForEditor(true) }, Modifier.weight(1f), kind = ButtonKind.Glass)
+                            TrimioButton("DaVinci / FCP", { onShareForEditor(false) }, Modifier.weight(1f), kind = ButtonKind.Glass)
+                        }
+                        Text(
+                            tr("کات\u200Cها و زیرنویس (SRT) منتقل می\u200Cشوند؛ فایل اصلی را در برنامه\u0654 مقصد دوباره پیوند بده.", "Cuts and captions (SRT) travel; relink the original file in the other app."),
+                            style = Trimio.type.caption, color = colors.textTertiary,
+                        )
+                    }
                 }
             }
             if (!state.running && state.status != JobStatus.Completed) {

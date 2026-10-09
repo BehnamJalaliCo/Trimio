@@ -12,6 +12,8 @@ import androidx.compose.ui.text.font.FontFamily
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.DeviceProfile
+import io.trimio.core.data.ThermalMonitor
 import io.trimio.core.data.MediaKind
 import io.trimio.core.data.MediaPicker
 import io.trimio.core.data.SettingsRepository
@@ -62,6 +64,9 @@ fun androidPlatformModule(
     single<Sharer> { AndroidSharer(app) }
     single { DeviceInfo(ramGb = ramGb(app), platform = "Android ${android.os.Build.VERSION.RELEASE}", appVersion = appVersion) }
     single<MediaProbe> { AndroidMediaProbe(app) }
+    single<ThermalMonitor> { AndroidThermalMonitor(app) }
+    single { io.trimio.core.data.CrashLog(Path(File(app.filesDir, "crashes").absolutePath)) }
+    single { DeviceProfile.of(ramGb(app), Runtime.getRuntime().availableProcessors()) }
     single { HttpClient(OkHttp) }
     single { ClaudeFactory { key, model -> ClaudeLanguageModel(key, model) } }
     single { DownloadHooks { active -> if (active) onDownloadsStarted() } }
@@ -84,7 +89,7 @@ fun androidPlatformModule(
             exporter = FontsFirst { fonts -> AndroidVideoExporter(app, fonts) },
             publisher = MediaStorePublisher(app),
             outputPath = { jobId -> File(app.cacheDir, "renders").apply { mkdirs() }.resolve("$jobId.mp4").absolutePath },
-            threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 6),
+            threads = { get<DeviceProfile>().threadsFor(get<ThermalMonitor>().level.value) },
         )
     }
 }
@@ -144,6 +149,21 @@ private class AndroidSharer(private val context: Context) : Sharer {
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "video/mp4"
             putExtra(Intent.EXTRA_STREAM, Uri.parse(uri))
+            putExtra(Intent.EXTRA_TITLE, title)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    override fun shareFiles(files: Map<String, String>, title: String) {
+        val dir = File(context.cacheDir, "interchange").apply { mkdirs() }
+        val uris = ArrayList<Uri>(files.map { (name, content) ->
+            val file = File(dir, name).apply { writeText(content) }
+            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        })
+        val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "*/*"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
             putExtra(Intent.EXTRA_TITLE, title)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
