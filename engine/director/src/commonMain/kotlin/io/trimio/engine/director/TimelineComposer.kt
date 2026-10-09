@@ -82,7 +82,7 @@ object TimelineComposer {
             val start = (at - 80).coerceAtLeast(0).coerceAtLeast(lastEnd)
             val length = when (cue.kind) {
                 "chart-up", "chart-down" -> 2_600L
-                "counter", "progress" -> 2_000L
+                "counter", "progress", "ticker" -> 2_000L
                 else -> 1_500L
             }
             val end = minOf(start + length, duration)
@@ -154,6 +154,13 @@ object TimelineComposer {
                 },
             )
         }
+        "ticker" -> ElementClip(
+            range, assetId = "ticker/${cue.value.lowercase()}", preset = "rise", scale = 1.05f,
+            params = buildMap {
+                put("symbol", cue.value); put("change", cue.label.trim().removePrefix("+"))
+                if (persianDigits) put("digits", "fa")
+            },
+        )
         "progress" -> ElementClip(range, assetId = "progress/bar", preset = "rise", params = mapOf("value" to ((cue.value.toFloatOrNull() ?: 100f) / 100f).toString()) + labelOf(cue))
         "chart-up", "chart-down" -> ElementClip(range, assetId = "chart/candles", preset = "rise", params = mapOf("trend" to if (cue.kind == "chart-up") "up" else "down") + labelOf(cue))
         "arrow-up" -> ElementClip(range, assetId = "arrow/up", preset = "pop", scale = 1.15f)

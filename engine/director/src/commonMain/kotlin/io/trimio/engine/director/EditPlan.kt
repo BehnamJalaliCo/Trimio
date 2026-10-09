@@ -1,5 +1,6 @@
 package io.trimio.engine.director
 
+import io.trimio.core.model.asset.IconCatalog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -37,7 +38,8 @@ data class EditPlan(
 
 /**
  * A motion-graphics element timed to a spoken word. [kind] is one of [KINDS]; [value] is the
- * number for counters/progress (as text), the icon name for icons, the text for badges.
+ * number for counters/progress (as text), the icon name for icons, the text for badges and the
+ * market symbol for tickers (BTC, ETH, GOLD…, with the signed percent move in [label]).
  */
 @Serializable
 data class ElementCue(
@@ -47,8 +49,8 @@ data class ElementCue(
     val label: String = "",
 ) {
     companion object {
-        val KINDS = listOf("counter", "icon", "arrow-up", "arrow-down", "chart-up", "chart-down", "badge", "progress")
-        val ICONS = listOf("coin", "check", "star", "bolt", "heart")
+        val KINDS = listOf("counter", "ticker", "icon", "arrow-up", "arrow-down", "chart-up", "chart-down", "badge", "progress")
+        val ICONS: List<String> = IconCatalog.ids
     }
 }
 

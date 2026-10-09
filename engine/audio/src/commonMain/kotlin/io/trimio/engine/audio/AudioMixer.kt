@@ -53,9 +53,13 @@ class AudioMixer(
             val gain = dbToGain(music.gainDb)
             val start = index(music.range.startMs)
             val end = index(music.range.endMs).coerceAtMost(length)
+            // Short fade-in, long musical fade-out at the end of the edit.
+            val fadeIn = (outputRate * MUSIC_FADE_IN_MS / 1000).coerceAtMost((end - start) / 2).coerceAtLeast(1)
+            val fadeOut = (outputRate * MUSIC_FADE_OUT_MS / 1000).coerceAtMost((end - start) / 2).coerceAtLeast(1)
             for (i in start until end) {
                 val sample = pcm.samples[(i - start) % pcm.size]
-                out[i] += sample * gain * (if (music.duckUnderSpeech) duck[i] else 1f)
+                val edge = minOf(1f, (i - start).toFloat() / fadeIn, (end - 1 - i).toFloat() / fadeOut)
+                out[i] += sample * gain * edge * (if (music.duckUnderSpeech) duck[i] else 1f)
             }
         }
 
@@ -136,4 +140,9 @@ class AudioMixer(
     private fun equalPower(p: Float) = kotlin.math.sin(p.coerceIn(0f, 1f) * kotlin.math.PI / 2).toFloat()
     private fun index(ms: Long) = (ms * outputRate / 1000).toInt()
     private fun dbToGain(db: Float) = 10.0.pow(db / 20.0).toFloat()
+
+    private companion object {
+        const val MUSIC_FADE_IN_MS = 300
+        const val MUSIC_FADE_OUT_MS = 1_500
+    }
 }

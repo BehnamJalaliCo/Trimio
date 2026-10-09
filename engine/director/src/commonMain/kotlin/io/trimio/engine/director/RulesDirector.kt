@@ -116,6 +116,12 @@ object RulesDirector {
         words.forEachIndexed { i, w ->
             if (i < skipUntil) return@forEachIndexed
             val key = Lexicon.norm(w.text)
+            // "بیت‌کوین ۵ درصد رشد کرد" → one ticker card instead of a counter.
+            tickerAt(words, i, numbers)?.let { (cue, length) ->
+                candidates += Candidate(cue, 4)
+                skipUntil = i + length
+                return@forEachIndexed
+            }
             numbers[i]?.let { m ->
                 val label = words.getOrNull(i + m.length)?.text?.takeIf { Lexicon.norm(it) !in Lexicon.stopwords }?.trimEnd('.', '،', ',', '!', '؟', '?').orEmpty()
                 candidates += Candidate(ElementCue(i, "counter", counterValue(m), label), 3)
@@ -131,7 +137,7 @@ object RulesDirector {
                 in Lexicon.warning -> ElementCue(i, "icon", "bolt")
                 in Lexicon.star -> ElementCue(i, "icon", "star")
                 in Lexicon.love -> ElementCue(i, "icon", "heart")
-                else -> null
+                else -> IconMatcher.forWord(w.text)?.let { ElementCue(i, "icon", it) }
             } ?: return@forEachIndexed
             candidates += Candidate(cue, if (cue.kind.startsWith("chart") || cue.kind == "badge") 2 else 1)
         }
@@ -145,6 +151,30 @@ object RulesDirector {
             if (accepted.none { abs(words[it.word].range.startMs - t) < gapMs }) accepted += c.cue
         }
         return accepted.sortedBy { it.word }
+    }
+
+    /**
+     * A market name followed within a few words by a percent move. Returns the ticker cue and how
+     * many words it spans, so the number is not animated twice.
+     */
+    private fun tickerAt(words: List<Word>, i: Int, numbers: Map<Int, NumberWords.Match>): Pair<ElementCue, Int>? {
+        val symbol = when (Lexicon.norm(words[i].text)) {
+            "بیتکوین", "btc", "bitcoin" -> "BTC"
+            "اتریوم", "eth", "ethereum" -> "ETH"
+            "طلا", "gold", "xauusd", "انس" -> "GOLD"
+            "سولانا", "solana", "sol" -> "SOL"
+            "تتر", "usdt" -> "USDT"
+            else -> return null
+        }
+        for (j in i + 1..minOf(i + 4, words.lastIndex)) {
+            val m = numbers[j] ?: continue
+            if (m.unit != NumberWords.Unit.Percent) return null
+            val after = (j + m.length..minOf(j + m.length + 2, words.lastIndex)).map { Lexicon.norm(words[it].text) }
+            val down = after.any { it in Lexicon.fall } || (i + 1 until j).any { Lexicon.norm(words[it].text) in Lexicon.fall }
+            val change = (if (down) "-" else "+") + counterValue(m).removeSuffix("%")
+            return ElementCue(i, "ticker", symbol, change) to (j + m.length - i)
+        }
+        return null
     }
 
     /** "5%", "$1200", "40 تومان" — the composer splits prefix/suffix back out. */

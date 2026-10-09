@@ -1,5 +1,6 @@
 package io.trimio.engine.director
 
+import io.trimio.core.model.asset.IconCatalog
 import io.trimio.core.model.input.InputSource
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.llm.ChatMessage
@@ -93,10 +94,11 @@ class LlmDirector(private val model: LanguageModel) {
             - emphasis: word indices that carry the message — key nouns, numbers, money, results, contrast words,
               words with vocal stress (*). Not filler or function words. Roughly one every 1–2 seconds; more for high energy.
             - elements: motion graphics on the word they illustrate, at most one every ~2 seconds:
-              counter (value is the spoken number, optionally with %, $ prefix, or " تومان"), chart-up / chart-down for
-              market moves, arrow-up / arrow-down for change, icon (value: coin, check, star, bolt, heart), badge (value:
-              short text), progress (value 0–100). label is an optional 1–3 word caption under the element, in the
-              spoken language.
+              counter (value is the spoken number, optionally with %, $ prefix, or " تومان"), ticker (value: BTC, ETH,
+              GOLD…; label: signed percent move like +5.2) when a market and its move are said together, chart-up /
+              chart-down for market moves, arrow-up / arrow-down for change, icon (value: one of ${IconCatalog.ids.joinToString(", ")}),
+              badge (value: short text), progress (value 0–100). label is an optional 1–3 word caption under the
+              element, in the spoken language.
             - headline: a short punchy title for the hook in the spoken language, or "".
             - summaryFa / summaryEn: one sentence each describing the edit to the user.
 
@@ -131,7 +133,8 @@ object PlanSanitizer {
             val fixed = when (cue.kind) {
                 "counter" -> if (Regex("^\\$?\\s*-?[0-9]+(\\.[0-9]+)?\\s*(%| تومان)?$").matches(cue.value.trim())) cue
                 else NumberWords.at(texts, cue.word)?.let { cue.copy(value = it.value.toLong().toString()) }
-                "icon" -> if (cue.value in ElementCue.ICONS) cue else cue.copy(value = "star")
+                "icon" -> if (cue.value in ElementCue.ICONS) cue else cue.copy(value = IconMatcher.match(cue.value + " " + cue.label + " " + words[cue.word].text) ?: "star")
+                "ticker" -> if (cue.value.isBlank() || cue.label.trim().trimStart('+', '-').toDoubleOrNull() == null) null else cue
                 "badge" -> cue.copy(value = cue.value.ifBlank { words[cue.word].text }.take(24))
                 else -> cue
             } ?: continue

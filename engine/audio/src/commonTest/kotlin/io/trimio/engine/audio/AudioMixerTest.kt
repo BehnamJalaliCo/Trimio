@@ -40,8 +40,9 @@ class AudioMixerTest {
     @Test
     fun musicDucksUnderSpeech() = runTest {
         val music = PcmAudio(Synth.sine(220.0, -12.0, 1_000, rate), rate)
-        val t = timeline(4_000, MusicClip(TimeRange(0, 4_000), assetId = "bed", gainDb = 0f))
-        val out = AudioMixer().mix(t, null, 4_000, listOf(TimeRange(2_000, 4_000))) { music }
+        // Long enough that the measured windows sit between the music's fade-in and fade-out.
+        val t = timeline(6_000, MusicClip(TimeRange(0, 6_000), assetId = "bed", gainDb = 0f))
+        val out = AudioMixer().mix(t, null, 6_000, listOf(TimeRange(2_000, 6_000))) { music }
         val before = rms(out.samples, (0.5 * rate).toInt(), (1.5 * rate).toInt())
         val during = rms(out.samples, (2.8 * rate).toInt(), (3.8 * rate).toInt())
         val reduction = 20 * log10(during / before)
@@ -49,6 +50,9 @@ class AudioMixerTest {
         // Look-ahead: already ducked by the time speech starts.
         val atOnset = rms(out.samples, 2 * rate - 480, 2 * rate + 480)
         assertTrue(20 * log10(atOnset / before) < -6, "music must already be down when speech begins")
+        // The bed fades out with the edit instead of stopping dead.
+        val last = rms(out.samples, out.samples.size - rate / 20, out.samples.size)
+        assertTrue(last < during * 0.2, "music fades out at the end")
     }
 
     @Test

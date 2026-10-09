@@ -10,6 +10,7 @@ kotlin {
             api(projects.core.pipeline)
             api(projects.engine.llm)
             api(projects.engine.styles)
+            implementation(projects.engine.assets)
             implementation(projects.engine.asr)
             implementation(libs.kotlinx.serialization.json)
         }

@@ -31,8 +31,8 @@ import kotlin.random.Random
 
 /**
  * Procedural motion-graphics elements, drawn in the style's card treatment. Asset ids:
- * `counter/…`, `arrow/up|down`, `chart/candles`, `badge/…`, `progress/…`, `icon/coin|check|star|bolt|heart`.
- * Parameters come from [ElementClip.params]. Lottie and 3D assets plug in here in phase 6.
+ * `counter/…`, `arrow/up|down`, `chart/candles`, `badge/…`, `progress/…`, `ticker/…` and
+ * `icon/<id>` for every id in [io.trimio.core.model.asset.IconCatalog]. Parameters come from [ElementClip.params].
  */
 internal class ElementLayer(
     private val clips: List<ElementClip>,
@@ -74,6 +74,7 @@ internal class ElementLayer(
                     "badge" -> badge(clip.params["text"] ?: name, base, alpha)
                     "progress" -> progress(clip, t, base, alpha)
                     "icon" -> icon(name, t, base, alpha)
+                    "ticker" -> ticker(clip, t, base, alpha)
                     else -> badge(clip.assetId, base, alpha)
                 }
             }
@@ -268,9 +269,40 @@ internal class ElementLayer(
                     }
                     drawPath(path, danger, alpha = alpha)
                 }
-                else -> badge(name, base, alpha)
+                else -> with(VectorIcons) {
+                    val drawn = drawIcon(name, base, alpha, palette.accent, palette.accent2) { value, px, color, at -> text(value, px, color, alpha, at) }
+                    if (!drawn) badge(name, base, alpha)
+                }
             }
         }
+    }
+
+    /**
+     * Market ticker card: asset icon and symbol, then the move counting up in green or red,
+     * e.g. `BTC ▲ +5.2%`. Params: `symbol`, `change` (signed percent), optional `digits=fa`.
+     */
+    private fun DrawScope.ticker(clip: ElementClip, t: Float, base: Float, alpha: Float) {
+        val symbol = clip.params["symbol"] ?: "BTC"
+        val change = clip.params["change"]?.toDoubleOrNull() ?: 0.0
+        val up = change >= 0
+        val color = if (up) success else danger
+        val rect = Rect(Offset(-base * 1.7f, -base * 0.45f), Size(base * 3.4f, base * 0.9f))
+        card(rect, alpha)
+        val iconId = when (symbol.uppercase()) {
+            "ETH" -> "eth"
+            "XAU", "GOLD", "طلا" -> "gold"
+            "USD", "USDT", "$" -> "dollar"
+            else -> "coin"
+        }
+        withTransform({ translate(rect.left + base * 0.5f, 0f); scale(0.5f, 0.5f, Offset.Zero) }) {
+            if (iconId == "coin") icon("coin", 1_000f, base, alpha)
+            else with(VectorIcons) { drawIcon(iconId, base, alpha, palette.accent, palette.accent2) { v, px, c, at -> text(v, px, c, alpha, at) } }
+        }
+        text(symbol, base * 0.3f, onCardText(), alpha, Offset(rect.left + base * 1.25f, 0f))
+        val shown = change * Motion.easeOutExpo(Motion.progress(t, 900f))
+        val number = (if (up) "+" else "") + formatNumber(shown, if (change % 1.0 == 0.0) 0 else 1) + "%"
+        val label = (if (up) "▲ " else "▼ ") + if (clip.params["digits"] == "fa") Numerals.toPersian(number).replace("%", "٪") else number
+        text(label, base * 0.3f, color, alpha, Offset(rect.right - base * 0.85f, 0f))
     }
 
     private fun star(outer: Float, inner: Float) = Path().apply {

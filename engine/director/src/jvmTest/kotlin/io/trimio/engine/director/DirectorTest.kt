@@ -76,6 +76,16 @@ class DirectorTest {
     }
 
     @Test
+    fun countersAndIconsFromPlainSpeech() {
+        val t = Transcript(Language.Persian, listOf(w("درآمد", 0, 400), w("بیست", 500, 800), w("درصد", 800, 1100), w("بیشتر", 1100, 1500), w("شد", 1500, 1700), w("ایده", 4000, 4400), w("طلایی", 4400, 4900)))
+        val plan = RulesDirector.plan(t, BriefParser.parse(""), packs.first(), 6_000)
+        assertEquals(ElementCue(1, "counter", "20%", "بیشتر"), plan.elements.first { it.kind == "counter" })
+        assertTrue(plan.elements.any { it.kind == "icon" && it.value == "bulb" && it.word == 5 }, plan.elements.toString())
+        assertEquals("rocket", IconMatcher.match("rockets to the moon"))
+        assertEquals("trophy", IconMatcher.match("قهرمان"))
+    }
+
+    @Test
     fun parsesPersianAndEnglishBriefs() {
         val fa = BriefParser.parse("یه ویدیوی پرانرژی برای ریلز با سبک نئوبروتال بساز، بدون موزیک، روی «سود» تأکید کن. عنوان: راز سود روزانه")
         assertEquals("neobrutalism", fa.styleId)
@@ -111,8 +121,9 @@ class DirectorTest {
 
         assertTrue(3 in plan.emphasis, "بیت\u200Cکوین is emphasised: ${plan.emphasis.map { texts[it] }}")
         assertTrue(plan.emphasis.none { texts[it] in setOf("به", "رو", "ما") }, "no function words")
-        val counter = plan.elements.first { it.kind == "counter" }
-        assertEquals(ElementCue(4, "counter", "5%", "رشد"), counter)
+        // "بیت\u200Cکوین پنج درصد رشد" is one market move: a ticker card, not a separate counter.
+        assertEquals(ElementCue(3, "ticker", "BTC", "+5"), plan.elements.first())
+        assertTrue(plan.elements.none { it.kind == "counter" && it.word == 4 })
         assertTrue(plan.elements.any { it.kind == "badge" && it.word == 9 }, "signal badge: ${plan.elements}")
         assertEquals(7, plan.hookEnd, "hook = first sentence")
         assertEquals(15, plan.ctaStart, "CTA = the follow line")
@@ -137,8 +148,8 @@ class DirectorTest {
         assertEquals(transcript.words.size - 1, captions.size)
         assertTrue(captions.first { it.wordIndex == 3 }.emphasis >= 0.9f)
         assertTrue(captions.filter { it.wordIndex !in plan.emphasis }.all { it.emphasis < pack.spec.captions.emphasis.threshold })
-        val counter = timeline.clipsOf<ElementClip>().first { it.assetId.startsWith("counter") }
-        assertEquals(mapOf("from" to "0", "to" to "5", "decimals" to "0", "suffix" to "٪", "digits" to "fa", "label" to "رشد"), counter.params)
+        val ticker = timeline.clipsOf<ElementClip>().first { it.assetId.startsWith("ticker") }
+        assertEquals(mapOf("symbol" to "BTC", "change" to "5", "digits" to "fa"), ticker.params)
         assertTrue(timeline.clipsOf<SfxClip>().isNotEmpty())
         assertEquals("music/uplifting", timeline.clipsOf<MusicClip>().single().assetId)
         assertTrue(TimelineValidator().isRenderable(timeline, video), TimelineValidator().validate(timeline, video).toString())
@@ -189,7 +200,7 @@ class DirectorTest {
         assertEquals(draft.music, clean.music)
         assertEquals(draft.hookEnd, clean.hookEnd)
         assertEquals(listOf(3, 4), clean.emphasis, "duplicates and out-of-range words removed (energy 1 allows 400 ms spacing)")
-        assertEquals(listOf(ElementCue(4, "counter", "5"), ElementCue(13, "icon", "star")), clean.elements)
+        assertEquals(listOf(ElementCue(4, "counter", "5"), ElementCue(13, "icon", "rocket")), clean.elements, "unknown icon names map to the closest drawable icon")
         assertEquals(48, clean.headline.length)
     }
 

@@ -1,5 +1,7 @@
 package io.trimio.engine.director
 
+import io.trimio.core.model.text.TextKey
+
 /**
  * Bilingual (Persian + English) word lists the rules engine reasons with. Every entry and every
  * lookup goes through [Lexicon.norm], so spelling variants (ي/ی, ك/ک, ZWNJ, diacritics, case,
@@ -8,19 +10,7 @@ package io.trimio.engine.director
 object Lexicon {
 
     /** Canonical matching key for a word or phrase. */
-    fun norm(text: String): String = buildString(text.length) {
-        for (ch in text.lowercase()) {
-            when (ch) {
-                'ي', 'ى' -> append('ی') // Arabic yeh / alef maksura → Persian yeh
-                'ك' -> append('ک') // Arabic kaf → Persian keheh
-                'ة' -> append('ه') // teh marbuta → heh
-                'أ', 'إ', 'آ' -> append('ا') // hamza/madda forms → alef
-                '\u200C', '\u200D', '\u200F', '\u200E', 'ـ' -> Unit // ZWNJ/ZWJ/marks/tatweel
-                in '\u064B'..'\u065F', '\u0670' -> Unit // harakat
-                else -> if (ch.isLetterOrDigit() || ch == '%' || ch == '$') append(ch)
-            }
-        }
-    }
+    fun norm(text: String): String = TextKey.of(text)
 
     private fun set(vararg words: String) = words.map(::norm).toSet()
 
