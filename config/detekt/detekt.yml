@@ -23,7 +23,8 @@ style:
     # Motion, colour and DSP code is made of tuned numbers; they are named where they carry meaning.
     active: false
   MaxLineLength:
-    maxLineLength: 160
+    # Bilingual UI strings (with escaped ZWNJs) run long; logic lines stay well under this.
+    maxLineLength: 200
   WildcardImport:
     active: true
   ReturnCount:
