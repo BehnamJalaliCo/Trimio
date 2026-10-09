@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_render">Video builds</string>
+    <string name="channel_downloads">Model downloads</string>
+    <string name="downloading_models">Downloading AI models</string>
+    <string name="stage_prefix">Stage:</string>
+</resources>

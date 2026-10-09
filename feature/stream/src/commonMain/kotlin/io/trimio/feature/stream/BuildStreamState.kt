@@ -28,7 +28,7 @@ data class BuildStreamState(
     val framesTotal: Int = 0,
     val note: PlanLine? = null,
 ) {
-    val isFinished: Boolean get() = status == JobStatus.Completed || status == JobStatus.Failed
+    val isFinished: Boolean get() = status == JobStatus.Completed || status == JobStatus.Failed || status == JobStatus.Cancelled
 
     /** Loudness of the latest waveform frame, drives the aurora's energy. */
     val energy: Float get() = if (waveform.isEmpty()) 0f else waveform.average().toFloat()

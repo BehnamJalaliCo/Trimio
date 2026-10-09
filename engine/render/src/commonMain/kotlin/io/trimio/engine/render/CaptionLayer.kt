@@ -116,7 +116,11 @@ internal class CaptionLayer(
             }
         }
 
-        val lineHeight = (texts.maxOfOrNull { it.size.height } ?: 0) * 1.08f
+        // Boxed lines need room for their padding (10% above and below), or the boxes overlap.
+        val boxed = spec.box == BoxStyle.Pill || spec.box == BoxStyle.Glass || spec.box == BoxStyle.Brutal
+        // Emphasised words are drawn larger, so lines are spaced by their scaled height.
+        val tallest = texts.indices.maxOfOrNull { texts[it].size.height * emphasisScaleFor(group.words[it]) } ?: 0f
+        val lineHeight = tallest * (if (boxed) 1.3f else 1.08f)
         val blockHeight = lineHeight * (if (single) 1 else lines.size)
         val anchorY = when (spec.anchor) {
             Anchor.TopStart, Anchor.TopCenter, Anchor.TopEnd -> size.height * 0.22f
@@ -328,7 +332,8 @@ internal class CaptionLayer(
     private fun DrawScope.drawLineBoxes(words: List<Pair<Placed, WordAnim>>, unit: Float, exit: WordAnim) {
         if (spec.box == BoxStyle.None || spec.box == BoxStyle.Highlight) return
         words.groupBy { it.first.line }.forEach { (_, ws) ->
-            val rects = ws.map { (w, a) -> w.rect(a.scale.coerceIn(0f, 1.2f) * emphasisScaleFor(w.clip)) }
+            // The entry overshoot animates the words, not the box: a bouncing box would collide with its neighbours.
+            val rects = ws.map { (w, a) -> w.rect(a.scale.coerceIn(0f, 1f) * emphasisScaleFor(w.clip)) }
             val bounds = rects.reduce { acc, r -> Rect(minOf(acc.left, r.left), minOf(acc.top, r.top), maxOf(acc.right, r.right), maxOf(acc.bottom, r.bottom)) }
             val padX = bounds.height * 0.32f
             val padY = bounds.height * 0.10f

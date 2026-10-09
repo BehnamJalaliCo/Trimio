@@ -54,6 +54,8 @@ fun LiquidProgressOrb(
     label: String,
     modifier: Modifier = Modifier,
     size: Dp = 260.dp,
+    /** False for decorative use (onboarding), where a percentage would mean nothing. */
+    showValue: Boolean = true,
 ) {
     val colors = Trimio.colors
     val animated by animateFloatAsState(progress.coerceIn(0f, 1f), Trimio.motion.spatialSlow(), label = "orb-progress")
@@ -113,7 +115,7 @@ fun LiquidProgressOrb(
         )
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
+            if (showValue) Text(
                 text = localizedNumber("${(animated * 100).toInt()}") + localizedPercentSign(),
                 style = Trimio.type.display.copy(fontSize = (size.value * 0.2f).sp, fontFeatureSettings = "tnum"),
                 color = colors.textPrimary,

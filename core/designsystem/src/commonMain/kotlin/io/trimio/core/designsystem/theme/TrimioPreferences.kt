@@ -12,4 +12,6 @@ data class TrimioPreferences(
     val reduceMotion: Boolean = false,
     /** Glass becomes solid high-contrast surfaces; also used on GPUs too weak for blur. */
     val reduceTransparency: Boolean = false,
+    /** User switch in settings; system haptic settings are always honoured as well. */
+    val haptics: Boolean = true,
 )

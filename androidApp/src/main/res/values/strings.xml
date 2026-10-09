@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">Trimio</string>
+    <string name="channel_render">ساخت ویدیو</string>
+    <string name="channel_downloads">دانلود مدل‌ها</string>
+    <string name="downloading_models">در حال دانلود مدل‌های هوش مصنوعی</string>
+    <string name="stage_prefix">مرحله:</string>
 </resources>

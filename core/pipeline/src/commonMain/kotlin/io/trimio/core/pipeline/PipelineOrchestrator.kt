@@ -25,12 +25,15 @@ class PipelineOrchestrator(
         require(stages.map { it.id }.toSet().size == stages.size) { "Duplicate stage" }
     }
 
-    fun run(job: JobSpec): Flow<PipelineEvent> = channelFlow {
-        Run(job, this).execute()
+    /**
+     * @param artifacts the job's blackboard. Pass one to pre-seed inputs (e.g. an edited timeline
+     *   for a re-export that runs only Render and Export) or to read results after completion.
+     */
+    fun run(job: JobSpec, artifacts: Artifacts = Artifacts()): Flow<PipelineEvent> = channelFlow {
+        Run(job, this, artifacts).execute()
     }
 
-    private inner class Run(private val job: JobSpec, private val scope: ProducerScope<PipelineEvent>) {
-        private val artifacts = Artifacts()
+    private inner class Run(private val job: JobSpec, private val scope: ProducerScope<PipelineEvent>, private val artifacts: Artifacts) {
         private val progress = stages.map { StageProgress(it.id, StageStatus.Pending, 0f) }.toMutableList()
         private val started = timeSource.markNow()
         private var restoredShare = 0f

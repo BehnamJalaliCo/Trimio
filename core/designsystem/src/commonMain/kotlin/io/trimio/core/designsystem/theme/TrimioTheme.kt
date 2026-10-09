@@ -51,7 +51,7 @@ fun TrimioTheme(
         LocalTrimioLanguage provides language,
         LocalTrimioMotion provides if (preferences.reduceMotion) TrimioMotionScheme.Reduced else TrimioMotionScheme.Standard,
         LocalTrimioPreferences provides preferences,
-        LocalTrimioHaptics provides rememberPlatformHaptics(),
+        LocalTrimioHaptics provides if (preferences.haptics) rememberPlatformHaptics() else TrimioHaptics.None,
         LocalLayoutDirection provides if (language.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
     ) {
         MaterialTheme(colorScheme = material, content = content)

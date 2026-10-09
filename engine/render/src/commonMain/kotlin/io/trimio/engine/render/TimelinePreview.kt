@@ -21,6 +21,9 @@ import io.trimio.core.model.timeline.Timeline
 class PreviewClock(initialMs: Long = 0) {
     internal val position = mutableLongStateOf(initialMs)
     var playing: Boolean = true
+
+    /** Set while a media player drives the clock (Android footage); the preview then stops advancing it itself. */
+    var drivenExternally: Boolean = false
     val positionMs: Long get() = position.longValue
     fun seekTo(ms: Long) { position.longValue = ms }
 }
@@ -38,6 +41,8 @@ fun TimelinePreview(
     clock: PreviewClock = remember { PreviewClock() },
     audio: AudioFeatures? = null,
     footage: (DrawScope.(Rect) -> Unit)? = null,
+    /** Footage is drawn underneath by the platform player: draw overlays only. */
+    externalFootage: Boolean = false,
 ) {
     val measurer = rememberTextMeasurer()
     val fonts by produceState<FontFamily?>(null) { value = RenderFonts.vazirmatn() }
@@ -48,7 +53,7 @@ fun TimelinePreview(
         var last = withFrameNanos { it }
         while (true) {
             withFrameNanos { now ->
-                if (clock.playing) {
+                if (clock.playing && !clock.drivenExternally) {
                     val next = clock.positionMs + (now - last) / 1_000_000
                     clock.seekTo(if (next >= timeline.durationMs) 0 else next)
                 }
@@ -59,6 +64,6 @@ fun TimelinePreview(
 
     Canvas(modifier) {
         // Reading the clock here keeps recomposition out of the per-frame path: only the draw phase reruns.
-        renderer.render(this, FrameContext(clock.position.longValue, audio, footage))
+        renderer.render(this, FrameContext(clock.position.longValue, audio, footage, externalFootage))
     }
 }

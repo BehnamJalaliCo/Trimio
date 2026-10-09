@@ -278,3 +278,47 @@ class DirectorTest {
         return ctx to signals
     }
 }
+
+class TimelineEditorTest {
+    private val words = listOf("سلام", "دوستان", "امروز", "خبر", "خوب", "داریم").mapIndexed { i, t ->
+        io.trimio.core.model.transcript.Word(t, TimeRange(i * 1_000L, i * 1_000L + 800), language = Language.Persian)
+    }
+    private val transcript = Transcript(Language.Persian, words)
+    private val input = InputSource.AudioOnly(MediaUri("a"), 6_000, CanvasSpec())
+    private val pack by lazy { runBlocking { StylePackRepository().all().first() } }
+
+    private fun timeline() = TimelineComposer.compose(
+        EditPlan(styleId = pack.id, energy = 0.5f, cutSilences = false, music = "chill", elements = listOf(ElementCue(4, "icon", "star"))),
+        transcript, pack.spec, input, seed = 1,
+    )
+
+    @Test
+    fun removingAWordCutsItAndSlidesEverythingAfter() {
+        val before = timeline()
+        val after = TimelineEditor.removeWords(before, transcript, setOf(2), 6_000)
+        assertEquals(before.durationMs - 830, after.durationMs)
+        assertTrue(after.clipsOf<CaptionClip>().none { it.wordIndex == 2 })
+        val star = { t: io.trimio.core.model.timeline.Timeline -> t.clipsOf<ElementClip>().single().range.startMs }
+        assertEquals(star(before) - 830, star(after))
+        assertEquals(after.durationMs, after.clipsOf<MusicClip>().single().range.endMs)
+        assertTrue(TimelineValidator().isRenderable(after, input), TimelineValidator().validate(after, input).toString())
+
+        val back = TimelineEditor.restoreWords(after, transcript, setOf(2), 6_000, before)
+        assertEquals(before.durationMs, back.durationMs)
+        assertEquals(before.clipsOf<CaptionClip>().map { it.range }.sortedBy { it.startMs }, back.clipsOf<CaptionClip>().map { it.range }.sortedBy { it.startMs })
+    }
+
+    @Test
+    fun textEmphasisStyleAndMusicEdits() {
+        var t = timeline()
+        t = TimelineEditor.setWordText(t, 3, "خبرهای")
+        t = TimelineEditor.setEmphasis(t, 3, true)
+        t = TimelineEditor.setMusic(t, "none")
+        t = TimelineEditor.setStyle(t, "neobrutalism")
+        val word = t.clipsOf<CaptionClip>().single { it.wordIndex == 3 }
+        assertEquals("خبرهای", word.text)
+        assertTrue(word.emphasis > 0.9f)
+        assertTrue(t.clipsOf<MusicClip>().isEmpty())
+        assertEquals("neobrutalism", t.styleId)
+    }
+}

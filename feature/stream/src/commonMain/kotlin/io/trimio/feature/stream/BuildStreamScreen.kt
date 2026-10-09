@@ -61,15 +61,17 @@ import io.trimio.core.pipeline.StageId
 import io.trimio.core.pipeline.StageStatus
 
 @Composable
-fun BuildStreamRoute(viewModel: BuildStreamViewModel) {
+fun BuildStreamRoute(viewModel: BuildStreamViewModel, onOpen: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val style = viewModel.job.styleId?.let(DesignStyle::fromId)
+    val project by viewModel.project.collectAsStateWithLifecycle()
+    val style = project?.styleId?.let(DesignStyle::fromId)
     BuildStreamScreen(
         state = state,
-        styleName = style?.let { tr(it.nameFa, it.nameEn) },
-        onDevice = viewModel.job.director == DirectorBackend.OnDevice,
+        styleName = style?.let { tr(it.nameFa, it.nameEn) } ?: tr("سبک خودکار", "Auto style"),
+        onDevice = project?.director != DirectorBackend.Cloud,
         onCancel = viewModel::cancel,
         onRestart = viewModel::start,
+        onOpen = onOpen,
     )
 }
 
@@ -85,6 +87,7 @@ fun BuildStreamScreen(
     onCancel: () -> Unit,
     onRestart: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpen: (() -> Unit)? = null,
 ) {
     val colors = Trimio.colors
     GlassScene(
@@ -136,16 +139,26 @@ fun BuildStreamScreen(
                 )
             }
 
-            TrimioButton(
-                text = when {
-                    state.status == JobStatus.Completed -> tr("ساخت دوباره", "Build again")
-                    state.status == JobStatus.Failed -> tr("تلاش دوباره", "Try again")
-                    else -> tr("توقف", "Stop")
-                },
-                kind = if (state.isFinished) ButtonKind.Primary else ButtonKind.Glass,
-                onClick = if (state.isFinished) onRestart else onCancel,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            state.error?.takeIf { state.status == JobStatus.Failed }?.let { error ->
+                Text(error, style = Trimio.type.label, color = colors.danger)
+            }
+
+            if (state.status == JobStatus.Completed && onOpen != null) {
+                TrimioButton(text = tr("مشاهده و ویرایش", "Watch & edit"), onClick = onOpen, modifier = Modifier.fillMaxWidth())
+                TrimioButton(text = tr("ساخت دوباره", "Build again"), kind = ButtonKind.Ghost, onClick = onRestart, modifier = Modifier.fillMaxWidth())
+            } else {
+                TrimioButton(
+                    text = when {
+                        state.status == JobStatus.Completed -> tr("ساخت دوباره", "Build again")
+                        state.status == JobStatus.Failed -> tr("تلاش دوباره", "Try again")
+                        state.status == JobStatus.Cancelled -> tr("ادامه\u0654 ساخت", "Resume")
+                        else -> tr("توقف", "Stop")
+                    },
+                    kind = if (state.isFinished) ButtonKind.Primary else ButtonKind.Glass,
+                    onClick = if (state.isFinished) onRestart else onCancel,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
