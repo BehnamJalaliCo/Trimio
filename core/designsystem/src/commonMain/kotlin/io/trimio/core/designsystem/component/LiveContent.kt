@@ -44,7 +44,6 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import io.trimio.core.designsystem.theme.Trimio
-import io.trimio.core.designsystem.theme.TrimioMotion
 import io.trimio.core.designsystem.theme.TrimioRadius
 import io.trimio.core.designsystem.theme.TrimioSpacing
 import io.trimio.core.model.text.ScriptDetector
@@ -76,7 +75,8 @@ fun WordStream(words: List<StreamWord>, modifier: Modifier = Modifier) {
 private fun WordChip(word: StreamWord) {
     val colors = Trimio.colors
     val appear = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { appear.animateTo(1f, TrimioMotion.bouncy()) }
+    val motion = Trimio.motion
+    LaunchedEffect(Unit) { appear.animateTo(1f, motion.expressive()) }
 
     val emphasised = word.emphasis >= 0.5f
     val shape = RoundedCornerShape(TrimioRadius.sm)

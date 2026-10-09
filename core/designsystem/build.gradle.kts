@@ -11,6 +11,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(projects.core.model)
+            api(libs.haze)
+            api(libs.haze.blur)
         }
     }
 }

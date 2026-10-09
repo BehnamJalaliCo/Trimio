@@ -34,6 +34,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.trimio.core.designsystem.component.AuroraBackground
+import io.trimio.core.designsystem.component.ButtonKind
+import io.trimio.core.designsystem.component.GlassScene
+import io.trimio.core.designsystem.component.TrimioButton
+import io.trimio.core.designsystem.component.filmGrain
 import io.trimio.core.designsystem.component.FilmStrip
 import io.trimio.core.designsystem.component.GlassChip
 import io.trimio.core.designsystem.component.GlassPanel
@@ -83,7 +87,10 @@ fun BuildStreamScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = Trimio.colors
-    AuroraBackground(modifier.fillMaxSize(), energy = { state.energy }) {
+    GlassScene(
+        modifier = modifier.fillMaxSize(),
+        background = { AuroraBackground(Modifier.fillMaxSize().filmGrain(), energy = { state.energy }) },
+    ) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -129,14 +136,15 @@ fun BuildStreamScreen(
                 )
             }
 
-            ActionButton(
+            TrimioButton(
                 text = when {
                     state.status == JobStatus.Completed -> tr("ساخت دوباره", "Build again")
                     state.status == JobStatus.Failed -> tr("تلاش دوباره", "Try again")
                     else -> tr("توقف", "Stop")
                 },
-                primary = state.isFinished,
+                kind = if (state.isFinished) ButtonKind.Primary else ButtonKind.Glass,
                 onClick = if (state.isFinished) onRestart else onCancel,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -245,25 +253,5 @@ private fun SectionTitle(text: String, live: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {
         if (live) Box(Modifier.size(8.dp).clip(CircleShape).background(Trimio.colors.danger))
         Text(text, style = Trimio.type.label, color = Trimio.colors.textSecondary)
-    }
-}
-
-@Composable
-private fun ActionButton(text: String, primary: Boolean, onClick: () -> Unit) {
-    val colors = Trimio.colors
-    val shape = RoundedCornerShape(TrimioRadius.xl)
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .clip(shape)
-            .background(
-                if (primary) Brush.horizontalGradient(listOf(colors.primary, colors.accentMagenta))
-                else Brush.horizontalGradient(listOf(colors.glassFill, colors.glassFill)),
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, style = Trimio.type.title, color = if (primary) colors.onPrimary else colors.textPrimary)
     }
 }

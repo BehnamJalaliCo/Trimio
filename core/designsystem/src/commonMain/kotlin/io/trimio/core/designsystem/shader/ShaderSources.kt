@@ -120,4 +120,25 @@ half4 main(float2 fragCoord) {
     return half4(half3(outCol * alpha), half(alpha));
 }
 """
+
+    /**
+     * Animated film grain, premultiplied white/black specks around zero. Laid over dark canvases at
+     * 2-3% to kill gradient banding and give footage-like texture (docs/DESIGN.md §6).
+     */
+    val filmGrain: String = """
+uniform float2 iResolution;
+uniform float iTime;
+uniform float iAmount;
+
+float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+
+half4 main(float2 fragCoord) {
+    // Grain changes 24 times a second, like film, not every display frame.
+    float frame = floor(iTime * 24.0);
+    float n = hash(floor(fragCoord) + frame * 17.0) - 0.5;
+    float a = abs(n) * 2.0 * iAmount;
+    float3 c = n > 0.0 ? float3(1.0) : float3(0.0);
+    return half4(half3(c * a), half(a));
+}
+"""
 }

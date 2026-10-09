@@ -9,12 +9,17 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
+import io.trimio.core.designsystem.haptics.TrimioHaptics
+import io.trimio.core.designsystem.haptics.rememberPlatformHaptics
 import io.trimio.core.model.text.Language
 import io.trimio.core.model.text.Numerals
 
 private val LocalTrimioColors = staticCompositionLocalOf { DarkTrimioColors }
 private val LocalTrimioTypography = staticCompositionLocalOf<TrimioTypography> { error("TrimioTheme not applied") }
 private val LocalTrimioLanguage = staticCompositionLocalOf { Language.Persian }
+private val LocalTrimioMotion = staticCompositionLocalOf { TrimioMotionScheme.Standard }
+private val LocalTrimioPreferences = staticCompositionLocalOf { TrimioPreferences() }
+private val LocalTrimioHaptics = staticCompositionLocalOf { TrimioHaptics.None }
 
 /**
  * Root theme. Sets colours, type, UI language and layout direction (Persian is RTL from the root,
@@ -24,6 +29,7 @@ private val LocalTrimioLanguage = staticCompositionLocalOf { Language.Persian }
 fun TrimioTheme(
     language: Language = Language.Persian,
     dark: Boolean = true,
+    preferences: TrimioPreferences = TrimioPreferences(),
     content: @Composable () -> Unit,
 ) {
     val colors = if (dark) DarkTrimioColors else LightTrimioColors
@@ -43,6 +49,9 @@ fun TrimioTheme(
         LocalTrimioColors provides colors,
         LocalTrimioTypography provides typography,
         LocalTrimioLanguage provides language,
+        LocalTrimioMotion provides if (preferences.reduceMotion) TrimioMotionScheme.Reduced else TrimioMotionScheme.Standard,
+        LocalTrimioPreferences provides preferences,
+        LocalTrimioHaptics provides rememberPlatformHaptics(),
         LocalLayoutDirection provides if (language.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
     ) {
         MaterialTheme(colorScheme = material, content = content)
@@ -56,6 +65,12 @@ object Trimio {
         @Composable @ReadOnlyComposable get() = LocalTrimioTypography.current
     val language: Language
         @Composable @ReadOnlyComposable get() = LocalTrimioLanguage.current
+    val motion: TrimioMotionScheme
+        @Composable @ReadOnlyComposable get() = LocalTrimioMotion.current
+    val preferences: TrimioPreferences
+        @Composable @ReadOnlyComposable get() = LocalTrimioPreferences.current
+    val haptics: TrimioHaptics
+        @Composable @ReadOnlyComposable get() = LocalTrimioHaptics.current
 }
 
 /** Picks the string for the current UI language. */

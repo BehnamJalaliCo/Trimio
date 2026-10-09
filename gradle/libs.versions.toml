@@ -18,6 +18,7 @@ androidx-core = "1.19.1"
 androidx-lifecycle = "2.11.0"
 koin = "4.2.2"
 turbine = "1.2.1"
+haze = "2.0.1"
 
 [libraries]
 # build-logic (convention plugins compile against these)
@@ -49,6 +50,10 @@ androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycl
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+
+# Backdrop blur for glass surfaces (Compose Multiplatform)
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+haze-blur = { module = "dev.chrisbanes.haze:haze-blur", version.ref = "haze" }
 
 # Test
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }

@@ -37,7 +37,6 @@ import io.trimio.core.designsystem.shader.rememberShader
 import io.trimio.core.designsystem.shader.rememberShaderTime
 import io.trimio.core.designsystem.shader.uniform
 import io.trimio.core.designsystem.theme.Trimio
-import io.trimio.core.designsystem.theme.TrimioMotion
 import io.trimio.core.designsystem.theme.localizedNumber
 
 /** One arc of the outer ring: a pipeline stage sized by its weight. */
@@ -57,7 +56,7 @@ fun LiquidProgressOrb(
     size: Dp = 260.dp,
 ) {
     val colors = Trimio.colors
-    val animated by animateFloatAsState(progress.coerceIn(0f, 1f), TrimioMotion.smooth(), label = "orb-progress")
+    val animated by animateFloatAsState(progress.coerceIn(0f, 1f), Trimio.motion.spatialSlow(), label = "orb-progress")
     val shader = rememberShader(ShaderSources.liquidOrb)
     val time = rememberShaderTime()
     val pulse by rememberInfiniteTransition(label = "ring-pulse").animateFloat(
