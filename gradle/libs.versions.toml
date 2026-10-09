@@ -20,6 +20,7 @@ koin = "4.2.2"
 turbine = "1.2.1"
 haze = "2.0.1"
 ktor = "3.6.0"
+anthropic = "2.34.0"
 kotlinx-io = "0.9.1"
 kotlincrypto-sha2 = "0.8.0"
 ndk = "30.0.16248370"
@@ -64,6 +65,7 @@ media3-common = { module = "androidx.media3:media3-common", version.ref = "media
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 
 # Networking, files, hashing (model and pack downloads)
+anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }

@@ -26,6 +26,7 @@ android {
                     "-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16",
                     "-DGGML_OPENMP=OFF",
                     "-DTRIMIO_WHISPER=ON",
+                    "-DTRIMIO_LLAMA=ON",
                 )
                 cppFlags += listOf("-O3")
             }

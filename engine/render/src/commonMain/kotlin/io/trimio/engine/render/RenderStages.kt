@@ -13,8 +13,8 @@ import io.trimio.engine.audio.AudioMixer
 import io.trimio.engine.media.AudioDecoder
 
 object RenderArtifacts {
-    /** The resolved style for the job; set by the Director (phase 5) from the chosen style pack. */
-    val Style = ArtifactKey<StyleSpec>("style")
+    /** The resolved style for the job; set by the Director. */
+    val Style: ArtifactKey<StyleSpec> = StandardArtifacts.Style
 
     /** Encoded file before publishing. */
     val RenderedFile = ArtifactKey<String>("rendered-file")

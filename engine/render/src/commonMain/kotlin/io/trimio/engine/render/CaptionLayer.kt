@@ -92,7 +92,7 @@ internal class CaptionLayer(
         val unit = FrameRenderer.unit(size)
         val single = spec.mode == CaptionMode.SingleWord
         val fontPx = unit * spec.size * (if (single) 1.9f else 1f)
-        val maxWidth = size.width * 0.84f
+        val maxWidth = size.width * SafeZones.captionWidth(size, spec.anchor)
         // Single-word mode shrinks any word (plus its emphasis punch) that would overflow the screen.
         val texts = group.words.map { word ->
             val first = measure(word, fontPx)

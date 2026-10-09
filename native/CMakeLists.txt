@@ -14,7 +14,7 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 option(TRIMIO_WHISPER "Build the whisper.cpp speech engine" ON)
-option(TRIMIO_LLAMA "Build the llama.cpp language engine" OFF)
+option(TRIMIO_LLAMA "Build the llama.cpp language engine" ON)
 
 if(NOT ANDROID)
     find_package(JNI REQUIRED)
@@ -30,6 +30,27 @@ function(trimio_jni_library target)
         target_link_options(${target} PRIVATE "-Wl,--exclude-libs,ALL" "-Wl,--gc-sections")
     endif()
 endfunction()
+
+# One ggml for both engines, from llama.cpp (the more recent of the two): whisper.cpp and llama.cpp
+# both skip their own copy when a `ggml` target already exists, so their CMake targets never clash.
+if(TRIMIO_WHISPER OR TRIMIO_LLAMA)
+    add_subdirectory(third_party/llama.cpp/ggml ggml-build EXCLUDE_FROM_ALL)
+endif()
+
+if(TRIMIO_LLAMA)
+    set(LLAMA_BUILD_COMMON OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
+    set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
+    add_subdirectory(third_party/llama.cpp llama-build EXCLUDE_FROM_ALL)
+
+    add_library(trimio_llama SHARED llama/trimio_llama_jni.cpp)
+    target_link_libraries(trimio_llama PRIVATE llama)
+    trimio_jni_library(trimio_llama)
+endif()
 
 if(TRIMIO_WHISPER)
     set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)

@@ -95,5 +95,12 @@ class ModelStoreTest {
         assertEquals(ModelCatalog.whisperTurboQ5, ModelCatalog.bestFor(ModelKind.Speech, 12))
         assertEquals(ModelCatalog.whisperTurboQ8, ModelCatalog.bestFor(ModelKind.Speech, 16))
         assertTrue(ModelCatalog.all.all { it.sha256.length == 64 && it.urls.first().startsWith(ModelCatalog.CDN) })
+
+        // Director models: a 2-3 GB default on every supported phone, bigger/MoE tiers above it.
+        assertEquals(ModelCatalog.qwen35_4b, ModelCatalog.bestFor(ModelKind.Language, 8))
+        assertTrue(ModelCatalog.qwen35_4b.isDefault && ModelCatalog.qwen35_4b.sizeBytes in 2_000_000_000..3_000_000_000)
+        assertEquals(ModelCatalog.qwen35_9b, ModelCatalog.bestFor(ModelKind.Language, 16))
+        assertTrue(ModelCatalog.all.filter { it.kind == ModelKind.Language }.all { it.chatFormat != null })
+        assertTrue(ModelCatalog.lfm25_8bA1b.activeParamsB != null, "the MoE tier is marked as such")
     }
 }

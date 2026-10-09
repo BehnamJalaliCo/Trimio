@@ -35,7 +35,7 @@ jobs:
       - name: Assemble Android with native engines (both store flavors)
         run: ./gradlew :androidApp:assemblePlayDebug :androidApp:assembleBazaarDebug
 
-  native-speech:
+  native-engines:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -50,11 +50,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Cache Whisper test model
+      - name: Cache test models
         uses: actions/cache@v4
         with:
           path: ~/.gradle/trimio-test-models
-          key: whisper-tiny-v1
+          key: test-models-whisper-tiny-lfm25-230m-v2
 
       - name: whisper.cpp through JNI on the host
         run: ./gradlew :engine:asr:jvmTest -Ptrimio.nativeTests --tests '*WhisperNativeTest*'
+
+      - name: llama.cpp director through JNI on the host (grammar-constrained plans)
+        run: ./gradlew :engine:llm:jvmTest :engine:director:jvmTest -Ptrimio.nativeTests

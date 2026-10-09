@@ -3,6 +3,7 @@ package io.trimio.core.pipeline
 import io.trimio.core.model.audio.AudioFeatures
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.input.MediaInfo
+import io.trimio.core.model.style.StyleSpec
 import io.trimio.core.model.timeline.Timeline
 import io.trimio.core.model.transcript.Transcript
 
@@ -37,6 +38,9 @@ object StandardArtifacts {
     val AudioFeatures = ArtifactKey<AudioFeatures>("audio-features")
     val Transcript = ArtifactKey<Transcript>("transcript")
     val Timeline = ArtifactKey<Timeline>("timeline")
+
+    /** The resolved style for the job: the chosen pack's spec after the Director's QC adjustments. */
+    val Style = ArtifactKey<StyleSpec>("style")
 
     /** Path of the final encoded file. */
     val Output = ArtifactKey<String>("output")
