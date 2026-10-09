@@ -12,6 +12,10 @@ on:
       - ".github/workflows/ios.yml"
   workflow_dispatch:
 
+# Decrypts the licensed brand fonts (brand/assets.bin); builds fall back to open fonts without it.
+env:
+  TRIMIO_BRAND_KEY: ${{ secrets.TRIMIO_BRAND_KEY }}
+
 jobs:
   simulator:
     runs-on: macos-15
