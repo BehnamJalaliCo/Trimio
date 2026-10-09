@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "id": "anti-design",
+  "version": "1.0.0",
+  "nameFa": "آنتی‌دیزاین",
+  "nameEn": "Anti-Design",
+  "descriptionFa": "قوانین شکسته، رنگ‌های متضاد و بی‌نظمی عمدی؛ جسورانه و غیرمنتظره.",
+  "descriptionEn": "Rules broken on purpose: clashing colour and deliberate chaos.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "experimental",
+    "art",
+    "underground",
+    "music",
+    "تجربی",
+    "هنری",
+    "زیرزمینی",
+    "موسیقی"
+  ],
+  "spec": {
+    "id": "anti-design",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#00FF41",
+        "#FF00E6",
+        "#FFFF00",
+        "#0000FF"
+      ],
+      "text": "#000000",
+      "accent": "#0000FF",
+      "accent2": "#FF00E6",
+      "emphasisText": "#FFFF00",
+      "shadow": "#00000000"
+    },
+    "captions": {
+      "mode": "SingleWord",
+      "size": 0.12,
+      "weight": 900,
+      "uppercase": true,
+      "letterSpacingEm": 0.02,
+      "maxWordsPerLine": 1,
+      "anchor": "Center",
+      "entry": "flip",
+      "exit": "fall",
+      "box": "Brutal",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.0,
+      "emphasis": {
+        "scale": 1.35,
+        "colorRole": "accent2",
+        "box": "None",
+        "threshold": 0.6
+      },
+      "boxColor": "#FFFFFF"
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:chaos"
+    },
+    "overlay": {
+      "grain": 0.05,
+      "vignette": 0.0,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "brutal",
+      "cornerRadius": 0.0
+    },
+    "motion": {
+      "energy": 1.0,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/glitch",
+      "caption.word": "sfx/click",
+      "element.enter": "sfx/glitch"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.0,
+      "visualizer": "none"
+    },
+    "shaders": {
+      "chaos": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 uv = fragCoord / iResolution;\n    float t = floor(iTime * 3.0);\n    // Anti-design: clashing blocks that re-shuffle on a rough beat.\n    float2 cell = floor(uv * float2(3.0, 5.0) + hash(float2(t, 1.0)) * 2.0);\n    float r = hash(cell + t);\n    float3 col = r < 0.33 ? cA : (r < 0.66 ? cB : cBase);\n    float stripe = step(0.5, fract((uv.x + uv.y) * 14.0));\n    col = mix(col, cC, stripe * step(0.8, hash(cell * 3.1 + t)));\n    col += (hash(fragCoord + t) - 0.5) * 0.08;\n    return half4(half3(clamp(col, 0.0, 1.0)), 1.0);\n}\n"
+    }
+  }
+}

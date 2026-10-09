@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "id": "scrapbook",
+  "version": "1.0.0",
+  "nameFa": "اسکرپ‌بوک",
+  "nameEn": "Scrapbook UI",
+  "descriptionFa": "کاغذ پاره، نوارچسب و برچسب‌های دست‌ساز؛ شخصی و نوستالژیک.",
+  "descriptionEn": "Torn paper, tape and handmade labels: personal and nostalgic.",
+  "family": "TextureCollage",
+  "cost": "Medium",
+  "tags": [
+    "personal",
+    "vlog",
+    "travel",
+    "memory",
+    "craft",
+    "شخصی",
+    "ولاگ",
+    "سفر",
+    "خاطره",
+    "دست‌ساز"
+  ],
+  "spec": {
+    "id": "scrapbook",
+    "family": "TextureCollage",
+    "palette": {
+      "background": [
+        "#F3E9DC",
+        "#E6CCB2",
+        "#9C6644",
+        "#7F9C96"
+      ],
+      "text": "#2B2118",
+      "accent": "#D1495B",
+      "accent2": "#00798C",
+      "emphasisText": "#FFFFFF",
+      "shadow": "#00000044"
+    },
+    "captions": {
+      "mode": "Phrase",
+      "size": 0.088,
+      "weight": 800,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 3,
+      "anchor": "BottomCenter",
+      "entry": "flip",
+      "exit": "fade",
+      "box": "Brutal",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.0,
+      "emphasis": {
+        "scale": 1.1,
+        "colorRole": "accent",
+        "box": "Highlight",
+        "threshold": 0.6
+      },
+      "boxColor": "#FFFDF7"
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:scrap"
+    },
+    "overlay": {
+      "grain": 0.045,
+      "vignette": 0.35,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "solid",
+      "cornerRadius": 0.01
+    },
+    "motion": {
+      "energy": 0.55,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/click",
+      "element.enter": "sfx/swoosh"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "none"
+    },
+    "shaders": {
+      "scrap": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 uv = fragCoord / iResolution;\n    float2 p = fragCoord / iResolution.y;\n    // Craft paper: fibres, soft blotches, a vignette of handling.\n    float fibres = noise(float2(p.x * 900.0, p.y * 40.0)) * 0.5 + noise(p * 300.0) * 0.5;\n    float blotch = fbm(p * 3.0);\n    float3 col = mix(cBase, cA, blotch * 0.35) + (fibres - 0.5) * 0.06;\n    // Torn scraps of coloured paper drifting very slowly.\n    for (int i = 0; i < 3; i++) {\n        float fi = float(i);\n        float2 c = float2(0.2 + 0.6 * fract(fi * 0.61), 0.15 + 0.7 * fract(fi * 0.37)) * float2(iResolution.x / iResolution.y, 1.0);\n        c += float2(sin(iTime * 0.1 + fi), cos(iTime * 0.08 + fi)) * 0.02;\n        float2 d = abs(p - c) - float2(0.16, 0.09);\n        float edge = noise((p - c) * 40.0) * 0.012;\n        float scrap = fall(0.0, 0.002, max(d.x, d.y) - edge);\n        col = mix(col, i == 1 ? cC : cB, scrap * 0.8);\n    }\n    col *= 1.0 - 0.18 * length(uv - 0.5);\n    return half4(half3(col), 1.0);\n}\n"
+    }
+  }
+}

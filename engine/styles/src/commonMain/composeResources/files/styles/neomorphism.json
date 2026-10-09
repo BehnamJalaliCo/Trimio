@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "id": "neomorphism",
+  "version": "1.0.0",
+  "nameFa": "نئومورفیسم",
+  "nameEn": "Neomorphism",
+  "descriptionFa": "سطح مات یکپارچه با برجستگی‌ها و فرورفتگی‌های نرم؛ آرام و مینیمال.",
+  "descriptionEn": "One matte surface with soft extruded and debossed shapes: calm and minimal.",
+  "family": "ShaderFx",
+  "cost": "Light",
+  "tags": [
+    "soft",
+    "calm",
+    "minimal",
+    "app",
+    "نرم",
+    "آرام",
+    "مینیمال",
+    "اپلیکیشن"
+  ],
+  "spec": {
+    "id": "neomorphism",
+    "family": "ShaderFx",
+    "palette": {
+      "background": [
+        "#E4E9F2",
+        "#FFFFFF",
+        "#A3B1C6",
+        "#6C63FF"
+      ],
+      "text": "#2D3142",
+      "accent": "#6C63FF",
+      "accent2": "#FF7A90",
+      "emphasisText": "#2D3142",
+      "shadow": "#00000022"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.088,
+      "weight": 700,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "fade",
+      "exit": "fade",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.006,
+      "emphasis": {
+        "scale": 1.1,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:neumorph"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.08,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "solid",
+      "cornerRadius": 0.06
+    },
+    "motion": {
+      "energy": 0.35,
+      "cameraPunch": false
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/tick",
+      "element.enter": "sfx/whoosh-soft"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.15,
+      "visualizer": "bars"
+    },
+    "shaders": {
+      "neumorph": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 p = (fragCoord - 0.5 * iResolution) / iResolution.y;\n    float t = iTime * 0.3;\n    // Soft extruded and debossed shapes from the same matte surface.\n    float3 col = cBase;\n    float2 c1 = float2(-0.25, 0.32 + 0.02 * sin(t));\n    float2 c2 = float2(0.28, -0.28 + 0.02 * cos(t * 0.8));\n    float d1 = length(p - c1) - 0.17 - 0.015 * iEnergy;\n    float d2 = length(p - c2) - 0.13;\n    // Light from the top-left: highlight on one side, shadow on the other.\n    float l1 = length(p - c1 + float2(0.03, -0.03)) - 0.17;\n    float s1 = length(p - c1 - float2(0.03, -0.03)) - 0.17;\n    col += cA * 0.10 * fall(0.0, 0.06, l1) * smoothstep(-0.01, 0.0, d1);\n    col -= cB * 0.10 * fall(0.0, 0.06, s1) * smoothstep(-0.01, 0.0, d1);\n    float l2 = length(p - c2 - float2(0.025, -0.025)) - 0.13;\n    col += cA * 0.08 * fall(-0.05, 0.0, d2) * smoothstep(-0.06, 0.02, l2);\n    col -= cB * 0.06 * fall(-0.05, 0.0, d2) * fall(-0.06, 0.02, l2);\n    return half4(half3(col), 1.0);\n}\n"
+    }
+  }
+}

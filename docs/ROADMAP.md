@@ -16,8 +16,8 @@
 | ۵ | کارگردان (Director) و هوش مصنوعی | ✅ |
 | ۶ | المان‌ها، افکت صوتی و موسیقی | ✅ |
 | ۷ | اپ کامل (صفحه‌ها و جریان کاربر) | ✅ |
-| ۸ | ۲۸ سبک کامل | 🔄 |
-| ۹ | کیفیت سطح Enterprise | ⬜ |
+| ۸ | ۲۸ سبک کامل | ✅ |
+| ۹ | کیفیت سطح Enterprise | 🔄 |
 | ۱۰ | سرور، پرداخت و انتشار | ⬜ |
 | ۱۱ | iOS و وب | ⬜ |
 
@@ -231,8 +231,8 @@
 - [x] همگام‌سازی ورود المان‌ها و افکت‌هایشان با ضرب موسیقی
 - [x] `AssetMatchingStage` با نمایش زندهٔ Assetهای انتخاب‌شده
 - [x] ممیزی لایسنس: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
-- [ ] Lottie و استیکر ← فاز ۸ (همراه با سبک‌های Sticker/Scrapbook، با رندر تابع-زمان برای خروجی)
-- [ ] المان سه‌بعدی ← فاز ۸ (خانوادهٔ ThreeD)
+- [ ] Lottie ← فاز ۹ (استیکرها فعلاً برداری و شیدری‌اند؛ Lottie نیاز به رندر تابع-زمان برای خروجی دارد)
+- [ ] المان سه‌بعدی مستقل (Filament) ← فاز ۹؛ پس‌زمینه‌های سه‌بعدی سبک‌های ThreeD با شیدر انجام شد
 - [ ] Embedding عصبی چندزبانه + جست‌وجوی برداری ← فاز ۹ (رابط `SemanticIndex` آماده است)
 
 **معیار پذیرش:** هر `assetId` که کارگردان می‌سازد قابل رندر و قابل شنیدن است ✅؛ هیچ Asset با لایسنس محدودکننده ✅
@@ -268,16 +268,23 @@
 
 ---
 
-## فاز ۸ — ۲۸ سبک کامل ⬜
+## فاز ۸ — ۲۸ سبک کامل ✅
+
+![همهٔ سبک‌ها](screenshots/all-styles.png)
 
 | خانواده | سبک‌ها | وضعیت |
 |---|---|---|
-| وکتور دوبعدی | Minimalism، Maximalism، Brutalism، Neobrutalism، Bento Grid، Dark Mode UI، Flat، Material، Anti-Design، Motion-Driven UI | [ ] |
-| شیدر و افکت | Glassmorphism، Neomorphism، Liquid Glass، Aurora UI، Chrome/Liquid Metal، Grain & Noise | [ ] |
-| تایپوگرافی | Kinetic Typography، Experimental Typography | [ ] |
-| بافت و کلاژ | Skeuomorphism، Retrofuturism، Y2K، Scrapbook، Sticker UI | [ ] |
-| سه‌بعدی | Claymorphism، Spatial UI، 3D & Immersive | [ ] |
-| ارگانیک | Biophilic Design، Organic UI | [ ] |
+| وکتور دوبعدی | Minimalism، Maximalism (کالیدوسکوپ)، Brutalism، Neobrutalism، Bento Grid، Dark Mode UI، Flat، Material، Anti-Design (بلوک‌های آشوب)، Motion-Driven UI | [x] |
+| شیدر و افکت | Glassmorphism، Neomorphism (برجسته/فرورفته)، Liquid Glass، Aurora UI، Chrome/Liquid Metal، Grain & Noise | [x] |
+| تایپوگرافی | Kinetic Typography، Experimental Typography (گلیچ) | [x] |
+| بافت و کلاژ | Skeuomorphism (کاغذ)، Retrofuturism (سینت‌ویو)، Y2K (حباب رنگین‌کمانی)، Scrapbook، Sticker UI (کانفتی) | [x] |
+| سه‌بعدی | Claymorphism (خمیر نرم)، Spatial UI (پنل‌های شناور در عمق)، 3D & Immersive (تونل) | [x] |
+| ارگانیک | Biophilic Design (سایه‌روشن برگ)، Organic UI | [x] |
+
+- [x] ۱۴ شیدر SkSL/AGSL اختصاصی، همه صوت‌واکنش‌گرا و مطابق قواعد قابل‌حمل بودن (بدون `smoothstep` برعکس)
+- [x] ژنراتور قابل‌بازتولید پکیج‌ها در مخزن: `tools/styles/make_packs.py`
+- [x] تست: اعتبارسنجی، کامپایل شیدر در Skia، رندر هر سبک روی فوتیج و فقط-صدا، برگهٔ مقایسهٔ همهٔ سبک‌ها
+- [x] هر ۲۸ سبک داخل اپ؛ نسخهٔ جدیدتر هر سبک با پکیج امضاشده بدون آپدیت اپ جایگزین می‌شود
 
 ---
 

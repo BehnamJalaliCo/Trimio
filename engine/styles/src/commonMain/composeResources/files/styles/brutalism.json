@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "id": "brutalism",
+  "version": "1.0.0",
+  "nameFa": "بروتالیسم",
+  "nameEn": "Brutalism",
+  "descriptionFa": "خام، سیاه‌وسفید و بی‌پرده؛ تایپ درشت روی سطح تخت.",
+  "descriptionEn": "Raw, black and white and unapologetic: huge type on flat ground.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "raw",
+    "bold",
+    "editorial",
+    "statement",
+    "خام",
+    "جسور",
+    "سرمقاله",
+    "بیانیه"
+  ],
+  "spec": {
+    "id": "brutalism",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#F2F2F2",
+        "#000000",
+        "#FF3B00",
+        "#000000"
+      ],
+      "text": "#000000",
+      "accent": "#FF3B00",
+      "accent2": "#000000",
+      "emphasisText": "#F2F2F2",
+      "shadow": "#00000000"
+    },
+    "captions": {
+      "mode": "Phrase",
+      "size": 0.1,
+      "weight": 900,
+      "uppercase": true,
+      "letterSpacingEm": -0.04,
+      "maxWordsPerLine": 2,
+      "anchor": "BottomCenter",
+      "entry": "wipe",
+      "exit": "fade",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.0,
+      "emphasis": {
+        "scale": 1.0,
+        "colorRole": "accent",
+        "box": "Highlight",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": false,
+      "preset": "solid"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.0,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "outline",
+      "cornerRadius": 0.0
+    },
+    "motion": {
+      "energy": 0.7,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/click",
+      "element.enter": "sfx/click"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.15,
+      "visualizer": "bars"
+    }
+  }
+}

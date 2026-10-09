@@ -22,7 +22,7 @@ class StylePackTest {
     @Test
     fun bundledPacksLoadValidateAndMatchTheCatalogue(): Unit = runBlocking {
         val packs = repo.all()
-        assertEquals(listOf("neobrutalism", "liquid-glass", "kinetic-typography"), packs.map { it.id }, "gallery order follows the 28-style list")
+        assertEquals(io.trimio.core.model.style.DesignStyle.entries.map { it.id }, packs.map { it.id }, "all 28 styles ship, in gallery order")
         for (pack in packs) {
             assertEquals(emptyList(), StylePackValidator.validate(pack), pack.id)
             val canonical = assertNotNull(DesignStyle.fromId(pack.id), "${pack.id} must be one of the 28 styles")

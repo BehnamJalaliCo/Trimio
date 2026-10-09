@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "id": "minimalism",
+  "version": "1.0.0",
+  "nameFa": "مینیمالیسم",
+  "nameEn": "Minimalism",
+  "descriptionFa": "سفید، فضای خالی و تایپوگرافی دقیق؛ هیچ چیز اضافه‌ای.",
+  "descriptionEn": "White space and precise type, nothing extra.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "minimal",
+    "clean",
+    "luxury",
+    "corporate",
+    "elegant",
+    "مینیمال",
+    "تمیز",
+    "لوکس",
+    "رسمی",
+    "شیک"
+  ],
+  "spec": {
+    "id": "minimalism",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#FAFAF7",
+        "#EDEDE8",
+        "#111111",
+        "#C9A227"
+      ],
+      "text": "#111111",
+      "accent": "#111111",
+      "accent2": "#C9A227",
+      "emphasisText": "#111111",
+      "shadow": "#00000000"
+    },
+    "captions": {
+      "mode": "Phrase",
+      "size": 0.075,
+      "weight": 600,
+      "uppercase": false,
+      "letterSpacingEm": 0.0,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "fade",
+      "exit": "fade",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.0,
+      "emphasis": {
+        "scale": 1.0,
+        "colorRole": "accent2",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": false,
+      "preset": "solid"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.0,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "outline",
+      "cornerRadius": 0.0
+    },
+    "motion": {
+      "energy": 0.25,
+      "cameraPunch": false
+    },
+    "sfx": {
+      "element.enter": "sfx/tick"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.1,
+      "visualizer": "none"
+    }
+  }
+}

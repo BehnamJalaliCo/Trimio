@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "id": "sticker-ui",
+  "version": "1.0.0",
+  "nameFa": "استیکر یوآی",
+  "nameEn": "Sticker UI",
+  "descriptionFa": "استیکرهای براق با حاشیهٔ سفید و کانفتی؛ شاد و قابل‌اشتراک.",
+  "descriptionEn": "Glossy stickers with white borders and confetti: joyful and shareable.",
+  "family": "TextureCollage",
+  "cost": "Light",
+  "tags": [
+    "fun",
+    "kids",
+    "party",
+    "social",
+    "cute",
+    "شاد",
+    "کودک",
+    "جشن",
+    "شبکه‌اجتماعی",
+    "بامزه"
+  ],
+  "spec": {
+    "id": "sticker-ui",
+    "family": "TextureCollage",
+    "palette": {
+      "background": [
+        "#FFF6FB",
+        "#FFD6EC",
+        "#FF5DA2",
+        "#4CC9F0"
+      ],
+      "text": "#1D1A39",
+      "accent": "#FF5DA2",
+      "accent2": "#4CC9F0",
+      "emphasisText": "#FFFFFF",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.095,
+      "weight": 900,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "pop",
+      "exit": "fade",
+      "box": "Pill",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.22,
+        "colorRole": "accent",
+        "box": "Highlight",
+        "threshold": 0.6
+      },
+      "boxColor": "#FFFFFF"
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:confetti"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.0,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "brutal",
+      "cornerRadius": 0.06
+    },
+    "motion": {
+      "energy": 0.8,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/pop",
+      "caption.word": "sfx/tick",
+      "element.enter": "sfx/pop"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.2,
+      "visualizer": "none"
+    },
+    "shaders": {
+      "confetti": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 p = fragCoord / iResolution.y;\n    float3 col = cBase;\n    // Sticker sheet: polka dots plus falling confetti that bursts with the voice.\n    float2 g = fract(p * 9.0) - 0.5;\n    col = mix(col, cA, fall(0.1, 0.12, length(g)) * 0.25);\n    for (int i = 0; i < 24; i++) {\n        float fi = float(i);\n        float2 c = float2(fract(fi * 0.618) * iResolution.x / iResolution.y, 1.2 - fract(fi * 0.371 + iTime * (0.05 + 0.04 * fract(fi * 0.7)) * (1.0 + iEnergy)) * 1.4);\n        float2 d = p - c;\n        float ang = iTime * 2.0 + fi;\n        float2 rd = float2(d.x * cos(ang) - d.y * sin(ang), d.x * sin(ang) + d.y * cos(ang));\n        float piece = step(abs(rd.x), 0.012) * step(abs(rd.y), 0.006);\n        float3 tint = fract(fi * 0.5) < 0.5 ? cB : cC;\n        col = mix(col, tint, piece);\n    }\n    return half4(half3(col), 1.0);\n}\n"
+    }
+  }
+}

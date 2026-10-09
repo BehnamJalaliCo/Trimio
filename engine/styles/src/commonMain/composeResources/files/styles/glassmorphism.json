@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "id": "glassmorphism",
+  "version": "1.0.0",
+  "nameFa": "گلس‌مورفیسم",
+  "nameEn": "Glassmorphism",
+  "descriptionFa": "کارت‌های شیشهٔ مات روی گرادیان‌های رنگی؛ مدرن و تمیز.",
+  "descriptionEn": "Frosted glass cards over colourful gradients: modern and clean.",
+  "family": "ShaderFx",
+  "cost": "Medium",
+  "tags": [
+    "modern",
+    "clean",
+    "tech",
+    "app",
+    "startup",
+    "مدرن",
+    "تمیز",
+    "تکنولوژی",
+    "استارتاپ"
+  ],
+  "spec": {
+    "id": "glassmorphism",
+    "family": "ShaderFx",
+    "palette": {
+      "background": [
+        "#1A1446",
+        "#6A3DE8",
+        "#00C2FF",
+        "#FF5FA2"
+      ],
+      "text": "#FFFFFF",
+      "accent": "#7CF8FF",
+      "accent2": "#FF8BD0",
+      "emphasisText": "#FFFFFF",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.095,
+      "weight": 800,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "rise",
+      "exit": "fade",
+      "box": "Glass",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.18,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "mesh"
+    },
+    "overlay": {
+      "grain": 0.02,
+      "vignette": 0.25,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "glass",
+      "cornerRadius": 0.05
+    },
+    "motion": {
+      "energy": 0.55,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/shimmer",
+      "element.enter": "sfx/whoosh-soft"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "ring"
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "id": "organic-ui",
+  "version": "1.0.0",
+  "nameFa": "اورگانیک یوآی",
+  "nameEn": "Organic UI",
+  "descriptionFa": "شکل‌های نرم و جاری با رنگ‌های خاکی؛ انسانی و گرم.",
+  "descriptionEn": "Soft flowing forms in earthy colours: human and warm.",
+  "family": "Organic",
+  "cost": "Medium",
+  "tags": [
+    "warm",
+    "human",
+    "wellness",
+    "lifestyle",
+    "beauty",
+    "گرم",
+    "انسانی",
+    "سلامت",
+    "سبک‌زندگی",
+    "زیبایی"
+  ],
+  "spec": {
+    "id": "organic-ui",
+    "family": "Organic",
+    "palette": {
+      "background": [
+        "#F2E8DF",
+        "#E3B5A4",
+        "#B5838D",
+        "#6D6875"
+      ],
+      "text": "#3A2E39",
+      "accent": "#B5525C",
+      "accent2": "#6D6875",
+      "emphasisText": "#FFFFFF",
+      "shadow": "#00000033"
+    },
+    "captions": {
+      "mode": "Phrase",
+      "size": 0.088,
+      "weight": 700,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 3,
+      "anchor": "BottomCenter",
+      "entry": "rise",
+      "exit": "fade",
+      "box": "Pill",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.1,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      },
+      "boxColor": "#FFFFFFB3"
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:flow"
+    },
+    "overlay": {
+      "grain": 0.02,
+      "vignette": 0.15,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "solid",
+      "cornerRadius": 0.09
+    },
+    "motion": {
+      "energy": 0.4,
+      "cameraPunch": false
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/whoosh-soft",
+      "element.enter": "sfx/whoosh-soft"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "ring"
+    },
+    "shaders": {
+      "flow": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 p = (fragCoord - 0.5 * iResolution) / iResolution.y;\n    float t = iTime * 0.12;\n    // Slow, breathing organic forms (leaf shadows / living cells).\n    float2 q = float2(fbm(p * 1.4 + t), fbm(p * 1.4 - t + 3.1));\n    float f = fbm(p * 1.6 + q * 1.8 + float2(t * 0.6, -t));\n    float3 col = mix(cBase, cA, smoothstep(0.25, 0.75, f));\n    col = mix(col, cB, smoothstep(0.55, 0.85, q.x) * 0.6);\n    // Caustic light dapples.\n    float c = pow(abs(sin(f * 12.0 + t * 3.0)), 18.0);\n    col += cC * c * (0.12 + 0.2 * iEnergy);\n    return half4(half3(col), 1.0);\n}\n"
+    }
+  }
+}

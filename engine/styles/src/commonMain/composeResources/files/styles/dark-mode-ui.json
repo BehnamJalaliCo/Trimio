@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "id": "dark-mode-ui",
+  "version": "1.0.0",
+  "nameFa": "دارک مود یوآی",
+  "nameEn": "Dark Mode UI",
+  "descriptionFa": "تاریک و آرام برای چشم، با یک رنگ تأکیدی روشن؛ مثل اپ‌های حرفه‌ای.",
+  "descriptionEn": "Dark and easy on the eyes with one bright accent, like pro apps.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "dark",
+    "pro",
+    "tech",
+    "coding",
+    "finance",
+    "تاریک",
+    "حرفه‌ای",
+    "برنامه‌نویسی",
+    "مالی"
+  ],
+  "spec": {
+    "id": "dark-mode-ui",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#0D1117",
+        "#161B22",
+        "#2F81F7",
+        "#3FB950"
+      ],
+      "text": "#E6EDF3",
+      "accent": "#2F81F7",
+      "accent2": "#3FB950",
+      "emphasisText": "#E6EDF3",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.088,
+      "weight": 700,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "rise",
+      "exit": "fade",
+      "box": "Pill",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.1,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      },
+      "boxColor": "#161B22F2"
+    },
+    "background": {
+      "audioReactive": false,
+      "preset": "gradient"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.25,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "solid",
+      "cornerRadius": 0.03
+    },
+    "motion": {
+      "energy": 0.5,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/tick",
+      "element.enter": "sfx/swoosh"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "bars"
+    }
+  }
+}

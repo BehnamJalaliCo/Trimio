@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "id": "flat-design",
+  "version": "1.0.0",
+  "nameFa": "فلت دیزاین",
+  "nameEn": "Flat Design",
+  "descriptionFa": "رنگ‌های تخت و شاد، بدون سایه و گرادیان؛ ساده و خوانا.",
+  "descriptionEn": "Bright flat colours, no shadows or gradients: simple and legible.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "simple",
+    "friendly",
+    "explainer",
+    "education",
+    "ساده",
+    "صمیمی",
+    "توضیحی",
+    "آموزشی"
+  ],
+  "spec": {
+    "id": "flat-design",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#2EC4B6",
+        "#CBF3F0",
+        "#FF9F1C",
+        "#E71D36"
+      ],
+      "text": "#FFFFFF",
+      "accent": "#FFBF69",
+      "accent2": "#E71D36",
+      "emphasisText": "#011627",
+      "shadow": "#00000000"
+    },
+    "captions": {
+      "mode": "Phrase",
+      "size": 0.09,
+      "weight": 900,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 3,
+      "anchor": "BottomCenter",
+      "entry": "pop",
+      "exit": "fade",
+      "box": "Pill",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.0,
+      "emphasis": {
+        "scale": 1.12,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      },
+      "boxColor": "#011627"
+    },
+    "background": {
+      "audioReactive": false,
+      "preset": "solid"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.0,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "solid",
+      "cornerRadius": 0.03
+    },
+    "motion": {
+      "energy": 0.6,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/pop",
+      "element.enter": "sfx/pop"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "bars"
+    }
+  }
+}

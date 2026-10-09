@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "id": "3d-immersive",
+  "version": "1.0.0",
+  "nameFa": "تری‌دی ایمرسیو",
+  "nameEn": "3D & Immersive",
+  "descriptionFa": "تونل سه‌بعدی بی‌پایان که با صدای تو شتاب می‌گیرد؛ غرق‌کننده.",
+  "descriptionEn": "An endless 3D tunnel that speeds up with your voice: immersive.",
+  "family": "ThreeD",
+  "cost": "Heavy",
+  "tags": [
+    "immersive",
+    "gaming",
+    "tech",
+    "music",
+    "hype",
+    "غرق‌کننده",
+    "گیمینگ",
+    "تکنولوژی",
+    "موسیقی",
+    "هیجانی"
+  ],
+  "spec": {
+    "id": "3d-immersive",
+    "family": "ThreeD",
+    "palette": {
+      "background": [
+        "#03001C",
+        "#5B2EFF",
+        "#00F5D4",
+        "#F15BB5"
+      ],
+      "text": "#FFFFFF",
+      "accent": "#00F5D4",
+      "accent2": "#F15BB5",
+      "emphasisText": "#03001C",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "SingleWord",
+      "size": 0.11,
+      "weight": 900,
+      "uppercase": true,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 1,
+      "anchor": "Center",
+      "entry": "slam",
+      "exit": "shrink",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.03,
+      "emphasis": {
+        "scale": 1.28,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:tunnel"
+    },
+    "overlay": {
+      "grain": 0.02,
+      "vignette": 0.55,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "glass",
+      "cornerRadius": 0.03
+    },
+    "motion": {
+      "energy": 0.9,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/impact",
+      "element.enter": "sfx/riser"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.0,
+      "visualizer": "none"
+    },
+    "shaders": {
+      "tunnel": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 p = (fragCoord - 0.5 * iResolution) / iResolution.y;\n    float r = length(p);\n    float a = atan(p.y, p.x);\n    // Infinite 3D tunnel, rushing forward faster when the voice gets loud.\n    float z = 0.35 / max(r, 0.02) + iTime * (0.6 + 0.8 * iEnergy);\n    float ribs = smoothstep(0.42, 0.5, abs(fract(z) - 0.5));\n    float seams = smoothstep(0.46, 0.5, abs(fract(a * 1.909) - 0.5));\n    float glow = clamp(ribs + seams * 0.6, 0.0, 1.0);\n    float depth = smoothstep(0.0, 0.7, r);\n    float3 col = mix(cBase, mix(cA, cB, 0.5 + 0.5 * sin(z * 0.7)), glow) * depth;\n    col += cC * exp(-r * 6.0) * (0.4 + 0.6 * iEnergy);\n    return half4(half3(col), 1.0);\n}\n"
+    }
+  }
+}

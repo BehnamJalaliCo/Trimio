@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "id": "aurora-ui",
+  "version": "1.0.0",
+  "nameFa": "آئورورا یوآی",
+  "nameEn": "Aurora UI",
+  "descriptionFa": "پرده‌های نور شفق که با صدای تو تنفس می‌کنند؛ رؤیایی و آرام.",
+  "descriptionEn": "Curtains of aurora light that breathe with your voice: dreamy and calm.",
+  "family": "ShaderFx",
+  "cost": "Medium",
+  "tags": [
+    "dreamy",
+    "calm",
+    "meditation",
+    "music",
+    "podcast",
+    "رؤیایی",
+    "آرام",
+    "مدیتیشن",
+    "موسیقی",
+    "پادکست"
+  ],
+  "spec": {
+    "id": "aurora-ui",
+    "family": "ShaderFx",
+    "palette": {
+      "background": [
+        "#030712",
+        "#0F5257",
+        "#3D2C8D",
+        "#C147E9"
+      ],
+      "text": "#F4F7FF",
+      "accent": "#7DF9C4",
+      "accent2": "#E3A4FF",
+      "emphasisText": "#F4F7FF",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "Karaoke",
+      "size": 0.09,
+      "weight": 700,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "fade",
+      "exit": "fade",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.1,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "aurora"
+    },
+    "overlay": {
+      "grain": 0.03,
+      "vignette": 0.4,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "glass",
+      "cornerRadius": 0.05
+    },
+    "motion": {
+      "energy": 0.4,
+      "cameraPunch": false
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/shimmer",
+      "element.enter": "sfx/whoosh-soft"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.2,
+      "visualizer": "ring"
+    }
+  }
+}

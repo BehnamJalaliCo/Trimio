@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "id": "experimental-typography",
+  "version": "1.0.0",
+  "nameFa": "اکسپریمنتال تایپوگرافی",
+  "nameEn": "Experimental Typography",
+  "descriptionFa": "تایپ به‌عنوان هنر: باندهای پاره، گلیچ و چیدمان غیرعادی.",
+  "descriptionEn": "Type as art: torn scan bands, glitches and unusual layouts.",
+  "family": "Typography",
+  "cost": "Medium",
+  "tags": [
+    "art",
+    "experimental",
+    "music",
+    "fashion",
+    "edgy",
+    "هنری",
+    "تجربی",
+    "موسیقی",
+    "مد",
+    "جسور"
+  ],
+  "spec": {
+    "id": "experimental-typography",
+    "family": "Typography",
+    "palette": {
+      "background": [
+        "#0A0A0A",
+        "#F5F5F5",
+        "#FF003C",
+        "#00F0FF"
+      ],
+      "text": "#F5F5F5",
+      "accent": "#FF003C",
+      "accent2": "#00F0FF",
+      "emphasisText": "#0A0A0A",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "SingleWord",
+      "size": 0.13,
+      "weight": 900,
+      "uppercase": true,
+      "letterSpacingEm": 0.04,
+      "maxWordsPerLine": 1,
+      "anchor": "Center",
+      "entry": "flip",
+      "exit": "fall",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.0,
+      "emphasis": {
+        "scale": 1.3,
+        "colorRole": "accent",
+        "box": "Highlight",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:glitch"
+    },
+    "overlay": {
+      "grain": 0.05,
+      "vignette": 0.3,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "outline",
+      "cornerRadius": 0.0
+    },
+    "motion": {
+      "energy": 0.9,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/glitch",
+      "caption.word": "sfx/click",
+      "element.enter": "sfx/glitch"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.0,
+      "visualizer": "none"
+    },
+    "shaders": {
+      "glitch": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 uv = fragCoord / iResolution;\n    float t = floor(iTime * 12.0);\n    // Experimental type stage: scan bands that tear sideways on loud syllables.\n    float band = floor(uv.y * 48.0);\n    float tear = (hash(float2(band, t)) - 0.5) * 0.12 * step(0.82 - 0.35 * iEnergy, hash(float2(t, band * 0.3)));\n    float x = uv.x + tear;\n    float stripes = step(0.5, fract(x * 6.0 + uv.y * 0.5));\n    float3 col = mix(cBase, cA, stripes * 0.18);\n    col.r += cB.r * 0.25 * step(0.97, hash(float2(band, t + 1.0)));\n    col += cC * 0.35 * step(0.985, hash(float2(floor(x * 60.0), band + t)));\n    col += (hash(fragCoord + t) - 0.5) * 0.06;\n    return half4(half3(clamp(col, 0.0, 1.0)), 1.0);\n}\n"
+    }
+  }
+}

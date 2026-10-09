@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "id": "chrome-liquid-metal",
+  "version": "1.0.0",
+  "nameFa": "کروم / لیکوئید متال",
+  "nameEn": "Chrome / Liquid Metal",
+  "descriptionFa": "فلز مایع درخشان با بازتاب‌های تیز استودیو؛ لوکس و قدرتمند.",
+  "descriptionEn": "Glossy liquid metal with sharp studio reflections: luxurious and powerful.",
+  "family": "ShaderFx",
+  "cost": "Heavy",
+  "tags": [
+    "luxury",
+    "premium",
+    "tech",
+    "car",
+    "crypto",
+    "لوکس",
+    "قدرتمند",
+    "تکنولوژی",
+    "ماشین",
+    "کریپتو"
+  ],
+  "spec": {
+    "id": "chrome-liquid-metal",
+    "family": "ShaderFx",
+    "palette": {
+      "background": [
+        "#07080B",
+        "#3A404C",
+        "#DDE3EE",
+        "#9FB8FF"
+      ],
+      "text": "#FFFFFF",
+      "accent": "#C7D3FF",
+      "accent2": "#FFD27A",
+      "emphasisText": "#0B0C10",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "SingleWord",
+      "size": 0.11,
+      "weight": 900,
+      "uppercase": true,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 1,
+      "anchor": "Center",
+      "entry": "slam",
+      "exit": "shrink",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.03,
+      "emphasis": {
+        "scale": 1.25,
+        "colorRole": "accent2",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:chrome"
+    },
+    "overlay": {
+      "grain": 0.02,
+      "vignette": 0.5,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "glass",
+      "cornerRadius": 0.03
+    },
+    "motion": {
+      "energy": 0.8,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/impact",
+      "element.enter": "sfx/whoosh"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.0,
+      "visualizer": "none"
+    },
+    "shaders": {
+      "chrome": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 uv = fragCoord / iResolution;\n    float2 p = (fragCoord - 0.5 * iResolution) / iResolution.y;\n    float t = iTime * 0.15;\n    // Liquid metal: a warped field read through a banded studio environment, like light sliding\n    // over polished chrome. Bands are smooth (no derivatives), so it never shows contour artefacts.\n    float2 w = float2(fbm(p * 1.3 + t), fbm(p * 1.3 - t + 4.7));\n    float h = fbm(p * 1.8 + w * 1.6 + float2(0.0, t * 0.5));\n    float bands = 0.5 + 0.5 * sin(h * 30.0 + p.y * 2.5 - t * 3.0);\n    float sharp = pow(bands, 6.0);\n    float3 col = mix(cBase, cA, smoothstep(0.15, 0.85, h));\n    col = mix(col, cB, sharp * 0.9);\n    col += cC * pow(bands, 28.0) * (0.35 + 0.5 * iEnergy);\n    // Darker top and bottom, like a horizon reflected in the metal.\n    col *= 0.55 + 0.45 * sin(uv.y * 3.1416);\n    return half4(half3(col), 1.0);\n}\n"
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "id": "bento-grid",
+  "version": "1.0.0",
+  "nameFa": "بنتو گرید",
+  "nameEn": "Bento Grid",
+  "descriptionFa": "داده‌ها در کاشی‌های مرتب مثل ارائه‌های اپل؛ عالی برای آمار و آموزش.",
+  "descriptionEn": "Information in tidy tiles like a keynote: great for stats and explainers.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "tech",
+    "data",
+    "explainer",
+    "keynote",
+    "finance",
+    "تکنولوژی",
+    "داده",
+    "توضیحی",
+    "ارائه",
+    "مالی"
+  ],
+  "spec": {
+    "id": "bento-grid",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#0B0B0F",
+        "#23232E",
+        "#5E5CE6",
+        "#30D158"
+      ],
+      "text": "#F5F5F7",
+      "accent": "#64D2FF",
+      "accent2": "#30D158",
+      "emphasisText": "#F5F5F7",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.088,
+      "weight": 800,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "rise",
+      "exit": "fade",
+      "box": "Pill",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.12,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      },
+      "boxColor": "#1C1C24E6"
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "grid"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.2,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "solid",
+      "cornerRadius": 0.05
+    },
+    "motion": {
+      "energy": 0.5,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/tick",
+      "element.enter": "sfx/swoosh"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "bars"
+    }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "id": "motion-driven-ui",
+  "version": "1.0.0",
+  "nameFa": "موشن‌دریون یوآی",
+  "nameEn": "Motion-Driven UI",
+  "descriptionFa": "همه‌چیز در حرکت: موج‌های صوتی، ورودهای سریع و ریتم دقیق.",
+  "descriptionEn": "Everything moves: audio waves, quick entrances and tight rhythm.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "dynamic",
+    "music",
+    "podcast",
+    "fast",
+    "پویا",
+    "موسیقی",
+    "پادکست",
+    "سریع"
+  ],
+  "spec": {
+    "id": "motion-driven-ui",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#0A0F1F",
+        "#1F6FEB",
+        "#00D4FF",
+        "#FF6B9D"
+      ],
+      "text": "#FFFFFF",
+      "accent": "#00D4FF",
+      "accent2": "#FF6B9D",
+      "emphasisText": "#FFFFFF",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.095,
+      "weight": 900,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "wipe",
+      "exit": "fall",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.2,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "waves"
+    },
+    "overlay": {
+      "grain": 0.015,
+      "vignette": 0.3,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "glass",
+      "cornerRadius": 0.04
+    },
+    "motion": {
+      "energy": 0.85,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/swoosh",
+      "caption.word": "sfx/tick",
+      "element.enter": "sfx/whoosh"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "bars"
+    }
+  }
+}

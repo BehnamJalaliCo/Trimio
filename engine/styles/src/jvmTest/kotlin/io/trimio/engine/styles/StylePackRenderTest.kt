@@ -39,8 +39,30 @@ class StylePackRenderTest {
                 File(out, "${pack.id}-audio-$t.png").writeBytes(audioOnly)
                 val withFootage = desktop.png(desktop.draw { renderer.render(this, FrameContext(t, footage = fakeFootage)) })
                 File(out, "${pack.id}-video-$t.png").writeBytes(withFootage)
-                assertTrue(audioOnly.size > 20_000 && withFootage.size > 20_000, "${pack.id} at $t ms looks empty")
+                // Minimal styles compress very well, so "not empty" is judged on pixels, not file size.
+                assertTrue(hasContent(audioOnly) && hasContent(withFootage), "${pack.id} at $t ms looks empty")
             }
         }
+        contactSheet(StylePackRepository().all().map { it.id })
+    }
+
+    private fun hasContent(png: ByteArray): Boolean {
+        val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(org.jetbrains.skia.Image.makeFromEncoded(png))
+        val colours = HashSet<Int>()
+        for (y in 0 until bitmap.height step 8) for (x in 0 until bitmap.width step 8) colours += bitmap.getColor(x, y)
+        return colours.size > 6 // antialiased text alone gives a handful; a blank frame gives one
+    }
+
+    /** All styles side by side (audio-only, mid-sentence) for design review: build/style-previews/all-styles.png. */
+    private fun contactSheet(ids: List<String>) {
+        val cols = 7
+        val w = 270
+        val h = 480
+        val surface = org.jetbrains.skia.Surface.makeRasterN32Premul(w * cols, h * ((ids.size + cols - 1) / cols))
+        ids.forEachIndexed { i, id ->
+            val image = org.jetbrains.skia.Image.makeFromEncoded(File(out, "$id-audio-2950.png").readBytes())
+            surface.canvas.drawImageRect(image, org.jetbrains.skia.Rect.makeXYWH((i % cols * w).toFloat(), (i / cols * h).toFloat(), w.toFloat(), h.toFloat()))
+        }
+        File(out, "all-styles.png").writeBytes(surface.makeImageSnapshot().encodeToData()!!.bytes)
     }
 }

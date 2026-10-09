@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "id": "grain-noise",
+  "version": "1.0.0",
+  "nameFa": "گرین و نویز",
+  "nameEn": "Grain & Noise",
+  "descriptionFa": "گرادیان‌های غنی زیر دانهٔ فیلم درشت؛ گرم، هنری و سینمایی.",
+  "descriptionEn": "Rich gradients under heavy film grain: warm, artful and cinematic.",
+  "family": "ShaderFx",
+  "cost": "Medium",
+  "tags": [
+    "cinematic",
+    "art",
+    "film",
+    "story",
+    "fashion",
+    "سینمایی",
+    "هنری",
+    "فیلم",
+    "روایت",
+    "مد"
+  ],
+  "spec": {
+    "id": "grain-noise",
+    "family": "ShaderFx",
+    "palette": {
+      "background": [
+        "#140D0B",
+        "#C8553D",
+        "#2D3047",
+        "#F28F3B"
+      ],
+      "text": "#FFF4E6",
+      "accent": "#F6C177",
+      "accent2": "#EB6F92",
+      "emphasisText": "#FFF4E6",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "Phrase",
+      "size": 0.088,
+      "weight": 700,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "fade",
+      "exit": "fade",
+      "box": "None",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.08,
+        "colorRole": "accent",
+        "box": "None",
+        "threshold": 0.6
+      }
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "shader:grain"
+    },
+    "overlay": {
+      "grain": 0.06,
+      "vignette": 0.5,
+      "letterbox": 0.08
+    },
+    "elements": {
+      "card": "outline",
+      "cornerRadius": 0.01
+    },
+    "motion": {
+      "energy": 0.4,
+      "cameraPunch": false
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/whoosh-soft",
+      "element.enter": "sfx/whoosh-soft"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "ring"
+    },
+    "shaders": {
+      "grain": "uniform float2 iResolution;\nuniform float iTime;\nuniform float iEnergy;\nuniform float3 cBase;\nuniform float3 cA;\nuniform float3 cB;\nuniform float3 cC;\n\nfloat hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }\nfloat noise(float2 p) {\n    float2 i = floor(p);\n    float2 f = fract(p);\n    float2 u = f * f * (3.0 - 2.0 * f);\n    return mix(mix(hash(i), hash(i + float2(1.0, 0.0)), u.x), mix(hash(i + float2(0.0, 1.0)), hash(i + float2(1.0, 1.0)), u.x), u.y);\n}\n// Falling edge (1 below e0, 0 above e1, with e0 < e1): smoothstep itself must never get reversed edges.\nfloat fall(float e0, float e1, float x) { return 1.0 - smoothstep(e0, e1, x); }\nfloat fbm(float2 p) {\n    float v = 0.0;\n    float a = 0.5;\n    for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + float2(1.7, 9.2); a *= 0.5; }\n    return v;\n}\n\nhalf4 main(float2 fragCoord) {\n    float2 uv = fragCoord / iResolution;\n    float t = iTime * 0.07;\n    // A rich two-tone gradient under heavy film grain: the \"noise\" aesthetic.\n    float g = smoothstep(0.0, 1.0, uv.y + 0.15 * sin(uv.x * 3.0 + t * 6.0) + 0.1 * fbm(uv * 3.0 + t));\n    float3 col = mix(cA, cB, g);\n    col = mix(col, cC, smoothstep(0.7, 1.0, fbm(uv * 2.0 - t)) * 0.5);\n    col = mix(cBase, col, 0.9);\n    float grain = hash(fragCoord * 1.37 + fract(iTime * 23.0) * 100.0) - 0.5;\n    col += grain * (0.12 + 0.05 * iEnergy);\n    return half4(half3(clamp(col, 0.0, 1.0)), 1.0);\n}\n"
+    }
+  }
+}

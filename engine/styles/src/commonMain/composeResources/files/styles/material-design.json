@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "id": "material-design",
+  "version": "1.0.0",
+  "nameFa": "متریال دیزاین",
+  "nameEn": "Material Design",
+  "descriptionFa": "زبان طراحی گوگل: رنگ‌های بیانی، گوشه‌های گرد و حرکت فنری.",
+  "descriptionEn": "Google's Material: expressive colour, rounded shapes, springy motion.",
+  "family": "Vector2D",
+  "cost": "Light",
+  "tags": [
+    "android",
+    "app",
+    "tech",
+    "tutorial",
+    "اندروید",
+    "اپلیکیشن",
+    "تکنولوژی",
+    "آموزشی"
+  ],
+  "spec": {
+    "id": "material-design",
+    "family": "Vector2D",
+    "palette": {
+      "background": [
+        "#1C1B1F",
+        "#381E72",
+        "#D0BCFF",
+        "#EFB8C8"
+      ],
+      "text": "#E6E1E5",
+      "accent": "#D0BCFF",
+      "accent2": "#EFB8C8",
+      "emphasisText": "#381E72",
+      "shadow": "#00000099"
+    },
+    "captions": {
+      "mode": "BuildUp",
+      "size": 0.09,
+      "weight": 800,
+      "uppercase": false,
+      "letterSpacingEm": -0.01,
+      "maxWordsPerLine": 4,
+      "anchor": "BottomCenter",
+      "entry": "pop",
+      "exit": "fade",
+      "box": "Pill",
+      "strokeWidth": 0.0,
+      "shadowBlur": 0.012,
+      "emphasis": {
+        "scale": 1.14,
+        "colorRole": "accent",
+        "box": "Highlight",
+        "threshold": 0.6
+      },
+      "boxColor": "#2B2930F2"
+    },
+    "background": {
+      "audioReactive": true,
+      "preset": "mesh"
+    },
+    "overlay": {
+      "grain": 0.0,
+      "vignette": 0.2,
+      "letterbox": 0.0
+    },
+    "elements": {
+      "card": "solid",
+      "cornerRadius": 0.07
+    },
+    "motion": {
+      "energy": 0.6,
+      "cameraPunch": true
+    },
+    "sfx": {
+      "caption.emphasis": "sfx/pop",
+      "element.enter": "sfx/swoosh"
+    },
+    "audioOnly": {
+      "captionAnchor": "Center",
+      "captionScale": 1.25,
+      "visualizer": "ring"
+    }
+  }
+}

@@ -72,7 +72,7 @@ class StylePackRepository(
     private fun order(id: String) = DesignStyle.fromId(id)?.ordinal ?: Int.MAX_VALUE
 
     companion object {
-        /** Packs shipped in the APK (resources cannot be listed at runtime, so they are named here). */
-        val BUNDLED = listOf("kinetic-typography", "neobrutalism", "liquid-glass")
+        /** Packs shipped in the APK (resources cannot be listed at runtime, so they are named here): all 28 styles. */
+        val BUNDLED: List<String> = DesignStyle.entries.map { it.id }
     }
 }
