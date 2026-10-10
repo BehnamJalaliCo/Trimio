@@ -183,9 +183,11 @@ class ContrastTest {
     }
 
     /**
-     * Glyph vs surround for every text in one pass: the median luminance of each text's solid
-     * glyph pixels against the median of the pixels 2 px to 0.08 em outside them that hold no
-     * text. Texts not fully on screen and opaque at this moment have too few solid pixels and are skipped.
+     * Glyph vs surround for every text in one pass, measured where legibility lives — at the
+     * glyph edges: at each edge pixel, the solid glyph next to it against the mean of the pixels
+     * 2 px to 0.08 em outside that hold no text. A text's ratio is the median over its edges
+     * (so a highlighted word on its accent block counts against its block, not the wall). Texts
+     * not fully on screen and opaque at this moment have too few solid edges and are skipped.
      */
     private fun ratios(frame: ByteArray, mask: ByteArray, w: Int, h: Int, texts: List<Node>): Map<Int, Float> {
         fun idAt(i: Int): Int {
@@ -194,37 +196,33 @@ class ContrastTest {
             return if (k in texts.indices) k else -1
         }
         fun isEmpty(i: Int) = (mask[i * 4 + 1].toInt() and 0xFF) < 6
-        val glyph = HashMap<Int, ArrayList<Float>>()
-        val ring = HashMap<Int, HashSet<Int>>()
-        for (y in 1 until h - 1) for (x in 1 until w - 1) {
+        fun solid(i: Int, k: Int) = idAt(i) == k && idAt(i - 1) == k && idAt(i + 1) == k && idAt(i - w) == k && idAt(i + w) == k
+        val local = HashMap<Int, ArrayList<Float>>()
+        for (y in 2 until h - 2) for (x in 2 until w - 2) {
             val i = y * w + x
             val k = idAt(i)
-            if (k < 0) continue
-            val solid = idAt(i - 1) == k && idAt(i + 1) == k && idAt(i - w) == k && idAt(i + w) == k
-            if (solid) { glyph.getOrPut(k) { ArrayList() } += lum(frame, i); continue }
+            if (k < 0 || solid(i, k)) continue
+            // The glyph colour here: a solid pixel of the same text right next to this edge.
+            val inner = listOf(i - 1, i + 1, i - w, i + w, i - w - 1, i - w + 1, i + w - 1, i + w + 1).firstOrNull { solid(it, k) } ?: continue
             val node = texts[k]
             val size = when (node) { is TextNode -> node.type.size; is CounterNode -> node.type.size; else -> 40f }
             val reach = maxOf(3, ceil(size * 0.08f).toInt())
-            val set = ring.getOrPut(k) { HashSet() }
-            // An edge: the surround is what lies 2..reach px away and holds no text.
+            var sum = 0f
+            var n = 0
             for (dy in -reach..reach) for (dx in -reach..reach) {
                 if (maxOf(kotlin.math.abs(dx), kotlin.math.abs(dy)) < 2) continue
                 val xx = x + dx
                 val yy = y + dy
                 if (xx !in 0 until w || yy !in 0 until h) continue
                 val j = yy * w + xx
-                if (isEmpty(j)) set += j
+                if (isEmpty(j)) { sum += lum(frame, j); n++ }
             }
+            if (n < 4) continue
+            val g = lum(frame, inner)
+            val r = sum / n
+            local.getOrPut(k) { ArrayList() } += (maxOf(g, r) + 0.05f) / (minOf(g, r) + 0.05f)
         }
-        val out = mutableMapOf<Int, Float>()
-        for ((k, g) in glyph) {
-            val r = ring[k] ?: continue
-            if (g.size < MIN_PIXELS || r.size < MIN_PIXELS) continue
-            val gl = g.sorted()[g.size / 2]
-            val rl = r.map { lum(frame, it) }.sorted()[r.size / 2]
-            out[k] = (maxOf(gl, rl) + 0.05f) / (minOf(gl, rl) + 0.05f)
-        }
-        return out
+        return local.filterValues { it.size >= MIN_PIXELS }.mapValues { (_, v) -> v.sorted()[v.size / 2] }
     }
 
     private fun lum(px: ByteArray, i: Int): Float {

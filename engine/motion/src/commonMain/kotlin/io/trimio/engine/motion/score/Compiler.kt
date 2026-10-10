@@ -3,6 +3,7 @@ package io.trimio.engine.motion.score
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import io.trimio.core.model.transcript.Transcript
+import io.trimio.core.model.transcript.Word
 import io.trimio.engine.motion.Anim
 import io.trimio.engine.motion.Camera
 import io.trimio.engine.motion.Composition
@@ -389,8 +390,10 @@ class Compiler(
         val zone = layout.zoneOf(score.captions.place, Layout.Zone.Lower)
         // The cold open speaks too: its words get captions on the output clock before the body's.
         val prelude = input.transcript?.let { t -> input.edit?.preludeWords(t) }.orEmpty()
-        val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(prelude, score.captions.maxWords.coerceIn(1, 8))) +
-            Words.captionLines(session.transcript!!.words, score.captions.maxWords.coerceIn(1, 8))
+        // Hesitations («اِم», "um") are never shown; the words around them keep their own times.
+        fun said(words: List<Word>) = words.filterNot { Words.isFiller(it.text) }
+        val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(said(prelude), score.captions.maxWords.coerceIn(1, 8))) +
+            Words.captionLines(said(session.transcript!!.words), score.captions.maxWords.coerceIn(1, 8))
         val emphasisWords = beats.flatMap { b -> b.cue.emphasis.mapNotNull { b.cue.words.getOrNull(it) } }.map(NumberWords::normalize).toSet()
         val out = mutableListOf<Beat>()
         var skipped = 0
