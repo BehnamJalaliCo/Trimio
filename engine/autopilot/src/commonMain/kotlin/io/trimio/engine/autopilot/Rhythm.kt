@@ -369,9 +369,10 @@ internal class Rhythm(
 
         /**
          * Beats that keep the screen alive on their own while up: the call to action, names landing
-         * one by one, and the figures (counting up, filling, ticking, the voucher's reveal).
+         * one by one, a chat thread's bubbles, and the figures (counting up, filling, ticking, the
+         * voucher's reveal).
          */
-        private val SELF_PACED = setOf("comment", "logos", "list", "objects", "countdown", "counter", "voucher", "stats", "progress")
+        private val SELF_PACED = setOf("comment", "logos", "list", "objects", "countdown", "counter", "voucher", "stats", "progress", "message")
 
         /** Adverbs, time words and fillers: said with stress, but nothing to pop on screen. */
         private val STOP_WORDS = setOf(

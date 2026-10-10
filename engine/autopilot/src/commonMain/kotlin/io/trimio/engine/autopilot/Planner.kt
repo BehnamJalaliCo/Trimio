@@ -65,6 +65,10 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val hookRng = root.fork(8)
         val paletteRng = root.fork(9)
         val fillRng = root.fork(10)
+        val dialogueRng = root.fork(11)
+
+        /** Reported speech shown as a chat thread, by the line it starts on. */
+        val threads = mutableMapOf<Int, Dialogue.Thread>()
 
         /** Each line's numbers with their units and cues. */
         val senses = Quantities.senses(texts, lines)
@@ -120,7 +124,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             }
             // The cold open shows the hook line's figure: the line itself, said later, shows something else.
             opening?.let { o -> openingKey(o)?.let { shownRich += it } }
-            reads = settle(lines.indices.map { k -> refine(k, u.lines.getOrNull(k) ?: LineRead(show = "none")) })
+            reads = threaded(settle(lines.indices.map { k -> refine(k, u.lines.getOrNull(k) ?: LineRead(show = "none")) }))
             val takeovers = chooseTakeovers(reads)
             val scenes = cut(takeovers)
             polish(scenes)
@@ -141,6 +145,21 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             )
             notes += "seed $seed: look $look $accent, music ${music?.id}, mark $mark, captions $captionWords, takeovers ${takeovers.sorted()}"
             return Plan(score, music, Choices(seed, look, music?.id, usedRecipes.toList(), usedTransitions.toList()), notes)
+        }
+
+        /**
+         * Reported speech («یکی اومده تو دایرکت می‌گه …», "someone asked me …") and the speaker's
+         * answer become one chat thread on the line it starts; the lines it runs over are its scene.
+         * Never over the call to action or a line with a figure of its own.
+         */
+        private fun threaded(reads: List<LineRead>): List<LineRead> {
+            val found = Dialogue(texts, lines).find(
+                allowed = { j -> reads[j].show in THREAD_LINES },
+                hinted = { j -> u.lines.getOrNull(j)?.let { it.role in DIALOGUE_ROLES || it.show == "message" } == true },
+            )
+            found.forEach { threads[it.line] = it }
+            if (found.isNotEmpty()) notes += "dialogue: " + found.joinToString { "lines ${it.line}–${it.lastLine} (${it.bubbles.size} bubbles)" }
+            return reads.mapIndexed { k, r -> if (k in threads) r.copy(show = "message") else r }
         }
 
         /** The edit cut into scenes: one per line (lines a running beat holds join its scene), after the cold open. */
@@ -395,7 +414,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             // The share of full-frame graphics varies by seed (a calmer or a busier cut of the same piece).
             val budget = total * taste.takeover * takeoverRng.range(0.6f, 1.35f)
             // Not in the first seconds: the viewer first meets the speaker (and the hook).
+            // A thread takes the full frame only when it is long (three bubbles or more).
             val candidates = reads.indices.filter { k -> k > 0 && k < lines.lastIndex && reads[k].show in TAKEOVER_SHOWS && words[lines[k].first].range.startMs >= EARLIEST_TAKEOVER_MS &&
+                (threads[k]?.bubbles?.size ?: STAGED_THREAD) >= STAGED_THREAD &&
                 // The ask keeps the speaker on screen while it plays out (the DM step after the keyword).
                 reads[k - 1].show != "comment" }
                 // The piece's big figures first; the rest by weight, varied by seed.
@@ -406,7 +427,11 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             var used = 0f
             for (k in candidates) {
                 // A figure holds its scene for as long as it needs (see [lasting]), however briefly it is said.
-                val d = if (reads[k].show in RICH_SHOWS) maxOf(duration(k, k), DATA_HOLD) else duration(k, k)
+                val d = when {
+                    k in threads -> duration(k, threads.getValue(k).lastLine)
+                    reads[k].show in RICH_SHOWS -> maxOf(duration(k, k), DATA_HOLD)
+                    else -> duration(k, k)
+                }
                 // Two full frames with only a breath of speaker between them read as one: keep them apart
                 // (a figure's scene runs on over the lines it holds, see [heldUntil]).
                 val neighbour = chosen.any { c ->
@@ -422,6 +447,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** The last line a full-frame figure on line [k] would hold its scene over. */
         private fun reach(k: Int): Int {
+            threads[k]?.let { return it.lastLine }
             if (reads[k].show !in RICH_SHOWS) return k
             val end = startOf(lines[k].first) + maxOf(duration(k, k), DATA_HOLD)
             return (k + 1..lines.lastIndex).takeWhile { j -> startOf(lines[j].first) - SCENE_LEAD < end }.lastOrNull() ?: k
@@ -487,7 +513,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             val primary = primary(line, read, e, takeover)
             val out = mutableListOf<BeatScore>()
             // The hook owns the first seconds: line 0's own graphic waits unless it is the CTA.
-            val waits = hasHook && k == 0 && read.show !in setOf("comment", "lower-third")
+            val waits = hasHook && k == 0 && read.show !in setOf("comment", "lower-third", "message")
             if (primary != null && !waits) out += primary
             if (!(hasHook && k == 0)) extra(line, read, takeover, primary != null, out.size)?.let { out += it }
             ask.follow(k, line, read, out)
@@ -512,8 +538,34 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             "stats" -> stats(line, read, e, takeover)
             "countdown" -> countdown(line, read, e, takeover)
             "progress" -> progress(line, read, e, takeover)
+            "message" -> message(line, read, e, takeover)
             "headline" -> headline(line, read, e, takeover)
             else -> null
+        }
+
+        /**
+         * A chat thread: the reported words as incoming bubbles, each landing as it is said, and
+         * (most seeds) the speaker's answer as an outgoing one. It stays until the answer is said,
+         * plus a beat, whether or not the answer is shown.
+         */
+        private fun message(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
+            val t = threads[lines.indexOf(line)] ?: return headline(line, read, e, takeover)
+            val reply = t.reply?.takeIf { dialogueRng.chance(REPLY_CHANCE) }
+            val bubbles = t.incoming + listOfNotNull(reply)
+            val at = bubbles.first().first
+            val until = (t.reply ?: t.incoming.last()).last
+            val opening = lines[t.line].range.map { norm[it] }
+            val channel = when {
+                opening.any { it.startsWith("دایرک") || it.startsWith("dm") } -> if (rtl) "دایرکت" else "DM"
+                opening.any { it.startsWith("کامنت") || it.startsWith("comment") } -> if (rtl) "کامنت" else "Comments"
+                else -> null
+            }
+            val label = dialogueRng.pick(listOf(null, if (rtl) "یه فالوور" else "a follower", channel))
+            return BeatScore(
+                recipe = "message", at = at, until = until, hold = endOf(until) + THREAD_TAIL - startOf(at), label = label, energy = e,
+                items = bubbles.map { b -> (if (b.outgoing) ">" else "") + b.words.joinToString(" ") { texts[it].trimEnd('.', '،', ',') } },
+                place = if (takeover) "center" else "top",
+            )
         }
 
         /**
@@ -531,7 +583,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** A takeover gets a title over its graphic; a footage line may get a picture of what it names. */
         private fun extra(line: Lines.Line, read: LineRead, takeover: Boolean, hasPrimary: Boolean, count: Int): BeatScore? {
             // Rich graphics carry their own label: a title above them would say it twice.
-            val titled = takeover && hasPrimary && read.title.isNotBlank() && read.show !in setOf("headline", "stamp") && read.show !in RICH_SHOWS
+            val titled = takeover && hasPrimary && read.title.isNotBlank() && read.show !in setOf("headline", "stamp", "message") && read.show !in RICH_SHOWS
             if (titled) return BeatScore(recipe = textRecipe(0.5f), text = read.title, place = "top", energy = 0.55f, mark = mark, at = line.first)
             // A picture only where the line has no graphic of its own (two things at the top would fight).
             val room = !takeover && count == 0
@@ -761,8 +813,15 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
          */
         val TAKEOVER_SHOWS = mapOf(
             "voucher" to 1.1f, "network" to 1f, "stats" to 1f, "meter" to 0.95f, "countdown" to 0.95f, "chart" to 0.9f, "objects" to 0.8f, "list" to 0.75f,
-            "terminal" to 0.6f, "counter" to 0.45f, "headline" to 0.25f,
+            "terminal" to 0.6f, "message" to 0.6f, "counter" to 0.45f, "headline" to 0.25f,
         )
+
+        /** Lines a chat thread may run over: none with a figure, names or the ask of their own. */
+        val THREAD_LINES = setOf("none", "headline", "stamp", "object", "objects", "lower-third", "list", "message")
+        val DIALOGUE_ROLES = setOf("dialogue", "quote")
+        const val REPLY_CHANCE = 0.75f
+        const val THREAD_TAIL = 0.8f
+        const val STAGED_THREAD = 3
 
         /** Shows drawn from the numbers' meaning ([Quantities]). */
         val RICH_SHOWS = setOf("voucher", "stats", "countdown", "progress")

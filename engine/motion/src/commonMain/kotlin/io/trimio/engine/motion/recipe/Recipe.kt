@@ -94,7 +94,7 @@ data class Built(
 
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
-    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all
+    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",
@@ -114,7 +114,7 @@ object Recipes {
         "code" to "terminal", "install" to "terminal", "cli" to "terminal", "command" to "terminal", "shell" to "terminal",
         "map" to "network", "nodes" to "network", "graph-map" to "network", "mindmap" to "network", "tree" to "network",
         "usage" to "meter", "compare" to "meter", "saving" to "meter", "savings" to "meter", "before-after" to "meter",
-        "cta" to "comment", "comment-cta" to "comment", "keyword" to "comment", "dm" to "comment",
+        "cta" to "comment", "comment-cta" to "comment", "keyword" to "comment",
         "sticker" to "object", "emoji" to "object", "illustration" to "object", "prop" to "object",
         "picture" to "object", "visual" to "object",
         "stickers" to "objects", "ingredients" to "objects", "items" to "objects", "things" to "objects",
@@ -126,6 +126,8 @@ object Recipes {
         "progress-bar" to "progress", "capacity" to "progress", "filled" to "progress", "quota" to "progress",
         "spots" to "progress", "seats" to "progress", "loading" to "progress", "sold-out" to "progress",
         "coupon" to "voucher", "ticket" to "voucher", "gift-card" to "voucher", "giftcard" to "voucher", "gift" to "voucher",
+        "chat" to "message", "dm" to "message", "direct" to "message", "message-thread" to "message", "sms" to "message",
+        "testimonial-chat" to "message", "messages" to "message", "conversation" to "message", "chat-thread" to "message",
         "reward" to "voucher", "bonus" to "voucher", "airdrop" to "voucher", "prize" to "voucher", "promo-code" to "voucher",
     )
 
