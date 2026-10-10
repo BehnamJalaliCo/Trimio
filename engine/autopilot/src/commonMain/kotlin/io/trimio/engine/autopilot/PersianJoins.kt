@@ -98,6 +98,8 @@ internal class PersianJoins(private val lex: PersianSpelling) {
         if (a in VERB_PREFIXES) return (a + ZWNJ + b).takeIf { b.length >= 2 && (count(it) > 0 || count(a + b) > 0) }
         if (a in SPLIT_PREFIXES) splitPrefix(a, b)?.let { return it }
         if (prev in STREETS) place(a, b)?.let { return it }
+        // «سی نه» (thirty-nine said without «و») is two numbers, not «سینه».
+        if (a in NUMBERS && b in NUMBERS) return null
         if (a.length < 2 || b.length < 2) return letter(a, b)
         if (b in BOUND) return bound(a, b)
         if (b == "تایی" && a in NUMBERS) return a + ZWNJ + b
@@ -193,7 +195,7 @@ internal class PersianJoins(private val lex: PersianSpelling) {
         private const val PREFIXED_STEM = 5000
         private const val PLURAL_RATIO = 50
         private const val DETERMINER_RATIO = 100
-        private const val VARIANT_RATIO = 12
+        private const val VARIANT_RATIO = 10
         private const val JOIN_RATIO = 1000.0
         private const val COMPOUND_ODDS = 100.0
         private const val COMPOUND_SHARE = 0.3
