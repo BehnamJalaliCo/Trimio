@@ -158,6 +158,7 @@ class Compiler(
             }
             // Occupants that had to leave early.
             for (b in beats) b.out = layout.outOf(b.id) ?: b.out
+            holdStages(beats)
             val captionBeats = if (score.captions.show && words.isNotEmpty()) captions(this, beats) else emptyList()
             val built = (beats + captionBeats).associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }
 
@@ -183,6 +184,18 @@ class Compiler(
                 )
             }
             return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes)
+        }
+
+        /**
+         * A takeover is its graphic: an empty stage after the graphic leaves reads as dead air, so
+         * the last graphic on a stage stays until the cut back (when that is only moments away).
+         */
+        private fun holdStages(beats: List<Beat>) {
+            for (k in scenes.indices) {
+                if (input.footage == null || overFootage(scenes[k])) continue
+                val last = beats.filter { it.scene == k }.maxByOrNull { it.out } ?: continue
+                if (sceneEnds[k] - last.out in 0f..STAGE_HOLD) last.out = sceneEnds[k] + 0.05f
+            }
         }
 
         /** What, when and where for one requested beat. */
@@ -568,6 +581,7 @@ class Compiler(
         private val LONG_FORM = setOf("message")
         private const val LINGER = 0.55f
         private const val EXIT_TAIL = 0.4f
+        private const val STAGE_HOLD = 3.5f
         private const val MIN_SCENE = 1.2f
         private const val TAIL = 0.8f
         private const val SNAP_WINDOW = 0.1f

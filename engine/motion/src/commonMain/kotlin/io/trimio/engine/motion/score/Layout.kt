@@ -91,7 +91,8 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
 
     private fun fallbacks(z: Zone) = when (z) {
         Zone.Center -> listOf(Zone.Top, Zone.Lower)
-        Zone.Top -> listOf(Zone.Center)
+        // Over footage the centre is the face: a busy top yields to the lower band instead.
+        Zone.Top -> listOf(Zone.Center, Zone.Lower)
         Zone.Lower -> listOf(Zone.Center, Zone.Top)
         Zone.Full -> emptyList()
     }
