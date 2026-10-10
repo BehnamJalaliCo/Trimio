@@ -34,6 +34,8 @@ class Studio(
     private val model: LanguageModel? = null,
     private val knowledge: Knowledge = Knowledge.Offline,
     private val taste: Taste = Taste(),
+    /** The eyes: the director when it can see, or a separate light vision model. */
+    private val eyes: LanguageModel? = model?.takeIf { it.canSee },
 ) {
     private val text = TextLayoutEngine(TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr), kotlinx.coroutines.runBlocking { MotionFonts.load() })
 
@@ -41,10 +43,19 @@ class Studio(
     suspend fun produce(video: File, prompt: String, seed: Long, transcript: Transcript, understanding: Understanding? = null, onStage: (String, Float) -> Unit = { _, _ -> }): Autopilot.Production {
         val voice = Media.audio(video, RATE)
         val subject = Media.subject(video)
-        return Autopilot(text, brands, visuals, model, knowledge, taste).produce(
+        return Autopilot(text, brands, visuals, model, knowledge, taste, eyes, eyes?.let { grabber(video) }).produce(
             Autopilot.Request(transcript, voice, prompt, seed, footage = "main", subject = subject, understanding = understanding),
             onStage,
         )
+    }
+
+    /** Small frames of a compiled edit (288×512 RGB) for the eyes. */
+    private fun grabber(video: File) = FrameGrabber { output, times ->
+        val c = output.composition
+        FfmpegFootage(video, c.fps, c.width, c.height).use { footage ->
+            val frames = MotionExporter.Frames(c, footage)
+            times.map { t -> Media.small(frames.draw(t), LOOK_W, LOOK_H) }
+        }
     }
 
     /** Renders [production] of [video] to [out] at delivery quality. */
@@ -58,6 +69,8 @@ class Studio(
 
     companion object {
         const val RATE = 48_000
+        private const val LOOK_W = 288
+        private const val LOOK_H = 512
 
         /** Speech to words with whisper.cpp; the prompt's names and jargon condition the decoder. */
         suspend fun transcribe(video: File, whisperModel: String, prompt: String, language: Language? = Language.Persian): Transcript {
@@ -107,6 +120,24 @@ object Media {
         val out = p.inputStream.bufferedReader().readText().trim()
         p.waitFor()
         return out.toFloatOrNull() ?: 0f
+    }
+
+    /** A rendered frame scaled down to packed RGB for a vision model. */
+    fun small(image: org.jetbrains.skia.Image, w: Int, h: Int): io.trimio.engine.llm.RgbImage {
+        val surface = org.jetbrains.skia.Surface.makeRasterN32Premul(w, h)
+        surface.canvas.drawImageRect(
+            image, org.jetbrains.skia.Rect.makeWH(image.width.toFloat(), image.height.toFloat()), org.jetbrains.skia.Rect.makeWH(w.toFloat(), h.toFloat()),
+            org.jetbrains.skia.SamplingMode.LINEAR, null, true,
+        )
+        val bitmap = org.jetbrains.skia.Bitmap().apply { allocPixels(org.jetbrains.skia.ImageInfo.makeN32(w, h, org.jetbrains.skia.ColorAlphaType.PREMUL)) }
+        surface.makeImageSnapshot().readPixels(bitmap)
+        val bgra = bitmap.readPixels()!!
+        val rgb = ByteArray(w * h * 3)
+        for (i in 0 until w * h) {
+            // N32 is BGRA on little-endian hosts.
+            rgb[i * 3] = bgra[i * 4 + 2]; rgb[i * 3 + 1] = bgra[i * 4 + 1]; rgb[i * 3 + 2] = bgra[i * 4]
+        }
+        return io.trimio.engine.llm.RgbImage(w, h, rgb)
     }
 
     fun writeWav(audio: PcmAudio, file: File) {

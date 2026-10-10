@@ -45,10 +45,13 @@ if(TRIMIO_LLAMA)
     set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
     set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
+    # Sight: the multimodal library alone (vision projectors for Qwen3.5 / Gemma 4), no tools.
+    set(LLAMA_BUILD_MTMD ON CACHE BOOL "" FORCE)
+    set(MTMD_VIDEO OFF CACHE BOOL "" FORCE)
     add_subdirectory(third_party/llama.cpp llama-build EXCLUDE_FROM_ALL)
 
     add_library(trimio_llama SHARED llama/trimio_llama_jni.cpp)
-    target_link_libraries(trimio_llama PRIVATE llama)
+    target_link_libraries(trimio_llama PRIVATE llama mtmd)
     trimio_jni_library(trimio_llama)
 endif()
 

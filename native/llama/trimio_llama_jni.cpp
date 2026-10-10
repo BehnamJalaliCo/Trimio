@@ -14,6 +14,8 @@
 #include <vector>
 
 #include "llama.h"
+#include "mtmd.h"
+#include "mtmd-helper.h"
 
 namespace {
 
@@ -21,6 +23,8 @@ struct Engine {
     llama_model * model = nullptr;
     llama_context * ctx = nullptr;
     const llama_vocab * vocab = nullptr;
+    // The model's eyes (vision projector), when loaded.
+    mtmd_context * vision = nullptr;
 };
 
 std::string to_string(JNIEnv * env, jstring s) {
@@ -82,6 +86,67 @@ void quiet_log(ggml_log_level level, const char * text, void *) {
     (void) text;
 }
 
+
+/** The sampling loop shared by text and image prompts; [n_past] tokens are already decoded. */
+jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback) {
+    jclass cls = env->GetObjectClass(callback);
+    jmethodID on_text = env->GetMethodID(cls, "onText", "([B)Z");
+    env->DeleteLocalRef(cls);
+    const int n_ctx = static_cast<int>(llama_n_ctx(engine->ctx));
+    llama_sampler * chain = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    const std::string grammar = to_string(env, jgrammar);
+    if (!grammar.empty()) {
+        llama_sampler * g = llama_sampler_init_grammar(engine->vocab, grammar.c_str(), "root");
+        if (g == nullptr) {
+            llama_sampler_free(chain);
+            return -3;
+        }
+        llama_sampler_chain_add(chain, g);
+    }
+    if (temperature <= 0.0f) {
+        llama_sampler_chain_add(chain, llama_sampler_init_greedy());
+    } else {
+        llama_sampler_chain_add(chain, llama_sampler_init_top_p(top_p, 1));
+        llama_sampler_chain_add(chain, llama_sampler_init_min_p(min_p, 1));
+        llama_sampler_chain_add(chain, llama_sampler_init_temp(temperature));
+        llama_sampler_chain_add(chain, llama_sampler_init_dist(static_cast<uint32_t>(seed)));
+    }
+
+    int status = 1;
+    std::string pending;
+    for (int i = 0; i < max_tokens; ++i) {
+        llama_token token = llama_sampler_sample(chain, engine->ctx, -1);
+        if (llama_vocab_is_eog(engine->vocab, token)) {
+            status = 0;
+            break;
+        }
+        pending += piece(engine->vocab, token);
+        const size_t ready = complete_utf8_prefix(pending);
+        if (ready > 0) {
+            jbyteArray chunk = to_bytes(env, pending.substr(0, ready));
+            const jboolean keep_going = env->CallBooleanMethod(callback, on_text, chunk);
+            env->DeleteLocalRef(chunk);
+            pending.erase(0, ready);
+            if (env->ExceptionCheck() || !keep_going) {
+                status = 2;
+                break;
+            }
+        }
+        if (++n_past >= n_ctx) break;
+        if (llama_decode(engine->ctx, llama_batch_get_one(&token, 1)) != 0) {
+            status = -2;
+            break;
+        }
+    }
+    if (!pending.empty() && status >= 0 && status != 2) {
+        jbyteArray chunk = to_bytes(env, pending);
+        env->CallBooleanMethod(callback, on_text, chunk);
+        env->DeleteLocalRef(chunk);
+    }
+    llama_sampler_free(chain);
+    return status;
+}
+
 }  // namespace
 
 extern "C" {
@@ -121,6 +186,7 @@ JNIEXPORT void JNICALL
 Java_io_trimio_engine_llm_local_LlamaNative_free(JNIEnv *, jobject, jlong handle) {
     auto * engine = reinterpret_cast<Engine *>(handle);
     if (engine == nullptr) return;
+    if (engine->vision != nullptr) mtmd_free(engine->vision);
     llama_free(engine->ctx);
     llama_model_free(engine->model);
     delete engine;
@@ -180,10 +246,6 @@ Java_io_trimio_engine_llm_local_LlamaNative_generate(
         JNIEnv * env, jobject, jlong handle, jbyteArray jprompt, jstring jgrammar,
         jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback) {
     auto * engine = reinterpret_cast<Engine *>(handle);
-    jclass cls = env->GetObjectClass(callback);
-    jmethodID on_text = env->GetMethodID(cls, "onText", "([B)Z");
-    env->DeleteLocalRef(cls);
-
     llama_memory_clear(llama_get_memory(engine->ctx), true);
 
     std::vector<llama_token> prompt = tokenize(engine->vocab, from_bytes(env, jprompt), true);
@@ -195,59 +257,73 @@ Java_io_trimio_engine_llm_local_LlamaNative_generate(
         if (llama_decode(engine->ctx, llama_batch_get_one(prompt.data() + i, n)) != 0) return -2;
     }
 
-    llama_sampler * chain = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    const std::string grammar = to_string(env, jgrammar);
-    if (!grammar.empty()) {
-        llama_sampler * g = llama_sampler_init_grammar(engine->vocab, grammar.c_str(), "root");
-        if (g == nullptr) {
-            llama_sampler_free(chain);
-            return -3;
-        }
-        llama_sampler_chain_add(chain, g);
-    }
-    if (temperature <= 0.0f) {
-        llama_sampler_chain_add(chain, llama_sampler_init_greedy());
-    } else {
-        llama_sampler_chain_add(chain, llama_sampler_init_top_p(top_p, 1));
-        llama_sampler_chain_add(chain, llama_sampler_init_min_p(min_p, 1));
-        llama_sampler_chain_add(chain, llama_sampler_init_temp(temperature));
-        llama_sampler_chain_add(chain, llama_sampler_init_dist(static_cast<uint32_t>(seed)));
-    }
+    return sample(env, engine, static_cast<int>(prompt.size()), jgrammar, max_tokens, temperature, top_p, min_p, seed, callback);
+}
 
-    int status = 1;
-    int n_past = static_cast<int>(prompt.size());
-    std::string pending;
-    for (int i = 0; i < max_tokens; ++i) {
-        llama_token token = llama_sampler_sample(chain, engine->ctx, -1);
-        if (llama_vocab_is_eog(engine->vocab, token)) {
-            status = 0;
-            break;
-        }
-        pending += piece(engine->vocab, token);
-        const size_t ready = complete_utf8_prefix(pending);
-        if (ready > 0) {
-            jbyteArray chunk = to_bytes(env, pending.substr(0, ready));
-            const jboolean keep_going = env->CallBooleanMethod(callback, on_text, chunk);
-            env->DeleteLocalRef(chunk);
-            pending.erase(0, ready);
-            if (env->ExceptionCheck() || !keep_going) {
-                status = 2;
-                break;
-            }
-        }
-        if (++n_past >= n_ctx) break;
-        if (llama_decode(engine->ctx, llama_batch_get_one(&token, 1)) != 0) {
-            status = -2;
-            break;
-        }
+/**
+ * Generates a completion for a formatted [prompt] that holds one media marker per image. Images
+ * are RGB bytes, [widths]×[heights]; the vision projector turns each into tokens in place.
+ * Returns like generate(), plus -4 when no projector is loaded and -5 when an image fails.
+ */
+JNIEXPORT jint JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_generateWithImages(
+        JNIEnv * env, jobject, jlong handle, jbyteArray jprompt, jobjectArray images, jintArray widths, jintArray heights,
+        jstring jgrammar, jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback) {
+    auto * engine = reinterpret_cast<Engine *>(handle);
+    if (engine->vision == nullptr) return -4;
+    llama_memory_clear(llama_get_memory(engine->ctx), true);
+
+    const jsize n = env->GetArrayLength(images);
+    std::vector<jint> w(static_cast<size_t>(n)), h(static_cast<size_t>(n));
+    if (n > 0) {
+        env->GetIntArrayRegion(widths, 0, n, w.data());
+        env->GetIntArrayRegion(heights, 0, n, h.data());
     }
-    if (!pending.empty() && status >= 0 && status != 2) {
-        jbyteArray chunk = to_bytes(env, pending);
-        env->CallBooleanMethod(callback, on_text, chunk);
-        env->DeleteLocalRef(chunk);
+    std::vector<mtmd_bitmap *> bitmaps;
+    for (jsize i = 0; i < n; ++i) {
+        const std::string rgb = from_bytes(env, static_cast<jbyteArray>(env->GetObjectArrayElement(images, i)));
+        if (rgb.size() != static_cast<size_t>(w[i]) * static_cast<size_t>(h[i]) * 3) {
+            for (auto * b : bitmaps) mtmd_bitmap_free(b);
+            return -5;
+        }
+        bitmaps.push_back(mtmd_bitmap_init(static_cast<uint32_t>(w[i]), static_cast<uint32_t>(h[i]), reinterpret_cast<const unsigned char *>(rgb.data())));
     }
-    llama_sampler_free(chain);
-    return status;
+    const std::string prompt = from_bytes(env, jprompt);
+    mtmd_input_text text{prompt.c_str(), prompt.size(), true, true};
+    mtmd_input_chunks * chunks = mtmd_input_chunks_init();
+    const int32_t rc = mtmd_tokenize(engine->vision, chunks, &text, const_cast<const mtmd_bitmap **>(bitmaps.data()), bitmaps.size());
+    for (auto * b : bitmaps) mtmd_bitmap_free(b);
+    if (rc != 0) {
+        mtmd_input_chunks_free(chunks);
+        return -5;
+    }
+    const int n_ctx = static_cast<int>(llama_n_ctx(engine->ctx));
+    if (static_cast<int>(mtmd_helper_get_n_pos(chunks)) + 8 >= n_ctx) {
+        mtmd_input_chunks_free(chunks);
+        return -1;
+    }
+    llama_pos n_past = 0;
+    const int32_t ev = mtmd_helper_eval_chunks(engine->vision, engine->ctx, chunks, 0, 0, 512, true, &n_past);
+    mtmd_input_chunks_free(chunks);
+    if (ev != 0) return -2;
+    return sample(env, engine, static_cast<int>(n_past), jgrammar, max_tokens, temperature, top_p, min_p, seed, callback);
+}
+
+/** Loads the vision projector for this model; false when the file is not a projector for it. */
+JNIEXPORT jboolean JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_initVision(JNIEnv * env, jobject, jlong handle, jstring jpath, jint n_threads, jint max_image_tokens) {
+    auto * engine = reinterpret_cast<Engine *>(handle);
+    if (engine->vision != nullptr) return JNI_TRUE;
+    mtmd_helper_log_set(quiet_log, nullptr);
+    mtmd_context_params params = mtmd_context_params_default();
+    params.use_gpu = false;
+    params.print_timings = false;
+    params.n_threads = n_threads;
+    params.warmup = false;
+    // Phone budget: each image costs at most this many tokens (Qwen's dynamic resolution).
+    if (max_image_tokens > 0) params.image_max_tokens = max_image_tokens;
+    engine->vision = mtmd_init_from_file(to_string(env, jpath).c_str(), engine->model, params);
+    return engine->vision != nullptr && mtmd_support_vision(engine->vision) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jstring JNICALL

@@ -33,7 +33,9 @@ data class Delivery(
     val maxrateMbps: Int = 20,
     val audioKbps: Int = 320,
     /** Parallel renderers; each encodes its own run of frames, joined losslessly at the end. */
-    val workers: Int = (Runtime.getRuntime().availableProcessors() - 1).coerceIn(1, 6),
+    // Each worker holds a half-float frame, a footage stream and its own caches (~1 GB native):
+    // two keep a phone-class or 16 GB machine safe next to a loaded director model.
+    val workers: Int = (Runtime.getRuntime().availableProcessors() - 1).coerceIn(1, 2),
 ) {
     fun videoArgs(fps: Int): List<String> = listOf(
         // 16-bit RGB in, converted once to 8-bit 4:2:0 with the BT.709 matrix and dithering.

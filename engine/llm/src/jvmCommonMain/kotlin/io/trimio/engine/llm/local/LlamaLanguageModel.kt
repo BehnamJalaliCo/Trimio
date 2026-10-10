@@ -41,7 +41,15 @@ internal object LlamaNative {
         handle: Long, prompt: ByteArray, grammar: String?, maxTokens: Int,
         temperature: Float, topP: Float, minP: Float, seed: Int, callback: LlamaCallback,
     ): Int
+    external fun generateWithImages(
+        handle: Long, prompt: ByteArray, images: Array<ByteArray>, widths: IntArray, heights: IntArray, grammar: String?, maxTokens: Int,
+        temperature: Float, topP: Float, minP: Float, seed: Int, callback: LlamaCallback,
+    ): Int
+    external fun initVision(handle: Long, projectorPath: String, threads: Int, maxImageTokens: Int): Boolean
     external fun systemInfo(): String
+
+    /** Placeholder llama.cpp's multimodal tokenizer replaces with an image's tokens. */
+    const val MEDIA_MARKER = "<__media__>"
 }
 
 /**
@@ -59,8 +67,13 @@ class LlamaLanguageModel(
     private val contextSize: Int = 12_288,
     private val threads: Int = defaultThreads(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    /** The model's vision projector (mmproj): with it the same model also looks at images. */
+    private val visionPath: String? = null,
+    /** Token budget per image (dynamic-resolution models): bounds the cost of looking on a phone. */
+    private val maxImageTokens: Int = 256,
 ) : LanguageModel, AutoCloseable {
     override val isLocal = true
+    override val canSee: Boolean get() = visionPath != null && File(visionPath).isFile
 
     private val mutex = Mutex()
     private var handle = 0L
@@ -70,19 +83,26 @@ class LlamaLanguageModel(
             val engine = ensureLoaded()
             val prompt = formatPrompt(engine, request)
             val grammar = request.schema?.let(JsonSchemaGrammar::compile)
-            val budget = LlamaNative.contextSize(engine) - LlamaNative.countTokens(engine, prompt) - 16
+            val imageTokens = if (canSee) request.messages.sumOf { it.images.size } * (maxImageTokens + IMAGE_FRAME_TOKENS) else 0
+            val budget = LlamaNative.contextSize(engine) - LlamaNative.countTokens(engine, prompt) - imageTokens - 16
             if (budget < 256) throw LanguageModelException(LanguageModelException.Kind.ContextTooLong, "Prompt leaves only $budget tokens")
 
             val context = currentCoroutineContext()
             val out = StringBuilder()
-            val status = LlamaNative.generate(
-                engine, prompt, grammar, minOf(request.maxTokens, budget),
-                request.temperature, 0.95f, 0.05f, request.seed,
-            ) { bytes ->
+            val callback = LlamaCallback { bytes ->
                 val text = bytes.decodeToString()
                 out.append(text)
                 onText(text)
                 context.isActive
+            }
+            val images = request.messages.flatMap { it.images }
+            val status = if (images.isNotEmpty() && ensureVision(engine)) {
+                LlamaNative.generateWithImages(
+                    engine, prompt, images.map { it.rgb }.toTypedArray(), images.map { it.width }.toIntArray(), images.map { it.height }.toIntArray(),
+                    grammar, minOf(request.maxTokens, budget), request.temperature, 0.95f, 0.05f, request.seed, callback,
+                )
+            } else {
+                LlamaNative.generate(engine, prompt, grammar, minOf(request.maxTokens, budget), request.temperature, 0.95f, 0.05f, request.seed, callback)
             }
             val stop = when (status) {
                 0 -> StopReason.EndTurn
@@ -90,6 +110,8 @@ class LlamaLanguageModel(
                 2 -> StopReason.Cancelled
                 -1 -> throw LanguageModelException(LanguageModelException.Kind.ContextTooLong, "Prompt does not fit the context")
                 -3 -> throw LanguageModelException(LanguageModelException.Kind.Other, "Grammar rejected by llama.cpp")
+                -4 -> throw LanguageModelException(LanguageModelException.Kind.Unavailable, "No vision projector loaded")
+                -5 -> throw LanguageModelException(LanguageModelException.Kind.Other, "An image could not be read")
                 else -> throw LanguageModelException(LanguageModelException.Kind.Other, "llama.cpp decode failed ($status)")
             }
             Generation(out.toString(), stop, servedBy = id)
@@ -104,12 +126,27 @@ class LlamaLanguageModel(
         return handle
     }
 
+    private var visionReady: Boolean? = null
+
+    /** Loads the projector once; false (and images ignored) when there is none or it does not fit. */
+    private fun ensureVision(engine: Long): Boolean {
+        visionReady?.let { return it }
+        val ok = canSee && LlamaNative.initVision(engine, visionPath!!, threads, maxImageTokens)
+        visionReady = ok
+        return ok
+    }
+
     private fun formatPrompt(engine: Long, request: GenerationRequest): ByteArray {
+        // Images go in as markers ahead of their turn's text; the vision projector fills them in.
+        val see = request.messages.any { it.images.isNotEmpty() } && canSee
+        val messages = request.messages.map { m ->
+            if (see && m.images.isNotEmpty()) m.copy(text = LlamaNative.MEDIA_MARKER.repeat(m.images.size) + "\n" + m.text) else m
+        }
         // The model's own template first (exactly what it was trained on), the catalogue format otherwise.
-        val roles = arrayOf("system") + request.messages.map { if (it.role == ChatRole.User) "user" else "assistant" }
-        val contents = arrayOf(request.system.encodeToByteArray()) + request.messages.map { it.text.encodeToByteArray() }
+        val roles = arrayOf("system") + messages.map { if (it.role == ChatRole.User) "user" else "assistant" }
+        val contents = arrayOf(request.system.encodeToByteArray()) + messages.map { it.text.encodeToByteArray() }
         return LlamaNative.applyTemplate(engine, roles, contents)
-            ?: ChatTemplates.format(format, request.system, request.messages).encodeToByteArray()
+            ?: ChatTemplates.format(format, request.system, messages).encodeToByteArray()
     }
 
     /** Frees the model's memory once no generation is running; it reloads on the next request. */
@@ -119,6 +156,7 @@ class LlamaLanguageModel(
         if (handle != 0L) {
             LlamaNative.free(handle)
             handle = 0L
+            visionReady = null
         }
     }
 
@@ -127,5 +165,8 @@ class LlamaLanguageModel(
         fun defaultThreads(): Int = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 6)
 
         fun systemInfo(): String = LlamaNative.systemInfo()
+
+        /** Start/end tokens around each image's tokens. */
+        private const val IMAGE_FRAME_TOKENS = 4
     }
 }

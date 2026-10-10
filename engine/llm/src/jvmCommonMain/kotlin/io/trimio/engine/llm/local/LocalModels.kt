@@ -22,6 +22,20 @@ class LocalModels(
     fun best(preferredId: String? = null): LanguageModel? {
         val candidates = installed()
         val spec = candidates.firstOrNull { it.id == preferredId } ?: candidates.maxByOrNull { it.sizeBytes } ?: return null
-        return LlamaLanguageModel(spec.id, store.pathOf(spec).toString(), spec.chatFormat ?: ChatFormat.ChatMl)
+        // A multimodal director loads its own projector: one model directs and looks.
+        val eyes = ModelCatalog.visionFor(spec).singleOrNull()?.takeIf { store.isInstalled(it) }
+        return LlamaLanguageModel(spec.id, store.pathOf(spec).toString(), spec.chatFormat ?: ChatFormat.ChatMl, visionPath = eyes?.let { store.pathOf(it).toString() })
+    }
+
+    /**
+     * Who looks at frames: the director itself when it has its projector, otherwise the light
+     * looker (a small multimodal model installed next to a text-only director), or nobody.
+     */
+    fun eyes(director: LanguageModel?): LanguageModel? {
+        if (director?.canSee == true) return director
+        val looker = ModelCatalog.qwen35_08bLooker
+        val projector = ModelCatalog.qwen35_08bEyes
+        if (!store.isInstalled(looker) || !store.isInstalled(projector)) return null
+        return LlamaLanguageModel(looker.id, store.pathOf(looker).toString(), ChatFormat.ChatMl, contextSize = 4096, visionPath = store.pathOf(projector).toString())
     }
 }

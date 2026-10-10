@@ -4,7 +4,15 @@ import kotlinx.serialization.json.JsonObject
 
 enum class ChatRole { User, Assistant }
 
-data class ChatMessage(val role: ChatRole, val text: String)
+/** An image for a model that can see: packed RGB bytes, [width]×[height]. */
+class RgbImage(val width: Int, val height: Int, val rgb: ByteArray) {
+    init {
+        require(rgb.size == width * height * 3) { "RGB size ${rgb.size} != $width×$height×3" }
+    }
+}
+
+/** One turn; a user turn may carry [images], which models that see place before the text. */
+data class ChatMessage(val role: ChatRole, val text: String, val images: List<RgbImage> = emptyList())
 
 /**
  * One request to any director model, local or cloud.
@@ -45,6 +53,9 @@ interface LanguageModel {
 
     /** Runs on the phone: private, offline, free; slower and smaller than cloud models. */
     val isLocal: Boolean
+
+    /** Whether this model looks at [ChatMessage.images] (otherwise they are ignored). */
+    val canSee: Boolean get() = false
 
     /**
      * Generates a reply, streaming text through [onText] as it is produced. Cancelling the

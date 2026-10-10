@@ -59,7 +59,10 @@ class AutopilotProofTest {
             VisualLibrary.parse(dir.listFiles { f -> f.extension == "json" }!!.associate { it.nameWithoutExtension to it.readText() })
         } ?: VisualLibrary.Empty
         val knowledge = WebKnowledge(HttpClient(OkHttp), FileCache(cache))
-        val llm = System.getProperty("auto.llm")?.let { LlamaLanguageModel("qwen3.5-4b-q4km", it, ChatFormat.ChatMl, contextSize = 8192, threads = 4) }
+        // -Pauto.vision=<mmproj>: the same director also looks at rendered frames.
+        val llm = System.getProperty("auto.llm")?.let {
+            LlamaLanguageModel("qwen3.5-4b-q4km", it, ChatFormat.ChatMl, contextSize = 8192, threads = 4, visionPath = System.getProperty("auto.vision"), maxImageTokens = 96)
+        }
 
         for (seed in seeds) {
             val t0 = System.nanoTime()

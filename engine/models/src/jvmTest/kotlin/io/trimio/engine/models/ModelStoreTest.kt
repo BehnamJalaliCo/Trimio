@@ -138,5 +138,12 @@ class ModelStoreTest {
         assertEquals(ModelCatalog.qwen35_9b, ModelCatalog.bestFor(ModelKind.Language, 16))
         assertTrue(ModelCatalog.all.filter { it.kind == ModelKind.Language }.all { it.chatFormat != null })
         assertTrue(ModelCatalog.lfm25_8bA1b.activeParamsB != null, "the MoE tier is marked as such")
+
+        // Sight: multimodal directors see with their own projector; text-only ones get the light looker.
+        assertEquals(listOf(ModelCatalog.qwen35_4bEyes), ModelCatalog.visionFor(ModelCatalog.qwen35_4b))
+        assertEquals(listOf(ModelCatalog.gemma4E4bEyes), ModelCatalog.visionFor(ModelCatalog.gemma4E4b))
+        assertEquals(listOf(ModelCatalog.qwen35_08bLooker, ModelCatalog.qwen35_08bEyes), ModelCatalog.visionFor(ModelCatalog.lfm25_8bA1b))
+        assertTrue(ModelCatalog.qwen35_4bEyes.isDefault, "the default director can see out of the box")
+        assertTrue(ModelCatalog.all.map { it.fileName }.toSet().size == ModelCatalog.all.size, "no two models share a file")
     }
 }

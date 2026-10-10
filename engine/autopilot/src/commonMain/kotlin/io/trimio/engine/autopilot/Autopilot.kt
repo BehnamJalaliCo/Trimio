@@ -31,6 +31,10 @@ class Autopilot(
     private val model: LanguageModel? = null,
     private val knowledge: Knowledge = Knowledge.Offline,
     private val taste: Taste = Taste(),
+    /** Who looks at rendered frames: the director itself when it can see, else a light looker. */
+    private val eyes: LanguageModel? = model?.takeIf { it.canSee },
+    /** Renders frames of a compiled edit for the eyes; without it the critic judges structure only. */
+    private val grabber: FrameGrabber? = null,
 ) {
     data class Request(
         /** Recognised words on the source clock. */
@@ -103,6 +107,16 @@ class Autopilot(
             val revised = review.revised ?: return@repeat
             score = revised
             compiled = compile(compiler, score, transcript, analysis.edit, request)
+        }
+        val looker = eyes
+        if (looker != null && grabber != null) {
+            onStage("look", 0.85f)
+            val (_, revised) = VisionCritic(looker).review(score, compiled, output, grabber) { report += it }
+            if (revised != null) {
+                score = revised
+                compiled = compile(compiler, score, transcript, analysis.edit, request)
+                report += "eyes: edit revised from what was seen"
+            }
         }
         compiled.beats.filter { it.recipe != "pop-captions" }.forEach { report += "  ${it.recipe.padEnd(12)} ${it.zone.padEnd(6)} ${round1(it.at)}–${round1(it.out)}  ${it.text}" }
 
