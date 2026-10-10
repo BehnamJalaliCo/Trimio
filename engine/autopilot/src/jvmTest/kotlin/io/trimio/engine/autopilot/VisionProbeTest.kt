@@ -39,7 +39,8 @@ class VisionProbeTest {
                         messages = listOf(ChatMessage(ChatRole.User, QUESTION, listOf(RgbImage(img.width, img.height, rgb)))),
                         maxTokens = 160, temperature = 0f,
                         schema = kotlinx.serialization.json.Json.parseToJsonElement(
-                            """{"type":"object","properties":{"text":{"type":"string","maxLength":60},"face":{"type":"string","enum":["top","middle","bottom","none"]},"covered":{"type":"boolean"},"readable":{"type":"boolean"}}}""",
+                            """{"type":"object","properties":{"text":{"type":"string","maxLength":60},
+                              "face":{"type":"string","enum":["top","middle","bottom","none"]},"readable":{"type":"boolean"}}}""",
                         ).jsonObject,
                     ),
                 )
