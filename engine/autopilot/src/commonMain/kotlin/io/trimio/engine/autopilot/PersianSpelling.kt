@@ -46,11 +46,11 @@ class PersianSpelling(private val counts: Map<String, Int>) {
                 i += 2
                 continue
             }
-            if (persian(w.core)) {
+            if (persian(w.core) && !w.voweled) {
                 // A word heard twice the same way is taken as meant (a name, a brand) unless a sound-alike fixes it.
                 val soundOnly = (heard[w.core] ?: 0) > 1 && count(w.core) == 0
-                val fixed = number(w.core, next?.core) ?: halfSpace(w.core) ?: fix(w.core, doc, soundOnly) ?: w.core
-                if (fixed + w.tail != words[i].removePrefix(w.head)) out[i] = w.head + fixed + w.tail
+                val fixed = number(w.core, next?.core) ?: halfSpace(w.core) ?: fix(w.core, doc, soundOnly)
+                if (fixed != null) out[i] = w.head + fixed + w.tail
             }
             i++
         }
@@ -191,16 +191,17 @@ class PersianSpelling(private val counts: Map<String, Int>) {
 
     private fun stems(w: String) = CLITICS.filter { w.endsWith(it) && w.length - it.length >= 3 }.map { w.dropLast(it.length) }
 
-    private data class Parts(val head: String, val core: String, val tail: String)
+    /** A word split into leading punctuation, normalised letters and trailing punctuation; [voweled] words are deliberate (Arabic, poetry). */
+    private data class Parts(val head: String, val core: String, val tail: String, val voweled: Boolean)
 
     /** Two Persian words with nothing but a space between them. */
-    private fun joinable(a: Parts, b: Parts) = a.tail.isEmpty() && b.head.isEmpty() && persian(a.core + b.core)
+    private fun joinable(a: Parts, b: Parts) = a.tail.isEmpty() && b.head.isEmpty() && persian(a.core + b.core) && !(a.voweled || b.voweled)
 
     private fun split(word: String): Parts {
         val head = word.takeWhile { !it.isLetterOrDigit() }
         val rest = word.substring(head.length)
         val core = rest.trimEnd { !it.isLetterOrDigit() }
-        return Parts(head, normalize(core), rest.substring(core.length))
+        return Parts(head, normalize(core), rest.substring(core.length), rest.any { it in '\u064B'..'\u0652' || it == '\u0670' })
     }
 
     companion object {

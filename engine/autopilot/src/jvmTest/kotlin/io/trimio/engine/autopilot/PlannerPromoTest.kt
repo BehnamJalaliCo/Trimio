@@ -155,7 +155,10 @@ class PlannerPromoTest {
         sc.beats.map { beatStart(it, sc.from ?: 0, last) to it.recipe }
     }.sortedBy { it.first }
 
-    /** Footage stretches longer than 2.6 s with no beat landing and no cut; a call to action or names landing one by one keep their own time. */
+    /**
+     * Footage stretches longer than 2.6 s with no beat landing and no cut; the hook, a call to action
+     * or names landing one by one keep their own time while they are up.
+     */
     private fun quietStretches(score: Score): List<String> {
         val out = mutableListOf<String>()
         for ((k, sc) in score.scenes.withIndex()) {
@@ -169,7 +172,7 @@ class PlannerPromoTest {
                 val a = beatStart(b, from, last)
                 if (a - t > 2.6f) out += "${a - t}s at $t"
                 val alive = when {
-                    b.recipe == "comment" -> a + (b.hold ?: 0f)
+                    b.recipe == "comment" || b.time != null -> a + (b.hold ?: 0f)
                     b.recipe == "logos" -> b.until?.let { words[it].range.endMs / 1000f } ?: a
                     else -> a
                 }

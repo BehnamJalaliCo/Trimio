@@ -60,7 +60,7 @@ object DataRecipes {
      * The surface data sits on over footage: the look's canvas, smoked, with a rim and a drop
      * shadow, so white numbers never sit on a bright wall. On a graphic stage the data floats free.
      */
-    private fun panel(cue: Cue, look: Look, cx: Float, cy: Float, w: Float, h: Float, at: Float): ShapeNode = ShapeNode(
+    private fun panel(look: Look, cx: Float, cy: Float, w: Float, h: Float, at: Float): ShapeNode = ShapeNode(
         ShapeSpec.Rect(w.anim, h.anim, (minOf(h * 0.2f, 44f) * look.roundness).anim),
         fill = Fill.Linear(listOf(look.canvas.copy(alpha = 0.86f), look.canvas.copy(alpha = 0.72f)), angle = 90f.anim),
         stroke = Stroke(look.cardRim.fill(), 2f),
@@ -431,7 +431,7 @@ object DataRecipes {
                 val ruleY = numberY + numberH / 2f + gap * 0.8f
                 val labelY = ruleY + rule / 2f + gap + labelH / 2f
                 val nodes = mutableListOf<Node>()
-                if (cue.overMedia) nodes += panel(cue, look, cue.x, cue.y, cue.width, blockH + headH + size * 0.8f, times.first())
+                if (cue.overMedia) nodes += panel(look, cue.x, cue.y, cue.width, blockH + headH + size * 0.8f, times.first())
                 nodes += headNodes(centre - blockH / 2f)
                 for (i in 1 until n) {
                     val t = times.first() + 0.1f + 0.08f * i
@@ -467,7 +467,7 @@ object DataRecipes {
                 val start = cue.x - dir * total / 2f
                 val top = cue.y - (rowH * n + headH) / 2f + headH
                 val nodes = mutableListOf<Node>()
-                if (cue.overMedia) nodes += panel(cue, look, cue.x, cue.y, maxOf(total, head?.width ?: 0f) + size * 1.2f, rowH * n + headH + size * 0.4f, times.first())
+                if (cue.overMedia) nodes += panel(look, cue.x, cue.y, maxOf(total, head?.width ?: 0f) + size * 1.2f, rowH * n + headH + size * 0.4f, times.first())
                 nodes += headNodes(top)
                 for (i in 0 until n) {
                     val y = top + rowH * (i + 0.5f)
@@ -574,7 +574,7 @@ object DataRecipes {
             val ease = if (full) Easing.Move else Easing.ExpoOut
             val land = t1 + 0.06f
             val nodes = mutableListOf<Node>()
-            if (cue.overMedia) nodes += panel(cue, look, cue.x, cue.y, cue.width, total + bh * 1.4f, at)
+            if (cue.overMedia) nodes += panel(look, cue.x, cue.y, cue.width, total + bh * 1.4f, at)
             nodes += bar(cue, look, Bar(startX, barY, w, bh, cue.rtl), start, target, t0, t1, ease, if (full) land else null)
             val heat = if (full) ColorAnim.tween(look.ink, look.hot, land, land + 0.12f) else look.ink.let { ColorAnim.of(it) }
             nodes += CounterNode(
@@ -594,7 +594,10 @@ object DataRecipes {
                 )
             }
             if (!full) {
-                return Built(listOf(group(cue, nodes, name)), camera = listOf(Craft.punch(land, 0.02f)), sfx = listOf(Sfx(at, SfxKind.Swish, 0.45f), Sfx(t0, SfxKind.Riser, 0.4f), Sfx(land, SfxKind.Pop, 0.7f)))
+                return Built(
+                    listOf(group(cue, nodes, name)), camera = listOf(Craft.punch(land, 0.02f)),
+                    sfx = listOf(Sfx(at, SfxKind.Swish, 0.45f), Sfx(t0, SfxKind.Riser, 0.4f), Sfx(land, SfxKind.Pop, 0.7f)),
+                )
             }
             nodes += stamp(cue, look, fit, cue.x, barY + bh * 0.2f, bh, w, land)
             return Built(
@@ -708,7 +711,11 @@ object DataRecipes {
             val second = cue.out - EXIT - 1.1f
             if (second > land + 1.2f) body += shine(card, -w * 0.2f, w * 1.2f, h / 2f, w * 0.1f, h * 2.4f, second, 0.2f, 0.8f)
             // Punched notches on the tear line: real holes, cut out of everything on the card.
-            val notches = Group(listOf(0f, h).map { y -> ShapeNode(ShapeSpec.Ellipse((t.notch * 2f).anim, (t.notch * 2f).anim), fill = Color.White.fill(), transform = Transform(x = t.tear.anim, y = y.anim)) })
+            val notches = Group(
+                listOf(0f, h).map { y ->
+                    ShapeNode(ShapeSpec.Ellipse((t.notch * 2f).anim, (t.notch * 2f).anim), fill = Color.White.fill(), transform = Transform(x = t.tear.anim, y = y.anim))
+                },
+            )
             val mx = w * 0.25f
             val my = h * 0.45f
             val shadow = ShapeNode(
@@ -725,7 +732,10 @@ object DataRecipes {
             return Built(
                 listOf(group(cue, nodes, name)),
                 camera = listOf(Craft.punch(land, 0.03f + 0.02f * cue.energy)),
-                sfx = listOf(Sfx(at, SfxKind.Whoosh, 0.55f), Sfx(count, SfxKind.Riser, 0.4f), Sfx(land, if (cue.energy > HOT) SfxKind.Boom else SfxKind.Pop, 0.8f), Sfx(land + 0.05f, SfxKind.Shimmer, 0.45f)),
+                sfx = listOf(
+                    Sfx(at, SfxKind.Whoosh, 0.55f), Sfx(count, SfxKind.Riser, 0.4f),
+                    Sfx(land, if (cue.energy > HOT) SfxKind.Boom else SfxKind.Pop, 0.8f), Sfx(land + 0.05f, SfxKind.Shimmer, 0.45f),
+                ),
             )
         }
 
@@ -755,7 +765,10 @@ object DataRecipes {
             val top = lerp(look.canvas, tint, 0.2f)
             val bottom = lerp(look.canvas, tint, 0.06f)
             return listOf(
-                ShapeNode(ShapeSpec.Rect(t.w.anim, t.h.anim, r), fill = lerp(look.canvas, look.ink, 0.22f).fill(), transform = Transform(x = (t.w / 2f).anim, y = (t.h / 2f).anim), name = "voucher-rim"),
+                ShapeNode(
+                    ShapeSpec.Rect(t.w.anim, t.h.anim, r), fill = lerp(look.canvas, look.ink, 0.22f).fill(),
+                    transform = Transform(x = (t.w / 2f).anim, y = (t.h / 2f).anim), name = "voucher-rim",
+                ),
                 ShapeNode(
                     ShapeSpec.Rect((t.w - 3f).anim, (t.h - 3f).anim, r), fill = Fill.Linear(listOf(top, bottom), angle = 70f.anim),
                     transform = Transform(x = (t.w / 2f).anim, y = (t.h / 2f).anim), name = "voucher-body",
@@ -793,7 +806,10 @@ object DataRecipes {
                 )
                 nodes += ShapeNode(
                     ShapeSpec.Path(path, Icons.VIEWPORT, s), fill = glyph.fill(),
-                    transform = Transform(x = t.stubCx.anim, y = y.anim, opacity = Anim.tween(0f, 1f, at + 0.6f, at + 0.9f), scale = anim(1f, at + 0.6f) { by(1.1f, 0.1f, Easing.ExpoOut); by(1f, 0.4f, Easing.Land) }),
+                    transform = Transform(
+                        x = t.stubCx.anim, y = y.anim, opacity = Anim.tween(0f, 1f, at + 0.6f, at + 0.9f),
+                        scale = anim(1f, at + 0.6f) { by(1.1f, 0.1f, Easing.ExpoOut); by(1f, 0.4f, Easing.Land) },
+                    ),
                     name = "voucher-mark",
                 )
             } else {

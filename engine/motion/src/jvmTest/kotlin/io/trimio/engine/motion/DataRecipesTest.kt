@@ -33,7 +33,8 @@ class DataRecipesTest {
 
     private fun beats(fa: Boolean, place: (String) -> String) = if (fa) {
         listOf(
-            """{"recipe":"countdown","time":0.4,"hold":3.4,"value":48,"suffix":"ساعت","label":"تا پایان کمپین","energy":0.85,"place":"${place("center")}"}""",
+            """{"recipe":"countdown","time":0.4,"hold":3.4,"value":48,"suffix":"ساعت","label":"تا پایان کمپین",""" +
+                """"energy":0.85,"place":"${place("center")}"}""",
             """{"recipe":"stats","time":4.4,"hold":3.6,"items":["نفر اول","ساعت","بازدید"],"points":[1000,12,50000],"label":"کمتر از ۱۲ ساعت","place":"${place("center")}"}""",
             """{"recipe":"progress","time":8.4,"hold":3.4,"value":100,"label":"۱۰۰۰ نفر اول","energy":0.85,"place":"${place("center")}"}""",
             """{"recipe":"voucher","time":12.4,"hold":3.8,"value":350,"suffix":"تتر","label":"سرمایه اولیه","items":["Tether"],"place":"${place("center")}"}""",
