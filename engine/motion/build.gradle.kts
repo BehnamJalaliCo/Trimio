@@ -17,6 +17,8 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(compose.desktop.currentOs)
+            // Sound cues of the sample pieces are voiced with the procedural effects library.
+            implementation(projects.engine.assets)
         }
     }
 }

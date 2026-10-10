@@ -74,7 +74,11 @@ class SampleReelTest {
         val d = compiled.composition.duration
         kit.contactSheet((0 until 16).map { 0.4f + it * (d - 0.6f) / 15f }, out.resolve("$name-sheet.png"), columns = 8, scale = 0.2f)
         System.getProperty("motion.frames")?.split(',')?.forEach { kit.png(it.toFloat(), out.resolve("$name-at-$it.png")) }
-        if (MotionTestKit.ffmpeg() && System.getProperty("motion.video") != "false") kit.mp4(out.resolve("$name.mp4"))
+        if (MotionTestKit.ffmpeg() && System.getProperty("motion.video") != "false") {
+            val wav = out.resolve("$name.wav")
+            MotionTestKit.soundtrack(compiled.sfx, d, wav)
+            kit.mp4(out.resolve("$name.mp4"), audio = wav)
+        }
         assertTrue(compiled.beats.isNotEmpty())
     }
 

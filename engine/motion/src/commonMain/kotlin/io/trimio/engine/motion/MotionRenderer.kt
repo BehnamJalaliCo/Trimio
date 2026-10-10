@@ -205,7 +205,9 @@ class MotionRenderer(
                 if (a <= 0.002f) continue
                 val clip = Rect(line.x + u.clipLeft, line.top - size * 3, line.x + u.clipRight, line.top + line.height + size * 3)
                 val outer = if (maskLine) Rect(clip.left, line.top - size * 0.08f, clip.right, line.top + line.height + size * 0.1f) else clip
-                clipRect(outer.left, outer.top, outer.right, outer.bottom) {
+                // Clips cost a coverage mask each in software rendering: only units that move apart need them.
+                val whole = u.index < 0
+                clipIf(!whole || maskLine, outer) {
                     val pivot = Offset(line.x + u.center, line.top + line.height / 2f)
                     val m = M3.translate(pivot.x + state.dx * size, pivot.y + state.dy * size) *
                         M3.rotate3d(state.rotationX, 0f, size * 6f) *
@@ -214,7 +216,7 @@ class MotionRenderer(
                         M3.translate(-pivot.x, -pivot.y)
                     withM(m) {
                         val drawUnit: DrawScope.() -> Unit = {
-                            clipRect(clip.left, clip.top, clip.right, clip.bottom) { drawLineWithDecorations(node, block, line, t, a, base, baseColor) }
+                            clipIf(!whole, clip) { drawLineWithDecorations(node, block, line, t, a, base, baseColor) }
                         }
                         val blur = state.blur * size
                         if (blur > 0.5f) blurred(clip.inflate(blur * 2), blur, drawUnit) else drawUnit()
@@ -273,6 +275,10 @@ class MotionRenderer(
             val y = line.baseline + d.offset * size
             drawRoundRect(d.color, Offset(r.left, y), Size(r.width, d.thickness * size), androidx.compose.ui.geometry.CornerRadius(d.thickness * size / 2), alpha = alpha)
         }
+    }
+
+    private inline fun DrawScope.clipIf(condition: Boolean, r: Rect, block: DrawScope.() -> Unit) {
+        if (condition) clipRect(r.left, r.top, r.right, r.bottom) { block() } else block()
     }
 
     private fun DrawScope.clipOutRects(rects: List<Rect>, block: DrawScope.() -> Unit) {

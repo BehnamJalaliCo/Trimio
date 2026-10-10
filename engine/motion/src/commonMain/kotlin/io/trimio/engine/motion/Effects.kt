@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import kotlin.math.max
@@ -21,17 +22,12 @@ import kotlin.math.sqrt
 /** Procedural full-frame effects. Deterministic in time: the same t always draws the same frame. */
 internal fun DrawScope.drawEffect(effect: Effect, t: Float, alpha: Float, size: Size) {
     when (effect) {
-        is Effect.Aurora -> aurora(effect, t, alpha, size)
+        // Smooth fields render at 1/8 resolution and scale up: identical to the eye, a fraction of the cost.
+        is Effect.Aurora -> drawSoft(Soft.draw(this, size, key = null) { s -> aurora(effect, t, 1f, s) }, size, alpha)
         is Effect.Grain -> grain(effect, t, alpha, size)
         is Effect.Vignette -> {
-            val a = effect.amount.at(t) * alpha
-            drawRect(
-                Brush.radialGradient(
-                    0f to Color.Transparent, 0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = a.coerceIn(0f, 1f)),
-                    center = Offset(size.width / 2, size.height / 2), radius = sqrt(size.width * size.width + size.height * size.height) / 2,
-                ),
-                size = size,
-            )
+            val a = (effect.amount.at(t) * alpha).coerceIn(0f, 1f)
+            if (a > 0f) Soft.draw(this, size, key = "vignette") { s -> vignette(s) }.let { drawSoft(it, size, a) }
         }
         is Effect.LightLeak -> {
             val p = effect.progress.at(t)
@@ -69,6 +65,39 @@ internal fun DrawScope.drawEffect(effect: Effect, t: Float, alpha: Float, size: 
             var y = 0f
             while (y <= size.height) { drawLine(effect.color, Offset(0f, y), Offset(size.width, y), 1f, alpha = a); y += effect.step }
         }
+    }
+}
+
+private fun DrawScope.vignette(size: Size) = drawRect(
+    Brush.radialGradient(
+        0f to Color.Transparent, 0.55f to Color.Transparent, 1f to Color.Black,
+        center = Offset(size.width / 2, size.height / 2), radius = sqrt(size.width * size.width + size.height * size.height) / 2,
+    ),
+    size = size,
+)
+
+private fun DrawScope.drawSoft(image: ImageBitmap, size: Size, alpha: Float) = drawImage(
+    image, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()), alpha = alpha, filterQuality = androidx.compose.ui.graphics.FilterQuality.Low,
+)
+
+/** Low-resolution offscreens for smooth fields; static ones (with a key) are drawn once. */
+private object Soft {
+    private const val SCALE = 8
+    private val cache = HashMap<String, ImageBitmap>()
+    private var scratch: ImageBitmap? = null
+
+    fun draw(scope: DrawScope, size: Size, key: String?, block: DrawScope.(Size) -> Unit): ImageBitmap {
+        val w = (size.width / SCALE).toInt().coerceAtLeast(1)
+        val h = (size.height / SCALE).toInt().coerceAtLeast(1)
+        key?.let { k -> cache["$k-$w-$h"]?.let { return it } }
+        val image = if (key == null) scratch?.takeIf { it.width == w && it.height == h } ?: ImageBitmap(w, h).also { scratch = it } else ImageBitmap(w, h)
+        val small = Size(w.toFloat(), h.toFloat())
+        CanvasDrawScope().draw(scope, scope.layoutDirection, Canvas(image), small) {
+            drawRect(Color.Transparent, size = small, blendMode = BlendMode.Clear)
+            block(small)
+        }
+        key?.let { cache["$it-$w-$h"] = image }
+        return image
     }
 }
 

@@ -187,7 +187,8 @@ class Compiler(private val text: TextLayoutEngine) {
             val nodes = mutableListOf<Node>()
             // Backgrounds exist only from the cut: before it, the previous scene is still on screen.
             when (sceneBg(scene, input)) {
-                "aurora" -> nodes += EffectNode(Effect.Aurora(look.aurora, seed = k + 1), start = s)
+                // Over footage an aurora scene needs its own field; without footage the base already is one.
+                "aurora" -> if (input.footage != null) nodes += EffectNode(Effect.Aurora(look.aurora, seed = k + 1), start = s)
                 "grid" -> {
                     nodes += EffectNode(Effect.Aurora(look.aurora, seed = k + 1), start = s)
                     nodes += EffectNode(Effect.Grid(h / 16f, look.ink, 0.06f.anim), start = s)
