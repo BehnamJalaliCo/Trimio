@@ -373,11 +373,12 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** Five to nine node labels: the model's, then names from the piece, then the domain's usual parts. */
         private fun nodes(read: LineRead): List<String> {
-            val own = read.items.filter { it.length in 2..14 }
+            // Parts of the thing mapped, not the brands already shown as logos.
+            val own = read.items.filter { it.length in 2..14 && it.lowercase() !in shownLogos && u.entities.none { e -> e.name.equals(it, true) } }
             val names = u.entities.map { it.name }.filter { it.length in 2..14 }
             val usual = NETWORK_DEFAULTS[u.domain] ?: NETWORK_DEFAULTS.getValue("tech")
             val parts = if (own.size >= MIN_NODES - 2) own else own + usual
-            return (parts + names).distinctBy { it.lowercase() }.take(maxOf(MIN_NODES, own.size).coerceAtMost(MAX_NODES))
+            return (parts + names.filter { it.lowercase() !in shownLogos }).distinctBy { it.lowercase() }.take(maxOf(MIN_NODES, own.size).coerceAtMost(MAX_NODES))
         }
 
         private fun meter(line: Lines.Line, read: LineRead, takeover: Boolean): BeatScore? {
