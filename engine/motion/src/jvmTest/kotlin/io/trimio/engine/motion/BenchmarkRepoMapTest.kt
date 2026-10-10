@@ -144,7 +144,8 @@ class BenchmarkRepoMapTest {
         for ((name, score) in variants) {
             if (only != null && only != name) continue
             val probe = MotionTestKit(Composition(1080, 1920, 30, 1f, androidx.compose.ui.graphics.Color.Black, Group(emptyList())))
-            val compiled = Compiler(probe.renderer.text).compile(
+            val brands = kotlinx.coroutines.runBlocking { io.trimio.engine.motion.recipe.BrandLibrary.load() }
+            val compiled = Compiler(probe.renderer.text, brands).compile(
                 Compiler.Input(score, transcript, footage = "main", edit = edit, subject = Subject(0.32f, 0.39f, 0.7f, 0.7f)),
             )
             report.appendLine("\n== $name")

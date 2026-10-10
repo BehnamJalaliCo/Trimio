@@ -17,6 +17,7 @@ import io.trimio.engine.motion.TextAlign
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.Transform
 import io.trimio.engine.motion.anim
+import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.recipe.Built
 import io.trimio.engine.motion.recipe.CameraMove
 import io.trimio.engine.motion.recipe.Cue
@@ -38,7 +39,7 @@ import kotlin.math.roundToInt
  * captions that step aside for headlines, one highlight per line, scrims under text on footage,
  * camera life, transitions with sound, grain and vignette from the look.
  */
-class Compiler(private val text: TextLayoutEngine) {
+class Compiler(private val text: TextLayoutEngine, private val brands: BrandLibrary = BrandLibrary.Empty) {
 
     data class Input(
         val score: Score,
@@ -175,6 +176,7 @@ class Compiler(private val text: TextLayoutEngine) {
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items, itemTimes = b.items.map { item -> locate(item, norm, range)?.let { start(it.first) } },
+                marks = b.items.map { brands.mark(it) },
                 rtl = isRtl(beatText.ifBlank { b.label ?: "" }) || (beatText.isBlank() && this.words.any { isRtl(it.text) }), seed = id * 7 + 3,
             )
             return Beat(id, recipe, cue, zone, k, minOut)

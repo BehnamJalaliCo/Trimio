@@ -52,6 +52,8 @@ data class Cue(
     val items: List<String> = emptyList(),
     /** When each item is spoken, if it is. */
     val itemTimes: List<Float?> = emptyList(),
+    /** Brand marks for the items, when they are brands. */
+    val marks: List<BrandMark> = emptyList(),
     /** How to mark emphasis ("block", "ink", "underline", "circle"); the look decides when null. */
     val mark: String? = null,
     /** True when footage is behind: text gets a shadow, cards get more body. */
@@ -89,7 +91,7 @@ data class Built(
 
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
-    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all
+    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",
@@ -105,7 +107,7 @@ object Recipes {
         "number" to "counter", "count" to "counter", "stat" to "counter", "percent" to "counter", "price" to "ticker",
         "graph" to "chart", "line-chart" to "chart", "trend" to "chart",
         "name" to "lower-third", "lowerthird" to "lower-third", "badge" to "stamp", "seal" to "stamp",
-        "tools" to "chips", "tags" to "chips", "pills" to "chips", "logos" to "chips",
+        "logo" to "logos", "brands" to "logos", "brand" to "logos", "apps" to "logos", "tools" to "logos", "tags" to "chips", "pills" to "chips",
         "code" to "terminal", "install" to "terminal", "cli" to "terminal", "command" to "terminal", "shell" to "terminal",
         "map" to "network", "nodes" to "network", "graph-map" to "network", "mindmap" to "network", "tree" to "network",
         "usage" to "meter", "compare" to "meter", "saving" to "meter", "savings" to "meter", "before-after" to "meter",

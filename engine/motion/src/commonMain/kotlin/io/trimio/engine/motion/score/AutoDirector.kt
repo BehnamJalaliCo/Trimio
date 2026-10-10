@@ -72,7 +72,7 @@ internal object AutoDirector {
             names += start to parts.joinToString(" ")
         }
         if (names.size < 2) return null
-        return BeatScore(recipe = "chips", at = names.first().first, until = minOf(range.last, names.last().first + 1), items = names.map { it.second }, place = "top")
+        return BeatScore(recipe = "logos", at = names.first().first, until = minOf(range.last, names.last().first + 1), items = names.map { it.second }, place = "top")
     }
 
     private fun isLatinName(w: String) = w.trimEnd('،', ',', '.').let { it.isNotEmpty() && it.first().isUpperCase() && it.all { c -> c.isLetterOrDigit() || c in "-+." } }

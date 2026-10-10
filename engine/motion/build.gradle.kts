@@ -8,6 +8,10 @@ plugins {
  * professional motion recipes, the compact score the director writes, and the compiler that turns
  * a score into a finished composition (timing, layout, readability and polish rules).
  */
+compose.resources {
+    packageOfResClass = "io.trimio.engine.motion.resources"
+}
+
 kotlin {
     sourceSets {
         commonMain.dependencies {
