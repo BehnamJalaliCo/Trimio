@@ -60,7 +60,13 @@ class Compiler(
         val subject: Subject? = null,
     )
 
-    data class Placed(val recipe: String, val zone: String, val at: Float, val out: Float, val text: String)
+    /** A beat as placed: its slot in frame pixels ([left], [top], [right], [bottom]) and on-screen time. */
+    data class Placed(
+        val recipe: String, val zone: String, val at: Float, val out: Float, val text: String,
+        val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f,
+        /** Drawn over the speaker's footage (not on a full-frame stage). */
+        val overFootage: Boolean = false,
+    )
 
     data class Output(val composition: Composition, val sfx: List<Sfx>, val beats: List<Placed>, val notes: List<String>)
 
@@ -153,7 +159,13 @@ class Compiler(
             val root = Group(base() + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx)
-            val placed = (beats + captionBeats).sortedBy { it.cue.at }.map { Placed(it.recipe.name, it.zone.name.lowercase(), it.cue.at, it.out, it.cue.text) }
+            val placed = (beats + captionBeats).sortedBy { it.cue.at }.map {
+                val c = it.cue
+                Placed(
+                    it.recipe.name, it.zone.name.lowercase(), c.at, it.out, c.text,
+                    c.x - c.width / 2f, c.y - c.height / 2f, c.x + c.width / 2f, c.y + c.height / 2f, c.overMedia,
+                )
+            }
             return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes)
         }
 
