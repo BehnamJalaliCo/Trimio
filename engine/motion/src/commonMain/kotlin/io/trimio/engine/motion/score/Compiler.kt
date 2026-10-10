@@ -191,8 +191,8 @@ class Compiler(
          * the last graphic on a stage stays until the cut back (when that is only moments away).
          */
         private fun holdStages(beats: List<Beat>) {
-            for (k in scenes.indices) {
-                if (input.footage == null || overFootage(scenes[k])) continue
+            if (input.footage == null) return
+            for (k in scenes.indices.filterNot { i -> overFootage(scenes[i]) }) {
                 val last = beats.filter { it.scene == k }.maxByOrNull { it.out } ?: continue
                 if (sceneEnds[k] - last.out in 0f..STAGE_HOLD) last.out = sceneEnds[k] + 0.05f
             }
@@ -576,9 +576,9 @@ class Compiler(
         private const val FOOTAGE_TEXTURE = 0.35f
         private const val MIN_READ = 1.0f
         private const val MAX_HOLD = 7f
-        /** A chat thread plays as long as the story it tells. */
+        /** A chat thread plays as long as the story it tells; the call to action holds to the end. */
         private const val MAX_THREAD_HOLD = 24f
-        private val LONG_FORM = setOf("message")
+        private val LONG_FORM = setOf("message", "comment")
         private const val LINGER = 0.55f
         private const val EXIT_TAIL = 0.4f
         private const val STAGE_HOLD = 3.5f

@@ -6,8 +6,9 @@ import io.trimio.engine.motion.score.BeatScore
 /**
  * The planner's call to action, in two steps: the comment field types the keyword, then, when the
  * speaker sends viewers to their DMs («بعد برو دایرکتتو چک کن»), a short stamp says so while the
- * field stays up. Said long before the end, the field comes back on the last line, so the ask owns
- * the last screen. The keyword shown is always the word the speaker said ([keyword]).
+ * field stays up. Once asked, the field is the last thing on screen: one card from the ask to the
+ * very end, nothing new around it (the planner runs the ask's scene to the end of the piece). The
+ * keyword shown is always the word the speaker said ([keyword]).
  */
 internal class CallToAction(
     private val words: List<Word>,
@@ -24,9 +25,6 @@ internal class CallToAction(
     /** The comment field is on screen. */
     var placed = false
         private set
-
-    /** Where the keyword landed (word index). */
-    private var at: Int? = null
 
     /** The ask's own beats (the DM step), kept even inside a running scene. */
     val beats = mutableListOf<BeatScore>()
@@ -52,6 +50,7 @@ internal class CallToAction(
     fun comment(line: Lines.Line, read: LineRead): BeatScore? {
         val keyword = keyword ?: read.title.ifBlank { null } ?: return null
         val at = locate(keyword, line)?.first ?: line.first
+        // To the very end of the piece, whatever tail the edit adds (the compiler stops it there).
         val end = words.last().range.endMs / 1000f + TAIL
         return BeatScore(
             recipe = "comment", at = at, text = keyword, hold = maxOf(3.5f, end - words[at].range.startMs / 1000f),
@@ -59,7 +58,7 @@ internal class CallToAction(
         )
     }
 
-    /** Line [k]'s part of the ask, added to its beats [out]: the DM step after the field, or the field again at the end. */
+    /** Line [k]'s part of the ask, added to its beats [out]: the field on the last line if nothing was asked, the DM step after it. */
     fun follow(k: Int, line: Lines.Line, read: LineRead, out: MutableList<BeatScore>) {
         val last = k == lines.lastIndex && u.cta != null
         // Nothing asked yet by the last line: ask there.
@@ -68,18 +67,13 @@ internal class CallToAction(
         if (field >= 0 && !placed) {
             placed = true
             val at = out[field].at ?: line.first
-            this.at = at
             dmStep(at, lines.getOrNull(k + 1)?.last ?: line.last)?.let { dm ->
                 // The field holds through the DM step (its scene runs on to it).
                 out[field] = out[field].copy(until = dm.at)
                 out += dm
                 beats += dm
             }
-            return
         }
-        val first = at ?: return
-        val late = (words[line.first].range.startMs - words[first].range.startMs) / 1000f > REPRISE_S
-        if (last && field < 0 && late) comment(line, read.copy(title = ""))?.let { out += it }
     }
 
     /** «بعد برو دایرکتتو چک کن»: a stamp of the DM step, below the comment field. */
@@ -98,8 +92,7 @@ internal class CallToAction(
             "comment" to "کامنت کن", "follow" to "فالو کن", "save" to "ذخیره کن", "share" to "بفرست برای دوستت", "link" to "لینک در بیو", "dm" to "دایرکت بده",
         )
 
-        /** Said this long before the last line, the field comes back there. */
-        const val REPRISE_S = 7f
-        const val TAIL = 0.45f
+        /** Past the last word: further than any edit's tail, so the field reaches the very end. */
+        const val TAIL = 3f
     }
 }

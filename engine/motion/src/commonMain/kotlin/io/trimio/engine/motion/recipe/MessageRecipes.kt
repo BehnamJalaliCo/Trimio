@@ -38,17 +38,23 @@ object MessageRecipes {
     )
 
     /** The card: its box, where the thread area is, and the type metrics everything scales from. */
-    private class Card(val cx: Float, val cy: Float, val w: Float, val h: Float, val size: Float, val header: Float, val rtl: Boolean) {
+    private class Card(
+        val cx: Float, val cy: Float, val w: Float, val h: Float, val size: Float, val header: Float, val rtl: Boolean,
+        /** Over footage: a compact header (status beside the name) so two messages fit the band. */
+        val compact: Boolean,
+    ) {
         val left get() = cx - w / 2f
         val top get() = cy - h / 2f
-        val pad get() = size * 0.75f
-        val tail get() = size * 0.55f
+        val pad get() = size * (if (compact) 0.45f else 0.6f)
+        val tail get() = size * 0.45f
         val areaTop get() = top + header
         val areaBottom get() = top + h - pad
         val areaLeft get() = left + pad + tail
         val areaRight get() = left + w - pad - tail
-        val indicatorW get() = size * 2.9f
-        val indicatorH get() = size * 1.7f
+        val indicatorW get() = size * 2.6f
+        val indicatorH get() = size * 1.5f
+        /** A bubble hugs its text up to this width. */
+        val maxBubble get() = w * 0.88f
     }
 
     /**
@@ -64,9 +70,13 @@ object MessageRecipes {
             if (raw.isEmpty()) return Built(emptyList())
             val rtl = cue.rtl || raw.any { it.any { c -> c in '؀'..'ۿ' } }
             val stage = !cue.overMedia
-            val w = cue.width * (if (stage) 1f else 0.94f)
-            val size = w * (if (stage) 0.05f else 0.046f)
-            val card = Card(cue.x, cue.y, w, cue.height, size, size * 2.6f, rtl)
+            // Phone-readable type first: over footage the card takes the whole band and older
+            // messages scroll away rather than the type shrinking.
+            val w = cue.width
+            val size = w * (if (stage) STAGE_TYPE else FOOTAGE_TYPE)
+            // A takeover card may reach past its slot (nothing else shares the frame) to show more of the thread.
+            val h = cue.height * (if (stage) STAGE_REACH else 1f)
+            val card = Card(cue.x, cue.y, w, h, size, size * (if (stage) 2.2f else 1.5f), rtl, compact = !stage)
             val bubbles = layout(cue, look, fit, card, raw, at)
             val nodes = mutableListOf<Node>()
             nodes += body(cue, look, card, at)
@@ -74,7 +84,7 @@ object MessageRecipes {
             nodes += thread(look, card, bubbles)
             val replies = bubbles.filter { it.outgoing }
             return Built(
-                listOf(group(cue, nodes)),
+                listOf(group(cue, nodes, card)),
                 camera = replies.map { Craft.punch(it.land, 0.015f) },
                 sfx = listOf(Sfx(at, SfxKind.Swish, 0.45f)) + bubbles.flatMap { b ->
                     listOf(Sfx(b.typing, SfxKind.Tick, 0.2f), Sfx(b.land, if (b.outgoing) SfxKind.Swish else SfxKind.Pop, if (b.outgoing) 0.5f else 0.45f))
@@ -85,34 +95,36 @@ object MessageRecipes {
         /** Fits every bubble and decides when each one types and lands (on its quote when it is said). */
         private fun layout(cue: Cue, look: Look, fit: Fitter, card: Card, raw: List<String>, at: Float): List<Bubble> {
             val voice = voice(look)
-            val maxText = card.w * MAX_WIDTH - card.size * 1.3f
+            val maxText = card.maxBubble - card.size * 1.1f
             val out = mutableListOf<Bubble>()
             var prev = at + 0.35f + TYPING
             for ((i, item) in raw.withIndex()) {
                 val outgoing = item.startsWith(">")
                 val text = item.removePrefix(">").trim()
                 val ticks = if (outgoing) card.size * 1.1f else 0f
-                val f = fit.fit(text, voice, card.size, maxText - ticks, (card.areaBottom - card.areaTop) * 0.8f, maxLines = MAX_LINES)
-                val bw = maxOf(f.width + card.size * 1.3f + ticks, card.indicatorW)
-                val bh = maxOf(f.height + card.size * 0.84f, card.indicatorH)
+                val f = fit.fit(text, voice, card.size, maxText - ticks, (card.areaBottom - card.areaTop) * 0.92f, maxLines = MAX_LINES)
+                val bw = maxOf(f.width + card.size * 1.1f + ticks, card.indicatorW)
+                val bh = maxOf(f.height + card.size * 0.6f, card.indicatorH)
                 val reading = out.lastOrNull()?.let { maxOf(0.7f, it.text.length * 0.035f) } ?: 0f
                 val spoken = cue.itemTimes.getOrNull(i)?.minus(Craft.LEAD)
                 // Never before the card has opened, nor on top of the previous bubble's landing.
                 val earliest = out.lastOrNull()?.let { it.land + 0.55f } ?: (at + 0.35f + TYPING)
                 val land = maxOf(spoken ?: (prev + reading), earliest)
-                out += Bubble(text, outgoing, f, bw, bh, land - TYPING, land)
+                // A long pause before a message reads as someone typing: the dots show for longer.
+                val typing = ((land - (out.lastOrNull()?.land ?: at)) - 0.9f).coerceIn(TYPING, MAX_TYPING)
+                out += Bubble(text, outgoing, f, bw, bh, land - typing, land)
                 prev = land
             }
             return out
         }
 
-        private fun voice(look: Look) = look.body.copy(weight = minOf(look.body.weight, 700), lineHeight = 1.32f)
+        private fun voice(look: Look) = look.body.copy(weight = minOf(look.body.weight, 700), lineHeight = 1.24f)
 
         /** The card: smoked canvas over footage (it never depends on the picture), glass on a stage. */
         private fun body(cue: Cue, look: Look, card: Card, at: Float) = ShapeNode(
             ShapeSpec.Rect(card.w.anim, card.h.anim, (card.size * 0.9f * maxOf(look.roundness, 0.3f)).anim),
             fill = if (cue.overMedia) {
-                Fill.Linear(listOf(look.canvas.copy(alpha = 0.9f), look.canvas.copy(alpha = 0.78f)), angle = 90f.anim)
+                Fill.Linear(listOf(look.canvas.copy(alpha = 0.96f), look.canvas.copy(alpha = 0.9f)), angle = 90f.anim)
             } else {
                 Fill.Linear(listOf(look.card, look.card.copy(alpha = look.card.alpha * 0.5f)), angle = 70f.anim)
             },
@@ -129,18 +141,24 @@ object MessageRecipes {
         private fun header(cue: Cue, look: Look, fit: Fitter, card: Card, at: Float): List<Node> {
             val name = cue.label?.takeIf { it.isNotBlank() } ?: if (card.rtl) "پیام جدید" else "New message"
             val y = card.top + card.header * 0.5f
-            val d = card.header * 0.56f
+            val d = card.header * (if (card.compact) 0.66f else 0.56f)
             val start = if (card.rtl) 1f else -1f
             val avatarX = card.cx + start * (card.w / 2f - card.pad - d / 2f)
-            val nf = fit.fit(name, look.body.copy(weight = 800), card.size * 0.95f, card.w * 0.6f, d * 0.8f, maxLines = 1)
+            val nf = fit.fit(name, look.body.copy(weight = 800), card.size * (if (card.compact) 0.78f else 0.8f), card.w * 0.55f, d, maxLines = 1)
             val status = if (card.rtl) "آنلاین" else "online"
-            val sf = fit.fit(status, look.body.copy(weight = 600), card.size * 0.62f, card.w * 0.4f, d * 0.5f, maxLines = 1)
+            val sf = fit.fit(status, look.body.copy(weight = 600), card.size * (if (card.compact) 0.52f else 0.5f), card.w * 0.3f, d * 0.6f, maxLines = 1)
             val textEdge = avatarX - start * (d / 2f + card.size * 0.55f)
             val show = Anim.tween(0f, 1f, at + 0.15f, at + 0.4f)
             val initial = name.first { !it.isWhitespace() }.toString()
             val inf = fit.fit(initial, look.headline, d * 0.5f, d * 0.8f, d * 0.8f, maxLines = 1)
             val dot = sf.type.size * 0.55f
-            val statusX = textEdge - start * (dot + sf.type.size * 0.35f + sf.width / 2f)
+            // Stacked under the name on a stage; beside it in the compact header over footage.
+            val nameY = if (card.compact) y else y - nf.height * 0.28f
+            val statusY = if (card.compact) y + nf.height * 0.06f else y + nf.height * 0.36f
+            val statusEdge = if (card.compact) textEdge - start * (nf.width + card.size * 0.45f) else textEdge
+            val statusX = statusEdge - start * (dot + sf.type.size * 0.35f + sf.width / 2f)
+            // The "online" dot breathes while the card is up: the thread is live, never a still.
+            val breathe = Anim.keys(List(((cue.out - at) / BREATH).toInt().coerceAtLeast(1) + 1) { k -> Anim.Key(at + 0.5f + k * BREATH, if (k % 2 == 0) 1f else 0.35f, Easing.SineInOut) })
             return listOf(
                 ShapeNode(
                     ShapeSpec.Ellipse(d.anim, d.anim), fill = Fill.Linear(listOf(look.hot, look.accent), angle = 45f.anim),
@@ -153,15 +171,15 @@ object MessageRecipes {
                 ),
                 TextNode(
                     name, nf.type, look.ink.fill(), rtl = card.rtl, animators = listOf(rise(at + 0.15f)),
-                    transform = Transform(x = (textEdge - start * nf.width / 2f).anim, y = (y - nf.height * 0.28f).anim), name = "message-name",
+                    transform = Transform(x = (textEdge - start * nf.width / 2f).anim, y = nameY.anim), name = "message-name",
                 ),
                 ShapeNode(
-                    ShapeSpec.Ellipse(dot.anim, dot.anim), fill = Color(ONLINE).fill(),
-                    transform = Transform(x = (textEdge - start * dot / 2f).anim, y = (y + nf.height * 0.36f).anim, opacity = show), name = "message-online",
+                    ShapeSpec.Ellipse(dot.anim, dot.anim), fill = Color(ONLINE).fill(), shadow = Shadow(Color(ONLINE).copy(alpha = 0.6f), 0f, 0f, dot * 0.8f),
+                    transform = Transform(x = (statusEdge - start * dot / 2f).anim, y = statusY.anim, opacity = show * breathe), name = "message-online",
                 ),
                 TextNode(
                     status, sf.type, look.muted.let { if (cue.overMedia) look.ink.copy(alpha = 0.7f) else it }.fill(), rtl = card.rtl,
-                    transform = Transform(x = statusX.anim, y = (y + nf.height * 0.36f).anim, opacity = show), name = "message-status",
+                    transform = Transform(x = statusX.anim, y = statusY.anim, opacity = show), name = "message-status",
                 ),
                 ShapeNode(
                     ShapeSpec.Rect((card.w - card.pad * 2f).anim, 1.5f.anim), fill = look.ink.copy(alpha = 0.12f).fill(),
@@ -189,11 +207,11 @@ object MessageRecipes {
                 nodes += bubble(look, card, b, bottom.build())
             }
             // Older messages scroll away under the header, fading out before they reach its rule.
-            val clipTop = card.areaTop + card.size * 0.15f
+            val clipTop = card.areaTop + card.size * 0.1f
             val areaH = card.areaBottom - clipTop + card.size * 0.5f
             val clip = ShapeNode(
                 ShapeSpec.Rect((card.w).anim, areaH.anim),
-                fill = Fill.Linear(listOf(Color.Transparent, Color.White, Color.White), angle = 90f.anim, stops = listOf(0f, 0.22f, 1f)),
+                fill = Fill.Linear(listOf(Color.Transparent, Color.White, Color.White), angle = 90f.anim, stops = listOf(0f, (card.size * 1.2f / areaH).coerceAtMost(0.35f), 1f)),
                 transform = Transform(x = card.cx.anim, y = (clipTop + areaH / 2f).anim),
             )
             return Group(nodes, mask = Mask(clip), name = "message-thread")
@@ -234,7 +252,8 @@ object MessageRecipes {
             val d = card.size * 0.32f
             for (i in 0 until 3) {
                 val phase = b.typing + 0.1f + i * 0.09f
-                val bounce = anim(0f, phase) { by(-d * 0.7f, 0.14f, Easing.SineInOut); by(0f, 0.14f, Easing.SineInOut); by(-d * 0.5f, 0.14f, Easing.SineInOut); by(0f, 0.14f, Easing.SineInOut) }
+                // The wave repeats for as long as the other side is typing.
+                val bounce = anim(0f, phase) { while (time + 0.28f <= morph) { by(-d * 0.6f, 0.14f, Easing.SineInOut); by(0f, 0.14f, Easing.SineInOut) } }
                 val dot = at(inward * card.indicatorW / 2f + (i - 1) * d * 1.6f, -card.indicatorH / 2f)
                 nodes += ShapeNode(
                     ShapeSpec.Ellipse(d.anim, d.anim), fill = ink.copy(alpha = 0.75f).fill(),
@@ -244,7 +263,7 @@ object MessageRecipes {
             }
             // In the bubble's own box: text from the reading-start side, ticks in the reading-end corner.
             val left = if (onRight) -b.w else 0f
-            val padX = card.size * 0.65f
+            val padX = card.size * 0.55f
             val textX = if (card.rtl) left + b.w - padX - b.fitted.width / 2f else left + padX + b.fitted.width / 2f
             nodes += words(card, b, at(textX, -b.h / 2f), ink)
             if (b.outgoing) {
@@ -285,13 +304,16 @@ object MessageRecipes {
         }
 
         /** The whole card lifts and fades out together at the end of its cue. */
-        private fun group(cue: Cue, children: List<Node>): Group {
+        private fun group(cue: Cue, children: List<Node>, card: Card): Group {
             val exitAt = cue.out - EXIT
+            // A slow handheld float once the card has settled, so a long hold never sits dead.
+            val float = Anim.Noise(cue.seed, FLOAT_RATE, anim(0f, cue.at + 0.6f) { by(card.size * 0.12f, 1.5f, Easing.SineInOut) })
             return Group(
                 children,
                 transform = Transform(
                     anchorX = 0f, anchorY = 0f,
-                    y = anim(0f, exitAt) { by(-28f, EXIT, Easing.Exit) },
+                    y = anim(0f, exitAt) { by(-28f, EXIT, Easing.Exit) } + float,
+                    x = Anim.Noise(cue.seed + 7, FLOAT_RATE * 0.8f, anim(0f, cue.at + 0.6f) { by(card.size * 0.08f, 1.5f, Easing.SineInOut) }),
                     opacity = anim(1f, exitAt) { by(0f, EXIT, Easing.Exit) },
                 ),
                 start = cue.at - Craft.LEAD - 0.05f, end = cue.out + 0.02f, name = name,
@@ -303,8 +325,15 @@ object MessageRecipes {
 
     private const val MAX_BUBBLES = 6
     private const val MAX_LINES = 6
-    /** A bubble hugs its text up to this share of the thread width. */
-    private const val MAX_WIDTH = 0.78f
+    /** Body type as a share of the card width: phone-readable over footage, bigger on a stage. */
+    private const val FOOTAGE_TYPE = 0.07f
+    private const val STAGE_TYPE = 0.082f
+    private const val STAGE_REACH = 1.25f
+    /** Longest the typing dots show before a message after a long pause. */
+    private const val MAX_TYPING = 1.6f
+    /** Seconds per half-breath of the online dot, and the float's speed (cycles per second). */
+    private const val BREATH = 0.8f
+    private const val FLOAT_RATE = 0.25f
     /** Seconds the typing indicator shows before it becomes the bubble. */
     private const val TYPING = 0.45f
     private const val SCROLL = 0.35f

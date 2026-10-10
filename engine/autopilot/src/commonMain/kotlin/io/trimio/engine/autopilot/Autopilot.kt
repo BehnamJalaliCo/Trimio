@@ -83,7 +83,7 @@ class Autopilot(
         val lineFixes = lines.indices.flatMap { k ->
             val l = lines[k]
             Proofreader.align(texts.subList(l.first, l.last + 1), l.first, understanding.lines.getOrNull(k)?.fixed.orEmpty()).entries
-        }.associate { it.key to it.value }.filterValues { real(it, lexicon, request.prompt) }
+        }.associate { it.key to it.value }.filter { (i, w) -> real(w, lexicon, request.prompt) && !lexicon.worse(texts[i], w) }
         lineFixes.forEach { (i, w) -> report += "spelling (director): ${texts[i]} → $w" }
         val transcript = analysis.transcript.withFixes(lineFixes)
         report += "understand: ${understanding.title} | ${understanding.domain}/${understanding.mood} | hook line ${understanding.hook?.line} | cta ${understanding.cta?.keyword}"
@@ -108,7 +108,8 @@ class Autopilot(
 
         onStage("compile", 0.75f)
         val compiler = Compiler(text, brandLibrary, picked.second)
-        var score = picked.first
+        // Nothing reaches the screen misspelled: every Persian word was heard, briefed or is known.
+        var score = ScreenSpelling(lexicon, transcript.words.map { it.text }, request.prompt).check(picked.first) { report += it }
         var compiled = compile(compiler, score, transcript, edit, request)
         val critic = Critic()
         repeat(CRITIC_PASSES) { pass ->

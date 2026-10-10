@@ -39,20 +39,30 @@ class MessageRecipesTest {
 
     private fun json(items: List<String>) = items.joinToString(",") { "\"" + it.replace("\"", "\\\"") + "\"" }
 
-    private fun score(look: String, bg: String, items: List<String>, label: String?, place: String) = Score.parse(
+    private fun score(look: String, bg: String, items: List<String>, label: String?, place: String, hold: Float = 6.2f) = Score.parse(
         """{"look":"$look","captions":{"show":false},"auto":false,"scenes":[{"time":0,"bg":"$bg","beats":[
-           {"recipe":"chat","time":0.4,"hold":6.2,"items":[${json(items)}],${label?.let { "\"label\":\"$it\"," } ?: ""}"place":"$place"}]}]}""",
+           {"recipe":"chat","time":0.4,"hold":$hold,"items":[${json(items)}],${label?.let { "\"label\":\"$it\"," } ?: ""}"place":"$place"}]}]}""",
     )
 
-    /** A synthetic talking-head frame: a warm room, a bright window and a dark figure. */
+    /**
+     * A deliberately hostile synthetic frame for legibility: a bright, busy room (white window
+     * panes, saturated stripes, a light checker shelf) behind the band the card sits in, and a dark figure.
+     */
     private val footage: ImageBitmap by lazy {
         val s = Surface.makeRasterN32Premul(1080, 1920)
         val c = s.canvas
         for (k in 0 until 48) {
             val f = k / 47f
-            c.drawRect(Rect.makeXYWH(0f, k * 40f, 1080f, 41f), Paint().apply { color = SkColor.makeRGB((196 - 104 * f).toInt(), (170 - 100 * f).toInt(), (140 - 82 * f).toInt()) })
+            c.drawRect(Rect.makeXYWH(0f, k * 40f, 1080f, 41f), Paint().apply { color = SkColor.makeRGB((236 - 120 * f).toInt(), (222 - 120 * f).toInt(), (200 - 100 * f).toInt()) })
         }
-        c.drawRect(Rect.makeXYWH(620f, 120f, 420f, 640f), Paint().apply { color = SkColor.makeRGB(246, 242, 232) })
+        val stripes = listOf(SkColor.makeRGB(255, 196, 0), SkColor.makeRGB(0, 170, 220), SkColor.makeRGB(255, 255, 255), SkColor.makeRGB(230, 60, 90))
+        for (k in 0 until 18) c.drawRect(Rect.makeXYWH(k * 60f, 40f, 30f, 520f), Paint().apply { color = stripes[k % stripes.size] })
+        for (i in 0 until 6) for (j in 0 until 4) {
+            c.drawRect(Rect.makeXYWH(560f + i * 80f, 100f + j * 120f, 72f, 110f), Paint().apply { color = SkColor.makeRGB(250, 250, 246) })
+        }
+        for (i in 0 until 27) for (j in 0 until 3) {
+            if ((i + j) % 2 == 0) c.drawRect(Rect.makeXYWH(i * 40f, 560f + j * 40f, 40f, 40f), Paint().apply { color = SkColor.makeRGB(255, 255, 255) })
+        }
         val figure = Paint().apply { color = SkColor.makeRGB(48, 40, 36) }
         c.drawOval(Rect.makeXYWH(370f, 600f, 340f, 420f), figure)
         c.drawRRect(org.jetbrains.skia.RRect.makeXYWH(200f, 980f, 680f, 1000f, 220f), figure)
@@ -61,7 +71,7 @@ class MessageRecipesTest {
 
     private fun render(name: String, score: Score, overFootage: Boolean) {
         val input = Compiler.Input(
-            score, transcript = null, duration = 7.2f, footage = if (overFootage) "speaker" else null,
+            score, transcript = null, duration = score.scenes.first().beats.first().hold!! + 1f, footage = if (overFootage) "speaker" else null,
             subject = if (overFootage) Subject(0.3f, 0.3f, 0.7f, 0.62f) else null,
         )
         val compiled = Compiler(probe.renderer.text).compile(input)
@@ -78,7 +88,7 @@ class MessageRecipesTest {
     fun threadOnStage() = render("stage", score("noir", "grid", thread, "یه فالوور", "center"), overFootage = false)
 
     @Test
-    fun threadOverFootage() = render("footage", score("noir", "media", thread, "یه فالوور", "top"), overFootage = true)
+    fun threadOverFootage() = render("footage", score("noir", "media", thread, "یه فالوور", "top", hold = 13f), overFootage = true)
 
     @Test
     fun englishOnPaper() = render("paper", score("paper", "grid", english, "A follower", "center"), overFootage = false)
@@ -106,8 +116,13 @@ class MessageRecipesTest {
             assertTrue(root.end <= cue.out + 0.05f && root.transform.opacity.at(cue.out) < 0.01f, "gone by its out")
             val items = (root.children.single { it.name == "message-thread" } as Group).children
             assertEquals(3, items.size)
-            // Each bubble opens (the typing indicator morphs) exactly as its quote is said.
-            items.forEachIndexed { i, n -> assertTrue(abs(n.start + 0.02f + 0.45f - (spoken[i] - Craft.LEAD)) < 0.01f, "bubble $i lands on its quote") }
+            // Each bubble opens (the typing indicator morphs into it) exactly as its quote is said.
+            items.forEachIndexed { i, n ->
+                val shape = ((n as Group).children.first() as ShapeNode).shape as ShapeSpec.Rect
+                val land = spoken[i] - Craft.LEAD
+                assertTrue(abs(shape.width.at(land - 0.02f) - shape.width.at(land - 0.3f)) < 0.01f, "bubble $i still typing before its quote")
+                assertTrue(shape.width.at(land + 0.3f) > shape.width.at(land) + 1f, "bubble $i opens on its quote")
+            }
             assertTrue(built.sfx.all { it.at in (cue.at - 0.2f)..cue.out })
         }
     }

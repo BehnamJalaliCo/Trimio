@@ -114,7 +114,20 @@ class PlannerPromoTest {
             assertTrue(words[comment.at!!].text.startsWith("تتر"), "the field lands on the keyword")
             val dm = beats.firstOrNull { it.recipe == "stamp" && it.at != null && words[it.at!!].text.startsWith("دایرکت") && it.at!! > comment.at!! }
             assertNotNull(dm, "a DM step after the keyword: ${summary(beats)}\n${p.score.scenes.map { it.from }} ${lines.map { it.first }} ${p.notes}")
-            assertTrue(beats.last { it.recipe == "comment" }.let { c -> words[c.at!!].range.startMs > words.last().range.startMs - 8000 }, "the ask owns the end")
+            theAskOwnsTheEnd(p.score, words, summary(beats))
+            spokenWordsOnly(beats, words, summary(beats))
+        }
+    }
+
+    @Test
+    fun aMisspelledModelTitleNeverShows() {
+        // The model's title misspells «ووچر» as «وچر»: the screen shows the transcript's words only.
+        val k = lines.indexOfFirst { l -> l.range.any { words[it].text.startsWith("ووچر") } }
+        val wrong = u.copy(lines = u.lines.mapIndexed { i, r -> if (i == k) r.copy(show = "headline", title = "وچر") else r })
+        for (seed in seeds) {
+            val beats = Planner().plan(words, lines, wrong, seed).score.scenes.flatMap { it.beats }
+            assertTrue(beats.none { b -> listOfNotNull(b.text, b.label).any { "وچر" in it.split(' ') } }, "no misspelled model text: ${summary(beats)}")
+            spokenWordsOnly(beats, words, summary(beats))
         }
     }
 
@@ -163,7 +176,8 @@ class PlannerPromoTest {
         val body = words.map { it.copy(range = TimeRange(it.range.startMs + shift, it.range.endMs + shift)) }
         val k = lines.indexOfFirst { l -> (l.first..l.last).any { words[it].text == "تتر" } }
         val opening = Planner.Opening(open, k, lines[k].first..lines[k].first + 3)
-        for (seed in seeds) {
+        val slams = mutableListOf<Boolean>()
+        for (seed in 1L..10L) {
             val score = Planner().plan(body, lines, u, seed, opening = opening).score
             val first = score.scenes.first()
             assertEquals(0f, first.time, "the cold open is placed by time")
@@ -175,9 +189,16 @@ class PlannerPromoTest {
             assertEquals(0, score.scenes[1].from, "the body starts at its first word")
             assertTrue(score.scenes[1].beats.none { it.time != null }, "no second hook at the body's start")
             val all = score.scenes.flatMap { it.beats }
-            assertEquals(1, all.count { it.recipe == "voucher" }, "the figure is shown once: ${summary(all)}")
-            assertTrue(all.none { it.recipe == "counter" && it.value == 350f }, "and gets no counter either")
+            // When the body reaches the payoff: a push-in and the card again, or (some seeds) a short slam of the figure.
+            val echo = all.filter { b -> b.time == null && b.at != null && b.at!! in lines[k].range && b.recipe in setOf("voucher", "slam") }
+            assertEquals(1, echo.size, "one echo of the figure on its line: ${summary(all)}")
+            slams += echo.single().recipe == "slam"
+            assertEquals(0, all.count { it.recipe == "voucher" && it.time == null && it.at !in lines[k].range }, "no other voucher: ${summary(all)}")
+            assertTrue(all.none { it.recipe == "counter" && it.value == 350f }, "and no counter of it")
+            val scene = score.scenes.last { sc -> (sc.from ?: -1) <= lines[k].first }
+            assertTrue(scene.bg != null || scene.camera == "push-in", "a push-in on the payoff line")
         }
+        assertTrue(slams.count { it } * 2 <= slams.size, "the slam is the rarer, seeded choice: $slams")
     }
 
     /**
@@ -206,6 +227,8 @@ class PlannerPromoTest {
             if (seed == 1L) println("benchmark seed 1: ${plan.notes}\n" + score.scenes.joinToString("\n") { sc -> "scene ${sc.from ?: sc.time} ${sc.bg ?: ""}" } + "\n$sum")
             replies += oneThreadOpens(score, words, sum)
             sayTheSpokenKeyword(beats, words, sum)
+            theAskOwnsTheEnd(score, words, sum)
+            spokenWordsOnly(beats, words, sum)
             lastLongEnough(score, words, seed, sum)
             eachFigureOnce(beats, sum)
             popsCarryMeaning(beats, u, seed, sum)
@@ -238,9 +261,35 @@ class PlannerPromoTest {
     /** 1. The keyword shown is the word said. */
     private fun sayTheSpokenKeyword(beats: List<BeatScore>, words: List<Word>, sum: String) {
         val comments = beats.filter { it.recipe == "comment" }
-        assertTrue(comments.isNotEmpty() && comments.all { it.text == "تتر" }, "the comment shows «تتر»: $sum")
+        assertTrue(comments.size == 1 && comments.all { it.text == "تتر" }, "one comment field showing «تتر»: $sum")
         assertEquals("تتر", words[comments.first().at!!].text, "and lands on it")
     }
+
+    /**
+     * One comment field from the ask to the very end (the critic's last 1.5 s included); after
+     * it only the DM step lands, and no cut ends the field early.
+     */
+    private fun theAskOwnsTheEnd(score: Score, words: List<Word>, sum: String) {
+        val beats = score.scenes.flatMap { it.beats }
+        val c = beats.single { it.recipe == "comment" }
+        val a = start(words, c.at!!)
+        val end = words.last().range.endMs / 1000f + 0.8f
+        assertTrue(a + c.hold!! >= end, "the field holds to the end: ${a + c.hold!!} < $end")
+        assertTrue(score.scenes.none { sc -> (sc.from ?: -1) > c.at!! }, "no cut after the ask: ${score.scenes.map { it.from }}")
+        val after = beats.filter { it !== c && it.at != null && it.at!! > c.at!! }
+        assertTrue(after.all { it.recipe == "stamp" && words[it.at!!].text.startsWith("دایرکت") }, "only the DM step after the ask: $after\n$sum")
+    }
+
+    /** Every word on screen in text beats was said (normalised, ZWNJ ignored); figures may be digits. */
+    private fun spokenWordsOnly(beats: List<BeatScore>, words: List<Word>, sum: String) {
+        val said = words.map { key(it.text) }.toSet()
+        for (b in beats.filter { it.recipe in TEXT + "stamp" }) {
+            val unsaid = b.text.orEmpty().split(' ').filter { w -> w.isNotBlank() && w.none { it.isDigit() } && key(w) !in said }
+            assertTrue(unsaid.isEmpty(), "${b.recipe} «${b.text}» shows words never said: $unsaid\n$sum")
+        }
+    }
+
+    private fun key(w: String) = NumberWords.normalize(w).trimEnd('.', '،', ',', '!', '?', '؟')
 
     /** 2. Data graphics stay long enough to be read (as the compiler holds them); nothing flashes. */
     private fun lastLongEnough(score: Score, words: List<Word>, seed: Long, sum: String) {

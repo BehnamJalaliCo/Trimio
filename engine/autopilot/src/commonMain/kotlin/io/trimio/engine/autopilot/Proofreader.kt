@@ -18,6 +18,9 @@ import io.trimio.core.model.transcript.Word
  */
 object Proofreader {
 
+    private const val COMPOUND_LENGTH = 7
+    private const val COMPOUND_BONES = 4
+    private val ENDS = charArrayOf('.', '،', ',', '!', '?', '؟')
     private val SEPARATORS = Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+")
 
     fun fromBrief(words: List<String>, brief: String): Map<Int, String> {
@@ -27,14 +30,37 @@ object Proofreader {
         val byKey = vocabulary.groupBy { key(it) }
         // Words the creator quoted («کد») are deliberate spellings: a one-vowel slip still matches.
         val quoted = Regex("[«\"“]([^»\"”]{2,24})[»\"”]").findAll(brief).map { it.groupValues[1].trim() }.toList()
+        val compounds = vocabulary.filter { '‌' in it && it.length >= COMPOUND_LENGTH }.groupBy { skeleton(it) }
         val out = mutableMapOf<Int, String>()
-        for ((i, w) in words.withIndex()) {
-            val core = w.trimEnd('.', '،', ',', '!', '?', '؟')
-            val match = if (core.length < 2 || core in vocabulary) null else briefMatch(core, byKey, vocabulary, quoted)
-            if (match != null && match != core) out[i] = match + w.substring(core.length)
+        var i = 0
+        while (i < words.size) {
+            val w = words[i]
+            val core = w.trimEnd(*ENDS)
+            val compound = briefCompound(core, w, words.getOrNull(i + 1), compounds)
+            if (compound != null) {
+                out[i] = compound
+                out[i + 1] = ""
+                i += 2
+            } else {
+                val match = if (core.length < 2 || core in vocabulary) null else briefMatch(core, byKey, vocabulary, quoted)
+                if (match != null && match != core) out[i] = match + w.substring(core.length)
+                i++
+            }
         }
         return out
     }
+
+    /** Two heard words that are one compound of the brief, vowels aside: «صرف جوی» → «صرفه‌جویی». */
+    private fun briefCompound(core: String, word: String, next: String?, compounds: Map<String, List<String>>): String? {
+        if (next == null || core != word) return null
+        val nextCore = next.trimEnd(*ENDS)
+        val bones = skeleton(core + nextCore)
+        val found = compounds[bones]?.singleOrNull()?.takeIf { bones.length >= COMPOUND_BONES } ?: return null
+        return found + next.substring(nextCore.length)
+    }
+
+    /** Consonants only, sound-alikes merged: what survives a recogniser dropping or adding vowels. */
+    private fun skeleton(s: String) = key(s).filter { it !in "اویه" }
 
     /**
      * The word-list pass, run after [fromBrief]: words the brief already [fixed] keep its spelling and

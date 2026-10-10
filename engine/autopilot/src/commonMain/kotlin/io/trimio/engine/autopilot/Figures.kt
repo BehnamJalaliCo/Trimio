@@ -85,7 +85,8 @@ internal class Figures(
     fun stats(line: Lines.Line, sense: Quantities.Sense, read: LineRead, e: Float, place: String): BeatScore? {
         val qs = sense.social.ifEmpty { sense.quantities.filter { it.value >= 1 && it.kind != Quantities.Kind.Duration } }.take(MAX_STATS)
         if (qs.size < 2) return null
-        val labels = qs.mapIndexed { i, q -> q.unit.ifBlank { read.items.getOrNull(i).orEmpty() } }
+        // A model's item names a number only when it is said in the line.
+        val labels = qs.mapIndexed { i, q -> q.unit.ifBlank { read.items.getOrNull(i)?.takeIf { locate(it, line) != null }.orEmpty() } }
         // The time it took, when said («کمتر از دوازده ساعت»), rides along as the board's caption.
         val span = sense.quantities.firstOrNull { it.kind == Quantities.Kind.Duration && !it.remaining }?.let { d ->
             val less = (maxOf(line.first, d.at - 2) until d.at).any { norm[it] in LESS }

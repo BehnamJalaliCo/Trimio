@@ -25,13 +25,20 @@ internal class Hooks(
     private val mark: String,
     private val usedRecipes: MutableList<String>,
     private val notes: MutableList<String>,
+    /** A model's text as said in a line (the transcript's own words), or null when it was not said. */
+    private val spoken: (String, Lines.Line) -> String?,
 ) {
+
+    /** The hook title for line [k]: the model's, only as said there; else the line's own (already spoken) title. */
+    private fun titleOf(k: Int, reads: List<LineRead>): String =
+        (u.hook?.title?.takeIf { u.hook.line == k }?.let { spoken(it, lines[k]) } ?: reads[k].title).trim()
+
 
     /** The payoff of line [k], shown first. */
     fun hook(k: Int, reads: List<LineRead>): BeatScore? {
         val line = lines[k]
         val number = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull()
-        val title = (u.hook?.title?.takeIf { u.hook.line == k } ?: reads[k].title).ifBlank { u.hook?.title.orEmpty() }.trim()
+        val title = titleOf(k, reads)
         notes += "hook: payoff of line $k first (${number?.value ?: title})"
         // Money given opens on its own card most of the time; a counter or a slam are the seeded alternatives.
         senses[k].voucher?.let { money -> return moneyHook(k, money, title, reads) }
@@ -63,7 +70,7 @@ internal class Hooks(
         val k = o.line
         val q = openingFigure(o)
         val hold = o.length + OPENING_TAIL
-        val title = (u.hook?.title?.takeIf { u.hook.line == k } ?: reads[k].title).trim()
+        val title = titleOf(k, reads)
         notes += "cold open: line $k (${q?.value ?: title}), ${o.length}s"
         val beat = when {
             q != null && q.kind == Quantities.Kind.Money -> figures.voucherBeat(q, reads[k], figures.voucherLabel(lines[k], q, reads[k]), place = "top")

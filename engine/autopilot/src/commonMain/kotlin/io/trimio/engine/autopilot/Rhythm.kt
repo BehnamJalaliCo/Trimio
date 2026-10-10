@@ -147,7 +147,7 @@ internal class Rhythm(
             b.recipe in TEXT_RECIPES -> start + maxOf(1f, 0.35f + 0.055f * (b.text?.length ?: TYPICAL_TEXT))
             else -> sceneEnd
         }
-        // A chat thread runs as long as its story (the compiler's 7 s cap is for everything else).
+        // A chat thread runs as long as its story, the ask to the end (the compiler's 7 s cap is for everything else).
         return minOf(end, sceneEnd + 0.05f, if (b.recipe in UNCAPPED) Float.MAX_VALUE else start + MAX_HOLD)
     }
 
@@ -255,19 +255,16 @@ internal class Rhythm(
     }
 
     /**
-     * What a pop says, and where it lands: the line's own title when it is said here (or is a
-     * short paraphrase in the piece's language), else a two- or three-word noun phrase around the
-     * stressed noun. Never a lone verb, adverb or time word; never what is already on screen.
+     * What a pop says, and where it lands: the line's own title when it is said here, else a two-
+     * or three-word noun phrase around the stressed noun — the transcript's words, never a
+     * model's paraphrase or spelling. Never a lone verb, adverb or time word; never what is already on screen.
      */
     private fun popFor(free: List<Int>, stress: Int?, shown: Set<String>): Pair<Int, String>? {
         val k = lines.indexOfFirst { free.first() in it.range }
         val title = reads.getOrNull(k)?.title?.trim()?.takeIf { it.isNotEmpty() && fresh(it, shown) }
         if (title != null && meaningful(title.split(' '))) {
-            val said = locate(title, lines[k])
-            when {
-                said != null && said.first in free -> return said.first to title
-                said == null && stress != null && stress in lines[k].range && title.split(' ').size <= MAX_PARAPHRASE -> return stress to title
-            }
+            // Titles are the line's own words as said (the planner keeps no other): land as they are said.
+            locate(title, lines[k])?.first?.takeIf { it in free }?.let { return it to title }
         }
         stress ?: return null
         val phrase = phraseAt(stress)
@@ -392,14 +389,13 @@ internal class Rhythm(
         /** Picture queries that are not pictures: logos and abstract icons. */
         private val NOT_PICTURES = listOf("logo", "icon", "interface", "overlay", "screen showing")
 
-        private val UNCAPPED = setOf("message")
+        private val UNCAPPED = setOf("message", "comment")
         private const val RHYTHM_GAP = 2.5f
         private const val MIN_RHYTHM_GAP = 1.8f
         private const val MAX_RHYTHM_GAP = 4.5f
         private const val MIN_LEAD = 0.8f
         private const val MIN_LIFE = 1.5f
         private const val RETRY_STEP = 0.5f
-        private const val MAX_PARAPHRASE = 3
         private const val LONE_NOUN = 4
         private const val MIN_VERB = 4
         private const val MIN_SHOT = 1.0f

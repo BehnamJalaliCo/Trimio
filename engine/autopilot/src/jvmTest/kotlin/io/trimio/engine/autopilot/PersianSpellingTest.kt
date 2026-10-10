@@ -30,17 +30,22 @@ class PersianSpellingTest {
         val expected = mapOf(
             "دایرک" to "دایرکت", "سررافی" to "صرافی", "سبتنام" to "ثبت‌نام", "پنجا" to "پنجاه", "بازید" to "بازدید", "چلا" to "چهل و",
             "ساتم" to "ساعت هم", "سی" to "سیصد", "سد" to "", "میتونید" to "می‌تونید", "همه" to "همه‌تون", "تون" to "",
+            // Given away by their neighbours (see confusionsNeedTheirContext).
+            "پوست" to "پست", "کارورد" to "کاربر", "ترک" to "ترید",
         )
         for ((i, fix) in fixes) {
             val core = heard[i].trimEnd('،', '.')
             assertEquals(expected[core], fix.trimEnd('،', '.'), "«${heard[i]}» was changed to «$fix»")
         }
         val text = heard.indices.mapNotNull { i -> (fixes[i] ?: heard[i]).takeIf { it.isNotEmpty() } }.joinToString(" ")
-        for (right in listOf("دایرکت می‌گه", "فلان صرافی بود،", "می‌رفتیم ثبت‌نام می‌کردیم", "پنجاه هزار بازدید", "چهل و هشت ساعت هم", "سیصد و پنجاه تتر", "که می‌تونید همه‌تون")) {
+        for (right in listOf(
+            "دایرکت می‌گه", "فلان صرافی بود،", "می‌رفتیم ثبت‌نام می‌کردیم", "پنجاه هزار بازدید", "چهل و هشت ساعت هم", "سیصد و پنجاه تتر", "که می‌تونید همه‌تون",
+            "این رو پست کردم، یعنی پست گذاشتم،", "برای هر کاربر در", "و ترید بکنی",
+        )) {
             assertTrue(right in text, "missing «$right» in $text")
         }
-        // Each listed slip, every time it occurs (سبتنام and سی سد twice).
-        assertEquals(15, fixes.size, "$fixes")
+        // Each listed slip, every time it occurs (سبتنام, سی سد and پوست twice).
+        assertEquals(19, fixes.size, "$fixes")
     }
 
     @Test
@@ -59,10 +64,11 @@ class PersianSpellingTest {
 
     @Test
     fun earlierBenchmarkSlips() {
-        // «روزمرد» is no word, «روزمره» is one slip away: fixed. «نسب», «تیه» and «کود» are words of their own
-        // (lineage, a rare spelling, fertiliser): only the brief or the director can say «نصب», «تهیه», «کد».
+        // «روزمرد» is no word, «روزمره» is one slip away: fixed. «تیه» before «می‌کنه» is «تهیه» (a confusion
+        // settled by the next word). «نسب» and «کود» are words of their own (lineage, fertiliser): only the brief
+        // or the director can say «نصب», «کد».
         assertEquals(mapOf(1 to "روزمره"), spelling.correct("زندگی روزمرد ما".split(' ')))
-        assertEquals(mapOf(7 to "می‌کنه"), spelling.correct("بعد از نسب یه مپ کامل تیه میکنه".split(' ')))
+        assertEquals(mapOf(6 to "تهیه", 7 to "می‌کنه"), spelling.correct("بعد از نسب یه مپ کامل تیه میکنه".split(' ')))
         assertTrue(spelling.correct("کود رو کپی کن".split(' ')).isEmpty())
     }
 
@@ -120,6 +126,72 @@ class PersianSpellingTest {
         assertTrue(Proofreader.fromBrief(listOf("خانه"), "خانۀ ما").isEmpty())
         // A real slip still takes the brief's word, without the ezafe mark.
         assertEquals(mapOf(0 to "سرمایه"), Proofreader.fromBrief(listOf("سرمایح"), "سرمایهٔ اولیه"))
+    }
+
+    @Test
+    fun confusionsNeedTheirContext() {
+        fun fixed(text: String) = text.split(' ').let { ws -> spelling.correct(ws).let { f -> ws.indices.joinToString(" ") { f[it] ?: ws[it] } } }
+        // «پوست گذاشتم» can only be a post; «پوست کردم» is peeling unless the talk is about posts.
+        assertEquals("دیروز پست گذاشتم", fixed("دیروز پوست گذاشتم"))
+        assertEquals("پرتقال رو پوست کردم", fixed("پرتقال رو پوست کردم"))
+        assertEquals("تو پیج پست کردم و کامنت بذارید", fixed("تو پیج پوست کردم و کامنت بذارید"))
+        assertEquals("پوست صورتم خشک شده", fixed("پوست صورتم خشک شده"))
+        // «ترک کردن» is trading only in a talk about crypto, and never with an object («بازار رو ترک کنی»).
+        assertEquals("ترک کردم", fixed("ترک کردم"))
+        assertEquals("با تتر و صرافی راحت ترید بکنی", fixed("با تتر و صرافی راحت ترک بکنی"))
+        assertEquals("با تتر و صرافی بازار رو ترک کنی", fixed("با تتر و صرافی بازار رو ترک کنی"))
+        // «تیه» is never done or made; alone it stays.
+        assertEquals("نقشه رو تهیه می‌کنه", fixed("نقشه رو تیه می‌کنه"))
+        assertEquals("تیه", fixed("تیه"))
+    }
+
+    @Test
+    fun silentHeBeforeAClitic() {
+        assertEquals(mapOf(1 to "روزمره‌ت"), spelling.correct(listOf("کارهای", "روزمرت", "سریع‌تر")))
+        assertTrue(spelling.correct(listOf("دستت", "درد", "نکنه")).isEmpty())
+    }
+
+    @Test
+    fun briefCompoundsJoinTheirHeardHalves() {
+        // Video 1: «صرف جوی» heard for the brief's «صرفه‌جویی»; the halves become one word.
+        val fixes = Proofreader.fromBrief(listOf("توکن", "صرف", "جوی", "بشه."), "۹۰٪ صرفه‌جویی در توکن")
+        assertEquals(mapOf(1 to "صرفه‌جویی", 2 to ""), fixes)
+        assertTrue(1 !in Proofreader.fromBrief(listOf("صرف", "شد"), "۹۰٪ صرفه‌جویی در توکن"), "no compound without its second half")
+    }
+
+    @Test
+    fun directorRespellingsThatAreWorse() {
+        assertTrue(spelling.worse("می‌گه", "میگه"), "half-space removed")
+        assertTrue(spelling.worse("دایرکتتو", "دایرکتت"), "clitic cut off")
+        assertTrue(spelling.worse("ووچر", "وچر"), "letter deleted into no word")
+        assertTrue(spelling.worse("می‌کردیم،", "میکردیم"), "punctuation does not hide it")
+        assertTrue(!spelling.worse("پوست", "پست"), "deleted into a more common word")
+        assertTrue(!spelling.worse("زمینن", "زمین"), "doubled last letter of no word")
+        assertTrue(!spelling.worse("سبتنام", "ثبت‌نام"))
+        assertTrue(!spelling.worse("میکنه", "می‌کنه"))
+        assertTrue(!spelling.worse("کارورد", "کاربر"))
+    }
+
+    /**
+     * Whole runs (not run by default): TRIMIO_SPELLING_RUNS=<transcript.json>:<prompt.txt>[,…] prints what
+     * [Proofreader.fromBrief] and [Proofreader.fromLexicon] make of a recorded transcript ([{"w": …}, …]).
+     */
+    @Test
+    fun recordedRuns() = runBlocking {
+        val runs = System.getenv("TRIMIO_SPELLING_RUNS")?.split(',') ?: return@runBlocking
+        for (run in runs) {
+            val (json, prompt) = run.split(':')
+            val words = kotlinx.serialization.json.Json.parseToJsonElement(File(json).readText()).let { it as kotlinx.serialization.json.JsonArray }
+                .map { (it as kotlinx.serialization.json.JsonObject)["w"].toString().trim('"') }
+            val brief = File(prompt).readText()
+            val spelled = Proofreader.fromBrief(words, brief)
+            val lexical = Proofreader.fromLexicon(words, brief, spelled)
+            val all = spelled + lexical
+            println("== $json")
+            spelled.forEach { (i, w) -> println("  brief: ${words[i]} → $w") }
+            lexical.forEach { (i, w) -> println("  lexicon: ${words[i]} → ${w.ifEmpty { "(joined)" }}") }
+            println("  " + words.indices.mapNotNull { i -> (all[i] ?: words[i]).takeIf { it.isNotEmpty() } }.joinToString(" "))
+        }
     }
 
     @Test

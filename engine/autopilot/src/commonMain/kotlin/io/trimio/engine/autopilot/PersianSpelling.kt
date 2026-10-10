@@ -36,6 +36,7 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         val parts = words.map(::split)
         val heard = parts.groupingBy { it.core }.eachCount()
         val doc = heard.keys + context.map(::normalize)
+        val settled = settled(parts)
         val out = mutableMapOf<Int, String>()
         var i = 0
         while (i < parts.size) {
@@ -52,7 +53,8 @@ class PersianSpelling(private val counts: Map<String, Int>) {
                 // A word heard twice the same way is taken as meant (a name, a brand) unless a sound-alike fixes it.
                 val soundOnly = (heard[w.core] ?: 0) > 1 && count(w.core) == 0
                 val prev = parts.getOrNull(i - 1)?.core
-                val fixed = number(w.core, next?.core) ?: halfSpace(w.core) ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) }
+                val fixed = confusion(w.core, prev, next?.core, doc, settled) ?: number(w.core, next?.core) ?: halfSpace(w.core)
+                    ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) }
                 if (fixed != null) out[i] = w.head + fixed + w.tail
             }
             i++
@@ -74,7 +76,45 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         return ka.first() == kb.first() && distance(ka, kb) <= 2
     }
 
+    /**
+     * Whether the director's [fixed] spelling is a step back from what was [heard]: only a half-space taken
+     * out («می‌گه» → «میگه»), the end of the word cut off («دایرکتتو» → «دایرکتت»), or letters deleted into a
+     * word no more common than the heard one («ووچر» → «وچر»). A doubled last letter of a rare word
+     * («زمینن» → «زمین») may still go.
+     */
+    fun worse(heard: String, fixed: String): Boolean {
+        val a = normalize(heard.trim { !it.isLetterOrDigit() })
+        val b = normalize(fixed.trim { !it.isLetterOrDigit() })
+        val la = a.replace(ZWNJ_S, "")
+        val lb = b.replace(ZWNJ_S, "")
+        if (a == b || lb.isEmpty()) return false
+        if (la == lb) return b.count { it == ZWNJ } < a.count { it == ZWNJ }
+        if (lb.length >= la.length || !subsequence(lb, la)) return false
+        val doubled = la.length - lb.length == 1 && la.last() == lb.last() && count(b) >= maxOf(KNOWN, RATIO * count(a))
+        return if (la.startsWith(lb)) !doubled else count(b) <= count(a)
+    }
+
     // ------------------------------------------------------------------ rules
+
+    /** A [Confusion] that its neighbours give away; [settled] holds heard words already given away elsewhere. */
+    private fun confusion(core: String, prev: String?, next: String?, doc: Set<String>, settled: Set<String>): String? {
+        val c = CONFUSIONS.firstOrNull { it.heard == core } ?: return null
+        val after = next?.replace(ZWNJ_S, "")
+        val fires = when {
+            prev != null && prev in c.notAfter -> false
+            c.after.isEmpty() && c.afterOnTopic.isEmpty() -> count(core) == 0
+            after != null && after in c.after -> true
+            after == null || after !in c.afterOnTopic -> false
+            else -> core in settled || c.topic.count { t -> t in doc || doc.any { t in stems(it) } } >= TOPIC_WORDS
+        }
+        return c.meant.takeIf { fires }
+    }
+
+    /** Heard words some occurrence of which its next word settles («پوست گذاشتم»): one sense per talk. */
+    private fun settled(parts: List<Parts>): Set<String> = parts.indices.mapNotNull { i ->
+        val after = parts.getOrNull(i + 1)?.core?.replace(ZWNJ_S, "") ?: return@mapNotNull null
+        parts[i].core.takeIf { core -> CONFUSIONS.any { it.heard == core && after in it.after } }
+    }.toSet()
 
     private fun fix(core: String, doc: Set<String>, soundOnly: Boolean): String? {
         val own = count(core)
@@ -82,12 +122,22 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         val decomposable = decomposes(core)
         if (decomposable && (own == 0 || soundOnly)) return null
         val ranked = candidates(core, doc, soundOnly)
-        val best = ranked.firstOrNull() ?: return null
+        val best = ranked.firstOrNull() ?: return silentHe(core).takeIf { own == 0 }
         val second = ranked.getOrNull(1)?.first ?: Double.NEGATIVE_INFINITY
         if (best.first - second < ln(MARGIN)) return null
         // A rare but listed word gives way only to a word a hundred (or, if it parses, a thousand) times as common.
         val ratio = if (decomposable) RATIO_PARSED else RATIO
         return best.second.takeIf { own == 0 || count(it) >= ratio * own }
+    }
+
+    /**
+     * A stem whose silent final «ه» went unwritten before a clitic: «روزمرت» → «روزمره‌ت», «پروژت» → «پروژه‌ت».
+     * Only an unknown stem that is a common word once «ه» is put back.
+     */
+    private fun silentHe(core: String): String? = HE_CLITICS.firstNotNullOfOrNull { c ->
+        val stem = core.removeSuffix(c)
+        val known = bySound[soundKey(stem) + "ه"].orEmpty().filter { it.endsWith('ه') && count(it) >= KNOWN }.maxByOrNull { count(it) }
+        known?.takeIf { stem != core && stem.length >= MIN_EDIT_LENGTH && count(stem) == 0 }?.let { it + ZWNJ + c }
     }
 
     /** Spellings within one recogniser slip, scored by log frequency minus the slip's cost. */
@@ -203,6 +253,12 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         return STEM_PREFIXES.any { p -> w.startsWith(p) && w.length - p.length >= 3 && count(w.substring(p.length)) >= KNOWN_STEM * 2 }
     }
 
+    private fun subsequence(short: String, long: String): Boolean {
+        var k = 0
+        for (ch in long) if (k < short.length && short[k] == ch) k++
+        return k == short.length
+    }
+
     private fun stems(w: String) = CLITICS.filter { w.endsWith(it) && w.length - it.length >= 3 }.map { w.dropLast(it.length) }
 
     /** A word split into leading punctuation, normalised letters and trailing punctuation; [voweled] words are deliberate (Arabic, poetry). */
@@ -217,6 +273,21 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         val core = rest.trimEnd { !it.isLetterOrDigit() }
         return Parts(head, normalize(core), rest.substring(core.length), rest.any { it in '\u064B'..'\u0652' || it == '\u0670' })
     }
+
+    /**
+     * A recogniser mishearing that only the neighbouring words give away: «پوست گذاشتم» is «پست گذاشتم».
+     * Next words in [after] settle it; next words in [afterOnTopic] settle it when the talk is about [topic]
+     * (two topic words in the transcript or the brief) or another occurrence was settled; never right after
+     * [notAfter] («بازار رو ترک کنی» is leaving the market). With neither, [heard] is no word and is always fixed.
+     */
+    private class Confusion(
+        val heard: String,
+        val meant: String,
+        val after: Set<String> = emptySet(),
+        val afterOnTopic: Set<String> = emptySet(),
+        val topic: Set<String> = emptySet(),
+        val notAfter: Set<String> = emptySet(),
+    )
 
     companion object {
         /** Loaded once per process (the list is 100k words); also lets [Proofreader.align] check the director. */
@@ -288,6 +359,37 @@ class PersianSpelling(private val counts: Map<String, Int>) {
             "ده", "یازده", "دوازده", "سیزده", "چهارده", "پانزده", "پونزده", "شانزده", "شونزده", "هفده", "هجده", "هیجده", "نوزده",
             "صد", "دویست", "سیصد", "چهارصد", "پانصد", "پونصد", "ششصد", "هفتصد", "هشتصد", "نهصد", "هزار", "میلیون", "میلیارد",
         )
+        /** Forms of a verb from its past and present stems, without half-spaces («کردم», «بکنی», «میذارم», «بذار»). */
+        private fun verb(past: String, presents: List<String>): Set<String> = buildSet {
+            for (neg in listOf("", "ن")) for (pre in listOf("", "می", "نمی")) for (end in listOf("م", "ی", "", "یم", "ید", "ین", "ن", "ه")) {
+                if (end != "ه" && (neg.isEmpty() || pre.isEmpty())) add(neg + pre + past + end)
+            }
+            for (present in presents) for (pre in listOf("", "ب", "می", "نمی", "ن")) for (end in listOf("م", "ی", "ه", "یم", "ید", "ین", "ن", "")) {
+                if (pre.isNotEmpty() || end.isNotEmpty()) add(pre + present + end)
+            }
+        }
+
+        private val DO = verb("کرد", listOf("کن"))
+        private val PUT = verb("گذاشت", listOf("ذار", "گذار", "زار"))
+        private val SOCIAL = setOf(
+            "پیج", "کامنت", "دایرکت", "فالو", "فالوور", "لایک", "استوری", "ریلز", "اینستاگرام", "اینستا", "کلیپ", "ویدیو", "ویدئو",
+            "یوتیوب", "تلگرام", "کانال", "هشتگ", "کپشن",
+        )
+        private val CRYPTO = setOf(
+            "تتر", "ارز", "کریپتو", "بیت‌کوین", "بیتکوین", "صرافی", "تریدر", "ترید", "معامله", "فیوچرز", "اتریوم", "توکن", "ووچر", "بایننس", "والت",
+        )
+        private const val TOPIC_WORDS = 2
+        private val HE_CLITICS = listOf("ت", "م", "ش", "تو", "مو", "شو", "تون", "مون", "شون")
+
+        /** Mishearings seen in real runs; conservative on purpose («لایو»/«لایک» are both real and both follow «کردن»). */
+        private val CONFUSIONS = listOf(
+            Confusion("پوست", "پست", after = PUT, afterOnTopic = DO, topic = SOCIAL),
+            Confusion("ترک", "ترید", afterOnTopic = DO, topic = CRYPTO, notAfter = setOf("رو", "را", "از")),
+            Confusion("کارورد", "کاربر"),
+            // «تیه» (a wilderness) is never done or made: «تیه می‌کنه» is «تهیه می‌کنه».
+            Confusion("تیه", "تهیه", after = DO),
+        )
+
         private val SCALES = setOf("صد", "هزار", "میلیون", "میلیارد", "تومن", "تومان", "دلار", "درصد", "سال")
 
         private val SOUND_CLASS: Map<Char, Char> = buildMap {
