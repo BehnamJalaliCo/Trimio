@@ -45,7 +45,9 @@ internal class Dialogue(private val texts: List<String>, private val lines: List
     private fun threadAt(k: Int, allowed: (Int) -> Boolean, hinted: (Int) -> Boolean): Thread? {
         val line = lines[k]
         // The last reporting verb of the line opens the quote ("someone DM'd me and asked, …").
-        val say = line.range.lastOrNull { i -> said(i) } ?: return null
+        var say = line.range.lastOrNull { i -> said(i) } ?: return null
+        // …even when a pause put it on the next line ("someone DM'd me | yesterday and asked, …").
+        while (true) say = (say + 1..minOf(texts.lastIndex, say + NEXT_VERB)).takeWhile { !ends(texts[it - 1]) }.firstOrNull { said(it) } ?: break
         // Who said it may come just before, on the previous line («یکی تو کامنت‌ها | نوشته که …»).
         val from = lines.getOrNull(k - 1)?.first ?: line.first
         val reported = (from..minOf(line.last, say + 2)).any { i -> REPORTERS.any { r -> norm[i] == r || (r.length >= 3 && norm[i].startsWith(r)) } }
@@ -160,6 +162,7 @@ internal class Dialogue(private val texts: List<String>, private val lines: List
         val FILLERS = setOf("بابا", "دیگه", "یعنی", "خب", "خوب", "اصلا", "مثلا", "من", "just", "um", "uh", "well", "actually", "basically")
 
         const val MAX_LINES = 3
+        const val NEXT_VERB = 4
         const val MAX_WORDS = 9
         const val MIN_WORDS = 4
         const val MAX_INCOMING = 3

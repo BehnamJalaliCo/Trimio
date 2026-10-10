@@ -197,12 +197,14 @@ class PlannerPromoTest {
         // The keyword as a model may answer it, in English: the plan must still show the spoken «تتر».
         val read0 = Understander.sanitize(json.decodeFromString(Understanding.serializer(), read.readText()), words.size, lines.size)
         val u = read0.copy(cta = read0.cta?.copy(keyword = "Tether"))
+        val replies = mutableListOf<Boolean>()
         for (seed in 1L..6L) {
             val plan = Planner().plan(words, lines, u, seed)
             val score = plan.score
             val beats = score.scenes.flatMap { it.beats }
             val sum = summary(beats, words)
             if (seed == 1L) println("benchmark seed 1: ${plan.notes}\n" + score.scenes.joinToString("\n") { sc -> "scene ${sc.from ?: sc.time} ${sc.bg ?: ""}" } + "\n$sum")
+            replies += oneThreadOpens(beats, words, sum)
             sayTheSpokenKeyword(beats, words, sum)
             lastLongEnough(score, words, seed, sum)
             eachFigureOnce(beats, sum)
@@ -212,9 +214,21 @@ class PlannerPromoTest {
             assertTrue("progress" !in full, "progress over footage: $full")
             assertTrue(full.count { it in setOf("voucher", "stats", "countdown") } >= 2, "the big figures take the frame: $full")
         }
+        assertTrue(true in replies, "seeds show the answer bubble: $replies")
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /** The story that opens the piece (a DM told to camera, then the answer) is one chat thread; returns whether the answer is shown. */
+    private fun oneThreadOpens(beats: List<BeatScore>, words: List<Word>, sum: String): Boolean {
+        val m = beats.single { it.recipe == "message" }
+        assertTrue(m.items[0].startsWith("فلان صرافی بود همون اولش"), "the DM as said: ${m.items}")
+        assertEquals("اسمش رو تو همون کلیپت به ما می‌گفتی", m.items[1])
+        assertTrue(m.items.size == 2 || m.items[2] == ">نه عزیزم اینجوری نیست", "the answer is the speaker's bubble: ${m.items}")
+        val end = start(words, m.at!!) + m.hold!!
+        assertTrue(start(words, m.at!!) < 3.5f && end in 15f..19f, "from the first words to the answer: ${start(words, m.at!!)}–$end\n$sum")
+        return m.items.size == 3
+    }
 
     /** 1. The keyword shown is the word said. */
     private fun sayTheSpokenKeyword(beats: List<BeatScore>, words: List<Word>, sum: String) {
@@ -328,7 +342,7 @@ class PlannerPromoTest {
 
     private companion object {
         val TEXT = setOf("slam", "mask-rise", "type-on", "blur-in", "flip", "spread", "stack", "glitch")
-        val ALIVE = setOf("comment", "countdown", "counter", "voucher", "stats", "progress")
+        val ALIVE = setOf("message", "comment", "countdown", "counter", "voucher", "stats", "progress")
         val DATA = setOf("counter", "voucher", "stats", "countdown", "progress", "chart", "meter")
 
         /** The run's 21 lines (its pause-aware split), by first word. */

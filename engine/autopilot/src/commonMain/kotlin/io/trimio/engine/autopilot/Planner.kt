@@ -402,7 +402,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             .filter { it.at in line.range && it.kind in setOf("brand", "app", "product", "organization") && it.name.isLogoName() }
             .map { it.name }.distinctBy { it.lowercase() } +
             // Names in Latin script said in the line, even if the model missed them.
-            line.range.filter { texts[it].trimEnd('،', ',', '.').let { w -> w.isNotEmpty() && w.first().isUpperCase() } }
+            line.range.filter { texts[it].trimEnd('،', ',', '.').let { w -> w.isNotEmpty() && w.first().isUpperCase() && !RulesUnderstander.isCommonWord(w) } }
                 .map { texts[it].trimEnd('،', ',', '.') }.filter { n -> u.entities.none { e -> n in e.name } }
 
         // ------------------------------------------------------------ structure

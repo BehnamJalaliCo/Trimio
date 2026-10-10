@@ -75,7 +75,16 @@ object RulesUnderstander {
         return out
     }
 
-    private fun latinName(w: String) = w.trimEnd('،', ',', '.').let { it.isNotEmpty() && it.first().isUpperCase() && it.all { c -> c.isLetterOrDigit() || c in "-+." } }
+    private fun latinName(w: String) = w.trimEnd('،', ',', '.').let { it.isNotEmpty() && it.first().isUpperCase() && it.all { c -> c.isLetterOrDigit() || c in "-+." } && !isCommonWord(it) }
+
+    /** English words capitalised only because they start a sentence ("I", "The", "Someone"): not names. */
+    fun isCommonWord(w: String) = w.trimEnd('،', ',', '.', '?', '!').lowercase() in COMMON_CAPITALS
+
+    private val COMMON_CAPITALS = setOf(
+        "i", "the", "a", "an", "and", "but", "so", "or", "someone", "somebody", "this", "that", "these", "those", "it", "we", "you", "he", "she", "they",
+        "my", "your", "our", "his", "her", "their", "if", "when", "why", "what", "how", "where", "yesterday", "today", "now", "then", "also", "just",
+        "no", "yes", "there", "here", "not", "do", "don't", "is", "are", "was", "in", "on", "for", "with", "after", "before", "one", "every", "all",
+    )
 
     /**
      * A call to action asks: "send me the word X", "comment X", "write …" — an imperative, or a

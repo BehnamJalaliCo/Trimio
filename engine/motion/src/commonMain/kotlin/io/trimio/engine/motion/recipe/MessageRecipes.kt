@@ -1,6 +1,7 @@
 package io.trimio.engine.motion.recipe
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import io.trimio.engine.motion.Anim
 import io.trimio.engine.motion.AnimBuilder
 import io.trimio.engine.motion.Easing
@@ -84,14 +85,14 @@ object MessageRecipes {
         /** Fits every bubble and decides when each one types and lands (on its quote when it is said). */
         private fun layout(cue: Cue, look: Look, fit: Fitter, card: Card, raw: List<String>, at: Float): List<Bubble> {
             val voice = voice(look)
-            val maxText = (card.areaRight - card.areaLeft) * MAX_WIDTH - card.size * 1.3f
+            val maxText = card.w * MAX_WIDTH - card.size * 1.3f
             val out = mutableListOf<Bubble>()
             var prev = at + 0.35f + TYPING
             for ((i, item) in raw.withIndex()) {
                 val outgoing = item.startsWith(">")
                 val text = item.removePrefix(">").trim()
-                val f = fit.fit(text, voice, card.size, maxText, (card.areaBottom - card.areaTop) * 0.8f, maxLines = MAX_LINES)
                 val ticks = if (outgoing) card.size * 1.1f else 0f
+                val f = fit.fit(text, voice, card.size, maxText - ticks, (card.areaBottom - card.areaTop) * 0.8f, maxLines = MAX_LINES)
                 val bw = maxOf(f.width + card.size * 1.3f + ticks, card.indicatorW)
                 val bh = maxOf(f.height + card.size * 0.84f, card.indicatorH)
                 val reading = out.lastOrNull()?.let { maxOf(0.7f, it.text.length * 0.035f) } ?: 0f
@@ -205,7 +206,7 @@ object MessageRecipes {
             val onRight = card.rtl != b.outgoing
             val inward = if (onRight) -1f else 1f
             // Solid, not translucent: the corner, tail and body overlap and must read as one shape.
-            val fill = if (b.outgoing) look.accent else androidx.compose.ui.graphics.lerp(look.canvas, look.ink, INCOMING)
+            val fill = if (b.outgoing) look.accent else androidx.compose.ui.graphics.lerp(look.canvas, look.ink, if (look.canvas.luminance() > 0.5f) 0.1f else INCOMING)
             val ink = if (b.outgoing) look.onAccent else look.ink
             val r = minOf(card.size * 0.95f * maxOf(look.roundness, 0.35f), card.indicatorH / 2f)
             val morph = b.land
@@ -308,7 +309,7 @@ object MessageRecipes {
     private const val GAP = 0.32f
     private const val LONG = 60
     private const val EXIT = 0.28f
-    private const val INCOMING = 0.16f
+    private const val INCOMING = 0.22f
     /** The universal "online" green: a status colour, not a brand or look colour. */
     private const val ONLINE = 0xFF3DDC84
     private const val TAIL_BOX = 24f
