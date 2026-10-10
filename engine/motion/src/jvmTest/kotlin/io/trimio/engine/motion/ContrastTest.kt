@@ -136,7 +136,13 @@ class ContrastTest {
         for (t in times) {
             val frame = rgba(kit.draw(t), c.width, c.height)
             val maskPx = rgba(maskKit.draw(t), c.width, c.height)
+            // Only text at rest is read: a word mid-slam (moving, motion-blurred) is not yet text to read.
+            val still = boxes(maskPx, c.width, c.height, texts.size)
+            val earlier = boxes(rgba(maskKit.draw(t - SETTLE), c.width, c.height), c.width, c.height, texts.size)
             for ((k, ratio) in ratios(frame, maskPx, c.width, c.height, texts)) {
+                val a = still[k]
+                val b = earlier[k]
+                if (a == null || b == null || (0 until 4).any { kotlin.math.abs(a[it] - b[it]) > 2 }) continue
                 val node = texts[k]
                 result[t to "${node.name}:" + ((node as? TextNode)?.text ?: "#")] = ratio
             }
@@ -163,6 +169,20 @@ class ContrastTest {
             CounterNode(n.value, n.decimals, n.prefix, n.suffix, n.persianDigits, n.grouping, n.type, idColor(k).fill(), transform = n.transform, start = n.start, end = n.end, mask = n.mask, name = n.name)
         }
         else -> null
+    }
+
+    /** Each text's pixel bounds (left, top, right, bottom) in a mask frame. */
+    private fun boxes(mask: ByteArray, w: Int, h: Int, count: Int): Array<IntArray?> {
+        val out = arrayOfNulls<IntArray>(count)
+        for (y in 0 until h) for (x in 0 until w) {
+            val i = y * w + x
+            if ((mask[i * 4 + 1].toInt() and 0xFF) < 250) continue
+            val k = ((mask[i * 4].toInt() and 0xFF) - ID0 + ID_STEP / 2) / ID_STEP
+            if (k !in 0 until count) continue
+            val b = out[k] ?: intArrayOf(x, y, x, y).also { out[k] = it }
+            b[0] = minOf(b[0], x); b[1] = minOf(b[1], y); b[2] = maxOf(b[2], x); b[3] = maxOf(b[3], y)
+        }
+        return out
     }
 
     private fun idColor(k: Int) = Color(red = (ID0 + k * ID_STEP) / 255f, green = 1f, blue = 0f)
@@ -236,5 +256,6 @@ class ContrastTest {
         const val ID_STEP = 6
         const val MIN_PIXELS = 40
         const val MAX_IDS = 38
+        const val SETTLE = 0.05f
     }
 }
