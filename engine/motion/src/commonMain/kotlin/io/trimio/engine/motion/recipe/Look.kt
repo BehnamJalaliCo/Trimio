@@ -43,6 +43,20 @@ data class Look(
     /** Text over footage gets a soft shadow so it never depends on the picture. */
     val textShadow: Color = Color.Black.copy(alpha = 0.55f),
 ) {
+    /**
+     * The same look with another accent ("#D7FF3A"): emphasis blocks, numbers and rings follow it;
+     * text on the accent turns dark or light by its brightness.
+     */
+    fun withAccent(hex: String?): Look {
+        val rgb = hex?.removePrefix("#")?.takeIf { it.length == 6 }?.toLongOrNull(16) ?: return this
+        val c = Color(0xFF000000 or rgb)
+        val light = 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue > 0.45f
+        return copy(
+            accent = c, onAccent = if (light) Color(0xFF0B0A09) else Color(0xFFF7F4EE),
+            positive = if (positive == accent) c else positive,
+        )
+    }
+
     data class Voice(val role: BrandFonts.Role, val weight: Int, val lineHeight: Float = 1.1f, val tracking: Float = 0f) {
         fun at(size: Float, weight: Int = this.weight) = TypeSpec(role, weight, size, lineHeight, tracking)
     }
@@ -125,6 +139,13 @@ data class Look(
         )
 
         val all = listOf(Noir, Paper, Lumen)
+
+        /** Accent variants per look that keep its character (the first is the look's own). */
+        val accents: Map<String, List<String>> = mapOf(
+            "noir" to listOf("#D7FF3A", "#FF6B3D", "#3AE0FF", "#FFC93A", "#B79CFF"),
+            "paper" to listOf("#D7FF3A", "#FF7A45", "#4C7DFF", "#FF5FA8"),
+            "lumen" to listOf("#9BE7FF", "#B7A6FF", "#7CFFC4", "#FFC6E0"),
+        )
 
         fun named(name: String?): Look = all.firstOrNull { it.name.equals(name?.trim(), ignoreCase = true) } ?: Noir
     }

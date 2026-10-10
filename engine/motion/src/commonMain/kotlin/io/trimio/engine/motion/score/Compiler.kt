@@ -96,7 +96,7 @@ class Compiler(
     private inner class Session(val input: Input) {
         val score = input.score
         val notes = mutableListOf<String>()
-        val look = Look.named(score.look)
+        val look = Look.named(score.look).withAccent(score.accent)
         val w: Int
         val h: Int
         val transcript = input.transcript?.let { t -> input.edit?.remap(t) ?: t }

@@ -265,9 +265,10 @@ object ExplainerRecipes {
                     transform = Transform(x = p.first.anim, y = p.second.anim, scale = Anim.tween(0f, 1f, t, t + 0.4f, Easing.Spring(0.5f, 2.2f))),
                     name = "node",
                 )
-                val lf = fit.fit(labels[i], look.label.copy(weight = 700), nodeR * 1.4f, r * 0.6f, nodeR * 2f, maxLines = 1)
+                // Labels read at phone size: up to twice the node radius, as wide as the ring allows.
+                val lf = fit.fit(labels[i], look.label.copy(weight = 700), nodeR * 2.1f, r * 0.85f, nodeR * 2.6f, maxLines = 1)
                 nodes += TextNode(
-                    labels[i], lf.type, look.ink.copy(alpha = 0.75f).fill(), rtl = false,
+                    labels[i], lf.type, look.ink.copy(alpha = 0.85f).fill(), rtl = labels[i].any { it in '\u0600'..'\u06FF' },
                     transform = Transform(x = p.first.anim, y = (p.second + d / 2f + lf.height * 0.75f).anim, opacity = Anim.tween(0f, 1f, t + 0.1f, t + 0.4f)),
                     name = "node-label",
                 )

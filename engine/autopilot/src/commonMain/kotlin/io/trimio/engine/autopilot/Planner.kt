@@ -47,6 +47,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val captionRng = root.fork(6)
         val markRng = root.fork(7)
         val hookRng = root.fork(8)
+        val paletteRng = root.fork(9)
 
         val energy = (if (u.brief.energy >= 0f) u.brief.energy else moodEnergy(u.mood)) + taste.energy
 
@@ -110,14 +111,16 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 else -> captionRng.pick(listOf(3, 3, 4))
             }
             val showCaptions = taste.captions && u.brief.captions != "none"
+            val accent = paletteRng.pick(io.trimio.engine.motion.recipe.Look.accents[look] ?: listOf(null))
             val score = Score(
                 look = look,
+                accent = accent,
                 bpm = music?.bpm?.toFloat(),
                 captions = CaptionScore(show = showCaptions, maxWords = captionWords),
                 scenes = scenes,
                 auto = false,
             )
-            notes += "seed $seed: look $look, music ${music?.id}, mark $mark, captions $captionWords, takeovers ${takeovers.sorted()}"
+            notes += "seed $seed: look $look $accent, music ${music?.id}, mark $mark, captions $captionWords, takeovers ${takeovers.sorted()}"
             return Plan(score, music, Choices(seed, look, music?.id, usedRecipes.toList(), usedTransitions.toList()), notes)
         }
 
@@ -220,10 +223,11 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         private fun chooseTakeovers(reads: List<LineRead>): Set<Int> {
             if (!footage) return lines.indices.toSet()
             val total = duration(0, lines.lastIndex)
-            val budget = total * taste.takeover
+            // The share of full-frame graphics varies by seed (a calmer or a busier cut of the same piece).
+            val budget = total * taste.takeover * takeoverRng.range(0.6f, 1.35f)
             // Not in the first seconds: the viewer first meets the speaker (and the hook).
             val candidates = reads.indices.filter { k -> k > 0 && k < lines.lastIndex && reads[k].show in TAKEOVER_SHOWS && words[lines[k].first].range.startMs >= EARLIEST_TAKEOVER_MS }
-                .sortedByDescending { k -> TAKEOVER_SHOWS.getValue(reads[k].show) * takeoverRng.range(0.7f, 1.3f) }
+                .sortedByDescending { k -> TAKEOVER_SHOWS.getValue(reads[k].show) * takeoverRng.range(0.5f, 1.5f) }
             val chosen = mutableSetOf<Int>()
             var used = 0f
             for (k in candidates) {
@@ -280,7 +284,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             // The hook owns the first seconds: line 0's own graphic waits unless it is the CTA.
             val waits = hasHook && k == 0 && read.show !in setOf("comment", "lower-third")
             if (primary != null && !waits) out += primary
-            extra(line, read, takeover, primary != null, out.size)?.let { out += it }
+            if (!(hasHook && k == 0)) extra(line, read, takeover, primary != null, out.size)?.let { out += it }
             if (out.any { it.recipe == "comment" }) ctaPlaced = true
             if (k == lines.lastIndex && !ctaPlaced) u.cta?.let { cta -> comment(line, read.copy(title = cta.keyword))?.let { out += it; ctaPlaced = true } }
             usedRecipes += out.map { it.recipe }
@@ -359,7 +363,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         private fun terminal(line: Lines.Line, read: LineRead, takeover: Boolean): BeatScore = BeatScore(
             recipe = "terminal", at = line.first, until = line.last,
             label = read.items.getOrNull(0)?.takeIf { it.isCommand() } ?: "install ${slug(u.topic)}",
-            items = listOf(read.items.getOrNull(1)?.takeIf { it.isAscii() } ?: "done"), place = if (takeover) "center" else "top",
+            items = listOf(read.items.getOrNull(1)?.takeIf { it.isAscii() && !it.isCommand() } ?: "done"), place = if (takeover) "center" else "top",
         )
 
         private fun network(line: Lines.Line, read: LineRead, takeover: Boolean): BeatScore = BeatScore(
@@ -540,7 +544,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val TECH = setOf("tech", "software", "ai", "crypto", "gaming")
 
         /** Shows that work as full-frame graphics, by how much they gain from the whole frame. */
-        val TAKEOVER_SHOWS = mapOf("network" to 1f, "meter" to 0.95f, "chart" to 0.9f, "objects" to 0.8f, "list" to 0.75f, "terminal" to 0.45f, "counter" to 0.3f)
+        val TAKEOVER_SHOWS = mapOf(
+            "network" to 1f, "meter" to 0.95f, "chart" to 0.9f, "objects" to 0.8f, "list" to 0.75f, "terminal" to 0.6f, "counter" to 0.45f, "headline" to 0.25f,
+        )
         const val MIN_TAKEOVER_S = 1.4f
         const val CTA_TAIL = 0.45f
         const val EARLIEST_TAKEOVER_MS = 3500L

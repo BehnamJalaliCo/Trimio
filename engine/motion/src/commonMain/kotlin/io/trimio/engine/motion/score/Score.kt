@@ -20,6 +20,8 @@ data class Score(
     /** "9:16", "1:1", "4:5" or "16:9". */
     val format: String = "9:16",
     val look: String = "noir",
+    /** Accent colour override ("#RRGGBB"): a palette variant of the look. */
+    val accent: String? = null,
     /** Music tempo; hits snap to the beat grid when known. */
     val bpm: Float? = null,
     val beatOffset: Float = 0f,
