@@ -1,5 +1,7 @@
 package io.trimio.engine.autopilot
 
+import io.trimio.core.model.transcript.Word
+import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.Words
 
@@ -11,7 +13,8 @@ import io.trimio.engine.motion.score.Words
  * in order, so each lands as it is said; fillers are left out and long speech is split at its
  * clauses, so a bubble reads at a glance.
  */
-internal class Dialogue(private val texts: List<String>, private val lines: List<Lines.Line>) {
+internal class Dialogue(private val words: List<Word>, private val lines: List<Lines.Line>, private val rtl: Boolean) {
+    private val texts = words.map { it.text }
 
     /** One bubble: transcript words in order; [outgoing] is the speaker's own reply. */
     data class Bubble(val words: List<Int>, val outgoing: Boolean) {
@@ -55,11 +58,7 @@ internal class Dialogue(private val texts: List<String>, private val lines: List
         // The reported words: from after the verb to the end of the sentence, within three more lines.
         val start = (say + 1..minOf(texts.lastIndex, say + 2)).firstOrNull { norm[it] !in OPENERS } ?: return null
         var lastLine = k
-        while (lastLine + 1 < lines.size && lastLine - k < MAX_LINES && !ends(texts[maxOf(start, lines[lastLine].last)]) && allowed(lastLine + 1) &&
-            !replyStarts(lines[lastLine + 1].first)
-        ) {
-            lastLine++
-        }
+        while (runsOn(k, lastLine, start) && allowed(lastLine + 1)) lastLine++
         val end = (start..lines[lastLine].last).firstOrNull { ends(texts[it]) } ?: lines[lastLine].last
         lastLine = lines.indexOfFirst { end in it.range }
         val reply = reply(end + 1, lastLine, allowed)
@@ -67,6 +66,12 @@ internal class Dialogue(private val texts: List<String>, private val lines: List
         if (incoming.none { it.words.size >= MIN_WORDS }) return null
         val replyLine = reply?.let { r -> lines.indexOfFirst { r.last in it.range } } ?: lastLine
         return Thread(k, maxOf(lastLine, replyLine), incoming, reply)
+    }
+
+    /** The reported words go on past line [last]: the sentence is not over, no answer starts, within [MAX_LINES] lines. */
+    private fun runsOn(k: Int, last: Int, start: Int): Boolean {
+        val next = lines.getOrNull(last + 1) ?: return false
+        return last - k < MAX_LINES && !ends(texts[maxOf(start, lines[last].last)]) && !replyStarts(next.first)
     }
 
     /** The speaker's answer, when the next sentence starts as one («نه عزیزم …», «گفتم …», "I told him, …") within two lines. */
@@ -97,16 +102,39 @@ internal class Dialogue(private val texts: List<String>, private val lines: List
         var pending: List<Int> = emptyList()
         for (c in clauses) {
             val words = pending + kept(c)
-            if (words.size < MIN_WORDS && c != clauses.last()) {
-                pending = words
-                continue
-            }
-            pending = emptyList()
-            val b = bubble(words) ?: continue
-            if (repeats(b, out)) continue
-            out += b
+            // A short clause joins the next one («فلان صرافی بود، | همون اولش …»).
+            pending = if (words.size < MIN_WORDS && c != clauses.last()) words else emptyList()
+            val b = if (pending.isEmpty()) bubble(words) else null
+            if (b != null && !repeats(b, out)) out += b
         }
         return out.take(max)
+    }
+
+    /**
+     * The thread as a `message` beat: incoming bubbles quoting the words as said, the answer as
+     * an outgoing (">") bubble when [withReply], a generic header ([label]), held until the answer
+     * is said plus a beat — whether or not its bubble is shown.
+     */
+    fun beat(t: Thread, withReply: Boolean, label: String?, energy: Float, place: String): BeatScore {
+        val bubbles = t.incoming + listOfNotNull(t.reply?.takeIf { withReply })
+        val at = bubbles.first().first
+        val until = (t.reply ?: t.incoming.last()).last
+        return BeatScore(
+            recipe = "message", at = at, until = until, label = label, energy = energy, place = place,
+            hold = (words[until].range.endMs - words[at].range.startMs) / 1000f + TAIL,
+            items = bubbles.map { b -> (if (b.outgoing) ">" else "") + b.words.joinToString(" ") { texts[it].trimEnd('.', '،', ',') } },
+        )
+    }
+
+    /** Headers a thread may carry: none, a follower, or where it came from (the DMs, the comments). */
+    fun labels(t: Thread): List<String?> {
+        val opening = lines[t.line].range.map { norm[it] }
+        val channel = when {
+            opening.any { it.startsWith("دایرک") || it.startsWith("dm") } -> if (rtl) "دایرکت" else "DM"
+            opening.any { it.startsWith("کامنت") || it.startsWith("comment") } -> if (rtl) "کامنت" else "Comments"
+            else -> null
+        }
+        return listOf(null, if (rtl) "یه فالوور" else "a follower", channel)
     }
 
     private fun bubble(a: Int, b: Int, outgoing: Boolean): Bubble? = bubble(kept(a..b), outgoing)
@@ -168,5 +196,8 @@ internal class Dialogue(private val texts: List<String>, private val lines: List
         const val MAX_INCOMING = 3
         const val MAX_INCOMING_WITH_REPLY = 2
         const val REPEAT_TENTHS = 6
+
+        /** The thread stays this long after its last words. */
+        const val TAIL = 0.8f
     }
 }

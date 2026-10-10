@@ -69,6 +69,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** Reported speech shown as a chat thread, by the line it starts on. */
         val threads = mutableMapOf<Int, Dialogue.Thread>()
+        val dialogue = Dialogue(words, lines, texts.count { w -> w.any { it in '\u0600'..'\u06FF' } } * 2 > texts.size)
 
         /** Each line's numbers with their units and cues. */
         val senses = Quantities.senses(texts, lines)
@@ -153,7 +154,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
          * Never over the call to action or a line with a figure of its own.
          */
         private fun threaded(reads: List<LineRead>): List<LineRead> {
-            val found = Dialogue(texts, lines).find(
+            val found = dialogue.find(
                 allowed = { j -> reads[j].show in THREAD_LINES },
                 hinted = { j -> u.lines.getOrNull(j)?.let { it.role in DIALOGUE_ROLES || it.show == "message" } == true },
             )
@@ -543,29 +544,11 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             else -> null
         }
 
-        /**
-         * A chat thread: the reported words as incoming bubbles, each landing as it is said, and
-         * (most seeds) the speaker's answer as an outgoing one. It stays until the answer is said,
-         * plus a beat, whether or not the answer is shown.
-         */
+        /** A chat thread over the lines its story runs; the answer bubble and the header vary by seed. */
         private fun message(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
             val t = threads[lines.indexOf(line)] ?: return headline(line, read, e, takeover)
-            val reply = t.reply?.takeIf { dialogueRng.chance(REPLY_CHANCE) }
-            val bubbles = t.incoming + listOfNotNull(reply)
-            val at = bubbles.first().first
-            val until = (t.reply ?: t.incoming.last()).last
-            val opening = lines[t.line].range.map { norm[it] }
-            val channel = when {
-                opening.any { it.startsWith("دایرک") || it.startsWith("dm") } -> if (rtl) "دایرکت" else "DM"
-                opening.any { it.startsWith("کامنت") || it.startsWith("comment") } -> if (rtl) "کامنت" else "Comments"
-                else -> null
-            }
-            val label = dialogueRng.pick(listOf(null, if (rtl) "یه فالوور" else "a follower", channel))
-            return BeatScore(
-                recipe = "message", at = at, until = until, hold = endOf(until) + THREAD_TAIL - startOf(at), label = label, energy = e,
-                items = bubbles.map { b -> (if (b.outgoing) ">" else "") + b.words.joinToString(" ") { texts[it].trimEnd('.', '،', ',') } },
-                place = if (takeover) "center" else "top",
-            )
+            val reply = t.reply != null && dialogueRng.chance(REPLY_CHANCE)
+            return dialogue.beat(t, reply, dialogueRng.pick(dialogue.labels(t)), e, if (takeover) "center" else "top")
         }
 
         /**
@@ -820,7 +803,6 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val THREAD_LINES = setOf("none", "headline", "stamp", "object", "objects", "lower-third", "list", "message")
         val DIALOGUE_ROLES = setOf("dialogue", "quote")
         const val REPLY_CHANCE = 0.75f
-        const val THREAD_TAIL = 0.8f
         const val STAGED_THREAD = 3
 
         /** Shows drawn from the numbers' meaning ([Quantities]). */

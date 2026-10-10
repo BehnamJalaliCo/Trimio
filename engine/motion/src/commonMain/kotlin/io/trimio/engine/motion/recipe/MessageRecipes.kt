@@ -188,11 +188,13 @@ object MessageRecipes {
                 }
                 nodes += bubble(look, card, b, bottom.build())
             }
-            val areaH = card.areaBottom - card.areaTop + card.size * 0.4f
+            // Older messages scroll away under the header, fading out before they reach its rule.
+            val clipTop = card.areaTop + card.size * 0.15f
+            val areaH = card.areaBottom - clipTop + card.size * 0.5f
             val clip = ShapeNode(
                 ShapeSpec.Rect((card.w).anim, areaH.anim),
-                fill = Fill.Linear(listOf(Color.Transparent, Color.White, Color.White), angle = 90f.anim, stops = listOf(0f, 0.14f, 1f)),
-                transform = Transform(x = card.cx.anim, y = (card.areaTop + areaH / 2f - card.size * 0.1f).anim),
+                fill = Fill.Linear(listOf(Color.Transparent, Color.White, Color.White), angle = 90f.anim, stops = listOf(0f, 0.22f, 1f)),
+                transform = Transform(x = card.cx.anim, y = (clipTop + areaH / 2f).anim),
             )
             return Group(nodes, mask = Mask(clip), name = "message-thread")
         }

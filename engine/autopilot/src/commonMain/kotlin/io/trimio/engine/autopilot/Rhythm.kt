@@ -147,7 +147,8 @@ internal class Rhythm(
             b.recipe in TEXT_RECIPES -> start + maxOf(1f, 0.35f + 0.055f * (b.text?.length ?: TYPICAL_TEXT))
             else -> sceneEnd
         }
-        return minOf(end, sceneEnd + 0.05f, start + MAX_HOLD)
+        // A chat thread runs as long as its story (the compiler's 7 s cap is for everything else).
+        return minOf(end, sceneEnd + 0.05f, if (b.recipe in UNCAPPED) Float.MAX_VALUE else start + MAX_HOLD)
     }
 
     /** When text tied to speech leaves on its own (the spoken words plus a linger), or null for other beats. */
@@ -391,6 +392,7 @@ internal class Rhythm(
         /** Picture queries that are not pictures: logos and abstract icons. */
         private val NOT_PICTURES = listOf("logo", "icon", "interface", "overlay", "screen showing")
 
+        private val UNCAPPED = setOf("message")
         private const val RHYTHM_GAP = 2.5f
         private const val MIN_RHYTHM_GAP = 1.8f
         private const val MAX_RHYTHM_GAP = 4.5f

@@ -204,7 +204,7 @@ class PlannerPromoTest {
             val beats = score.scenes.flatMap { it.beats }
             val sum = summary(beats, words)
             if (seed == 1L) println("benchmark seed 1: ${plan.notes}\n" + score.scenes.joinToString("\n") { sc -> "scene ${sc.from ?: sc.time} ${sc.bg ?: ""}" } + "\n$sum")
-            replies += oneThreadOpens(beats, words, sum)
+            replies += oneThreadOpens(score, words, sum)
             sayTheSpokenKeyword(beats, words, sum)
             lastLongEnough(score, words, seed, sum)
             eachFigureOnce(beats, sum)
@@ -220,13 +220,18 @@ class PlannerPromoTest {
     // ---------------------------------------------------------------- helpers
 
     /** The story that opens the piece (a DM told to camera, then the answer) is one chat thread; returns whether the answer is shown. */
-    private fun oneThreadOpens(beats: List<BeatScore>, words: List<Word>, sum: String): Boolean {
+    private fun oneThreadOpens(score: Score, words: List<Word>, sum: String): Boolean {
+        val beats = score.scenes.flatMap { it.beats }
         val m = beats.single { it.recipe == "message" }
         assertTrue(m.items[0].startsWith("فلان صرافی بود همون اولش"), "the DM as said: ${m.items}")
         assertEquals("اسمش رو تو همون کلیپت به ما می‌گفتی", m.items[1])
         assertTrue(m.items.size == 2 || m.items[2] == ">نه عزیزم اینجوری نیست", "the answer is the speaker's bubble: ${m.items}")
         val end = start(words, m.at!!) + m.hold!!
         assertTrue(start(words, m.at!!) < 3.5f && end in 15f..19f, "from the first words to the answer: ${start(words, m.at!!)}–$end\n$sum")
+        // The thread is the graphic for its lines: nothing lands on it, no cut ends it early.
+        val inside = { i: Int -> start(words, i) > start(words, m.at!!) && start(words, i) < end - 0.8f }
+        assertTrue(beats.none { it !== m && it.at?.let(inside) == true }, "nothing on top of the thread\n$sum")
+        assertTrue(score.scenes.none { sc -> sc.from?.let(inside) == true }, "no cut inside the thread: ${score.scenes.map { it.from }}")
         return m.items.size == 3
     }
 
