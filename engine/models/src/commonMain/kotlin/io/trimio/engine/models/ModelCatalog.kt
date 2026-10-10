@@ -33,6 +33,15 @@ data class ModelSpec(
     val chatFormat: ChatFormat? = null,
     /** Language models only: Mixture-of-Experts with this many active parameters per token, in billions. */
     val activeParamsB: Float? = null,
+    /**
+     * Release of this model id. The server catalogue raises it when a better build ships (new
+     * weights, quantisation or fine-tune); installed copies with a lower version are offered an
+     * update, independently of app updates.
+     */
+    val version: Int = 1,
+    /** What changed in this [version], shown with the update. */
+    val notesFa: String? = null,
+    val notesEn: String? = null,
 )
 
 /** Prompt layouts of the model families in the catalogue. */

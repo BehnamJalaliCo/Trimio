@@ -4,4 +4,8 @@
     <string name="channel_downloads">Model downloads</string>
     <string name="downloading_models">Downloading AI models</string>
     <string name="stage_prefix">Stage:</string>
+    <string name="channel_model_updates">Model updates</string>
+    <string name="model_update_title">A better model is ready</string>
+    <string name="model_update_line">%1$s · version %2$d</string>
+    <string name="model_update_action">Update</string>
 </resources>

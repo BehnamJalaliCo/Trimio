@@ -5,4 +5,8 @@
     <string name="channel_downloads">دانلود مدل‌ها</string>
     <string name="downloading_models">در حال دانلود مدل‌های هوش مصنوعی</string>
     <string name="stage_prefix">مرحله:</string>
+    <string name="channel_model_updates">به‌روزرسانی مدل‌ها</string>
+    <string name="model_update_title">مدل تازه آماده است</string>
+    <string name="model_update_line">%1$s · نسخهٔ %2$d</string>
+    <string name="model_update_action">به‌روزرسانی</string>
 </resources>

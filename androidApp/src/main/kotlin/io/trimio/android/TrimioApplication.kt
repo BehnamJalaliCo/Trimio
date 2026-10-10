@@ -39,6 +39,7 @@ class TrimioApplication : Application() {
         )
         installCrashLog(version)
         Notifications.createChannels(this)
+        ModelUpdateJob.schedule(this)
 
         // Every build or export runs under a foreground service, so it finishes with the screen off.
         val koin = GlobalContext.get()

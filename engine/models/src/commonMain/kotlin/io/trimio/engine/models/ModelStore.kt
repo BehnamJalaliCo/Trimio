@@ -23,6 +23,10 @@ sealed interface DownloadState {
     data class Done(val path: Path) : DownloadState
 }
 
+/** What is on disk for one model id: which release, in which file. */
+@kotlinx.serialization.Serializable
+data class InstalledModel(val id: String, val version: Int, val fileName: String, val sha256: String)
+
 /** The file is wrong (bad checksum or oversized) and was discarded. */
 class ModelIntegrityException(message: String) : Exception(message)
 
@@ -45,18 +49,38 @@ class ModelStore(
     private val dir: Path get() = directory ?: throw UnsupportedOperationException("No model storage on this platform")
     private val files: FileSystem get() = storage ?: throw UnsupportedOperationException("No file system on this platform")
 
-    fun pathOf(spec: ModelSpec): Path = Path(dir, spec.fileName)
+    /** The file in use for [spec]'s id: the installed release (possibly older), else the catalogue file. */
+    fun pathOf(spec: ModelSpec): Path = Path(dir, installedRecord(spec.id)?.fileName ?: spec.fileName)
 
-    fun isInstalled(spec: ModelSpec): Boolean = storage != null &&
-        files.exists(pathOf(spec)) && files.metadataOrNull(pathOf(spec))?.size == spec.sizeBytes
+    private fun targetOf(spec: ModelSpec): Path = Path(dir, spec.fileName)
+
+    /** Some release of [spec]'s id is on disk and usable (an older release keeps working until updated). */
+    fun isInstalled(spec: ModelSpec): Boolean {
+        if (storage == null) return false
+        val record = installedRecord(spec.id)
+        if (record != null) return files.exists(Path(dir, record.fileName))
+        return files.exists(targetOf(spec)) && files.metadataOrNull(targetOf(spec))?.size == spec.sizeBytes
+    }
+
+    /** The installed release is exactly [spec] (no update pending). */
+    fun isCurrent(spec: ModelSpec): Boolean {
+        if (!isInstalled(spec)) return false
+        val record = installedRecord(spec.id) ?: return true
+        return record.sha256.equals(spec.sha256, ignoreCase = true)
+    }
+
+    /** The installed release of [id], if recorded (files from before the manifest are not). */
+    fun installedRecord(id: String): InstalledModel? = manifest()[id]
 
     fun delete(spec: ModelSpec) {
-        files.delete(pathOf(spec), mustExist = false)
+        installedRecord(spec.id)?.let { files.delete(Path(dir, it.fileName), mustExist = false) }
+        files.delete(targetOf(spec), mustExist = false)
         files.delete(partOf(spec), mustExist = false)
+        writeManifest(manifest() - spec.id)
     }
 
     suspend fun install(spec: ModelSpec, onState: (DownloadState) -> Unit = {}): Path {
-        if (isInstalled(spec)) return pathOf(spec).also { onState(DownloadState.Done(it)) }
+        if (isCurrent(spec)) return pathOf(spec).also { onState(DownloadState.Done(it)) }
         files.createDirectories(dir)
         var lastError: Throwable? = null
         for (url in spec.urls) {
@@ -118,12 +142,37 @@ class ModelStore(
         }
         val hex = digest.digest().joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
         if (!hex.equals(spec.sha256, ignoreCase = true)) throw ModelIntegrityException("${spec.id}: checksum mismatch")
-        files.atomicMove(part, pathOf(spec))
+        val previous = installedRecord(spec.id)
+        files.atomicMove(part, targetOf(spec))
+        // An update with a new file name replaces the old release only once the new one is verified.
+        if (previous != null && previous.fileName != spec.fileName) files.delete(Path(dir, previous.fileName), mustExist = false)
+        writeManifest(manifest() + (spec.id to InstalledModel(spec.id, spec.version, spec.fileName, spec.sha256)))
+    }
+
+    private fun manifest(): Map<String, InstalledModel> {
+        if (storage == null) return emptyMap()
+        val file = Path(dir, MANIFEST)
+        if (!files.exists(file)) return emptyMap()
+        return runCatching {
+            val text = files.source(file).buffered().use { it.readByteArray().decodeToString() }
+            ManifestJson.decodeFromString(kotlinx.serialization.builtins.ListSerializer(InstalledModel.serializer()), text).associateBy { it.id }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun writeManifest(entries: Map<String, InstalledModel>) {
+        files.createDirectories(dir)
+        val tmp = Path(dir, "$MANIFEST.tmp")
+        files.sink(tmp).buffered().use {
+            it.write(ManifestJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(InstalledModel.serializer()), entries.values.toList()).encodeToByteArray())
+        }
+        files.atomicMove(tmp, Path(dir, MANIFEST))
     }
 
     private fun partOf(spec: ModelSpec) = Path(dir, spec.fileName + ".part")
 
     private companion object {
         const val CHUNK = 256L * 1024
+        const val MANIFEST = "installed.json"
+        val ManifestJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
     }
 }

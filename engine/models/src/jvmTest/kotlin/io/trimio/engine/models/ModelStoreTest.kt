@@ -90,6 +90,41 @@ class ModelStoreTest {
     }
 
     @Test
+    fun newerReleaseIsOfferedAndReplacesTheOldOneOnlyWhenVerified() = runBlocking {
+        val v2Payload = Random(7).nextBytes(600_000)
+        val v2Sha = SHA256().digest(v2Payload).joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+        val engine = MockEngine { request ->
+            val body = if (request.url.encodedPath.endsWith("b.bin")) v2Payload else payload
+            respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentLength, body.size.toString()))
+        }
+        val store = ModelStore(dir, HttpClient(engine))
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+        val v1 = spec()
+        val manager = ModelManager(store, scope, listOf(v1))
+        manager.download(v1)
+        manager.awaitIdle()
+        assertEquals(ModelState.Installed, manager.states.value[v1.id])
+        assertTrue(manager.updates.value.isEmpty())
+
+        // The server ships release 2 with new weights in a new file.
+        val v2 = v1.copy(fileName = "b.bin", urls = listOf("https://cdn/b.bin"), sizeBytes = v2Payload.size.toLong(), sha256 = v2Sha, version = 2, notesFa = "دقیق‌تر")
+        manager.updateCatalog(listOf(v2))
+        assertEquals(listOf(ModelUpdate(v2, installedVersion = 1)), manager.updates.value)
+        assertEquals(ModelState.UpdateAvailable(v2), manager.states.value[v1.id])
+        assertTrue(store.isInstalled(v2), "the old release keeps working until the update lands")
+        assertTrue(store.pathOf(v2).toString().endsWith("a.bin"))
+
+        manager.applyAllUpdates()
+        manager.awaitIdle()
+        assertEquals(ModelState.Installed, manager.states.value[v1.id])
+        assertTrue(manager.updates.value.isEmpty())
+        assertTrue(store.pathOf(v2).toString().endsWith("b.bin"))
+        assertFalse(java.nio.file.Files.exists(java.nio.file.Path.of(dir.toString(), "a.bin")), "old release removed after the new one verified")
+        scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+        Unit
+    }
+
+    @Test
     fun catalogPicksBestModelForRam() {
         assertEquals(ModelCatalog.whisperSmallQ8, ModelCatalog.bestFor(ModelKind.Speech, 8))
         assertEquals(ModelCatalog.whisperTurboQ5, ModelCatalog.bestFor(ModelKind.Speech, 12))

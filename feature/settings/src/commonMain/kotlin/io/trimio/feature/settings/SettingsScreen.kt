@@ -334,7 +334,7 @@ private fun ModelRow(
 ) {
     val colors = Trimio.colors
     val fits = spec.tier.minRamGb <= ramGb
-    val installed = state is ModelState.Installed
+    val installed = state is ModelState.Installed || state is ModelState.UpdateAvailable
     Column(Modifier.fillMaxWidth().padding(vertical = TrimioSpacing.xs)) {
         ListRow(
             title = tr(spec.titleFa, spec.titleEn),
@@ -352,12 +352,18 @@ private fun ModelRow(
             if (chosen && installed) GlassChip(tr("فعال", "Active"), accent = colors.success)
             when (state) {
                 ModelState.Installed -> GlassIconButton(TrimioIcons.Trash, tr("حذف مدل", "Delete model"), onDelete, tint = colors.danger)
+                is ModelState.UpdateAvailable -> GlassIconButton(TrimioIcons.Download, tr("به\u200Cروزرسانی مدل", "Update model"), onDownload, tint = colors.accentAmber)
                 is ModelState.Downloading -> GlassIconButton(TrimioIcons.Close, tr("لغو دانلود", "Cancel download"), onCancel)
                 else -> if (fits) GlassIconButton(TrimioIcons.Download, tr("دانلود", "Download"), onDownload, tint = colors.accentCyan)
             }
         }
         when (state) {
             is ModelState.Downloading -> ProgressLine(state.fraction)
+            is ModelState.UpdateAvailable -> Text(
+                localizedNumber(tr("نسخهٔ ${state.to.version} آماده است", "Version ${state.to.version} is available")) +
+                    (tr(state.to.notesFa.orEmpty(), state.to.notesEn.orEmpty()).takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+                style = Trimio.type.caption, color = colors.accentAmber,
+            )
             is ModelState.Failed -> Text(tr("دانلود ناموفق؛ دوباره تلاش کن (از همان\u200Cجا ادامه می\u200Cدهد)", "Download failed; try again (it resumes)"), style = Trimio.type.caption, color = colors.danger)
             else -> Unit
         }

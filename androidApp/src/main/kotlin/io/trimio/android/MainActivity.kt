@@ -1,6 +1,7 @@
 package io.trimio.android
 
 import android.Manifest
+import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -17,11 +18,24 @@ import org.koin.android.ext.android.get
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        applyModelUpdatesIfAsked(intent)
+    }
+
+    /** From the "update" action of a model-update notification: the app is visible, so downloads may start. */
+    private fun applyModelUpdatesIfAsked(intent: Intent?) {
+        if (intent?.getBooleanExtra(Notifications.EXTRA_APPLY_MODEL_UPDATES, false) != true) return
+        intent.removeExtra(Notifications.EXTRA_APPLY_MODEL_UPDATES)
+        get<io.trimio.engine.models.ModelManager>().applyAllUpdates()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         get<ActivityMediaPicker>().attach(this)
         (get<Billing>() as? ActivityBilling)?.attach(this)
+        applyModelUpdatesIfAsked(intent)
         // Build and download progress live in notifications (Android 13+ asks once).
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
 

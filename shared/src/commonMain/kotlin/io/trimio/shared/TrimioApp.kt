@@ -74,6 +74,7 @@ fun TrimioApp(systemLanguage: Language, systemPreferences: TrimioPreferences = T
     val settingsRepo = koinInject<SettingsRepository>()
     val projects = koinInject<ProjectRepository>()
     val remote = koinInject<RemoteRepository>()
+    val models = koinInject<ModelManager>()
     val entitlements = koinInject<Entitlements>()
     val appScope = koinInject<CoroutineScope>(AppScope)
     val device = koinInject<DeviceInfo>()
@@ -85,6 +86,8 @@ fun TrimioApp(systemLanguage: Language, systemPreferences: TrimioPreferences = T
         // Config, catalogue and pack updates arrive in the background; the app never waits for them.
         appScope.launch {
             remote.refresh()
+            // Newer model releases from the server show up as updates (installed ones keep working).
+            models.updateCatalog(remote.models(io.trimio.engine.models.ModelCatalog.all))
             entitlements.billing.refresh()
         }
     }
