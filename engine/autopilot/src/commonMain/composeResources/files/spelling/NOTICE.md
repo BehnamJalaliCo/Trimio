@@ -1,4 +1,4 @@
-# Persian word list — sources and licence
+# Word lists — sources and licence
 
 `fa_words.tsv` (`word<TAB>count`, 100,000 most frequent words) is used by `PersianSpelling` to correct
 speech-recognition spelling offline. It is an adaptation of two frequency lists and is distributed under
@@ -13,3 +13,11 @@ Changes made: Arabic letter forms mapped to Persian (ي→ی, ك→ک, ى→ی, 
 zero-width joiners removed, repeated half-spaces collapsed, Unicode NFC; only tokens made of Persian
 letters and half-spaces kept; counts summed (subtitle counts weighted ×2 so spoken forms are represented);
 the 100,000 most frequent words kept.
+
+## English
+
+`en_words.tsv` (`word<TAB>count`, the 20,000 most frequent lowercase words) tells `Proofreader` which
+Latin words of a brief are everyday English (never a respelling target) and which are names. It is the
+top of the FrequencyWords English 2018 list (`en_50k.txt`) by Hermit Dave, derived from OpenSubtitles
+(http://www.opensubtitles.org), https://github.com/hermitdave/FrequencyWords, licensed **CC BY-SA 4.0**.
+Changes made: only tokens of lowercase letters (with one inner apostrophe) kept; the first 20,000 kept.
