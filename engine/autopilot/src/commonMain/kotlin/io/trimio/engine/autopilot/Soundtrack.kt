@@ -71,7 +71,7 @@ class Soundtrack(private val rate: Int = 48_000) {
     private fun cut(voice: PcmAudio, edit: EditPlan, n: Int): FloatArray {
         val out = FloatArray(n)
         val fade = rate / 100
-        for (seg in edit.segments) {
+        for (seg in edit.played) {
             val a = (seg.sourceStart * rate).toInt()
             val len = (seg.length * rate).toInt()
             val o = (seg.outStart * rate).toInt()

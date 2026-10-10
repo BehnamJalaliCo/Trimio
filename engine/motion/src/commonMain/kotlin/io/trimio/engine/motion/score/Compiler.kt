@@ -149,6 +149,8 @@ class Compiler(
 
             val transitions = mutableListOf<Node>()
             val transitionSfx = mutableListOf<Sfx>()
+            // Out of a cold open the piece starts over with a flash and a hit: "here's how".
+            input.edit?.prelude?.let { transitionOverlay("flash", it.outEnd, look, transitions, transitionSfx) }
             val sceneGroups = scenes.indices.map { k -> sceneGroup(k, built, transitions, transitionSfx) }
             // Footage already has its own texture: lighter grain and vignette over it.
             val texture = if (input.footage != null) FOOTAGE_TEXTURE else 1f
@@ -263,7 +265,7 @@ class Compiler(
         private fun base(): List<Node> = if (input.footage != null) {
             val zoom = footageZoom()
             val sub = input.subject ?: Subject(0.3f, 0.3f, 0.7f, 0.6f)
-            val segments = input.edit?.segments ?: listOf(EditPlan.Segment(0f, duration, 0f))
+            val segments = input.edit?.played ?: listOf(EditPlan.Segment(0f, duration, 0f))
             segments.mapIndexed { i, seg ->
                 MediaNode(
                     input.footage, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = seg.sourceStart, grade = gradeOf(look),
@@ -326,7 +328,10 @@ class Compiler(
         val input = session.input
         val recipe = Recipes.named(score.captions.recipe) ?: TextRecipes.PopCaptions
         val zone = layout.zoneOf(score.captions.place, Layout.Zone.Lower)
-        val lines = Words.captionLines(session.transcript!!.words, score.captions.maxWords.coerceIn(1, 8))
+        // The cold open speaks too: its words get captions on the output clock before the body's.
+        val prelude = input.transcript?.let { t -> input.edit?.preludeWords(t) }.orEmpty()
+        val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(prelude, score.captions.maxWords.coerceIn(1, 8))) +
+            Words.captionLines(session.transcript!!.words, score.captions.maxWords.coerceIn(1, 8))
         val emphasisWords = beats.flatMap { b -> b.cue.emphasis.mapNotNull { b.cue.words.getOrNull(it) } }.map(NumberWords::normalize).toSet()
         val out = mutableListOf<Beat>()
         var skipped = 0
