@@ -1,0 +1,29 @@
+{
+  "look": "noir",
+  "bpm": 118,
+  "captions": {"show": true, "maxWords": 3},
+  "scenes": [
+    {"from": 0, "beats": [
+      {"recipe": "counter", "time": 0.05, "hold": 2.2, "value": 90, "suffix": "٪", "label": "مصرف توکن کمتر", "energy": 0.95, "place": "top"}
+    ]},
+    {"from": 7, "beats": [
+      {"recipe": "chips", "at": 13, "until": 20, "items": ["Claude Code", "Codex", "OpenCode", "ChatGPT"], "place": "top"}
+    ]},
+    {"from": 21, "beats": [
+      {"recipe": "terminal", "at": 21, "until": 23, "label": "install repo-map", "items": ["project mapped"], "place": "top"}
+    ]},
+    {"from": 24, "bg": "grid", "transition": "whip", "beats": [
+      {"recipe": "mask-rise", "text": "یه مپ کامل از کل پروژه", "emphasis": ["مپ کامل"], "place": "top"},
+      {"recipe": "network", "at": 27, "items": ["src", "api", "ui", "db", "auth", "tests", "docs", "config", "utils"], "icon": "eye", "place": "center"}
+    ]},
+    {"from": 35, "transition": "whip", "beats": [
+      {"recipe": "slam", "text": "سریع‌تر", "energy": 0.85, "place": "top"}
+    ]},
+    {"from": 43, "bg": "grid", "transition": "flash", "beats": [
+      {"recipe": "meter", "at": 46, "until": 52, "value": 90, "items": ["بدون نقشه", "با نقشه"], "label": "صرفه‌جویی در مصرف توکن", "place": "full"}
+    ]},
+    {"from": 53, "transition": "whip", "beats": [
+      {"recipe": "comment", "text": "کد", "at": 57, "hold": 5, "label": "کامنت کن", "place": "top"}
+    ]}
+  ]
+}

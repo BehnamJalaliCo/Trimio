@@ -2,6 +2,10 @@ package io.trimio.engine.motion
 
 import io.trimio.engine.motion.recipe.Icons
 import io.trimio.engine.motion.recipe.Recipes
+import io.trimio.core.model.text.Language
+import io.trimio.core.model.time.TimeRange
+import io.trimio.core.model.transcript.Word
+import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.Score
 import kotlin.math.abs
@@ -89,5 +93,23 @@ class MotionLanguageTest {
         assertEquals("68,000", formatFixed(68000f, 0, true))
         assertEquals("5.2", formatFixed(5.2f, 1, true))
         assertEquals("-0.05", formatFixed(-0.049f, 2, false))
+    }
+
+    private fun w(text: String, a: Float, b: Float) = Word(text, TimeRange((a * 1000).toLong(), (b * 1000).toLong()), language = Language.Persian)
+
+    @Test
+    fun silencesAreTightenedAndTimesRemapped() {
+        val words = listOf(w("سلام", 0.2f, 0.6f), w("دوستان.", 0.6f, 1.0f), w("امروز", 1.8f, 2.2f))
+        val edit = EditPlan.tighten(words, listOf(1.0f..1.8f), duration = 3f)
+        assertEquals(2, edit.segments.size)
+        near(edit.duration, (1.06f - 0.12f) + (3f - 1.74f).coerceAtMost(2.65f - 1.74f), 0.02f)
+        // The word after the pause now starts a breath after the one before it.
+        near(edit.toOutput(1.8f), edit.toOutput(1.0f) + 0.12f, 0.01f)
+    }
+
+    @Test
+    fun wordsStretchedOverPausesAreClipped() {
+        val aligned = EditPlan.alignToSpeech(listOf(w("برات", 7.1f, 7.82f), w("نصب", 7.82f, 8.36f)), listOf(7.2f..7.57f))
+        near(aligned[0].range.startMs / 1000f, 7.57f, 0.01f)
     }
 }

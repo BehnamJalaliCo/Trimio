@@ -95,4 +95,6 @@ data class BeatScore(
     val label: String? = null,
     /** "block", "ink", "underline" or "circle". */
     val mark: String? = null,
+    /** Items shown one by one (tool names, checklist rows); quoted items land when they are said. */
+    val items: List<String> = emptyList(),
 )

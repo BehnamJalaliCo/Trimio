@@ -135,7 +135,8 @@ class MotionRenderer(
 
     /** True when the node visibly moves within one shutter interval (worth motion blur). */
     private fun isMoving(node: Node, t: Float): Boolean {
-        if (node is EffectNode || node is MediaNode) return false
+        // Counters change digits every frame: averaging frames would stack different numbers.
+        if (node is EffectNode || node is MediaNode || node is CounterNode) return false
         val a = t - shutter / 2f
         val b = t + shutter / 2f
         if (!node.isAlive(a) || !node.isAlive(b)) return false
@@ -203,7 +204,8 @@ class MotionRenderer(
                 val state = own + lineState
                 val a = alpha * state.opacity.coerceIn(0f, 1f)
                 if (a <= 0.002f) continue
-                val clip = Rect(line.x + u.clipLeft, line.top - size * 3, line.x + u.clipRight, line.top + line.height + size * 3)
+                // Neighbouring slices overlap by a pixel so antialiased clip edges never leave a seam.
+                val clip = Rect(line.x + u.clipLeft - SEAM, line.top - size * 3, line.x + u.clipRight + SEAM, line.top + line.height + size * 3)
                 val outer = if (maskLine) Rect(clip.left, line.top - size * 0.08f, clip.right, line.top + line.height + size * 0.1f) else clip
                 // Clips cost a coverage mask each in software rendering: only units that move apart need them.
                 val whole = u.index < 0
@@ -548,6 +550,7 @@ class MotionRenderer(
         const val MOTION_THRESHOLD_PX = 1.5f
         const val MAX_BLUR_SAMPLES = 28
         const val BLOCK_AIR = 0.06f
+        const val SEAM = 0.75f
     }
 }
 

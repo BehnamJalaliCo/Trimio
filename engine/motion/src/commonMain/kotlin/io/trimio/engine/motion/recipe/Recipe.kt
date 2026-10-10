@@ -48,6 +48,10 @@ data class Cue(
     val points: List<Float>? = null,
     val icon: String? = null,
     val label: String? = null,
+    /** A list the recipe shows one by one (tool chips, checklist rows, bar labels). */
+    val items: List<String> = emptyList(),
+    /** When each item is spoken, if it is. */
+    val itemTimes: List<Float?> = emptyList(),
     /** How to mark emphasis ("block", "ink", "underline", "circle"); the look decides when null. */
     val mark: String? = null,
     /** True when footage is behind: text gets a shadow, cards get more body. */
@@ -85,7 +89,7 @@ data class Built(
 
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
-    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all
+    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",
@@ -101,6 +105,11 @@ object Recipes {
         "number" to "counter", "count" to "counter", "stat" to "counter", "percent" to "counter", "price" to "ticker",
         "graph" to "chart", "line-chart" to "chart", "trend" to "chart",
         "name" to "lower-third", "lowerthird" to "lower-third", "badge" to "stamp", "seal" to "stamp",
+        "tools" to "chips", "tags" to "chips", "pills" to "chips", "logos" to "chips",
+        "code" to "terminal", "install" to "terminal", "cli" to "terminal", "command" to "terminal", "shell" to "terminal",
+        "map" to "network", "nodes" to "network", "graph-map" to "network", "mindmap" to "network", "tree" to "network",
+        "usage" to "meter", "compare" to "meter", "saving" to "meter", "savings" to "meter", "before-after" to "meter",
+        "cta" to "comment", "comment-cta" to "comment", "keyword" to "comment", "dm" to "comment",
         "emoji" to "icon", "sticker" to "icon", "bar" to "bars", "bar-chart" to "bars", "checklist" to "list", "steps" to "list",
     )
 

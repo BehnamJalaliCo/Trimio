@@ -22,6 +22,11 @@ class VoiceActivityDetector(
     private val mergeGapMs: Int = 200,
     /** Isolated sounds whose loud part is shorter than this are clicks or bumps, not speech. */
     private val minSpeechMs: Int = 100,
+    /**
+     * When set, frames this far below the speaker's typical level also count as silence, even
+     * above the noise floor: breaths and room tone in a pause, which a cut can remove.
+     */
+    private val belowSpeechDb: Float? = null,
 ) {
     /** A detected region; [coreMs] is its loud part before hangover padding. */
     private class Segment(val range: TimeRange, val coreMs: Long, val parts: Int = 1)
@@ -31,7 +36,7 @@ class VoiceActivityDetector(
         if (energies.isEmpty()) return emptyList()
 
         val floor = maxOf(percentile(energies, 0.10f), minFloorDb)
-        val threshold = floor + marginDb
+        val threshold = belowSpeechDb?.let { maxOf(floor + marginDb, percentile(energies, 0.7f) - it) } ?: (floor + marginDb)
         val hangoverFrames = hangoverMs / hopMs
 
         val raw = mutableListOf<Segment>()

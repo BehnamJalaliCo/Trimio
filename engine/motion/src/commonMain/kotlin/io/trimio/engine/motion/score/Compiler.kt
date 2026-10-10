@@ -48,6 +48,10 @@ class Compiler(private val text: TextLayoutEngine) {
         /** Footage id for the [io.trimio.engine.motion.MediaSource], or null for audio-only pieces. */
         val footage: String? = null,
         val fps: Int = 30,
+        /** The cut list (silence removed); the transcript is given on the source clock. */
+        val edit: EditPlan? = null,
+        /** Where the speaker is: graphics over their footage keep off the face. */
+        val subject: Subject? = null,
     )
 
     data class Placed(val recipe: String, val zone: String, val at: Float, val out: Float, val text: String)
@@ -89,17 +93,18 @@ class Compiler(private val text: TextLayoutEngine) {
         val look = Look.named(score.look)
         val w: Int
         val h: Int
-        val words = input.transcript?.words.orEmpty()
+        val transcript = input.transcript?.let { t -> input.edit?.remap(t) ?: t }
+        val words = transcript?.words.orEmpty()
         val norm = words.map { NumberWords.normalize(it.text) }
-        val duration = input.duration ?: ((words.lastOrNull()?.range?.endMs ?: 3000L) / 1000f + TAIL)
+        val duration = input.duration ?: input.edit?.duration ?: ((words.lastOrNull()?.range?.endMs ?: 3000L) / 1000f + TAIL)
         val layout: Layout
-        val scenes = score.scenes.ifEmpty { autoScenes(input.transcript).also { notes += "auto scenes: ${it.size}" } }
+        val scenes = score.scenes.ifEmpty { autoScenes(transcript).also { notes += "auto scenes: ${it.size}" } }
         val sceneStarts: List<Float>
         val sceneEnds: List<Float>
 
         init {
             frameOf(score.format).let { (fw, fh) -> w = fw; h = fh }
-            layout = Layout(w, h)
+            layout = Layout(w, h, input.subject)
             sceneStarts = scenes.mapIndexed { k, sc ->
                 if (k == 0) 0f else (sc.time ?: sc.from?.let { start(it) - Craft.SCENE_LEAD } ?: 0f).coerceIn(0f, duration)
             }
@@ -108,6 +113,9 @@ class Compiler(private val text: TextLayoutEngine) {
 
         fun start(i: Int) = words.getOrNull(i.coerceIn(0, (words.size - 1).coerceAtLeast(0)))?.range?.startMs?.div(1000f) ?: 0f
         fun end(i: Int) = words.getOrNull(i.coerceIn(0, (words.size - 1).coerceAtLeast(0)))?.range?.endMs?.div(1000f) ?: 0f
+
+        /** Footage is on screen behind this scene (not covered by a full-frame takeover). */
+        fun overFootage(scene: SceneScore) = input.footage != null && sceneBg(scene, input) == "media"
 
         fun sceneWords(k: Int): IntRange {
             val a = words.indexOfFirst { it.range.startMs / 1000f >= sceneStarts[k] }.let { if (it < 0) words.size else it }
@@ -130,12 +138,14 @@ class Compiler(private val text: TextLayoutEngine) {
             val transitions = mutableListOf<Node>()
             val transitionSfx = mutableListOf<Sfx>()
             val sceneGroups = scenes.indices.map { k -> sceneGroup(k, built, transitions, transitionSfx) }
+            // Footage already has its own texture: lighter grain and vignette over it.
+            val texture = if (input.footage != null) FOOTAGE_TEXTURE else 1f
             val overlays = built.values.flatMap { it.overlays } + transitions + listOf(
-                EffectNode(Effect.Vignette(look.vignette.anim)),
-                EffectNode(Effect.Grain(look.grain)),
+                EffectNode(Effect.Vignette((look.vignette * texture).anim)),
+                EffectNode(Effect.Grain(look.grain * texture)),
             )
             val root = Group(base() + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
-            val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, input.footage != null)
+            val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx)
             val placed = (beats + captionBeats).sortedBy { it.cue.at }.map { Placed(it.recipe.name, it.zone.name.lowercase(), it.cue.at, it.out, it.cue.text) }
             return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes)
@@ -154,14 +164,17 @@ class Compiler(private val text: TextLayoutEngine) {
             val out = minOf(maxOf(naturalEnd(b, recipe, at, lastIndex, sceneEnds[k], readable), at + readable), sceneEnds[k] + 0.05f, at + MAX_HOLD)
             val words = beatText.split(' ').count { it.isNotEmpty() }
             val minOut = minOf(at + readable, out)
-            val zone = layout.place(layout.zoneOf(b.place, defaultZone(recipe)), at, out, minOut, id, locked = recipe.name == "lower-third")
-            val slot = layout.slot(zone, recipe.preferredHeight)
+            val over = overFootage(scene)
+            val wanted = layout.zoneOf(b.place, defaultZone(recipe)).let { if (over) layout.zoneOverFootage(it) else it }
+            val zone = layout.place(wanted, at, out, minOut, id, locked = recipe.name == "lower-third", allowed = if (over) layout.footageZones else Layout.Zone.entries.toSet())
+            val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over)
             val cue = Cue(
                 text = beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = (b.energy ?: defaultEnergy(recipe)).coerceIn(0f, 1f), emphasis = emphasisOf(beatText, b.emphasis, quoted, this.words),
                 wordTimes = quoted?.takeIf { it.count() == words }?.map { start(it) },
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
-                points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = input.footage != null && sceneBg(scene, input) == "media",
+                points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
+                items = b.items, itemTimes = b.items.map { item -> locate(item, norm, range)?.let { start(it.first) } },
                 rtl = isRtl(beatText.ifBlank { b.label ?: "" }) || (beatText.isBlank() && this.words.any { isRtl(it.text) }), seed = id * 7 + 3,
             )
             return Beat(id, recipe, cue, zone, k, minOut)
@@ -191,7 +204,8 @@ class Compiler(private val text: TextLayoutEngine) {
                 "aurora" -> if (input.footage != null) nodes += EffectNode(Effect.Aurora(look.aurora, seed = k + 1), start = s)
                 "grid" -> {
                     nodes += EffectNode(Effect.Aurora(look.aurora, seed = k + 1), start = s)
-                    nodes += EffectNode(Effect.Grid(h / 16f, look.ink, 0.06f.anim), start = s)
+                    nodes += EffectNode(Effect.Grid(w / 9f, look.ink, 0.07f.anim), start = s)
+                    nodes += EffectNode(Effect.Vignette(0.55f.anim), start = s)
                 }
                 "plain" -> nodes += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
             }
@@ -203,15 +217,46 @@ class Compiler(private val text: TextLayoutEngine) {
             return Group(nodes, transform = t, start = s - 0.6f, end = e + 0.3f, name = "scene-$k")
         }
 
-        /** Footage (graded, with scrims so text never depends on the picture) or a living gradient. */
+        /**
+         * Footage, cut to the edit, graded, with scrims so text never depends on the picture, and
+         * punched in on the speaker scene by scene (jump-cut rhythm); or a living gradient.
+         */
         private fun base(): List<Node> = if (input.footage != null) {
-            listOf(
-                MediaNode(input.footage, w.toFloat(), h.toFloat(), Fit.Cover, grade = gradeOf(look), transform = Transform(x = (w / 2f).anim, y = (h / 2f).anim)),
-                EffectNode(Effect.Scrim(fromBottom = true, coverage = 0.45f, opacity = 0.62f.anim)),
-                EffectNode(Effect.Scrim(fromBottom = false, coverage = 0.28f, opacity = 0.38f.anim)),
+            val zoom = footageZoom()
+            val sub = input.subject ?: Subject(0.3f, 0.3f, 0.7f, 0.6f)
+            val segments = input.edit?.segments ?: listOf(EditPlan.Segment(0f, duration, 0f))
+            segments.mapIndexed { i, seg ->
+                MediaNode(
+                    input.footage, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = seg.sourceStart, grade = gradeOf(look),
+                    transform = Transform(x = (w * sub.centerX).anim, y = (h * sub.centerY).anim, anchorX = sub.centerX, anchorY = sub.centerY, scale = zoom),
+                    start = seg.outStart, end = if (i == segments.lastIndex) Float.POSITIVE_INFINITY else seg.outEnd, name = "footage-$i",
+                )
+            } + listOf(
+                EffectNode(Effect.Scrim(fromBottom = true, coverage = 0.4f, opacity = 0.5f.anim)),
+                EffectNode(Effect.Scrim(fromBottom = false, coverage = 0.36f, opacity = 0.42f.anim)),
             )
         } else {
             listOf(EffectNode(Effect.Aurora(look.aurora)))
+        }
+
+        /** Punch-ins on footage scenes: alternate tight and wide at each cut, with a slow push. */
+        private fun footageZoom(): Anim {
+            val keys = mutableListOf<Anim.Key>()
+            var tight = false
+            for ((k, scene) in scenes.withIndex()) {
+                if (!overFootage(scene)) continue
+                val kind = scene.camera?.lowercase() ?: "punch"
+                val (from, to) = when (kind) {
+                    "still" -> 1f to 1f
+                    "pull-out", "pull", "zoom-out" -> 1.12f to 1.03f
+                    "push-in", "push", "zoom-in" -> 1f to 1.07f
+                    else -> (if (tight) 1.13f else 1.0f).let { it to it + 0.03f }
+                }
+                tight = !tight
+                keys += Anim.Key(sceneStarts[k], from, Easing.Hold)
+                keys += Anim.Key(sceneEnds[k] - 0.001f, to, Easing.SineInOut)
+            }
+            return if (keys.isEmpty()) Anim.One else Anim.keys(keys)
         }
     }
 
@@ -223,7 +268,7 @@ class Compiler(private val text: TextLayoutEngine) {
         val input = session.input
         val recipe = Recipes.named(score.captions.recipe) ?: TextRecipes.PopCaptions
         val zone = layout.zoneOf(score.captions.place, Layout.Zone.Lower)
-        val lines = input.transcript!!.lines(maxWords = score.captions.maxWords.coerceIn(1, 8))
+        val lines = Words.captionLines(session.transcript!!.words, score.captions.maxWords.coerceIn(1, 8))
         val emphasisWords = beats.flatMap { b -> b.cue.emphasis.mapNotNull { b.cue.words.getOrNull(it) } }.map(NumberWords::normalize).toSet()
         val out = mutableListOf<Beat>()
         var skipped = 0
@@ -235,17 +280,18 @@ class Compiler(private val text: TextLayoutEngine) {
             if (headline || layout.busy(zone, at, end)) { skipped++; continue }
             val lineWords = line.map { it.text }
             // One highlight per line: the strongest word (prosody, a number, or the director's pick).
-            val strongest = line.indices.maxByOrNull { j ->
+            val strongest = line.indices.filter { Words.isContent(lineWords[it]) }.maxByOrNull { j ->
                 val n = NumberWords.normalize(lineWords[j])
                 line[j].emphasis + (if (n in emphasisWords) 1f else 0f) + (if (NumberWords.at(lineWords, j) != null) 0.5f else 0f)
             }
             val strong = strongest?.takeIf { j -> stands(line[j].emphasis, NumberWords.normalize(lineWords[j]) in emphasisWords, NumberWords.at(lineWords, j)) }
-            val slot = layout.slot(zone, recipe.preferredHeight)
             val k = session.sceneStarts.indexOfLast { it <= at }.coerceAtLeast(0)
+            val over = session.overFootage(session.scenes[k])
+            val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over)
             val cue = Cue(
                 text = clean(lineWords.joinToString(" ")), at = at, out = end, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = 0.5f, emphasis = setOfNotNull(strong), wordTimes = line.map { it.range.startMs / 1000f },
-                overMedia = input.footage != null && sceneBg(session.scenes[k], input) == "media", rtl = lineWords.any(::isRtl), seed = i,
+                overMedia = over, rtl = lineWords.any(::isRtl), seed = i,
             )
             out += Beat(CAPTION_ID_BASE + i, recipe, cue, zone, -1, end)
         }
@@ -336,7 +382,7 @@ class Compiler(private val text: TextLayoutEngine) {
     private fun gradeOf(look: Look) = when (look.name) {
         "paper" -> Grade(contrast = 1.04f.anim, saturation = 0.85f.anim)
         "lumen" -> Grade(contrast = 1.06f.anim, saturation = 0.95f.anim, temperature = (-0.4f).anim)
-        else -> Grade(contrast = 1.1f.anim, saturation = 0.9f.anim, temperature = 0.35f.anim)
+        else -> Grade(exposure = 0.04f.anim, contrast = 1.06f.anim, saturation = 1.0f.anim, temperature = 0.15f.anim)
     }
 
     /** Slide/scale/opacity of a scene group for its incoming and outgoing transitions. */
@@ -384,10 +430,12 @@ class Compiler(private val text: TextLayoutEngine) {
         for ((k, scene) in scenes.withIndex()) {
             val s = starts[k]
             val e = ends[k]
-            val kind = scene.camera?.lowercase() ?: if (footage) "push-in" else "drift"
+            // Footage zooms itself (punch-ins on the speaker); the camera keeps graphics steady.
+            val kind = if (footage) "still" else scene.camera?.lowercase() ?: "drift"
             val (from, to) = when (kind) {
                 "push-in", "push", "zoom-in" -> (if (k % 2 == 0) 1f else 1.05f) to (if (k % 2 == 0) 1.06f else 1.11f)
                 "pull-out", "pull", "zoom-out" -> 1.1f to 1.02f
+                "still" -> 1f to 1f
                 else -> 1.02f to 1.02f
             }
             keys += Anim.Key(s, from, Easing.Hold)
@@ -421,6 +469,7 @@ class Compiler(private val text: TextLayoutEngine) {
 
     companion object {
         private const val FIT_STEPS = 28
+        private const val FOOTAGE_TEXTURE = 0.35f
         private const val MIN_READ = 1.0f
         private const val MAX_HOLD = 7f
         private const val LINGER = 0.55f

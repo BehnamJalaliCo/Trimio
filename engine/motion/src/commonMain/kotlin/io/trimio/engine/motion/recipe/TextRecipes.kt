@@ -33,6 +33,9 @@ internal object Craft {
     /** Headlines fill their slot: as large as the width and height allow. */
     fun big(cue: Cue, share: Float = 0.3f) = minOf(cue.width * share, cue.height * 0.6f)
 
+    /** Secondary text: muted on a canvas, but full ink over footage (grey on a bright wall is unreadable). */
+    fun secondary(cue: Cue, look: Look) = if (cue.overMedia) look.ink else look.muted
+
     fun shadow(cue: Cue, look: Look, size: Float): Shadow? =
         if (cue.overMedia && look.textShadow.alpha > 0f) Shadow(look.textShadow, 0f, size * 0.05f, size * 0.32f) else null
 
@@ -159,7 +162,7 @@ object TextRecipes {
     val PopCaptions = object : Recipe("pop-captions", Kind.Text) {
         override val preferredHeight = 0.16f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
-            val f = fit.fit(cue.text, look.caption, minOf(cue.width * 0.1f, 104f), cue.width, cue.height, maxLines = 2)
+            val f = fit.fit(cue.text, look.caption, minOf(cue.width * 0.118f, 112f), cue.width, cue.height, maxLines = 2)
             val n = cue.words.size
             val starts = Craft.wordStarts(cue, n, 0.12f)
             val pop = TextAnimator(TextUnit.Word, UnitState(dy = 0.22f, scale = 0.55f, opacity = 0f), at = cue.at, duration = 0.34f, ease = Easing.Spring(0.5f, 2.6f), times = starts)

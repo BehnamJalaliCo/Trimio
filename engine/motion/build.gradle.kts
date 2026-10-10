@@ -27,5 +27,8 @@ kotlin {
 tasks.withType<Test>().configureEach {
     providers.gradleProperty("motion.frames").orNull?.let { systemProperty("motion.frames", it) }
     providers.gradleProperty("motion.video").orNull?.let { systemProperty("motion.video", it) }
+    listOf("bench.video", "bench.only", "bench.frames", "bench.video.out").forEach { key ->
+        providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
+    }
     maxHeapSize = "3g"
 }

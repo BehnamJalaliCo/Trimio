@@ -86,16 +86,19 @@ object ElementRecipes {
             if (label != null) {
                 val lf = fit.fit(label, look.body, f.type.size * 0.28f, cue.width, cue.height * 0.25f, maxLines = 1)
                 nodes += TextNode(
-                    label, lf.type, look.muted.fill(), rtl = cue.rtl,
+                    label, lf.type, Craft.secondary(cue, look).fill(), rtl = cue.rtl,
                     animators = listOf(TextAnimator(TextUnit.Word, UnitState(dy = 0.6f, opacity = 0f), at = at + 0.25f, duration = 0.6f, stagger = 0.06f, ease = Easing.ExpoOut)),
                     shadow = Craft.shadow(cue, look, lf.type.size),
                     transform = Transform(x = cue.x.anim, y = (numberY + f.height / 2f + lf.height * 0.75f).anim), name = "counter-label",
                 )
             }
+            // A hook-grade counter (high energy) lands like an impact: flash, shake, boom.
+            val hot = cue.energy > HOOK_ENERGY
             return Built(
                 listOf(group(cue, nodes, name)),
-                camera = listOf(Craft.punch(at + settle, 0.02f + 0.03f * cue.energy)),
-                sfx = listOf(Sfx(at, SfxKind.Riser, 0.5f), Sfx(at + settle, SfxKind.Pop, 0.8f)),
+                camera = listOf(Craft.punch(at + settle, 0.02f + 0.03f * cue.energy)) + if (hot) listOf(Craft.shake(at + settle, 8f, cue.seed)) else emptyList(),
+                sfx = listOf(Sfx(at, SfxKind.Riser, 0.5f), Sfx(at + settle, if (hot) SfxKind.Boom else SfxKind.Pop, 0.8f)),
+                overlays = if (hot) listOf(Craft.flash(at + settle, Color.White, 0.18f)) else emptyList(),
             )
         }
     }
@@ -293,7 +296,7 @@ object ElementRecipes {
             if (role != null) {
                 val rf = fit.fit(role, look.body, nf.type.size * 0.42f, cue.width * 0.9f, cue.height * 0.3f, maxLines = 1)
                 nodes += TextNode(
-                    role, rf.type, look.muted.fill(), rtl = cue.rtl, shadow = Craft.shadow(cue, look, rf.type.size),
+                    role, rf.type, Craft.secondary(cue, look).fill(), rtl = cue.rtl, shadow = Craft.shadow(cue, look, rf.type.size),
                     transform = Transform(
                         x = (edge + dir * (barW * 2.5f + rf.width / 2f)).anim + Anim.tween(-dir * 30f, 0f, at + 0.4f, at + 0.9f, Easing.ExpoOut),
                         y = (cue.y + cue.height * 0.26f).anim,
@@ -370,6 +373,7 @@ object ElementRecipes {
     }
 
     private const val MAX_ITEMS = 6
+    private const val HOOK_ENERGY = 0.8f
 
     val all: List<Recipe> = listOf(Counter, Ticker, Chart, Bars, IconPop, LowerThird, Stamp, Checklist)
 }
