@@ -51,7 +51,14 @@ class FfmpegVideoWriter(output: File, width: Int, height: Int, fps: Int, audio: 
         buildList {
             addAll(listOf("ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", "${width}x$height", "-r", "$fps", "-i", "-"))
             if (audio != null) addAll(listOf("-i", audio.absolutePath, "-c:a", "aac", "-b:a", "192k", "-shortest"))
-            addAll(listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output.absolutePath))
+            // BT.709 conversion and tags, closed 1 s GOPs, near-transparent quality (research P0).
+            addAll(
+                listOf(
+                    "-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p",
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-maxrate", "20M", "-bufsize", "40M", "-profile:v", "high", "-g", "$fps",
+                    "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv", "-movflags", "+faststart", output.absolutePath,
+                ),
+            )
         },
     ).redirectErrorStream(true).start()
     private val stdin = process.outputStream.buffered(1 shl 20)

@@ -20,14 +20,15 @@ import kotlin.math.max
 import kotlin.math.sqrt
 
 /** Procedural full-frame effects. Deterministic in time: the same t always draws the same frame. */
-internal fun DrawScope.drawEffect(effect: Effect, t: Float, alpha: Float, size: Size) {
+internal fun DrawScope.drawEffect(effect: Effect, t: Float, alpha: Float, size: Size, soft: SoftFields) {
     when (effect) {
-        // Smooth fields render at 1/8 resolution and scale up: identical to the eye, a fraction of the cost.
-        is Effect.Aurora -> drawSoft(Soft.draw(this, size, key = null) { s -> aurora(effect, t, 1f, s) }, size, alpha)
-        is Effect.Grain -> grain(effect, t, alpha, size)
+        // Smooth fields render at reduced resolution and scale up with a cubic filter: no visible
+        // difference on a smooth field, a fraction of the cost.
+        is Effect.Aurora -> drawSoft(soft.draw(this, size, key = null) { s -> aurora(effect, t, 1f, s) }, size, alpha)
+        is Effect.Grain -> if (effect.amount > 0f) grain(effect, t, alpha, size, soft)
         is Effect.Vignette -> {
             val a = (effect.amount.at(t) * alpha).coerceIn(0f, 1f)
-            if (a > 0f) Soft.draw(this, size, key = "vignette") { s -> vignette(s) }.let { drawSoft(it, size, a) }
+            if (a > 0f) soft.draw(this, size, key = "vignette") { s -> vignette(s) }.let { drawSoft(it, size, a) }
         }
         is Effect.LightLeak -> {
             val p = effect.progress.at(t)
@@ -77,14 +78,17 @@ private fun DrawScope.vignette(size: Size) = drawRect(
 )
 
 private fun DrawScope.drawSoft(image: ImageBitmap, size: Size, alpha: Float) = drawImage(
-    image, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()), alpha = alpha, filterQuality = androidx.compose.ui.graphics.FilterQuality.Low,
+    image, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()), alpha = alpha, filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
 )
 
-/** Low-resolution offscreens for smooth fields; static ones (with a key) are drawn once. */
-private object Soft {
-    private const val SCALE = 8
+/**
+ * Low-resolution offscreens for smooth fields; static ones (with a key) are drawn once. One per
+ * renderer, so renderers on different threads never share a buffer.
+ */
+internal class SoftFields {
     private val cache = HashMap<String, ImageBitmap>()
     private var scratch: ImageBitmap? = null
+    var grainTile: ImageBitmap? = null
 
     fun draw(scope: DrawScope, size: Size, key: String?, block: DrawScope.(Size) -> Unit): ImageBitmap {
         val w = (size.width / SCALE).toInt().coerceAtLeast(1)
@@ -98,6 +102,10 @@ private object Soft {
         }
         key?.let { cache["$it-$w-$h"] = image }
         return image
+    }
+
+    private companion object {
+        const val SCALE = 4
     }
 }
 
@@ -121,8 +129,8 @@ private fun DrawScope.aurora(e: Effect.Aurora, t: Float, alpha: Float, size: Siz
  * Film grain: a dense noise tile made once, re-positioned every 1/24 s (grain "boils" like film),
  * blended with overlay so it lives in the midtones instead of floating on top as dust.
  */
-private fun DrawScope.grain(e: Effect.Grain, t: Float, alpha: Float, size: Size) {
-    val tile = GrainTile.get()
+private fun DrawScope.grain(e: Effect.Grain, t: Float, alpha: Float, size: Size, soft: SoftFields) {
+    val tile = soft.grainTile ?: GrainTile.make().also { soft.grainTile = it }
     val frame = (t * 24f).toInt()
     var seed = (frame * 7919 + e.seed * 104729) or 1
     fun rnd(): Float {
@@ -142,11 +150,8 @@ private const val GRAIN_SCALE = 1.4f
 /** A 256² tile of grey noise around mid-grey (so overlay leaves average brightness unchanged). */
 private object GrainTile {
     const val SIZE = 256
-    private var tile: ImageBitmap? = null
 
-    fun get(): ImageBitmap = tile ?: make().also { tile = it }
-
-    private fun make(): ImageBitmap {
+    fun make(): ImageBitmap {
         val image = ImageBitmap(SIZE, SIZE)
         val canvas = Canvas(image)
         canvas.drawRect(0f, 0f, SIZE.toFloat(), SIZE.toFloat(), Paint().apply { color = Color(0xFF808080) })

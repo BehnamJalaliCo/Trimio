@@ -132,7 +132,7 @@ class AndroidVideoExporter(
             .setEncoderFactory(
                 androidx.media3.transformer.DefaultEncoderFactory.Builder(context)
                     .setRequestedVideoEncoderSettings(
-                        androidx.media3.transformer.VideoEncoderSettings.Builder().setBitrate(request.bitrate ?: request.defaultBitrate()).build(),
+                        androidx.media3.transformer.VideoEncoderSettings.Builder().setBitrate(request.bitrate ?: request.defaultBitrate()).setiFrameIntervalSeconds(1f).build(),
                     )
                     .build(),
             )

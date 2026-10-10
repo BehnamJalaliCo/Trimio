@@ -47,6 +47,7 @@ class MotionRenderer(
 ) {
     internal val text = TextLayoutEngine(measurer, fonts)
     private val vectors = VectorPainter()
+    private val soft = SoftFields()
     private val blocks = HashMap<TextNode, TextBlock>()
     private val frame = Rect(0f, 0f, composition.width.toFloat(), composition.height.toFloat())
     private val shutter = composition.shutterAngle / 360f / composition.fps
@@ -131,7 +132,7 @@ class MotionRenderer(
             is CounterNode -> drawCounter(node, t, alpha)
             is ShapeNode -> drawShape(node, t, alpha)
             is MediaNode -> drawMedia(node, t, alpha)
-            is EffectNode -> drawEffect(node.effect, t, alpha, frame.size)
+            is EffectNode -> drawEffect(node.effect, t, alpha, frame.size, soft)
             is VectorNode -> vectors.draw(this, node, t, alpha)
         }
     }
@@ -465,6 +466,8 @@ class MotionRenderer(
                 dstSize = androidx.compose.ui.unit.IntSize(dw.toInt(), dh.toInt()),
                 alpha = alpha,
                 colorFilter = gradeFilter(node.grade, t),
+                // Cubic resampling: punch-ins and scaled footage stay sharp instead of bilinear-soft.
+                filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
             )
         }
     }

@@ -145,9 +145,9 @@ class Compiler(
             val sceneGroups = scenes.indices.map { k -> sceneGroup(k, built, transitions, transitionSfx) }
             // Footage already has its own texture: lighter grain and vignette over it.
             val texture = if (input.footage != null) FOOTAGE_TEXTURE else 1f
-            val overlays = built.values.flatMap { it.overlays } + transitions + listOf(
+            val overlays = built.values.flatMap { it.overlays } + transitions + listOfNotNull(
                 EffectNode(Effect.Vignette((look.vignette * texture).anim)),
-                EffectNode(Effect.Grain(look.grain * texture)),
+                EffectNode(Effect.Grain(look.grain * texture)).takeIf { look.grain > 0f },
             )
             val root = Group(base() + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)

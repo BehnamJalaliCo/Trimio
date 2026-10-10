@@ -1,7 +1,5 @@
 package io.trimio.engine.motion
 
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.toComposeImageBitmap
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.text.Language
 import io.trimio.core.model.time.TimeRange
@@ -24,11 +22,6 @@ import kotlinx.serialization.json.float
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.skia.ColorAlphaType
-import org.jetbrains.skia.ColorType
-import org.jetbrains.skia.Image
-import org.jetbrains.skia.ImageInfo
-import java.io.DataInputStream
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.exp
@@ -44,48 +37,6 @@ import kotlin.test.Test
 class BenchmarkRepoMapTest {
     private val dir = File("../../docs/benchmark/01-repo-map")
     private val out = File("build/benchmark")
-
-    /** Streams frames of a video through ffmpeg; seeks only when the edit jumps. */
-    private class Footage(private val file: File, private val fps: Int, private val w: Int, private val h: Int) : MediaSource, AutoCloseable {
-        private var process: Process? = null
-        private var input: DataInputStream? = null
-        private var index = -1
-        private var last: ImageBitmap? = null
-        private val buffer = ByteArray(w * h * 4)
-
-        override fun frame(source: String, time: Float): ImageBitmap? {
-            val target = (time * fps).roundToInt().coerceAtLeast(0)
-            if (target == index && last != null) return last
-            if (process == null || target < index || target > index + MAX_SKIP) restart(target)
-            val stream = input ?: return last
-            while (index < target) {
-                try { stream.readFully(buffer) } catch (_: java.io.EOFException) { return last }
-                index++
-            }
-            last = Image.makeRaster(ImageInfo(w, h, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL), buffer, w * 4).toComposeImageBitmap()
-            return last
-        }
-
-        private fun restart(target: Int) {
-            close()
-            val p = ProcessBuilder(
-                "ffmpeg", "-loglevel", "error", "-ss", "%.3f".format(target / fps.toFloat()), "-i", file.absolutePath,
-                "-f", "rawvideo", "-pix_fmt", "rgba", "-r", "$fps", "-",
-            ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-            process = p
-            input = DataInputStream(p.inputStream.buffered(1 shl 22))
-            index = target - 1
-        }
-
-        override fun close() {
-            input?.close()
-            process?.destroy()
-            process = null
-            input = null
-        }
-
-        companion object { const val MAX_SKIP = 45 }
-    }
 
     private fun decodeAudio(file: File, rate: Int): PcmAudio {
         val p = ProcessBuilder("ffmpeg", "-loglevel", "error", "-i", file.absolutePath, "-ac", "1", "-ar", "$rate", "-f", "f32le", "-")
@@ -151,8 +102,8 @@ class BenchmarkRepoMapTest {
             report.appendLine("\n== $name")
             compiled.beats.forEach { report.appendLine("  %-12s %-6s %5.2f–%5.2f  %s".format(it.recipe, it.zone, it.at, it.out, it.text)) }
             compiled.notes.forEach { report.appendLine("  note: $it") }
-            Footage(video, 30, 720, 1280).use { footage ->
-                val kit = MotionTestKit(compiled.composition, footage)
+            io.trimio.engine.motion.export.FfmpegFootage(video, 30, 1080, 1920).use { footage ->
+                val kit = MotionTestKit(compiled.composition, footage) { io.trimio.engine.motion.export.FfmpegFootage(video, 30, 1080, 1920) }
                 val d = compiled.composition.duration
                 kit.contactSheet((0 until 24).map { 0.3f + it * (d - 0.5f) / 23f }, out.resolve("$name-sheet.png"), columns = 8, scale = 0.2f)
                 System.getProperty("bench.frames")?.split(',')?.forEach { kit.png(it.toFloat(), out.resolve("$name-at-$it.png")) }

@@ -19,6 +19,10 @@ kotlin {
             api(projects.core.brand)
             implementation(libs.kotlinx.serialization.json)
         }
+        jvmMain.dependencies {
+            // Export (Skia offscreen + ffmpeg) for desktop tools, tests and the server.
+            implementation(libs.kotlinx.coroutines.core)
+        }
         jvmTest.dependencies {
             implementation(compose.desktop.currentOs)
             // Sound cues of the sample pieces are voiced with the procedural effects library.

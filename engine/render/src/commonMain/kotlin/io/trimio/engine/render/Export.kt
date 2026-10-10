@@ -30,9 +30,15 @@ class ExportRequest(
 
     fun defaultBitrate(): Int {
         val pixels = timeline.canvas.widthPx.toLong() * timeline.canvas.heightPx
-        // ~0.12 bits per pixel per frame for H.264 at 30 fps; HEVC needs ~40% less for the same quality.
-        val h264 = (pixels * fps * 0.12).toInt()
+        // Upload quality (research P0): ~0.3 bits per pixel per frame for H.264, i.e. ~19 Mbps at
+        // 1080p30, capped at 25 Mbps; platforms re-encode, so the master must be near transparent.
+        // HEVC needs ~40% less for the same quality.
+        val h264 = (pixels * fps * 0.3).toLong().coerceAtMost(MAX_H264_BPS).toInt()
         return if (codec == VideoCodec.HEVC) (h264 * 0.6).toInt() else h264
+    }
+
+    private companion object {
+        const val MAX_H264_BPS = 25_000_000L
     }
 }
 

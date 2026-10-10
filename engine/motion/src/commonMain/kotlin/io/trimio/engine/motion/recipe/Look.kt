@@ -33,6 +33,7 @@ data class Look(
     val body: Voice,
     val number: Voice,
     val label: Voice,
+    /** Film grain amount; 0 by default: grain costs bitrate and reads as noise on phones. */
     val grain: Float,
     val vignette: Float,
     /** Corner radius scale for cards and blocks (0 = Swiss sharp). */
@@ -68,7 +69,7 @@ data class Look(
             body = Voice(BrandFonts.Role.Expressive, 800, lineHeight = 1.3f),
             number = Voice(BrandFonts.Role.Accent, 900, lineHeight = 1f),
             label = Voice(BrandFonts.Role.Accent, 600, lineHeight = 1.2f, tracking = 0.16f),
-            grain = 0.04f,
+            grain = 0f,
             vignette = 0.5f,
             roundness = 1f,
         )
@@ -92,7 +93,7 @@ data class Look(
             body = Voice(BrandFonts.Role.Ui, 700, lineHeight = 1.35f),
             number = Voice(BrandFonts.Role.Accent, 900, lineHeight = 1f),
             label = Voice(BrandFonts.Role.Accent, 600, lineHeight = 1.2f, tracking = 0.16f),
-            grain = 0.025f,
+            grain = 0f,
             vignette = 0.12f,
             roundness = 0f,
             textShadow = Color.Transparent,
@@ -117,7 +118,7 @@ data class Look(
             body = Voice(BrandFonts.Role.Ui, 600, lineHeight = 1.4f),
             number = Voice(BrandFonts.Role.Accent, 700, lineHeight = 1f),
             label = Voice(BrandFonts.Role.Accent, 500, lineHeight = 1.2f, tracking = 0.18f),
-            grain = 0.03f,
+            grain = 0f,
             vignette = 0.45f,
             roundness = 1.4f,
             mark = Mark.Ink,
