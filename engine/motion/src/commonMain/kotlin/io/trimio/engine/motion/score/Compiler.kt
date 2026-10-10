@@ -641,7 +641,21 @@ class Compiler(
                 s.gain > prev.gain -> out[out.size - 1] = s
             }
         }
-        return out
+        return thin(out)
+    }
+
+    /**
+     * At most [MAX_SFX_BURST] cues in any two seconds: a dense passage keeps its strongest hits
+     * (a mix where every beat makes a sound stops meaning anything).
+     */
+    private fun thin(cues: List<Sfx>): List<Sfx> {
+        val kept = cues.toMutableList()
+        var i = 0
+        while (i < kept.size) {
+            val window = kept.filter { it.at >= kept[i].at && it.at < kept[i].at + SFX_WINDOW }
+            if (window.size > MAX_SFX_BURST) kept.remove(window.minBy { it.gain }) else i++
+        }
+        return kept
     }
 
     private object Craft {
@@ -653,6 +667,8 @@ class Compiler(
         private const val FOOTAGE_TEXTURE = 0.35f
         private const val MIN_READ = 1.0f
         private const val MAX_HOLD = 7f
+        private const val MAX_SFX_BURST = 4
+        private const val SFX_WINDOW = 2f
         /** A chat thread plays as long as the story it tells; the call to action holds to the end. */
         private const val MAX_THREAD_HOLD = 24f
         private val LONG_FORM = setOf("message", "comment", "endcard")

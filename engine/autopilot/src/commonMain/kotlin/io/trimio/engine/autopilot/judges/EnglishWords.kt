@@ -41,7 +41,8 @@ internal class EnglishWords(private val c: Jury.Context) {
         val name = typed != null || low in said || c.brand(w)
         return when {
             !name && !known(low) && !acronym(w) -> "«$w» is not an English word or a name the piece knows" to (close(low)?.let { "write «$it»" } ?: "the word as said, or leave it out")
-            typed != null && typed != w && !upper(w) -> "«$w» is cased differently from the brief" to "write «$typed»"
+            // Only a name's casing is the brief's («iPhone»); an everyday word may open a sentence («And»).
+            typed != null && typed != w && !upper(w) && typed.any { it.isUpperCase() } -> "«$w» is cased differently from the brief" to "write «$typed»"
             !name && odd(w) -> "«$w» is oddly cased" to "lower case, Capitalised or ALL CAPS"
             else -> null
         }

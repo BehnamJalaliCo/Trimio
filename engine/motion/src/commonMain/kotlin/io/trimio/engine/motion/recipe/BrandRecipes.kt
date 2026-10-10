@@ -119,7 +119,9 @@ object BrandRecipes {
                 start = t0 + 0.38f, end = t0 + 1.05f, name = "logo-ring",
             )
             // The name appears under the tile once it has taken its place.
-            val lf = fit.fit(mark.title, look.label.copy(weight = 700, tracking = 0.02f), s * 0.19f, s * 1.6f, s * 0.26f, maxLines = 1)
+            // Never below a phone-readable floor (~2.7% of the slot): long names wrap rather than shrink.
+                val floor = cue.width * Craft.MIN_LABEL
+                val lf = fit.fit(mark.title, look.label.copy(weight = 700, tracking = 0.02f), maxOf(s * 0.19f, floor), maxOf(s * 1.6f, floor * 9f), maxOf(s * 0.26f, floor * 2.6f), maxLines = 2)
             nodes += TextNode(
                 mark.title, lf.type, Craft.secondary(cue, look).fill(), rtl = false, shadow = Craft.shadow(cue, look, lf.type.size),
                 transform = Transform(x = slot.x.anim, y = (slot.y + s * 0.5f + s * 0.19f).anim, opacity = Anim.tween(0f, 1f, land - 0.1f, land + 0.25f)),

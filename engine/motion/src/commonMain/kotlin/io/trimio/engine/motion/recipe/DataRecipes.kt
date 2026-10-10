@@ -300,7 +300,7 @@ object DataRecipes {
 
         /** What the clock counts to, with a blinking live dot on the reading-start side. */
         private fun caption(cue: Cue, look: Look, fit: Fitter, label: String, cx: Float, y: Float, band: Float, at: Float): List<Node> {
-            val lf = fit.fit(label, look.body.copy(weight = 800), band * 0.5f, cue.width * 0.82f, band, maxLines = 1)
+            val lf = fit.fit(label, look.body.copy(weight = 800), maxOf(band * 0.5f, cue.width * Craft.MIN_LABEL), cue.width * 0.9f, maxOf(band, cue.width * Craft.MIN_LABEL * 1.4f), maxLines = 1)
             val dot = lf.type.size * 0.4f
             val gap = lf.type.size * 0.45f
             val total = lf.width + gap + dot
@@ -862,7 +862,7 @@ object DataRecipes {
             }
             val title = mark?.takeIf { !it.isMonogram || path != null }?.title
             if (title != null) {
-                val f = fit.fit(title.uppercase(), look.label.copy(weight = 700), t.h * 0.085f, t.stubW * 0.8f, t.h * 0.12f, maxLines = 1)
+                val f = fit.fit(title.uppercase(), look.label.copy(weight = 700), t.h * 0.1f, t.stubW * 0.9f, t.h * 0.14f, maxLines = 1)
                 nodes += TextNode(
                     title.uppercase(), f.type, glyph.copy(alpha = 0.85f).fill(), rtl = false,
                     transform = Transform(x = t.stubCx.anim, y = (y + s / 2f + t.h * 0.1f).anim, opacity = Anim.tween(0f, 1f, at + 0.7f, at + 1f)), name = "voucher-brand",

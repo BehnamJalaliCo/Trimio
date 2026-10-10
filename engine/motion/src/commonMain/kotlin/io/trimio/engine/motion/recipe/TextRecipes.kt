@@ -27,6 +27,9 @@ internal object Craft {
     /** Entrances start two frames before the word so the word lands as it is spoken. */
     const val LEAD = 0.066f
 
+    /** Smallest label on a phone, as a share of the slot width (~24 px on a 1080 frame). */
+    const val MIN_LABEL = 0.027f
+
     /** Calm → explosive: entrance durations shrink as energy rises. */
     fun pace(energy: Float, calm: Float, hot: Float) = calm + (hot - calm) * energy.coerceIn(0f, 1f)
 

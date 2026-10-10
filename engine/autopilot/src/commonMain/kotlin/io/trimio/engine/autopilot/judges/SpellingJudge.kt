@@ -54,7 +54,9 @@ class SpellingJudge : Judge {
         fun scan(texts: List<Pair<Float, String>>, severity: Severity, where: String) = texts.flatMap { (t, s) ->
             s.split(' ').mapNotNull { en.check(it) }.map { (what, fix) -> Bench.finding(t, if ("cased" in what) Severity.Minor else severity, "$where$what", fix) }
         }.distinctBy { it.what }.capped(MAX_WORDS)
-        return scan(graphics, Severity.Major, "") + scan(captions, Severity.Minor, "caption: ")
+        // Captions are what was heard, rare words included («al dente», «cloves»): only their casing is judged
+        // here; recognition slips in captions are measured against the truth in the golden archive.
+        return scan(graphics, Severity.Major, "") + scan(captions, Severity.Minor, "caption: ").filter { "cased" in it.what }
     }
 
     private fun screen(c: Jury.Context, lex: PersianSpelling) = ScreenSpelling(lex, (c.prelude + c.words).map { it.text }, c.prompt)
@@ -99,9 +101,16 @@ class SpellingJudge : Judge {
         return zw.takeIf { lex.count(it) >= MIN_COUNT && lex.count(core) * RATIO < lex.count(it) }
     }
 
+    private fun loneLatinDigits(s: String): Boolean {
+        val tokens = s.split(' ')
+        fun latinWord(i: Int) = tokens.getOrNull(i)?.any { it in 'A'..'Z' || it in 'a'..'z' } == true
+        return tokens.indices.any { i -> tokens[i].any { it in '0'..'9' } && !latinWord(i - 1) && !latinWord(i + 1) && !latinWord(i) }
+    }
+
     private fun digits(texts: List<Pair<Float, String>>): List<Finding> {
         val persian = texts.filter { Bench.persian(it.second) }
-        val latin = persian.filter { (_, s) -> s.any { it in '0'..'9' } }
+        // A model number beside a Latin name keeps Latin digits («iPhone 15»); others read in Persian.
+        val latin = persian.filter { (_, s) -> loneLatinDigits(s) }
         val out = mutableListOf<Finding>()
         latin.firstOrNull()?.let { (t, s) -> out += Bench.finding(t, Severity.Minor, "Latin digits in Persian text «$s»", "Persian digits («${Numerals.toPersian(s)}»)") }
         texts.firstOrNull { SEPARATOR.containsMatchIn(it.second) }?.let { (t, s) ->
