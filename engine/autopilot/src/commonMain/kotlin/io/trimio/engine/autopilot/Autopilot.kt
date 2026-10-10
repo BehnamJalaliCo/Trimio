@@ -79,10 +79,11 @@ class Autopilot(
         val understanding = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report)
         // The director's line-by-line spelling, aligned word for word to what was heard.
         val texts = analysis.transcript.words.map { it.text }
+        val lexicon = PersianSpelling.load()
         val lineFixes = lines.indices.flatMap { k ->
             val l = lines[k]
             Proofreader.align(texts.subList(l.first, l.last + 1), l.first, understanding.lines.getOrNull(k)?.fixed.orEmpty()).entries
-        }.associate { it.key to it.value }
+        }.associate { it.key to it.value }.filterValues { real(it, lexicon, request.prompt) }
         lineFixes.forEach { (i, w) -> report += "spelling (director): ${texts[i]} → $w" }
         val transcript = analysis.transcript.withFixes(lineFixes)
         report += "understand: ${understanding.title} | ${understanding.domain}/${understanding.mood} | hook line ${understanding.hook?.line} | cta ${understanding.cta?.keyword}"
@@ -173,6 +174,17 @@ class Autopilot(
         )
         val resolved = score.copy(scenes = score.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> b.resolved().takeIf { r -> !(b.recipe == "object" && r.visual == null) } }) })
         return resolved to result.library
+    }
+
+    /**
+     * A director respelling in Persian must land on a word the lexicon or the brief knows: a small
+     * model sometimes "fixes" a rare word into a non-word («ووچر» → «وچر»).
+     */
+    private fun real(word: String, lexicon: PersianSpelling, prompt: String): Boolean {
+        val core = word.trim { !it.isLetterOrDigit() && it != '\u200C' }
+        if (core.none { it in '\u0600'..'\u06FF' }) return true
+        val said = prompt.replace("\u200C", "").split(Regex("[^\\p{L}\\p{N}]+")).toSet()
+        return lexicon.count(core) > 0 || core.replace("\u200C", "") in said
     }
 
     private fun compile(compiler: Compiler, score: Score, transcript: Transcript, edit: EditPlan, request: Request) =

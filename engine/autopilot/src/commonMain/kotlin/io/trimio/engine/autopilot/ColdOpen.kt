@@ -25,8 +25,10 @@ data class ColdOpen(
          * "in the first second" always gets one; otherwise it is one of the seed's choices.
          */
         fun choose(words: List<Word>, lines: List<Lines.Line>, understanding: Understanding, prompt: String, seed: Long): ColdOpen? {
-            val k = understanding.hook?.line ?: return null
-            val line = lines.getOrNull(k) ?: return null
+            // The model's hook line when it holds a late figure, else the line whose figure weighs most.
+            val k = understanding.hook?.line?.takeIf { h -> lines.getOrNull(h)?.let { payoff(words, it) } != null }
+                ?: strongest(words, lines) ?: return null
+            val line = lines[k]
             if (!asked(prompt) && !Rng(seed).fork(SALT).chance(CHANCE)) return null
             val span = payoff(words, line)?.let { q -> span(words, q, line) }?.takeIf { seconds(words, it.first, it.last) >= MIN_S } ?: return null
             // A breath either side, but never into the neighbouring words.
@@ -34,6 +36,10 @@ data class ColdOpen(
             val b = minOf(words[span.last].range.endMs + TAIL_MS, words.getOrNull(span.last + 1)?.range?.startMs?.minus(1) ?: Long.MAX_VALUE) / 1000f
             return ColdOpen(a.coerceAtLeast(0f)..b, k, span)
         }
+
+        private fun strongest(words: List<Word>, lines: List<Lines.Line>): Int? = lines.indices
+            .filter { payoff(words, lines[it]) != null }
+            .maxByOrNull { k -> Quantities.sense(words.subList(lines[k].first, lines[k].last + 1).map { it.text }, lines[k].first).weight() }
 
         /** The line's figure, when the line comes late enough to be worth bringing forward. */
         private fun payoff(words: List<Word>, line: Lines.Line): Quantities.Quantity? {

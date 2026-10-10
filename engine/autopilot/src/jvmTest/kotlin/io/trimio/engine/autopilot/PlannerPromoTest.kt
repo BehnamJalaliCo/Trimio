@@ -194,8 +194,9 @@ class PlannerPromoTest {
         val words = spelled(raw)
         assertEquals(164, words.size, "the run's spelling fixes")
         val lines = REAL_LINES.zipWithNext { a, b -> Lines.Line(a, b - 1) } + Lines.Line(REAL_LINES.last(), words.lastIndex)
-        val u = Understander.sanitize(json.decodeFromString(Understanding.serializer(), read.readText()), words.size, lines.size)
-        assertEquals("Tether", u.cta?.keyword, "the fixture: the model answered in English")
+        // The keyword as a model may answer it, in English: the plan must still show the spoken «تتر».
+        val read0 = Understander.sanitize(json.decodeFromString(Understanding.serializer(), read.readText()), words.size, lines.size)
+        val u = read0.copy(cta = read0.cta?.copy(keyword = "Tether"))
         for (seed in 1L..6L) {
             val plan = Planner().plan(words, lines, u, seed)
             val score = plan.score

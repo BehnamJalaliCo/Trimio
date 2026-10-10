@@ -32,6 +32,7 @@ class FfmpegFootage(
     private var input: DataInputStream? = null
     private var index = -1
     private var last: ImageBitmap? = null
+    private var image: Image? = null
     private val buffer = ByteArray(w * h * 4)
 
     override fun frame(source: String, time: Float): ImageBitmap? {
@@ -44,12 +45,17 @@ class FfmpegFootage(
             try { stream.readFully(buffer) } catch (_: EOFException) { return last }
             index++
         }
-        last = Image.makeRaster(ImageInfo(w, h, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL), buffer, w * 4).toComposeImageBitmap()
+        // Each frame is a native copy the garbage collector cannot see: free the previous one now,
+        // or a minute of 1080p footage piles up gigabytes before a finalizer runs.
+        image?.close()
+        val next = Image.makeRaster(ImageInfo(w, h, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL), buffer, w * 4)
+        image = next
+        last = next.toComposeImageBitmap()
         return last
     }
 
     private fun restart(target: Int) {
-        close()
+        stop()
         val p = ProcessBuilder(
             "ffmpeg", "-loglevel", "error", "-ss", "%.3f".format(target / fps.toFloat()), "-i", file.absolutePath, "-an",
             "-vf", "fps=$fps,scale=$w:$h:flags=lanczos+accurate_rnd+full_chroma_int",
@@ -61,6 +67,13 @@ class FfmpegFootage(
     }
 
     override fun close() {
+        stop()
+        image?.close()
+        image = null
+        last = null
+    }
+
+    private fun stop() {
         input?.close()
         process?.destroy()
         process = null
