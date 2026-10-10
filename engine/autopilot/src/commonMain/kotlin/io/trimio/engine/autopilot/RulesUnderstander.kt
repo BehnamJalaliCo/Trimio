@@ -6,9 +6,10 @@ import io.trimio.engine.motion.score.Words
 
 /**
  * The understanding step without a model: what can be read reliably from the words alone. Names
- * in Latin script are brands, numbers are counters, "send me the word X" is the call to action,
- * the line with the biggest number is the payoff, and each line's most stressed words are its
- * title. Every edit still gets the planner's full craft; it just knows less about the content.
+ * in Latin script (and coins named in Persian) are brands, numbers are counters — or, when their
+ * units say so, a voucher (money given), stats (views and comments), a countdown (hours left) or
+ * a progress bar (a quota that filled) — "send me the word X" is the call to action, the line with
+ * the strongest number is the payoff, and each line's most stressed words are its title. Every edit still gets the planner's full craft; it just knows less about the content.
  */
 object RulesUnderstander {
 
@@ -16,24 +17,31 @@ object RulesUnderstander {
         val words = transcript.words
         val texts = words.map { it.text }
         val norm = texts.map(NumberWords::normalize)
-        val entities = names(texts)
-        val cta = cta(texts, norm)
-        val reads = lines.map { line ->
-            val inLine = entities.filter { it.at in line.range }
+        val entities = names(texts) + coins(texts)
+        val ctaLines = lines.filter { isCtaLine(it, texts, norm) }.toSet()
+        val cta = cta(ctaLines.firstOrNull(), texts, norm)
+        val senses = lines.map { Quantities.sense(texts.subList(it.first, it.last + 1), it.first) }
+        val reads = lines.mapIndexed { k, line ->
+            val inLine = entities.filter { it.at in line.range }.map { it.name }.distinct()
             val number = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull()
-            val isCta = cta != null && line.range.any { norm[it] in SEND }
+            // The numbers' meaning picks the richer graphics: a voucher, stats, a countdown, a progress bar.
+            val rich = senses[k].richShow()
             when {
-                isCta -> LineRead(role = "cta", show = "comment", title = cta!!.keyword)
-                inLine.size >= 2 -> LineRead(role = "list", show = "logos", items = inLine.map { it.name }, energy = 0.7f)
+                line in ctaLines -> LineRead(role = "cta", show = "comment", title = cta!!.keyword)
+                inLine.size >= 2 -> LineRead(role = "list", show = "logos", items = inLine, energy = 0.7f)
+                rich != null -> LineRead(
+                    role = if (rich == "voucher") "benefit" else "number", show = rich, title = title(line, words),
+                    items = listOfNotNull(senses[k].voucher?.brand.takeIf { rich == "voucher" }), energy = 0.85f,
+                )
                 number != null && (number.percent || number.value >= 10) -> LineRead(role = "number", show = "counter", title = title(line, words), energy = 0.8f)
                 else -> LineRead(role = "claim", show = "headline", title = title(line, words), energy = 0.4f + 0.5f * line.range.maxOf { words[it].emphasis })
             }
         }
-        val payoff = lines.indices.maxByOrNull { k ->
-            NumberWords.findAll(texts.subList(lines[k].first, lines[k].last + 1)).maxOfOrNull { (if (it.percent) 100.0 else 0.0) + it.value.coerceAtMost(99.0) } ?: -1.0
-        }?.takeIf { k -> NumberWords.findAll(texts.subList(lines[k].first, lines[k].last + 1)).isNotEmpty() }
+        val payoff = lines.indices.filter { senses[it].quantities.isNotEmpty() }.maxByOrNull { senses[it].weight() }
+        val coins = senses.any { s -> s.quantities.any { it.brand != null } }
         return Understanding(
             title = reads.firstOrNull()?.title.orEmpty(),
+            domain = if (coins || norm.any { it in CRYPTO }) "crypto" else "general",
             mood = brief(prompt).let { if (it.energy >= 0.7f) "energetic" else "confident" },
             brief = brief(prompt),
             entities = entities,
@@ -41,6 +49,12 @@ object RulesUnderstander {
             hook = payoff?.let { Hook(it, reads[it].title) },
             cta = cta,
         )
+    }
+
+    /** Coins named in Persian («تتر», «بیت‌کوین»): brands, so their marks can be found. */
+    private fun coins(texts: List<String>): List<Entity> = texts.indices.mapNotNull { i ->
+        val unit = Quantities.unitOf(texts[i])?.takeIf { it.brand != null && texts[i].none { c -> c in 'A'..'Z' } } ?: return@mapNotNull null
+        Entity(i, i, unit.brand!!, kind = "brand")
     }
 
     /** Runs of capitalised Latin words, split at commas: "Claude Code، Codex" → two names. */
@@ -63,11 +77,28 @@ object RulesUnderstander {
 
     private fun latinName(w: String) = w.trimEnd('،', ',', '.').let { it.isNotEmpty() && it.first().isUpperCase() && it.all { c -> c.isLetterOrDigit() || c in "-+." } }
 
-    private fun cta(texts: List<String>, norm: List<String>): Cta? {
-        if (norm.none { it in SEND }) return null
-        val quoted = texts.indexOfFirst { '«' in it || '"' in it }
-        val keyword = if (quoted >= 0) texts[quoted].trim('«', '»', '"', '.', '،') else ""
-        return Cta(action = "comment", keyword = keyword)
+    /**
+     * A call to action asks: "send me the word X", "comment X", "write …" — an imperative, or a
+     * keyword marker with a send verb. «کامنت بذاریم» in a story or «پنج هزار کامنت» (a stat) is
+     * not one, and the ask comes in the second half of the piece.
+     */
+    private fun isCtaLine(line: Lines.Line, texts: List<String>, norm: List<String>): Boolean {
+        if (line.last * 2 < norm.size) return false
+        val w = line.range.map { norm[it] }
+        val marker = w.any { it in KEYWORD_MARKERS } || line.range.any { '«' in texts[it] || '"' in texts[it] }
+        val send = w.any { it in SEND }
+        val asked = w.indices.any { i -> w[i] in ASK && (i + 1..minOf(w.lastIndex, i + 2)).any { w[it] in IMPERATIVE } }
+        return w.any { it in SEND_IMPERATIVE } || asked || (marker && send)
+    }
+
+    private fun cta(line: Lines.Line?, texts: List<String>, norm: List<String>): Cta? {
+        line ?: return null
+        val quoted = line.range.firstOrNull { '«' in texts[it] || '"' in texts[it] }
+        val marked = line.range.firstOrNull { norm[it] in KEYWORD_MARKERS }?.let { it + 1 }?.takeIf { it <= line.last }
+        val keyword = (quoted ?: marked)?.let { texts[it].trim('«', '»', '"', '.', '،', ',') }.orEmpty()
+        val w = line.range.map { norm[it] }
+        val action = if (w.none { it in SEND || it in ASK } && w.any { d -> DM.any { d.startsWith(it) } }) "dm" else "comment"
+        return Cta(action = action, keyword = keyword)
     }
 
     private fun title(line: Lines.Line, words: List<io.trimio.core.model.transcript.Word>): String {
@@ -101,4 +132,10 @@ object RulesUnderstander {
     }
 
     private val SEND = setOf("ارسال", "بفرست", "بفرستید", "کامنت", "بنویس", "بنویسید", "comment", "dm")
+    private val SEND_IMPERATIVE = setOf("بفرست", "بفرستید", "بفرستین", "بنویس", "بنویسید", "بنویسین")
+    private val ASK = setOf("کامنت", "comment", "ارسال", "send", "type", "write")
+    private val IMPERATIVE = setOf("کن", "بکن", "کنید", "بکنید", "کنین", "بکنین", "بذار", "بذارید", "بزار", "بزارید", "بزن", "بزنید", "below", "me", "it")
+    private val KEYWORD_MARKERS = setOf("کلمه", "کلمهی", "کلمهٔ", "کلمۀ", "word", "keyword")
+    private val DM = listOf("دایرکت", "دایرک", "dm", "direct", "inbox")
+    private val CRYPTO = setOf("صرافی", "کریپتو", "ترید", "ارز", "بیتکوین", "تتر", "crypto", "exchange", "trading")
 }

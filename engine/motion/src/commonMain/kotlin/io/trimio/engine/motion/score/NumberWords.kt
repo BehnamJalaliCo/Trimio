@@ -4,7 +4,9 @@ import io.trimio.core.model.text.Numerals
 
 /**
  * Finds spoken numbers in a transcript — digits or words, Persian or English ("پنج درصد",
- * "بیست و سه هزار", "5.2%", "twenty one thousand") — so the compiler can animate them as counters.
+ * "بیست و سه هزار", "5.2%", "twenty one thousand", "هزار نفر", "50k") — so the compiler can animate
+ * them as counters. Speech recognisers split and slur numbers («سی صد», «پنجا», «چلا هشت»), so the
+ * common slips are read too; a lone «نه» or «یه» is the word "no" or "a", not a number.
  */
 object NumberWords {
 
@@ -16,6 +18,8 @@ object NumberWords {
         "هفده" to 17, "هجده" to 18, "هیجده" to 18, "نوزده" to 19, "بیست" to 20, "سی" to 30, "چهل" to 40, "پنجاه" to 50, "شصت" to 60,
         "هفتاد" to 70, "هشتاد" to 80, "نود" to 90, "صد" to 100, "یکصد" to 100, "دویست" to 200, "سیصد" to 300, "چهارصد" to 400,
         "پانصد" to 500, "پونصد" to 500, "ششصد" to 600, "هفتصد" to 700, "هشتصد" to 800, "نهصد" to 900,
+        // Recogniser slips: «پنجا» (پنجاه), «چل»/«چلا» (چهل، «چهل و» run together).
+        "پنجا" to 50, "چل" to 40, "چلا" to 40, "شیصد" to 600,
         "zero" to 0, "one" to 1, "two" to 2, "three" to 3, "four" to 4, "five" to 5, "six" to 6, "seven" to 7, "eight" to 8, "nine" to 9,
         "ten" to 10, "eleven" to 11, "twelve" to 12, "thirteen" to 13, "fourteen" to 14, "fifteen" to 15, "sixteen" to 16, "seventeen" to 17,
         "eighteen" to 18, "nineteen" to 19, "twenty" to 20, "thirty" to 30, "forty" to 40, "fifty" to 50, "sixty" to 60, "seventy" to 70,
@@ -23,9 +27,12 @@ object NumberWords {
     )
     private val scales = mapOf("هزار" to 1_000L, "میلیون" to 1_000_000L, "میلیارد" to 1_000_000_000L, "thousand" to 1_000L, "million" to 1_000_000L, "billion" to 1_000_000_000L)
     private val joiners = setOf("و", "and")
-    private val hundreds = setOf("hundred", "صد")
+    private val hundreds = setOf("hundred", "صد", "سد")
     private val percentWords = setOf("درصد", "درصدی", "percent", "%", "٪")
     private val halfWords = setOf("نیم")
+
+    /** Everyday words that are also numbers: alone they mean "no", "a", "one of". */
+    private val ambiguous = setOf("نه", "یه", "یک", "one")
 
     fun normalize(word: String): String = Numerals.toLatin(word)
         .lowercase()
@@ -50,11 +57,15 @@ object NumberWords {
         val raw = Numerals.toLatin(words[i]).replace('٫', '.').replace('٬', ',')
         val percentInline = raw.contains('%') || raw.contains('٪')
         val cleaned = raw.trim { !it.isDigit() && it != '.' && it != '+' && it != '-' }.replace(",", "")
-        val value = cleaned.toDoubleOrNull() ?: return null
+        var value = cleaned.toDoubleOrNull() ?: return null
         val decimals = cleaned.substringAfter('.', "").length
-        val next = words.getOrNull(i + 1)?.let(::normalize)
+        // "50k", and "50 هزار" (digits with a spoken scale).
+        if (raw.trimEnd('.', '،', ',').lowercase().endsWith('k')) value *= 1_000
+        var count = 1
+        scales[words.getOrNull(i + 1)?.let(::normalize)]?.let { value *= it; count++ }
+        val next = words.getOrNull(i + count)?.let(::normalize)
         val percent = percentInline || next in percentWords
-        return Found(i, if (!percentInline && next in percentWords) 2 else 1, value, percent, decimals)
+        return Found(i, if (!percentInline && next in percentWords) count + 1 else count, value, percent, decimals)
     }
 
     private fun spoken(words: List<String>, i: Int): Found? {
@@ -63,17 +74,22 @@ object NumberWords {
         var j = i
         var any = false
         var lastWasNumber = false
+        var afterThirty = false
         while (j < words.size) {
             val w = normalize(words[j])
             val unit = units[w]
             val scale = scales[w]
             when {
                 w in hundreds && any && group in 1..9 -> { group *= 100; lastWasNumber = true }
+                // «سی صد» is سیصد split in two, not thirty hundreds.
+                w in hundreds && afterThirty -> { group += SPLIT_THREE_HUNDRED; lastWasNumber = true }
                 unit != null -> { group += unit; any = true; lastWasNumber = true }
-                scale != null && any -> { total += maxOf(group, 1) * scale; group = 0; lastWasNumber = true }
+                // A scale can open a number: «هزار نفر» is a thousand people.
+                scale != null -> { total += maxOf(group, 1) * scale; group = 0; any = true; lastWasNumber = true }
                 w in joiners && any && lastWasNumber && words.getOrNull(j + 1)?.let { normalize(it) in units } == true -> lastWasNumber = false
                 else -> break
             }
+            afterThirty = w == "سی"
             j++
         }
         if (!any) return null
@@ -83,6 +99,9 @@ object NumberWords {
         if (j + 1 < words.size && normalize(words[j]) in joiners && normalize(words[j + 1]) in halfWords) { value += 0.5; decimals = 1; j += 2 }
         val percent = words.getOrNull(j)?.let { normalize(it) in percentWords } == true
         if (percent) j++
+        if (j - i == 1 && normalize(words[i]) in ambiguous) return null
         return Found(i, j - i, value, percent, decimals)
     }
+
+    private const val SPLIT_THREE_HUNDRED = 270
 }

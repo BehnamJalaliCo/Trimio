@@ -9,6 +9,11 @@ plugins {
  * gives a different but always well-made edit for every seed, a critic, preference memory and the
  * mastered soundtrack.
  */
+// Bundled data: the Persian word-frequency list behind PersianSpelling (files/spelling, see its NOTICE.md).
+compose.resources {
+    packageOfResClass = "io.trimio.engine.autopilot.resources"
+}
+
 kotlin {
     sourceSets {
         commonMain.dependencies {
@@ -33,7 +38,7 @@ kotlin {
 
 // ./gradlew :engine:autopilot:jvmTest -Pauto.video=… -Pauto.prompt=… -Pauto.seeds=1,2,3 (see AutopilotProofTest)
 tasks.withType<Test>().configureEach {
-    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir").forEach { key ->
+    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.gold", "auto.transcript", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
     // Host builds of libtrimio_llama and libtrimio_whisper (:engine:llm/:engine:asr buildHostNative).

@@ -68,7 +68,9 @@ class Autopilot(
         // Words the creator spelled in the brief win over sound-alike recognitions.
         val spelled = Proofreader.fromBrief(heard.transcript.words.map { it.text }, request.prompt)
         spelled.forEach { (i, w) -> report += "spelling (brief): ${heard.transcript.words[i].text} → $w" }
-        val analysis = SpeechAnalysis(heard.transcript.withFixes(spelled), heard.edit, heard.pauses, heard.loudnessLufs, heard.duration)
+        val lexical = Proofreader.fromLexicon(heard.transcript.words.map { it.text }, request.prompt, spelled)
+            .onEach { (i, w) -> report += "spelling (lexicon): ${heard.transcript.words[i].text} → ${w.ifEmpty { "(joined)" }}" }
+        val analysis = SpeechAnalysis(heard.transcript.withSpelling(spelled + lexical), heard.edit, heard.pauses, heard.loudnessLufs, heard.duration)
         val lines = Lines.split(analysis.transcript.words, pauses = analysis.pauses)
         report += "listen: ${analysis.transcript.words.size} words, ${lines.size} lines, ${analysis.edit.cutCount} cuts, " +
             "${round1(analysis.duration)}s → ${round1(analysis.edit.duration)}s"

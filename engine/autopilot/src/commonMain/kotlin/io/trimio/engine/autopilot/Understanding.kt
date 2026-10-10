@@ -32,7 +32,8 @@ data class Understanding(
         )
         val MOODS = listOf("energetic", "confident", "calm", "serious", "playful", "inspiring", "urgent", "luxury")
         val SHOWS = listOf(
-            "headline", "counter", "logos", "terminal", "network", "meter", "chart", "object", "objects", "list", "comment", "lower-third", "stamp", "none",
+            "headline", "counter", "logos", "terminal", "network", "meter", "chart", "object", "objects", "list", "comment", "lower-third", "stamp",
+            "countdown", "stats", "progress", "voucher", "none",
         )
         val ROLES = listOf("hook", "claim", "problem", "solution", "insight", "number", "list", "steps", "comparison", "warning", "benefit", "proof", "question", "cta", "punchline")
         val KINDS = listOf("brand", "product", "app", "person", "place", "organization", "object", "concept")

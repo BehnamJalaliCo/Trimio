@@ -1,19 +1,27 @@
 package io.trimio.engine.autopilot
 
+import io.trimio.core.model.time.TimeRange
+import io.trimio.core.model.transcript.Transcript
+import io.trimio.core.model.transcript.Word
+
 /**
  * Fixes what the recogniser misheard before a caption is drawn, without ever rewriting speech:
  *
  * - [fromBrief]: words the creator spelled in their brief win over sound-alike transcript words
  *   (Persian letters that sound the same — س/ص/ث, ز/ذ/ض/ظ, ت/ط, ه/ح, ق/غ — and Latin names);
+ * - [fromLexicon]: the offline word list ([PersianSpelling]) fixes unknown words one recogniser slip
+ *   from a far more frequent word (سبتنام → ثبت‌نام, سی سد → سیصد, میتونید → می‌تونید);
  * - [align]: the director model rewrites each line with correct spelling; its words are aligned
  *   to the recognised ones and a correction is kept only when it is plausibly the same word.
  *
- * Both return word index → corrected spelling; timings never change.
+ * All return word index → corrected spelling; timings never change.
  */
 object Proofreader {
 
+    private val SEPARATORS = Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+")
+
     fun fromBrief(words: List<String>, brief: String): Map<Int, String> {
-        val vocabulary = brief.split(Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+"))
+        val vocabulary = brief.split(SEPARATORS)
             .flatMap { t -> listOf(t) + t.split('‌') }.filter { it.length >= 2 }.toSet()
         val byKey = vocabulary.groupBy { key(it) }
         // Words the creator quoted («کد») are deliberate spellings: a one-vowel slip still matches.
@@ -25,6 +33,19 @@ object Proofreader {
             if (match != null && match != core) out[i] = match + w.substring(core.length)
         }
         return out
+    }
+
+    /**
+     * The word-list pass, run after [fromBrief]: words the brief already [fixed] keep its spelling and
+     * the brief's words count as evidence. A joined pair («سی سد» → «سیصد») empties its second word;
+     * apply the result with [withSpelling], which merges the pair into one word.
+     */
+    suspend fun fromLexicon(words: List<String>, brief: String, fixed: Map<Int, String> = emptyMap()): Map<Int, String> {
+        val current = words.mapIndexed { i, w -> fixed[i] ?: w }
+        val fixes = PersianSpelling.load().correct(current, brief.split(SEPARATORS).filter { it.length >= 2 })
+        // The other half of a joined pair, if [i] is one.
+        fun partner(i: Int) = if (fixes[i] == "") i - 1 else (i + 1).takeIf { fixes[it] == "" }
+        return fixes.filterKeys { i -> i !in fixed && partner(i)?.let { it in fixed } != true }
     }
 
     private fun briefMatch(core: String, byKey: Map<String, List<String>>, vocabulary: Set<String>, quoted: List<String>): String? {
@@ -87,7 +108,8 @@ object Proofreader {
         if (key(a) == key(c)) return true
         val latin = a.any { it in 'A'..'Z' || it in 'a'..'z' } && c.any { it in 'A'..'Z' || it in 'a'..'z' }
         if (latin) return distance(a, c) <= maxOf(2, a.length / 2) && a.first().equals(c.first(), ignoreCase = true)
-        return a.length >= 3 && vowelEdit(a, c)
+        // An unknown word the director respells as a known one two slips away ("کارورد" → "کاربر").
+        return a.length >= 3 && vowelEdit(a, c) || PersianSpelling.shared?.confirms(a, c) == true
     }
 
     /**
@@ -140,4 +162,23 @@ object Proofreader {
         }
         return dp[b.length]
     }
+}
+
+/**
+ * [withFixes] for spelling: a word fixed to "" was joined into the word before it («سی سد» → «سیصد»), so
+ * the two become one word spanning both timings — no empty word ever reaches lines or captions.
+ */
+fun Transcript.withSpelling(fixes: Map<Int, String>): Transcript {
+    if (fixes.isEmpty()) return this
+    val out = ArrayList<Word>(words.size)
+    for ((i, w) in words.withIndex()) {
+        val text = fixes[i] ?: w.text
+        val prev = out.lastOrNull()
+        if (text.isEmpty() && prev != null) {
+            out[out.lastIndex] = prev.copy(range = TimeRange(prev.range.startMs, maxOf(prev.range.endMs, w.range.endMs)), emphasis = maxOf(prev.emphasis, w.emphasis))
+        } else {
+            out += w.copy(text = text.ifEmpty { w.text })
+        }
+    }
+    return Transcript(language, out)
 }

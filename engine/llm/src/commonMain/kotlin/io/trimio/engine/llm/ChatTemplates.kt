@@ -24,6 +24,12 @@ object ChatTemplates {
                 }
                 append("<start_of_turn>model\n")
             }
+            // Gemma 4: system turn of its own, `<|turn>role … <turn|>`; thinking stays off (no `<|think|>`).
+            ChatFormat.Gemma4 -> {
+                append("<|turn>system\n").append(system.trim()).append("<turn|>\n")
+                for (m in messages) append("<|turn>").append(if (m.role == ChatRole.User) "user" else "model").append('\n').append(m.text.trim()).append("<turn|>\n")
+                append("<|turn>model\n")
+            }
         }
     }
 

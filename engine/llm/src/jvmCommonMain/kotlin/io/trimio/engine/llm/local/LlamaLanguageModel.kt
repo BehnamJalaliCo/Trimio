@@ -71,6 +71,8 @@ class LlamaLanguageModel(
     private val visionPath: String? = null,
     /** Token budget per image (dynamic-resolution models): bounds the cost of looking on a phone. */
     private val maxImageTokens: Int = 256,
+    /** Written after the assistant header, e.g. an empty reasoning block ([io.trimio.engine.models.DirectorProfile.assistantPrefix]). */
+    private val assistantPrefix: String = "",
 ) : LanguageModel, AutoCloseable {
     override val isLocal = true
     override val canSee: Boolean get() = visionPath != null && File(visionPath).isFile
@@ -145,8 +147,9 @@ class LlamaLanguageModel(
         // The model's own template first (exactly what it was trained on), the catalogue format otherwise.
         val roles = arrayOf("system") + messages.map { if (it.role == ChatRole.User) "user" else "assistant" }
         val contents = arrayOf(request.system.encodeToByteArray()) + messages.map { it.text.encodeToByteArray() }
-        return LlamaNative.applyTemplate(engine, roles, contents)
+        val formatted = LlamaNative.applyTemplate(engine, roles, contents)
             ?: ChatTemplates.format(format, request.system, messages).encodeToByteArray()
+        return if (assistantPrefix.isEmpty()) formatted else formatted + assistantPrefix.encodeToByteArray()
     }
 
     /** Frees the model's memory once no generation is running; it reloads on the next request. */

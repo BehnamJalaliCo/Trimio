@@ -265,10 +265,12 @@ object ExplainerRecipes {
                     transform = Transform(x = p.first.anim, y = p.second.anim, scale = Anim.tween(0f, 1f, t, t + 0.4f, Easing.Spring(0.5f, 2.2f))),
                     name = "node",
                 )
-                // Labels read at phone size: up to twice the node radius, as wide as the ring allows.
-                val lf = fit.fit(labels[i], look.label.copy(weight = 700), nodeR * 2.1f, r * 0.85f, nodeR * 2.6f, maxLines = 1)
+                // Labels read at phone size: up to twice the node radius (never under ~4% of the frame
+                // width, even on a small slot), as wide as the ring allows; full ink and a shadow over footage.
+                val lf = fit.fit(labels[i], look.label.copy(weight = 700), maxOf(nodeR * 2.1f, cue.width * 0.048f), r * 0.85f, maxOf(nodeR * 2.6f, cue.width * 0.06f), maxLines = 1)
                 nodes += TextNode(
-                    labels[i], lf.type, look.ink.copy(alpha = 0.85f).fill(), rtl = labels[i].any { it in '\u0600'..'\u06FF' },
+                    labels[i], lf.type, look.ink.copy(alpha = if (cue.overMedia) 1f else 0.85f).fill(), rtl = labels[i].any { it in '\u0600'..'\u06FF' },
+                    shadow = Craft.shadow(cue, look, lf.type.size),
                     transform = Transform(x = p.first.anim, y = (p.second + d / 2f + lf.height * 0.75f).anim, opacity = Anim.tween(0f, 1f, t + 0.1f, t + 0.4f)),
                     name = "node-label",
                 )

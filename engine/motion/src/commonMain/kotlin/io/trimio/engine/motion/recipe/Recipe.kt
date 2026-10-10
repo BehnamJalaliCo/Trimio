@@ -94,7 +94,7 @@ data class Built(
 
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
-    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all
+    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",
@@ -119,6 +119,14 @@ object Recipes {
         "picture" to "object", "visual" to "object",
         "stickers" to "objects", "ingredients" to "objects", "items" to "objects", "things" to "objects",
         "bar" to "bars", "bar-chart" to "bars", "checklist" to "list", "steps" to "list",
+        "timer" to "countdown", "deadline" to "countdown", "time-left" to "countdown", "hours-left" to "countdown", "urgency" to "countdown",
+        "clock" to "countdown", "countdown-timer" to "countdown", "expires" to "countdown", "last-chance" to "countdown",
+        "kpi" to "stats", "kpis" to "stats", "metrics" to "stats", "numbers" to "stats", "figures" to "stats", "statistics" to "stats",
+        "stat-row" to "stats", "proof" to "stats", "social-proof" to "stats",
+        "progress-bar" to "progress", "capacity" to "progress", "filled" to "progress", "quota" to "progress",
+        "spots" to "progress", "seats" to "progress", "loading" to "progress", "sold-out" to "progress",
+        "coupon" to "voucher", "ticket" to "voucher", "gift-card" to "voucher", "giftcard" to "voucher", "gift" to "voucher",
+        "reward" to "voucher", "bonus" to "voucher", "airdrop" to "voucher", "prize" to "voucher", "promo-code" to "voucher",
     )
 
     fun named(name: String?): Recipe? {
