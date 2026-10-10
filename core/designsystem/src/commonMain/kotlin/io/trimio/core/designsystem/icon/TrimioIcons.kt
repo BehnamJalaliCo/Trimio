@@ -56,6 +56,12 @@ object TrimioIcons {
         moveTo(8f, 4f); lineTo(8f, 20f); moveTo(16f, 4f); lineTo(16f, 20f)
         moveTo(4f, 9f); lineTo(8f, 9f); moveTo(4f, 15f); lineTo(8f, 15f); moveTo(16f, 9f); lineTo(20f, 9f); moveTo(16f, 15f); lineTo(20f, 15f)
     }
+    /** A frame with a play mark: "from a video". */
+    val VideoFrame = icon("video-frame") {
+        moveTo(5f, 5f); lineTo(19f, 5f); quadTo(21f, 5f, 21f, 7f); lineTo(21f, 17f); quadTo(21f, 19f, 19f, 19f)
+        lineTo(5f, 19f); quadTo(3f, 19f, 3f, 17f); lineTo(3f, 7f); quadTo(3f, 5f, 5f, 5f); close()
+        moveTo(10.2f, 9.4f); lineTo(14.6f, 12f); lineTo(10.2f, 14.6f); close()
+    }
     val Mic = icon("mic") {
         moveTo(9f, 6f); arcTo(3f, 3f, 0f, false, true, 15f, 6f); lineTo(15f, 11f); arcTo(3f, 3f, 0f, false, true, 9f, 11f); close()
         moveTo(5.5f, 11f); arcTo(6.5f, 6.5f, 0f, false, false, 18.5f, 11f); moveTo(12f, 17.5f); lineTo(12f, 21f)

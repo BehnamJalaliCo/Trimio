@@ -31,7 +31,7 @@ import io.trimio.core.designsystem.theme.Trimio
 import io.trimio.core.designsystem.theme.TrimioRadius
 import io.trimio.core.designsystem.theme.TrimioSpacing
 
-private val LocalGlassBackdrop = staticCompositionLocalOf<HazeState?> { null }
+internal val LocalGlassBackdrop = staticCompositionLocalOf<HazeState?> { null }
 
 /**
  * Marks [background] as the backdrop that glass surfaces inside [content] blur through.

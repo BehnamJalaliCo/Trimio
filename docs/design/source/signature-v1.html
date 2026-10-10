@@ -1,0 +1,315 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+:root {
+  --bg:#0B0A09; --s1:#141210; --s2:#1C1916; --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.16);
+  --ink:#F2EDE4; --mute:#8F887D; --dim:#5B564F;
+  --em:#FF5B2E;            /* action & brand */
+  --acid:#D7FF3A;          /* emphasis inside content (words, live) */
+  --iri: linear-gradient(110deg,#9BE7FF 0%,#B7A6FF 45%,#FFC6E0 80%,#FFE3B0 100%); /* the director (AI) */
+  --paper:#EFEDE6; --paper2:#E5E2D9; --pink:#111;
+}
+.board { gap: 48px; }
+.phone { background: var(--bg); color: var(--ink); }
+.pad { padding: 0 22px; }
+.grain::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:.08; mix-blend-mode:overlay; z-index:50;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+.lab { font:600 10.5px 'ACC'; letter-spacing:.16em; color:var(--mute); direction:ltr; }
+.lfa { font:500 12px 'UI'; color:var(--mute); }
+.rule { height:1px; background:var(--line); }
+.row { display:flex; align-items:center; }
+.sb { justify-content:space-between; }
+.iri { background:var(--iri); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hl { background: var(--acid); color:#0B0A09 !important; padding:1px 5px; border-radius:4px; -webkit-box-decoration-break:clone; box-decoration-break:clone; }
+.glass { position:relative; background: linear-gradient(160deg, rgba(255,246,235,.12), rgba(255,246,235,.035)); backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(255,255,255,.07), 0 24px 50px rgba(0,0,0,.5); }
+svg.i { width:22px; height:22px; stroke: currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.btn { height:58px; border-radius:16px; background:var(--em); color:#170904; font:800 16px 'UI'; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow: 0 10px 30px rgba(255,91,46,.28), inset 0 1px 0 rgba(255,255,255,.35); }
+/* cinematic footage: key light, cool fill, bokeh, rim-lit subject */
+.shot { position:relative; overflow:hidden; background:#0d0c0b; }
+.shot .key { position:absolute; inset:-15%; background:
+  radial-gradient(38% 30% at 74% 26%, rgba(255,150,90,.65), transparent 70%),
+  radial-gradient(45% 40% at 12% 78%, rgba(60,90,160,.35), transparent 70%),
+  radial-gradient(60% 50% at 50% 100%, rgba(30,20,15,.9), transparent 70%); }
+.shot .bok { position:absolute; border-radius:50%; background: radial-gradient(circle, rgba(255,210,160,.55), rgba(255,210,160,0) 70%); }
+.shot .sub { position:absolute; bottom:-6%; left:22%; width:52%; height:66%; border-radius:46% 46% 8% 8%;
+  background: linear-gradient(100deg, #0b0908 0%, #1c1512 60%, #6b3a22 98%); filter: blur(.6px); }
+.shot .sub::before { content:""; position:absolute; top:-33%; left:27%; width:46%; height:44%; border-radius:48% 48% 46% 46%;
+  background: linear-gradient(100deg, #0b0908 0%, #231914 62%, #8a4a2a 100%); }
+.lb::before, .lb::after { content:""; position:absolute; left:0; right:0; height:7%; background:#000; z-index:3; }
+.lb::before { top:0 } .lb::after { bottom:0 }
+.chip { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px; border-radius:14px; font:600 11.5px 'UI'; background: rgba(242,237,228,.08); }
+.dir-dot { width:18px; height:18px; border-radius:50%; background: var(--iri); box-shadow: 0 0 18px rgba(183,166,255,.6); }
+</style></head>
+<body>
+<div class="board">
+
+<!-- F0 · SYSTEM -->
+<div class="phone grain" style="background:#0B0A09">
+  <div class="pad" style="padding-top:44px">
+    <div class="lab">TRIMIO · SIGNATURE SYSTEM</div>
+    <div style="font:1000 46px/1 'DSP'; margin-top:14px">یک زبان،<br>سه ریشه<span style="color:var(--em)">.</span></div>
+    <div style="font:400 13px/1.8 'UI'; color:var(--mute); margin-top:12px">بدنهٔ سینمایی از <b style="color:var(--ink)">نوآر</b>، عمق و غوطه‌وری از <b style="color:var(--ink)">لومن</b>، نظم و جسارت تایپوگرافی از <b style="color:var(--ink)">کینتیک پیپر</b>.</div>
+  </div>
+  <div class="pad" style="margin-top:22px"><div class="lab">COLOR · ROLES</div></div>
+  <div class="pad" style="margin-top:10px; display:grid; grid-template-columns: repeat(3,1fr); gap:8px">
+    <div><div style="height:64px;border-radius:12px;background:#0B0A09;border:1px solid var(--line2)"></div><div style="font:700 12px 'UI';margin-top:6px">بوم</div><div class="lfa" style="font-size:10.5px">مشکی گرم</div></div>
+    <div><div style="height:64px;border-radius:12px;background:var(--ink)"></div><div style="font:700 12px 'UI';margin-top:6px">جوهر</div><div class="lfa" style="font-size:10.5px">استخوانی</div></div>
+    <div><div style="height:64px;border-radius:12px;background:var(--paper)"></div><div style="font:700 12px 'UI';margin-top:6px">کاغذ</div><div class="lfa" style="font-size:10.5px">تم روشن</div></div>
+    <div><div style="height:64px;border-radius:12px;background:var(--em)"></div><div style="font:700 12px 'UI';margin-top:6px">اقدام</div><div class="lfa" style="font-size:10.5px">دکمه و برند</div></div>
+    <div><div style="height:64px;border-radius:12px;background:var(--acid)"></div><div style="font:700 12px 'UI';margin-top:6px">تأکید</div><div class="lfa" style="font-size:10.5px">کلمه و زنده</div></div>
+    <div><div style="height:64px;border-radius:12px;background:var(--iri)"></div><div style="font:700 12px 'UI';margin-top:6px">کارگردان</div><div class="lfa" style="font-size:10.5px">فقط حضور AI</div></div>
+  </div>
+  <div class="pad" style="margin-top:22px"><div class="lab">TYPE · ROLES</div></div>
+  <div class="pad" style="margin-top:8px">
+    <div class="row sb" style="height:52px; border-bottom:1px solid var(--line)"><span style="font:1000 30px 'DSP'">تیتر</span><span class="lfa">نمایشی · ۱۱ وزن</span></div>
+    <div class="row sb" style="height:52px; border-bottom:1px solid var(--line)"><span style="font:900 26px 'EXP'">موشن</span><span class="lfa">بیانی · متغیر</span></div>
+    <div class="row sb" style="height:52px; border-bottom:1px solid var(--line)"><span style="font:500 18px 'UI'">متن رابط</span><span class="lfa">رابط · متغیر + نقطه</span></div>
+    <div class="row sb" style="height:52px"><span class="ltr" style="font:900 26px 'ACC'">+5.2%</span><span class="lfa">تأکیدی · اعداد</span></div>
+  </div>
+  <div class="pad" style="margin-top:18px"><div class="lab">FORM · MATERIAL</div></div>
+  <div class="pad" style="margin-top:10px; display:flex; gap:10px">
+    <div class="glass" style="flex:1;height:70px;border-radius:18px;display:grid;place-items:center;font:600 11px 'UI'">شیشهٔ گرم</div>
+    <div style="flex:1;height:70px;border-radius:4px;border:1px solid var(--line2);display:grid;place-items:center;font:600 11px 'UI'">خط مو</div>
+    <div style="flex:1;height:70px;border-radius:18px;background:var(--s2);display:grid;place-items:center;font:600 11px 'UI';position:relative;overflow:hidden">دانهٔ فیلم</div>
+  </div>
+</div>
+
+<!-- F1 · HOME -->
+<div class="phone grain">
+  <div class="island"></div>
+  <div class="status"><span>9:41</span><span>◼︎◼︎ 100</span></div>
+  <div class="pad row sb" style="margin-top:10px">
+    <div style="font:900 17px 'ACC'; direction:ltr">trimio<span style="color:var(--em)">.</span></div>
+    <div class="row" style="gap:10px">
+      <div class="chip"><span class="dir-dot" style="width:10px;height:10px"></span>آفلاین · آماده</div>
+      <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#4b3a2e,#1b1613);border:1px solid var(--line2)"></div>
+    </div>
+  </div>
+  <div class="pad" style="margin-top:22px">
+    <div class="lfa">سه‌شنبه، ۱۷ مهر</div>
+    <div style="font:1000 50px/1 'DSP'; margin-top:8px">امروز چه<br>بسازیم<span style="color:var(--em)">؟</span></div>
+  </div>
+  <div class="pad" style="display:grid; grid-template-columns:1fr 1fr; margin-top:20px; border-top:1px solid var(--line2); border-bottom:1px solid var(--line2)">
+    <div style="padding:14px 0 14px 14px; border-left:1px solid var(--line2)">
+      <div class="row sb"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg><span class="lab">A</span></div>
+      <div style="font:900 22px 'EXP'; margin-top:16px">ویدیو</div><div class="lfa" style="font-size:11.5px">موشن روی تصویر خودت</div>
+    </div>
+    <div style="padding:14px 14px 14px 0">
+      <div class="row sb"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lab">B</span></div>
+      <div style="font:900 22px 'EXP'; margin-top:16px">فقط صدا</div><div class="lfa" style="font-size:11.5px">تصویر از صفر ساخته می‌شود</div>
+    </div>
+  </div>
+  <div class="pad row sb" style="margin-top:20px"><div style="font:800 14px 'UI'">ادامه بده</div><div class="lab">LATEST</div></div>
+  <div style="position:relative; height:206px; margin-top:12px; perspective:900px">
+    <div class="shot" style="position:absolute; width:150px; height:190px; left:4px; top:10px; border-radius:18px; transform:rotateY(-32deg) scale(.88); opacity:.55; filter:hue-rotate(180deg) saturate(.6)"><div class="key"></div></div>
+    <div class="shot lb" style="position:absolute; left:58px; right:22px; height:200px; top:0; border-radius:20px; box-shadow:0 30px 60px rgba(0,0,0,.6)">
+      <div class="key"></div>
+      <div class="bok" style="width:60px;height:60px;top:22px;left:40px"></div><div class="bok" style="width:34px;height:34px;top:70px;left:110px;opacity:.6"></div>
+      <div class="sub"></div>
+      <div style="position:absolute; z-index:4; right:18px; top:28px; text-align:right">
+        <div class="ltr" style="font:600 10px 'ACC'; letter-spacing:.25em; color:var(--acid)">BTC · +5.2%</div>
+        <div style="font:1000 40px/1 'DSP'; margin-top:6px">سیگنال</div>
+        <div style="height:3px; width:58px; background:var(--em); margin:8px 0 0 auto"></div>
+      </div>
+      <div class="glass" style="position:absolute; z-index:5; left:12px; bottom:22px; height:30px; padding:0 12px; border-radius:15px; display:flex; align-items:center; gap:8px; font:600 11px 'UI'">
+        <svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor"/></svg>۰۰:۴۲
+      </div>
+    </div>
+  </div>
+  <div class="pad" style="margin-top:8px">
+    <div class="row" style="gap:14px; height:54px; border-bottom:1px solid var(--line)">
+      <div class="ltr" style="font:300 26px 'ACC'; width:36px; color:var(--mute)">02</div>
+      <div style="flex:1"><div style="font:700 14px 'UI'">پادکست قسمت ۱۲</div><div class="lfa" style="font-size:11px">فقط صدا · کینتیک</div></div>
+      <div class="chip" style="color:var(--acid); background:rgba(215,255,58,.1)">● ۶۸٪</div>
+    </div>
+  </div>
+  <div class="glass" style="position:absolute; bottom:28px; left:16px; right:16px; height:62px; border-radius:20px; display:flex; align-items:center; justify-content:space-between; padding:0 8px 0 16px">
+    <div class="row" style="gap:10px"><span class="dir-dot"></span><span style="font:400 14.5px 'UI'; color:var(--mute)">به کارگردان بگو چه می‌خواهی…</span></div>
+    <div style="width:46px;height:46px;border-radius:14px;background:var(--em);display:grid;place-items:center;color:#170904"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+  </div>
+</div>
+
+<!-- F2 · CREATE -->
+<div class="phone grain">
+  <div class="shot" style="position:absolute; inset:0 0 auto 0; height:330px">
+    <div class="key"></div><div class="bok" style="width:80px;height:80px;top:70px;left:30px"></div><div class="bok" style="width:40px;height:40px;top:150px;left:120px;opacity:.6"></div><div class="sub"></div>
+  </div>
+  <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(11,10,9,0) 18%, rgba(11,10,9,.85) 30%, #0B0A09 38%)"></div>
+  <div class="island"></div>
+  <div class="status" style="position:relative"><span>9:41</span><span>◼︎◼︎ 100</span></div>
+  <div class="pad row sb" style="position:relative; margin-top:8px">
+    <div class="glass" style="width:42px;height:42px;border-radius:21px;display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+    <div class="glass" style="height:42px;border-radius:21px;padding:0 14px;display:flex;align-items:center;gap:8px;font:600 12px 'UI'">۰۰:۴۲ <span style="opacity:.35">|</span> <span class="ltr" style="font:600 11px 'ACC'">9:16 · 1080p</span></div>
+  </div>
+  <div class="pad" style="position:absolute; top:246px; left:0; right:0">
+    <div class="row" style="gap:8px"><span class="dir-dot" style="width:12px;height:12px"></span><span style="font:600 12px 'UI'" class="iri">کارگردان گوش می‌دهد</span></div>
+    <div style="font:500 20px/1.7 'UI'; margin-top:10px">یک ریلز پرانرژی برای سیگنال بیت‌کوین بساز؛ هوک در سه ثانیهٔ اول، <span class="hl" style="color:#0B0A09; font-weight:800">روی اعداد و سود تأکید کن</span>، موسیقی آرام<span style="display:inline-block;width:2px;height:22px;background:var(--em);vertical-align:-5px;margin-right:3px"></span></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; margin-top:18px; border-top:1px solid var(--line2); border-bottom:1px solid var(--line2)">
+      <div style="padding:10px 0 10px 10px; border-left:1px solid var(--line2)"><div class="lfa" style="font-size:10.5px">انرژی</div><div class="ltr" style="font:900 28px/1.1 'ACC'">80</div></div>
+      <div style="padding:10px 10px; border-left:1px solid var(--line2)"><div class="lfa" style="font-size:10.5px">مقصد</div><div style="font:800 15px 'UI'; margin-top:6px">ریلز</div></div>
+      <div style="padding:10px 10px 10px 0"><div class="lfa" style="font-size:10.5px">تأکید</div><div style="font:800 15px 'UI'; margin-top:6px">اعداد، سود</div></div>
+    </div>
+    <div class="row sb" style="margin-top:16px"><span class="lfa">سبک · کارگردان پیشنهاد می‌دهد</span><span style="font:700 12px 'UI'">۲۸ سبک</span></div>
+    <div style="display:flex; gap:8px; margin-top:10px">
+      <div style="flex:1.25; height:88px; border-radius:14px; background:#0d0c0b; position:relative; padding:10px; box-shadow:0 0 0 2px var(--em)">
+        <div style="font:1000 24px/1 'DSP'">نوآر</div><div style="position:absolute;bottom:10px;right:10px;height:2px;width:26px;background:var(--em)"></div>
+        <div class="ltr" style="position:absolute;bottom:8px;left:10px;font:600 9.5px 'ACC';color:var(--mute)">97%</div>
+      </div>
+      <div style="flex:1; height:88px; border-radius:14px; background:var(--paper); color:#111; padding:10px"><div style="font:900 18px/1 'EXP'">کینتیک</div><div style="margin-top:8px;height:8px;width:40px;background:var(--acid)"></div></div>
+      <div style="flex:1; height:88px; border-radius:14px; overflow:hidden; position:relative; background:radial-gradient(70% 60% at 50% 30%, #2b3d63, #0a0f1a)"><div style="position:absolute;bottom:10px;right:10px;font:700 15px 'EXP'" class="iri">لومن</div></div>
+    </div>
+  </div>
+  <div class="pad" style="position:absolute; bottom:24px; left:0; right:0">
+    <div class="btn">بساز <svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></div>
+    <div class="row" style="justify-content:center; gap:6px; margin-top:10px; font:500 11.5px 'UI'; color:var(--mute)"><svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px"><rect x="7" y="3" width="10" height="18" rx="2"/></svg>روی همین گوشی · بدون اینترنت</div>
+  </div>
+</div>
+
+<!-- F3 · BUILD / DIRECTOR LIVE -->
+<div class="phone grain">
+  <div class="island"></div>
+  <div class="status"><span>9:41</span><span>◼︎◼︎ 100</span></div>
+  <div class="pad row sb" style="margin-top:8px"><div class="lfa">در حال ساخت · نوآر</div><div style="font:600 13px 'UI'">لغو</div></div>
+  <div class="pad" style="margin-top:18px; display:flex; align-items:flex-end; justify-content:space-between">
+    <div style="display:flex; align-items:flex-start; direction:ltr">
+      <span style="font:1000 140px/.86 'DSP'; letter-spacing:-.03em">۶۸</span>
+      <span style="font:900 30px 'ACC'; color:var(--em); margin-top:4px">%</span>
+    </div>
+    <div class="shot" style="width:100px; height:178px; border-radius:16px; box-shadow:0 0 0 1px var(--line2), 0 20px 40px rgba(0,0,0,.6)">
+      <div class="key"></div><div class="sub"></div>
+      <div style="position:absolute; z-index:4; bottom:40px; right:10px; font:1000 22px/1 'DSP'">پنج</div>
+      <div style="position:absolute; z-index:4; bottom:16px; right:10px; font:1000 20px/1 'DSP'; color:#0B0A09; background:var(--acid); padding:0 4px">درصد</div>
+      <div class="ltr" style="position:absolute; z-index:4; top:9px; left:9px; font:700 8.5px 'ACC'; letter-spacing:.2em; color:var(--acid)">● LIVE</div>
+    </div>
+  </div>
+  <div class="pad" style="margin-top:16px; display:flex; gap:3px; direction:ltr">
+    <script>for(let i=0;i<34;i++){document.write('<div style="flex:1;height:22px;border-radius:2px;background:'+(i<23?'#FF5B2E':(i==23?'#D7FF3A':'rgba(242,237,228,.08)'))+'"></div>')}</script>
+  </div>
+  <div class="pad row sb" style="margin-top:8px"><span class="lfa">۲۱۴ از ۳۱۵ فریم</span><span class="lfa">حدود ۴۰ ثانیه</span></div>
+  <div class="pad" style="margin-top:16px">
+    <div class="glass" style="border-radius:20px; padding:14px 16px">
+      <div class="row" style="gap:8px"><span class="dir-dot" style="width:14px;height:14px"></span><span style="font:700 12px 'UI'" class="iri">کارگردان · صحنهٔ ۳ از ۷</span></div>
+      <div style="font:500 14.5px/1.75 'UI'; margin-top:8px">«پنج درصد» را با <b>شمارندهٔ عدد</b> و ضربهٔ بیس می‌سازم؛ دوربین آرام زوم می‌کند و کلمه با <span class="hl" style="color:#0B0A09;font-weight:800">هایلایت لیمویی</span> می‌نشیند.</div>
+    </div>
+  </div>
+  <div class="pad" style="margin-top:14px; font:500 13.5px 'UI'">
+    <div class="row sb" style="height:34px; color:var(--mute)"><span><span class="ltr" style="font:500 11px 'ACC'; color:var(--dim); margin-left:10px">01</span>شنیدن و پاک‌سازی</span><span class="ltr" style="font:600 11px 'ACC'">2.1s</span></div>
+    <div class="row sb" style="height:34px; color:var(--mute); border-top:1px solid var(--line)"><span><span class="ltr" style="font:500 11px 'ACC'; color:var(--dim); margin-left:10px">02</span>کلمه‌به‌کلمه</span><span class="ltr" style="font:600 11px 'ACC'">9.4s</span></div>
+    <div class="row sb" style="height:34px; color:var(--mute); border-top:1px solid var(--line)"><span><span class="ltr" style="font:500 11px 'ACC'; color:var(--dim); margin-left:10px">03</span>طراحی صحنه‌ها</span><span class="ltr" style="font:600 11px 'ACC'">6.2s</span></div>
+    <div class="row sb" style="height:40px; color:var(--ink); font-weight:800; border-top:1px solid var(--line2); border-bottom:1px solid var(--line2)"><span><span class="ltr" style="font:700 11px 'ACC'; color:var(--em); margin-left:10px">04</span>رندر موشن‌گرافی</span><span class="ltr" style="font:700 11px 'ACC'; color:var(--em)">RUNNING</span></div>
+    <div class="row sb" style="height:34px; color:var(--dim)"><span><span class="ltr" style="font:500 11px 'ACC'; margin-left:10px">05</span>بازبینی با چشم کارگردان</span><span>—</span></div>
+  </div>
+  <div class="pad" style="margin-top:10px">
+    <div style="font:500 15px/1.9 'UI'; color:var(--mute)">امروز <span style="color:var(--ink);font-weight:900">بیت‌کوین</span> <span style="color:var(--acid);font-weight:900">پنج درصد</span> رشد کرد و <span style="color:var(--ink);font-weight:900">سیگنال خرید</span> ما به اولین…</div>
+  </div>
+</div>
+
+<!-- F4 · EDITOR (immersive) -->
+<div class="phone grain">
+  <div class="shot" style="position:absolute; inset:0">
+    <div class="key"></div><div class="bok" style="width:90px;height:90px;top:120px;left:20px"></div><div class="bok" style="width:46px;height:46px;top:230px;left:110px;opacity:.5"></div><div class="sub" style="height:60%"></div>
+  </div>
+  <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,0) 20%, rgba(0,0,0,0) 50%, rgba(0,0,0,.65) 72%)"></div>
+  <div style="position:absolute; top:132px; right:26px; text-align:right; z-index:2">
+    <div class="ltr" style="font:600 10.5px 'ACC'; letter-spacing:.28em; color:var(--acid)">BTC / USDT</div>
+    <div class="ltr" style="font:900 60px/1 'ACC'; margin-top:4px">+5.2<span style="color:var(--em)">%</span></div>
+  </div>
+  <div style="position:absolute; top:290px; right:26px; text-align:right; z-index:2">
+    <div style="font:1000 46px/1 'DSP'">پنج</div>
+    <div style="font:1000 46px/1.1 'DSP'; color:#0B0A09; background:var(--acid); display:inline-block; padding:0 8px; margin-top:4px">درصد</div>
+    <div style="font:700 15px 'UI'; opacity:.85; margin-top:6px">رشد کرد</div>
+  </div>
+  <div class="island"></div>
+  <div class="status" style="position:relative"><span>9:41</span><span>◼︎◼︎ 100</span></div>
+  <div class="pad row sb" style="position:relative; margin-top:8px">
+    <div class="glass" style="width:42px;height:42px;border-radius:21px;display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+    <div style="height:42px;border-radius:21px;padding:0 18px;display:flex;align-items:center;font:800 14px 'UI';background:var(--em);color:#170904">خروجی</div>
+  </div>
+  <div class="glass" style="position:absolute; left:14px; top:178px; width:50px; padding:12px 0; border-radius:25px; display:flex; flex-direction:column; align-items:center; gap:16px; z-index:3">
+    <svg class="i" viewBox="0 0 24 24" style="color:var(--acid)"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>
+    <svg class="i" viewBox="0 0 24 24" style="opacity:.65"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></svg>
+    <svg class="i" viewBox="0 0 24 24" style="opacity:.65"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/></svg>
+    <svg class="i" viewBox="0 0 24 24" style="opacity:.65"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>
+    <svg class="i" viewBox="0 0 24 24" style="opacity:.65"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 17M8 15.5L20 7"/></svg>
+  </div>
+  <div class="glass" style="position:absolute; left:10px; right:10px; bottom:18px; padding:14px 14px 12px; border-radius:26px; z-index:3">
+    <div style="display:flex; flex-wrap:wrap; gap:6px; font:600 13.5px 'UI'">
+      <span style="padding:5px 9px;border-radius:10px;background:rgba(255,255,255,.06)">امروز</span>
+      <span style="padding:5px 9px;border-radius:10px;background:rgba(255,255,255,.12);font-weight:800">بیت‌کوین</span>
+      <span style="padding:5px 9px;border-radius:10px;background:var(--acid);color:#0B0A09;font-weight:900">پنج درصد</span>
+      <span style="padding:5px 9px;border-radius:10px;background:rgba(255,255,255,.06)">رشد کرد</span>
+      <span style="padding:5px 9px;border-radius:10px;opacity:.35;text-decoration:line-through">و خب</span>
+    </div>
+    <div style="position:relative; height:88px; margin-top:12px; border-radius:14px; background:rgba(0,0,0,.32); overflow:hidden">
+      <div style="position:absolute; top:8px; left:10px; right:10px; height:16px; display:flex; gap:2px">
+        <div style="flex:2;border-radius:3px;background:rgba(242,237,228,.14)"></div><div style="flex:3;border-radius:3px;background:rgba(242,237,228,.22)"></div><div style="flex:3;border-radius:3px;background:var(--acid)"></div><div style="flex:2;border-radius:3px;background:rgba(242,237,228,.14)"></div><div style="flex:2;border-radius:3px;background:rgba(242,237,228,.14)"></div>
+      </div>
+      <div style="position:absolute; top:30px; left:10px; right:10px; height:14px; display:flex; gap:2px">
+        <div style="flex:4"></div><div style="flex:5;border-radius:3px;background:var(--em);font:700 9px 'UI';color:#170904;padding:1px 5px">شمارنده ۵٪</div><div style="flex:3"></div>
+      </div>
+      <div style="position:absolute; top:50px; left:10px; right:10px; height:28px; display:flex; gap:2px; align-items:center; direction:ltr">
+        <script>for(let i=0;i<66;i++){document.write('<div style="flex:1;border-radius:1px;height:'+(3+Math.abs(Math.sin(i*.6)*Math.cos(i*.21))*24)+'px;background:rgba(242,237,228,.38)"></div>')}</script>
+      </div>
+      <div style="position:absolute; top:0; bottom:0; right:44%; width:2px; background:var(--ink); box-shadow:0 0 10px rgba(255,255,255,.8)"></div>
+    </div>
+    <div class="row sb" style="margin-top:10px">
+      <span class="ltr" style="font:600 11.5px 'ACC'; color:var(--mute)">00:12 / 00:42</span>
+      <div style="width:42px;height:42px;border-radius:21px;background:var(--ink);color:#0B0A09;display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24"><path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor"/></svg></div>
+      <span class="row" style="gap:6px; font:600 11.5px 'UI'; color:var(--mute)"><span class="dir-dot" style="width:10px;height:10px"></span>بازنویسی با کارگردان</span>
+    </div>
+  </div>
+</div>
+
+<!-- F5 · HOME · PAPER (light theme) -->
+<div class="phone" style="background:var(--paper); color:#111">
+  <div class="island"></div>
+  <div class="status"><span>9:41</span><span>◼︎◼︎ 100</span></div>
+  <div class="pad row sb" style="margin-top:10px">
+    <div style="font:900 17px 'ACC'; direction:ltr">trimio<span style="color:var(--em)">.</span></div>
+    <div class="chip" style="background:#111; color:var(--paper)">تم روشن</div>
+  </div>
+  <div class="pad" style="margin-top:22px">
+    <div style="font:500 12px 'UI'; color:#6E6B64">سه‌شنبه، ۱۷ مهر</div>
+    <div style="font:1000 50px/1 'DSP'; margin-top:8px">امروز چه<br>بسازیم<span style="color:var(--em)">؟</span></div>
+  </div>
+  <div class="pad" style="display:grid; grid-template-columns:1fr 1fr; margin-top:20px; border-top:2px solid #111; border-bottom:2px solid #111">
+    <div style="padding:14px 0 14px 14px; border-left:1px solid #1111111f">
+      <div class="row sb"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg><span class="lab" style="color:#6E6B64">A</span></div>
+      <div style="font:900 22px 'EXP'; margin-top:16px">ویدیو</div><div style="font:500 11.5px 'UI'; color:#6E6B64">موشن روی تصویر خودت</div>
+    </div>
+    <div style="padding:14px 14px 14px 0">
+      <div class="row sb"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span class="lab" style="color:#6E6B64">B</span></div>
+      <div style="font:900 22px 'EXP'; margin-top:16px">فقط صدا</div><div style="font:500 11.5px 'UI'; color:#6E6B64">تصویر از صفر ساخته می‌شود</div>
+    </div>
+  </div>
+  <div class="pad row sb" style="margin-top:20px"><div style="font:800 14px 'UI'">پروژه‌ها</div><div class="lab" style="color:#6E6B64">INDEX · 03</div></div>
+  <div class="pad" style="margin-top:6px">
+    <div class="row" style="gap:14px; height:76px; border-bottom:1px solid #1111111f">
+      <div class="ltr" style="font:300 28px 'ACC'; width:36px">01</div>
+      <div class="shot" style="width:46px;height:60px;border-radius:8px"><div class="key"></div><div class="sub"></div></div>
+      <div style="flex:1"><div style="font:800 14.5px 'UI'">سیگنال امروز بیت‌کوین</div><div style="font:500 11px 'UI'; color:#6E6B64">نوآر · ۰۰:۴۲</div></div>
+      <div class="chip" style="background:var(--em); color:#170904">آماده</div>
+    </div>
+    <div class="row" style="gap:14px; height:76px; border-bottom:1px solid #1111111f">
+      <div class="ltr" style="font:300 28px 'ACC'; width:36px">02</div>
+      <div style="width:46px;height:60px;border-radius:8px;background:var(--acid)"></div>
+      <div style="flex:1"><div style="font:800 14.5px 'UI'">پادکست قسمت ۱۲</div><div style="font:500 11px 'UI'; color:#6E6B64">فقط صدا · کینتیک</div></div>
+      <div class="chip" style="background:transparent; border:1.5px solid #111">۶۸٪</div>
+    </div>
+    <div class="row" style="gap:14px; height:76px; border-bottom:1px solid #1111111f">
+      <div class="ltr" style="font:300 28px 'ACC'; width:36px">03</div>
+      <div style="width:46px;height:60px;border-radius:8px;background:radial-gradient(70% 60% at 50% 30%, #2b3d63, #0a0f1a)"></div>
+      <div style="flex:1"><div style="font:800 14.5px 'UI'">معرفی محصول</div><div style="font:500 11px 'UI'; color:#6E6B64">لومن · ۰۰:۲۸</div></div>
+      <div class="chip" style="background:#111; color:var(--paper)">آماده</div>
+    </div>
+  </div>
+  <div style="position:absolute; bottom:28px; left:16px; right:16px; height:62px; border-radius:20px; background:#111; color:var(--paper); display:flex; align-items:center; justify-content:space-between; padding:0 8px 0 16px">
+    <div class="row" style="gap:10px"><span class="dir-dot"></span><span style="font:400 14.5px 'UI'; color:#a9a59c">به کارگردان بگو چه می‌خواهی…</span></div>
+    <div style="width:46px;height:46px;border-radius:14px;background:var(--em);display:grid;place-items:center;color:#170904"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></div>
+  </div>
+</div>
+
+</div>
+</body></html>
