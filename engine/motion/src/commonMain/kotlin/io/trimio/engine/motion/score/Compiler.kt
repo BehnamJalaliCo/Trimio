@@ -117,10 +117,24 @@ class Compiler(
         init {
             frameOf(score.format).let { (fw, fh) -> w = fw; h = fh }
             layout = Layout(w, h, input.subject)
-            sceneStarts = scenes.mapIndexed { k, sc ->
+            val nominal = scenes.mapIndexed { k, sc ->
                 if (k == 0) 0f else (sc.time ?: sc.from?.let { start(it) - Craft.SCENE_LEAD } ?: 0f).coerceIn(0f, duration)
             }
+            sceneStarts = nominal.mapIndexed { k, s -> if (k == 0) s else stageStart(scenes[k], s, nominal.getOrElse(k + 1) { duration }) }
             sceneEnds = sceneStarts.drop(1) + duration
+        }
+
+        /**
+         * A takeover cuts in with its graphic: an empty stage before the graphic lands reads as a
+         * mistake, so the speaker stays on screen until just before it.
+         */
+        private fun stageStart(scene: SceneScore, nominal: Float, next: Float): Float {
+            if (input.footage == null || sceneBg(scene, input) == "media") return nominal
+            val from = scene.from ?: 0
+            val lands = scene.beats.mapNotNull { b ->
+                b.time ?: b.at?.let { start(it) } ?: b.text?.let { t -> locate(t, norm, from..words.lastIndex.coerceAtLeast(from))?.let { start(it.first) } }
+            }.minOrNull() ?: return nominal
+            return (lands - Craft.SCENE_LEAD).coerceIn(nominal, maxOf(nominal, next - MIN_SCENE))
         }
 
         fun start(i: Int) = words.getOrNull(i.coerceIn(0, (words.size - 1).coerceAtLeast(0)))?.range?.startMs?.div(1000f) ?: 0f
@@ -194,7 +208,7 @@ class Compiler(
                 wordTimes = spokenTimes(b.text, quoted, words, at),
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
-                items = b.items, itemTimes = b.items.map { item -> locate(item, norm, range)?.let { start(it.first) } },
+                items = b.items, itemTimes = b.items.map { item -> locate(item.removePrefix(">"), norm, range)?.let { start(it.first) } },
                 rtl = rtlOf(beatText, b.label), seed = id * 7 + 3,
             )
             return Beat(id, recipe, pictured(cue, b), zone, k, minOut)
@@ -340,7 +354,8 @@ class Compiler(
             val next = lines.getOrNull(i + 1)?.first()?.range?.startMs?.div(1000f) ?: Float.MAX_VALUE
             val end = minOf(line.last().range.endMs / 1000f + 0.35f, next - 0.03f)
             val headline = beats.any { b -> b.recipe.kind == Recipe.Kind.Text && overlap(b.cue.at, b.out, at, end) > (end - at) * 0.35f }
-            if (headline || layout.busy(zone, at, end)) { skipped++; continue }
+            // A graphic leaving the zone is still on screen through its exit: give it that time.
+            if (headline || layout.busy(zone, at - EXIT_TAIL, end)) { skipped++; continue }
             val lineWords = line.map { it.text }
             // One highlight per line: the strongest word (prosody, a number, or the director's pick).
             val strongest = line.indices.filter { Words.isContent(lineWords[it]) }.maxByOrNull { j ->
@@ -549,6 +564,8 @@ class Compiler(
         private const val MIN_READ = 1.0f
         private const val MAX_HOLD = 7f
         private const val LINGER = 0.55f
+        private const val EXIT_TAIL = 0.4f
+        private const val MIN_SCENE = 1.2f
         private const val TAIL = 0.8f
         private const val SNAP_WINDOW = 0.1f
         private const val MIN_SFX_GAP = 0.12f
