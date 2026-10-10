@@ -39,7 +39,8 @@ object Lines {
             val ends = next == null || words[i].endsSentence || words[i].text.last() in END
             // Never inside a name ("Claude | Code"): a pause between two Latin words is a breath, not a break.
             val inName = next != null && latin(words[i].text) && latin(next.text) && words[i].text.last() !in SOFT
-            if (ends || (!inName && (gap >= pauseMs || breath(i)))) {
+            val paused = gap >= pauseMs || breath(i)
+            if (ends || (!inName && paused)) {
                 lines += Line(start, i)
                 start = i + 1
             }

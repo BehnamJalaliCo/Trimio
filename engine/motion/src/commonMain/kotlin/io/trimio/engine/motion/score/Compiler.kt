@@ -177,16 +177,23 @@ class Compiler(
             val cue = Cue(
                 text = beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = (b.energy ?: defaultEnergy(recipe)).coerceIn(0f, 1f), emphasis = emphasisOf(beatText, b.emphasis, quoted, this.words),
-                // Words land as spoken only when they are spoken during this beat (a hook that
-                // quotes a line said later keeps its own timing).
-                wordTimes = quoted?.takeIf { q -> q.count() == words && exact(b.text, q) && start(q.first) in (at - 0.6f)..(at + 1.2f) }?.map { start(it) },
+                wordTimes = spokenTimes(b.text, quoted, words, at),
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items, itemTimes = b.items.map { item -> locate(item, norm, range)?.let { start(it.first) } },
-                rtl = isRtl(beatText.ifBlank { b.label ?: "" }) || (beatText.isBlank() && this.words.any { isRtl(it.text) }), seed = id * 7 + 3,
+                rtl = rtlOf(beatText, b.label), seed = id * 7 + 3,
             )
             return Beat(id, recipe, pictured(cue, b), zone, k, minOut)
         }
+
+        /**
+         * Words land as spoken only when they are spoken during this beat (a hook that quotes a
+         * line said later keeps its own timing).
+         */
+        private fun spokenTimes(text: String?, quoted: IntRange?, count: Int, at: Float): List<Float>? =
+            quoted?.takeIf { q -> q.count() == count && exact(text, q) && start(q.first) in (at - 0.6f)..(at + 1.2f) }?.map { start(it) }
+
+        private fun rtlOf(text: String, label: String?) = isRtl(text.ifBlank { label ?: "" }) || (text.isBlank() && words.any { isRtl(it.text) })
 
         /** Every word of [text] is said, in order, at [range] (a loose match only places the beat). */
         private fun exact(text: String?, range: IntRange): Boolean {

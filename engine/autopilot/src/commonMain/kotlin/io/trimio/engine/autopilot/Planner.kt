@@ -101,19 +101,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                     scenes[scenes.lastIndex] = scenes.last().let { it.copy(beats = it.beats + beats) }
                     continue
                 }
-                val transition = when {
-                    k == 0 -> null
-                    takeover -> transitionRng.weighted(intoTakeover()).also { usedTransitions += it }
-                    previousTakeover -> transitionRng.weighted(outOfTakeover()).also { usedTransitions += it }
-                    else -> null
-                }
-                scenes += SceneScore(
-                    from = line.first,
-                    bg = if (takeover) (if (recipeRng.chance(0.5f) || read.show == "network") "grid" else "aurora") else null,
-                    camera = if (takeover) null else camera(read),
-                    transition = transition,
-                    beats = beats,
-                )
+                scenes += scene(k, line, read, takeover, previousTakeover, beats)
                 previousTakeover = takeover
             }
             val captionWords = taste.captionWords ?: when (u.brief.captions) {
@@ -131,6 +119,22 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             )
             notes += "seed $seed: look $look, music ${music?.id}, mark $mark, captions $captionWords, takeovers ${takeovers.sorted()}"
             return Plan(score, music, Choices(seed, look, music?.id, usedRecipes.toList(), usedTransitions.toList()), notes)
+        }
+
+        private fun scene(k: Int, line: Lines.Line, read: LineRead, takeover: Boolean, afterTakeover: Boolean, beats: List<BeatScore>): SceneScore {
+            val transition = when {
+                k == 0 -> null
+                takeover -> transitionRng.weighted(intoTakeover()).also { usedTransitions += it }
+                afterTakeover -> transitionRng.weighted(outOfTakeover()).also { usedTransitions += it }
+                else -> null
+            }
+            return SceneScore(
+                from = line.first,
+                bg = if (takeover) (if (recipeRng.chance(0.5f) || read.show == "network") "grid" else "aurora") else null,
+                camera = if (takeover) null else camera(read),
+                transition = transition,
+                beats = beats,
+            )
         }
 
         // ------------------------------------------------------------ reading each line
