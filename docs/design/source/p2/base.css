@@ -1,0 +1,28 @@
+@font-face { font-family: "UI"; src: url("fonts/ui.ttf"); font-weight: 100 1000; }
+@font-face { font-family: "EXP"; src: url("fonts/expressive.ttf"); font-weight: 100 900; }
+@font-face { font-family: "DSP"; src: url("fonts/display_100.ttf"); font-weight: 100; }
+@font-face { font-family: "DSP"; src: url("fonts/display_200.ttf"); font-weight: 200; }
+@font-face { font-family: "DSP"; src: url("fonts/display_300.ttf"); font-weight: 300; }
+@font-face { font-family: "DSP"; src: url("fonts/display_400.ttf"); font-weight: 400; }
+@font-face { font-family: "DSP"; src: url("fonts/display_500.ttf"); font-weight: 500; }
+@font-face { font-family: "DSP"; src: url("fonts/display_600.ttf"); font-weight: 600; }
+@font-face { font-family: "DSP"; src: url("fonts/display_700.ttf"); font-weight: 700; }
+@font-face { font-family: "DSP"; src: url("fonts/display_800.ttf"); font-weight: 800; }
+@font-face { font-family: "DSP"; src: url("fonts/display_900.ttf"); font-weight: 900; }
+@font-face { font-family: "DSP"; src: url("fonts/display_950.ttf"); font-weight: 950; }
+@font-face { font-family: "DSP"; src: url("fonts/display_1000.ttf"); font-weight: 1000; }
+@font-face { font-family: "ACC"; src: url("fonts/accent_300.ttf"); font-weight: 300; }
+@font-face { font-family: "ACC"; src: url("fonts/accent_400.ttf"); font-weight: 400; }
+@font-face { font-family: "ACC"; src: url("fonts/accent_500.ttf"); font-weight: 500; }
+@font-face { font-family: "ACC"; src: url("fonts/accent_600.ttf"); font-weight: 600; }
+@font-face { font-family: "ACC"; src: url("fonts/accent_700.ttf"); font-weight: 700; }
+@font-face { font-family: "ACC"; src: url("fonts/accent_900.ttf"); font-weight: 900; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #050505; }
+body { font-family: "UI"; -webkit-font-smoothing: antialiased; }
+.board { display: flex; gap: 56px; padding: 72px; align-items: flex-start; }
+.phone { width: 390px; height: 844px; border-radius: 54px; overflow: hidden; position: relative; flex: none;
+  box-shadow: 0 0 0 10px #161616, 0 0 0 11px #2a2a2a, 0 60px 120px rgba(0,0,0,.6); direction: rtl; }
+.status { height: 50px; display: flex; justify-content: space-between; align-items: center; padding: 14px 32px 0; font: 600 15px "UI"; direction: ltr; }
+.island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 122px; height: 35px; border-radius: 20px; background: #000; z-index: 10; }
+.ltr { direction: ltr; unicode-bidi: isolate; display: inline-block; }

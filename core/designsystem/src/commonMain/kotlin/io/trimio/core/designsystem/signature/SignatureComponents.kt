@@ -170,7 +170,7 @@ fun DirectorDot(modifier: Modifier = Modifier, size: Dp = 18.dp) {
 /** Text in the director's iridescent ink (only for the AI's voice). */
 @Composable
 fun DirectorText(text: String, modifier: Modifier = Modifier) {
-    Text(text, modifier, style = Sig.type.meta.copy(fontWeight = FontWeight(700), brush = Sig.colors.directorBrush))
+    Text(text, modifier, style = Sig.type.meta.copy(fontWeight = FontWeight(700), brush = Sig.colors.directorInkBrush))
 }
 
 /**

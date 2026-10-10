@@ -47,12 +47,17 @@ data class SigColors(
     /** Text and marks over footage and artwork: always light, whatever the theme. */
     val onMedia: Color,
     val director: List<Color>,
+    /** The director's text ink: the iridescent ramp, deepened on paper so it stays readable. */
+    val directorInk: List<Color>,
+    /** Live/progress marks (bars, rings): lime on dark; on paper lime is too faint, so ink. */
+    val live: Color,
     val glassTop: Color,
     val glassBottom: Color,
     val glassRim: Color,
     val isDark: Boolean,
 ) {
     val directorBrush: Brush get() = Brush.linearGradient(director)
+    val directorInkBrush: Brush get() = Brush.linearGradient(directorInk)
 }
 
 private val Iridescent = listOf(Color(0xFF9BE7FF), Color(0xFFB7A6FF), Color(0xFFFFC6E0), Color(0xFFFFE3B0))
@@ -74,6 +79,8 @@ val SigNoir = SigColors(
     emphasisSoftContent = Color(0xFFD7FF3A),
     onMedia = Color(0xFFF2EDE4),
     director = Iridescent,
+    directorInk = Iridescent,
+    live = Color(0xFFD7FF3A),
     glassTop = Color(0x1FFFF6EB),
     glassBottom = Color(0x09FFF6EB),
     glassRim = Color(0x38FFFFFF),
@@ -97,6 +104,8 @@ val SigPaper = SigColors(
     emphasisSoftContent = Color(0xFF111111),
     onMedia = Color(0xFFF2EDE4),
     director = Iridescent,
+    directorInk = listOf(Color(0xFF1580B8), Color(0xFF5B3DE8), Color(0xFFC23577)),
+    live = Color(0xFF111111),
     glassTop = Color(0xB3FFFFFF),
     glassBottom = Color(0x80FFFFFF),
     glassRim = Color(0x24111111),
