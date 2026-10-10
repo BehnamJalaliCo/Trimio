@@ -1,6 +1,15 @@
 package io.trimio.engine.motion
 
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import io.trimio.core.brand.BrandFonts
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -16,7 +25,8 @@ class UnitBox(val index: Int, val left: Float, val right: Float, var clipLeft: F
 
 /**
  * One laid-out line. [x]/[top] place the line box in the block; the shaped [layout] is drawn at
- * ([x], [glyphTop]) so the glyphs sit centred in a line box exactly `lineHeight` tall, as in CSS.
+ * ([x], [glyphTop]) so the letters' ink sits optically centred in a line box `lineHeight` tall.
+ * [baseline], [inkTop] and [inkBottom] are measured from rendered ink, not trusted from metrics.
  */
 class TextLine(
     val index: Int,
@@ -28,9 +38,11 @@ class TextLine(
     val glyphTop: Float,
     val words: List<UnitBox>,
     val chars: List<UnitBox>,
+    val baseline: Float,
+    val inkTop: Float,
+    val inkBottom: Float,
 ) {
     val width: Float get() = layout.size.width.toFloat()
-    val baseline: Float get() = glyphTop + layout.firstBaseline
 }
 
 class TextBlock(val lines: List<TextLine>, val width: Float, val height: Float, val fontSize: Float) {
@@ -47,8 +59,12 @@ class TextBlock(val lines: List<TextLine>, val width: Float, val height: Float, 
  */
 class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: MotionFonts) {
 
-    fun style(type: TypeSpec, rtl: Boolean): TextStyle = TextStyle(
-        fontFamily = fonts.family(type.role),
+    /**
+     * The accent face is Latin-only: Persian text asked of it is set in the display face instead,
+     * so a line never falls back to a system font.
+     */
+    fun style(type: TypeSpec, rtl: Boolean, text: String = ""): TextStyle = TextStyle(
+        fontFamily = fonts.family(roleFor(type.role, text)),
         fontWeight = FontWeight(type.weight.coerceIn(1, 1000)),
         fontSize = type.size.sp,
         letterSpacing = type.tracking.em,
@@ -56,10 +72,45 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
         localeList = LocaleList(if (rtl) "fa" else "en"),
     )
 
+    private fun roleFor(role: BrandFonts.Role, text: String) =
+        if (role == BrandFonts.Role.Accent && text.any { it in '\u0600'..'\u06FF' }) BrandFonts.Role.Display else role
+
+    /** Ink metrics of a face, as fractions of the font size from the layout top. */
+    private class Ink(val baseline: Float, val top: Float, val bottom: Float)
+
+    private val inks = HashMap<Pair<BrandFonts.Role, Int>, Ink>()
+
+    /**
+     * Some faces report line metrics far from where they draw (one brand face claims an ascent of
+     * almost two ems), so the baseline and the ink box are measured by rendering reference letters.
+     */
+    private fun ink(role: BrandFonts.Role, weight: Int): Ink = inks.getOrPut(role to weight) {
+        fun extent(s: String): Pair<Int, Int>? {
+            val l = measureLine(s, style(TypeSpec(role, weight, PROBE_SIZE), rtl = true))
+            val w = l.size.width + 4
+            val h = l.size.height + 4
+            val image = ImageBitmap(w, h)
+            CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(image), Size(w.toFloat(), h.toFloat())) { drawText(l, Color.White) }
+            val px = IntArray(w * h)
+            image.readPixels(px)
+            val rows = (0 until h).filter { y -> (0 until w).any { x -> (px[y * w + x] ushr 24) > INK_ALPHA } }
+            return if (rows.isEmpty()) null else rows.first() to rows.last()
+        }
+        val alef = extent("ا")
+        val body = extent("تارگت Tg")
+        if (alef == null || body == null) {
+            val l = measureLine("ا", style(TypeSpec(role, weight, PROBE_SIZE), rtl = true))
+            Ink(l.firstBaseline / PROBE_SIZE, 0.1f, l.size.height / PROBE_SIZE)
+        } else {
+            Ink((alef.second + 1) / PROBE_SIZE, minOf(alef.first, body.first) / PROBE_SIZE, (body.second + 1) / PROBE_SIZE)
+        }
+    }
+
     fun measureLine(text: String, style: TextStyle): TextLayoutResult = measurer.measure(text, style, softWrap = false, maxLines = 1)
 
     fun layout(text: String, type: TypeSpec, maxWidth: Float, align: TextAlign, rtl: Boolean): TextBlock {
-        val style = style(type, rtl)
+        val style = style(type, rtl, text)
+        val ink = ink(roleFor(type.role, text), type.weight)
         val widthCache = HashMap<String, Float>()
         fun width(s: String) = widthCache.getOrPut(s) { measureLine(s, style).size.width.toFloat() }
 
@@ -72,16 +123,18 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
         var charIndex = 0
         val shaped = lineTexts.mapIndexed { i, lineText ->
             val layout = measureLine(lineText, style)
-            val ascent = layout.firstBaseline
-            val descent = layout.size.height - ascent
-            val cssBaseline = lineBox / 2f + (ascent - descent) / 2f
+            // Centre the ink (ascender to descender) in the line box.
+            val glyphTop = i * lineBox + lineBox / 2f - (ink.top + ink.bottom) / 2f * type.size
             val words = wordBoxes(lineText, layout, wordIndex)
             val chars = charBoxes(lineText, layout, charIndex)
             wordIndex += words.size
             charIndex += chars.size
             partition(words, type.size)
             partition(chars, type.size)
-            TextLine(i, lineText, layout, 0f, i * lineBox, lineBox, i * lineBox + cssBaseline - ascent, words, chars)
+            TextLine(
+                i, lineText, layout, 0f, i * lineBox, lineBox, glyphTop, words, chars,
+                baseline = glyphTop + ink.baseline * type.size, inkTop = glyphTop + ink.top * type.size, inkBottom = glyphTop + ink.bottom * type.size,
+            )
         }
         val blockWidth = shaped.maxOfOrNull { it.width } ?: 0f
         val lines = shaped.map { l ->
@@ -91,7 +144,7 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
                 TextAlign.Start -> if (rtl) free else 0f
                 TextAlign.End -> if (rtl) 0f else free
             }
-            TextLine(l.index, l.text, l.layout, x, l.top, l.height, l.glyphTop, l.words, l.chars)
+            TextLine(l.index, l.text, l.layout, x, l.top, l.height, l.glyphTop, l.words, l.chars, l.baseline, l.inkTop, l.inkBottom)
         }
         return TextBlock(lines, blockWidth, lineBox * lines.size, type.size)
     }
@@ -181,6 +234,8 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
 
     private companion object {
         const val MAX_BALANCED_WORDS = 40
+        const val PROBE_SIZE = 100f
+        const val INK_ALPHA = 100
         const val ZWNJ = '\u200C'
     }
 }

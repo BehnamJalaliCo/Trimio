@@ -204,7 +204,7 @@ class MotionRenderer(
                 val a = alpha * state.opacity.coerceIn(0f, 1f)
                 if (a <= 0.002f) continue
                 val clip = Rect(line.x + u.clipLeft, line.top - size * 3, line.x + u.clipRight, line.top + line.height + size * 3)
-                val outer = if (maskLine) Rect(clip.left, line.top - size * 0.08f, clip.right, line.top + line.height + size * 0.16f) else clip
+                val outer = if (maskLine) Rect(clip.left, line.top - size * 0.08f, clip.right, line.top + line.height + size * 0.1f) else clip
                 clipRect(outer.left, outer.top, outer.right, outer.bottom) {
                     val pivot = Offset(line.x + u.center, line.top + line.height / 2f)
                     val m = M3.translate(pivot.x + state.dx * size, pivot.y + state.dy * size) *
@@ -283,8 +283,8 @@ class MotionRenderer(
 
     private fun blockRect(d: Decoration.Block, line: TextLine, t: Float, size: Float, rtl: Boolean): Rect? {
         val r = wipeRect(d.words, d.at, d.duration, d.ease, line, t, rtl, d.padX * size) ?: return null
-        // Snug to the letters: from above the ascenders to below the dots and tails of Persian.
-        return Rect(r.left, line.baseline - size * BLOCK_ASCENT - d.padTop * size, r.right, line.baseline + size * BLOCK_DESCENT + d.padBottom * size)
+        // Snug to the measured ink: from the ascenders to the tails, with a little air.
+        return Rect(r.left, line.inkTop - (BLOCK_AIR + d.padTop) * size, r.right, line.inkBottom + (BLOCK_AIR + d.padBottom) * size)
     }
 
     /**
@@ -334,7 +334,7 @@ class MotionRenderer(
         return if (node.persianDigits) io.trimio.core.model.text.Numerals.toPersian(s).replace('.', '٫').replace(',', '٬') else s
     }
 
-    private fun counterLayout(node: CounterNode, t: Float) = text.measureLine(counterText(node, t), text.style(node.type, rtl = false))
+    private fun counterLayout(node: CounterNode, t: Float) = counterText(node, t).let { text.measureLine(it, text.style(node.type, rtl = false, it)) }
 
     private fun DrawScope.drawCounter(node: CounterNode, t: Float, alpha: Float) {
         val layout = counterLayout(node, t)
@@ -351,7 +351,17 @@ class MotionRenderer(
         is ShapeSpec.Polyline -> Size(shape.points.maxOf { it.first }, shape.points.maxOf { it.second })
     }
 
-    private val pathCache = HashMap<ShapeSpec.Path, androidx.compose.ui.graphics.Path>()
+    private val pathCache = HashMap<ShapeSpec.Path, List<androidx.compose.ui.graphics.Path>>()
+
+    /** Each sub-path of an icon on its own, so a draw-on traces every stroke at once. */
+    private fun contours(shape: ShapeSpec.Path) = pathCache.getOrPut(shape) {
+        val k = shape.size / shape.viewport
+        Regex("[Mm][^Mm]*").findAll(shape.data).map { it.value }.toList().map { part ->
+            androidx.compose.ui.graphics.vector.PathParser().parsePathString(if (part[0] == 'm') "M" + part.substring(1) else part).toPath().apply {
+                transform(androidx.compose.ui.graphics.Matrix().apply { scale(k, k) })
+            }
+        }
+    }
 
     private fun outline(shape: ShapeSpec, t: Float): androidx.compose.ui.graphics.Path = when (shape) {
         is ShapeSpec.Rect -> androidx.compose.ui.graphics.Path().apply {
@@ -359,12 +369,7 @@ class MotionRenderer(
             addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, shape.width.at(t), shape.height.at(t), r, r))
         }
         is ShapeSpec.Ellipse -> androidx.compose.ui.graphics.Path().apply { addOval(Rect(0f, 0f, shape.width.at(t), shape.height.at(t))) }
-        is ShapeSpec.Path -> pathCache.getOrPut(shape) {
-            androidx.compose.ui.graphics.vector.PathParser().parsePathString(shape.data).toPath().apply {
-                val k = shape.size / shape.viewport
-                transform(androidx.compose.ui.graphics.Matrix().apply { scale(k, k) })
-            }
-        }
+        is ShapeSpec.Path -> contours(shape).let { parts -> androidx.compose.ui.graphics.Path().apply { parts.forEach { addPath(it) } } }
         is ShapeSpec.Polyline -> polylinePath(shape)
     }
 
@@ -403,7 +408,11 @@ class MotionRenderer(
             val a = node.trimStart.at(t).coerceIn(0f, 1f)
             val b = node.trimEnd.at(t).coerceIn(0f, 1f)
             if (b - a <= 0.0005f) return@let
-            val visible = if (a <= 0f && b >= 1f) path else trimmed(path, a, b)
+            val visible = when {
+                a <= 0f && b >= 1f -> path
+                node.shape is ShapeSpec.Path -> androidx.compose.ui.graphics.Path().apply { contours(node.shape).forEach { addPath(trimmed(it, a, b)) } }
+                else -> trimmed(path, a, b)
+            }
             drawPath(
                 visible, fillBrush(st.fill, t, size), alpha = alpha,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(
@@ -532,8 +541,7 @@ class MotionRenderer(
     private companion object {
         const val MOTION_THRESHOLD_PX = 1.5f
         const val MAX_BLUR_SAMPLES = 28
-        const val BLOCK_ASCENT = 0.8f
-        const val BLOCK_DESCENT = 0.32f
+        const val BLOCK_AIR = 0.06f
     }
 }
 

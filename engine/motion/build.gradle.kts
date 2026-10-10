@@ -20,3 +20,10 @@ kotlin {
         }
     }
 }
+
+// Review knobs for the render tests: -Pmotion.frames=1.2,4.5 dumps stills; -Pmotion.video=false skips MP4s.
+tasks.withType<Test>().configureEach {
+    providers.gradleProperty("motion.frames").orNull?.let { systemProperty("motion.frames", it) }
+    providers.gradleProperty("motion.video").orNull?.let { systemProperty("motion.video", it) }
+    maxHeapSize = "3g"
+}
