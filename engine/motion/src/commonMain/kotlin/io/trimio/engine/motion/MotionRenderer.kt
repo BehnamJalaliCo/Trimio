@@ -219,8 +219,14 @@ class MotionRenderer(
                 else -> emptyList()
             }
             if (plate != null) {
-                val seen = lineState.opacity * (units.maxOfOrNull { it.second.opacity } ?: 1f)
-                drawPlate(block, line, size, plate, alpha * seen.coerceIn(0f, 1f), guard!!.radius)
+                // The plate grows with the words as they arrive: it only backs what is there.
+                val shown = units.filter { seen(it.second) > 0.05f }
+                if (units.isEmpty() || shown.isNotEmpty()) {
+                    val seen = lineState.opacity * (shown.maxOfOrNull { seen(it.second) } ?: 1f)
+                    val from = shown.minOfOrNull { it.first.left } ?: 0f
+                    val to = shown.maxOfOrNull { it.first.right } ?: line.width
+                    drawPlate(block, line, from, to, size, plate, alpha * seen.coerceIn(0f, 1f), guard!!.radius)
+                }
             }
             // Units at rest draw as one piece: no clip seams once the words have landed.
             val pieces = if (units.all { it.second.isRest }) listOf(wholeLine(line, size) to UnitState.REST) else units
@@ -258,7 +264,7 @@ class MotionRenderer(
      * A plate behind one line in the guard tone: lines stack into one stepped plate (each as wide
      * as its own words), padded above the first and below the last.
      */
-    private fun DrawScope.drawPlate(block: TextBlock, line: TextLine, size: Float, plate: Pair<Color, Float>, alpha: Float, radius: Float) {
+    private fun DrawScope.drawPlate(block: TextBlock, line: TextLine, from: Float, to: Float, size: Float, plate: Pair<Color, Float>, alpha: Float, radius: Float) {
         val a = (alpha * plateOpacity(plate.second)).coerceIn(0f, 1f)
         if (a <= 0.002f) return
         val padX = size * PLATE_X
@@ -266,10 +272,13 @@ class MotionRenderer(
         val top = if (line.index == 0) line.inkTop - padY else line.top
         val bottom = if (line.index == block.lines.lastIndex) line.inkBottom + padY else line.top + line.height
         drawRoundRect(
-            plate.first, Offset(line.x - padX, top), Size(line.width + padX * 2f, bottom - top),
+            plate.first, Offset(line.x + from - padX, top), Size(to - from + padX * 2f, bottom - top),
             androidx.compose.ui.geometry.CornerRadius(size * radius), alpha = a,
         )
     }
+
+    /** How much of a unit is on show: faded or still below its line's mask, it is not there yet. */
+    private fun seen(s: UnitState) = s.opacity.coerceIn(0f, 1f) * (1f - kotlin.math.abs(s.dy).coerceAtMost(1f))
 
     private fun wholeLine(line: TextLine, size: Float) = UnitBox(-1, 0f, line.width, -size * 4, line.width + size * 4)
 
@@ -398,7 +407,11 @@ class MotionRenderer(
             if (guard?.style == Guard.Style.Plate) {
                 val a = (alpha * plateOpacity(g.second)).coerceIn(0f, 1f)
                 val r = box.inflate(size * PLATE_Y)
-                drawRoundRect(g.first, Offset(r.left - size * (PLATE_X - PLATE_Y), r.top), Size(r.width + size * (PLATE_X - PLATE_Y) * 2f, r.height), androidx.compose.ui.geometry.CornerRadius(size * guard.radius), alpha = a)
+                val extra = size * (PLATE_X - PLATE_Y)
+                drawRoundRect(
+                    g.first, Offset(r.left - extra, r.top), Size(r.width + extra * 2f, r.height),
+                    androidx.compose.ui.geometry.CornerRadius(size * guard.radius), alpha = a,
+                )
             } else {
                 halo(layout, Offset.Zero, size, g, alpha)
             }
