@@ -48,7 +48,8 @@ object Enumerations {
         val stop = lines.getOrNull(k + 1)?.last ?: line.last
         // The colon may end the line before («مواد لازم: | نیم کیلو سبزی، …»).
         val before = lines.getOrNull(k - 1)?.last?.takeIf { texts[it].endsWith(':') && Phrases.key(texts[it]) !in ENGLISH_ORDINALS + ORDINALS }
-        val colon = line.range.firstOrNull { texts[it].endsWith(':') && Phrases.key(texts[it]) !in ENGLISH_ORDINALS + ORDINALS } ?: before
+        // A colon, or the words that announce a list when a pause or a respelling lost the colon («مواد لازم»، "ingredients").
+        val colon = line.range.firstOrNull { (texts[it].endsWith(':') && Phrases.key(texts[it]) !in ENGLISH_ORDINALS + ORDINALS) || Phrases.key(texts[it]) in CUES } ?: before
         val from = colon?.plus(1) ?: line.first
         if (from > stop) return null
         // The list runs to the end of its sentence (within this line and the next).
@@ -100,6 +101,7 @@ object Enumerations {
     }
 
     private val AND = setOf("و", "and", "&")
+    private val CUES = setOf("لازم", "ingredients", "علامتش", "علامتاش", "علائمش", "symptoms")
     private val ORDINALS = setOf("اول", "دوم", "سوم", "چهارم", "پنجم", "آخر")
     private val STEP_NOUNS = setOf("حرکت", "اشتباه", "نکته", "نکتهی", "نکتهٔ", "قدم", "مرحله", "روش", "دلیل", "علامت", "ترفند", "سوال", "قانون")
     private val ENGLISH_ORDINALS = setOf("one", "two", "three", "four", "five")

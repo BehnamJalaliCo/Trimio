@@ -212,7 +212,12 @@ class Autopilot(
         val outcome = j.loop(
             first,
             context = { d -> context(r, d) },
-            revise = { d, s -> d.copy(score = s, compiled = compile(d.compiler, s, r.transcript, d.edit, r.request)) },
+            revise = { d, fix ->
+                // A late ask's end hold: the edit runs on past the last word (picture and music) for its card.
+                val edit = fix.outro?.let { d.edit.withOutro(it, r.request.voice.samples.size / r.request.voice.sampleRate.toFloat()) } ?: d.edit
+                fix.outro?.let { report += "jury: an end hold of ${round1(it)}s for the call to action" }
+                d.copy(score = fix.score, edit = edit, compiled = compile(d.compiler, fix.score, r.transcript, edit, r.request))
+            },
             vary = { k -> draft(r, r.request.seed * VARIATION_STRIDE + k, look = false, onStage = { _, _ -> }) { report += "variation $k: $it" } },
             log = { report += it },
         )
@@ -226,6 +231,7 @@ class Autopilot(
         compiled = d.compiled, score = d.score, words = d.output, lines = r.lines, understanding = r.understanding, prompt = r.request.prompt,
         music = d.plan.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.transcript), subject = r.request.subject,
         footage = r.request.footage != null, sound = sound, levels = levels, looks = d.looks, lexicon = r.lexicon, measure = measure, voice = r.request.voice,
+        brand = { r.brands.find(it)?.isMonogram == false },
     )
 
     private val measure = LineMeasure { s, type, maxWidth, rtl -> text.layout(s, type, maxWidth, TextAlign.Center, rtl).lines.size }

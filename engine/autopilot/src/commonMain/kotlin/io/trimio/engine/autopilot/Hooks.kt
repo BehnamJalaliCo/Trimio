@@ -47,11 +47,11 @@ internal class Hooks(
         val sense = senses[k]
         val q = sense.deadline ?: sense.social.firstOrNull() ?: figures.counted(sense)
         return when {
-            counter && q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: title)
+            counter && q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: figures.near(q, line).orEmpty())
             counter -> counterHook(number!!.value, number.decimals, number.percent, title)
             // A slam needs a phrase; with only a word or none, the number itself opens the piece.
             ' ' in title -> textHook(title)
-            q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: title)
+            q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: figures.near(q, line).orEmpty())
             title.isNotBlank() -> textHook(title)
             else -> null
         }
@@ -78,7 +78,7 @@ internal class Hooks(
         val beat = when {
             q != null && q.kind == Quantities.Kind.Money -> figures.voucherBeat(q, figures.voucherLabel(lines[k], q, reads[k]), place = "top")
                 .copy(at = null, until = null, time = 0f, hold = hold, energy = 0.95f).also { usedRecipes += it.recipe }
-            q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: title).copy(time = 0f, hold = hold)
+            q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: figures.near(q, lines[k]).orEmpty()).copy(time = 0f, hold = hold)
             title.isNotBlank() -> textHook(title).copy(time = 0f, hold = hold)
             else -> null
         }

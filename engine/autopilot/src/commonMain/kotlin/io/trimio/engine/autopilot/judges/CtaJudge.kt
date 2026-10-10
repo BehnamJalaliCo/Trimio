@@ -8,6 +8,7 @@ import io.trimio.engine.autopilot.Severity
 import io.trimio.engine.autopilot.Verdict
 import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Compiler
+import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
@@ -36,7 +37,9 @@ class CtaJudge(
         if (comment.out < c.duration - endTolerance) {
             f += Bench.finding(comment.out, Severity.Major, "the call to action leaves at ${Bench.r1(comment.out)}s of ${Bench.r1(c.duration)}s", "hold it to the end")
         }
-        if (comment.out - comment.at < minShow) f += Bench.finding(comment.at, Severity.Minor, "the call to action is up ${Bench.r1(comment.out - comment.at)}s", "at least $minShow s")
+        if (comment.out - comment.at < minShow) {
+            f += Bench.finding(comment.at, Severity.Minor, "the call to action is up ${Bench.r1(comment.out - comment.at)}s", "at least $minShow s: an end hold after the last word")
+        }
         rivals(c, graphics, comment).forEach { g -> f += Bench.finding(g.at, Severity.Major, "${g.recipe} shares the last screen with the call to action", "nothing new after the ask") }
         val end = c.duration - endWindow
         graphics.firstOrNull { it !== comment && it.recipe != Bench.STAMP && it.out > end && Bench.area(it) > Bench.area(comment) }?.let {
@@ -120,6 +123,18 @@ class CtaJudge(
     }
 
     /**
+     * An ask said too late to be read: the card already holds to the end, so the edit holds past
+     * the last word (picture and music, [EditPlan.withOutro]) until it has been up [minShow].
+     */
+    override fun outro(c: Jury.Context, verdict: Verdict): Float? {
+        val card = Bench.graphics(c).filter { it.recipe in ASK_SHOWS && it.out >= c.duration - endTolerance }.maxByOrNull { it.out - it.at } ?: return null
+        val shown = card.out - card.at
+        if (shown >= minShow) return null
+        val held = c.edit?.outro?.length ?: 0f
+        return (held + minShow - shown + OUTRO_MARGIN).coerceAtMost(EditPlan.MAX_OUTRO).takeIf { it > held }
+    }
+
+    /**
      * The field held to the end, typing the spoken keyword; when it would be up too briefly it
      * lands as the ask's line begins instead of on the keyword (its scene starting with it).
      */
@@ -164,6 +179,7 @@ class CtaJudge(
         const val LABEL = "کامنت کن"
         const val STAMP_HOLD = 1.8f
         const val MIN_LEFT = 1f
+        const val OUTRO_MARGIN = 0.2f
         val MARKERS = setOf("کلمه", "کلمهی", "کلمهٔ", "کلمۀ", "word", "keyword")
         val DM = listOf("دایرکت", "دایرک", "dm", "direct", "inbox")
         val ASKS = listOf("کامنت", "comment", "بنویس", "فالو", "follow", "سیو", "ذخیره", "save", "share", "لینک", "link", "دایرکت", "subscribe")

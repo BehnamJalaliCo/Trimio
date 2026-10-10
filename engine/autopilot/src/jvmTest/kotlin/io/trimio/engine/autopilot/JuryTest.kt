@@ -282,9 +282,49 @@ class JuryTest {
         println("broken: ${start.summary()}")
         start.findings().forEach(::println)
         assertTrue(start.of("hook")!!.score < 10f && start.of("cta")!!.score < 10f && start.of("rhythm")!!.score < 10f && start.of("layout")!!.score < 10f)
-        val outcome = jury.loop(broken, context = { context(it) }, revise = { _, s -> s }, vary = { null }, log = ::println)
+        val outcome = jury.loop(broken, context = { context(it) }, revise = { _, fix -> fix.score }, vary = { null }, log = ::println)
         outcome.panel.findings().forEach(::println)
         assertTrue(outcome.panel.unanimous, outcome.panel.summary())
+    }
+
+    @Test
+    fun aLateAskGetsAnEndHold() {
+        // The field lands on «دایرکتتو» 1.5 s before the end: too late to be read.
+        val late = good.copy(scenes = good.scenes.dropLast(1) + SceneScore(from = 36, beats = listOf(BeatScore("comment", at = 45, text = "تتر", hold = 6f, label = "کامنت کن", place = "top"))))
+        val c = context(late)
+        val v = judge(CtaJudge(), c)
+        assertTrue(v.findings.any { "is up" in it.what })
+        val hold = assertNotNull(CtaJudge().outro(c, v), "the CTA asks for an end hold")
+        assertTrue(hold in 1f..EditPlan.MAX_OUTRO, "$hold")
+        val end = c.duration
+        val held = context(late, edit = EditPlan.identity(end).withOutro(hold, end))
+        assertTrue(judge(CtaJudge(), held).findings.none { "is up" in it.what }, "held long enough to read")
+        assertEquals(hold, Jury().fixes(c, Jury().deliberate(c))?.outro, "the jury carries the hold to the edit")
+    }
+
+    @Test
+    fun englishWordsAreKnownOrNamedAndSanelyCased() = runBlocking {
+        val lexicon = PersianSpelling.load()
+        val latin = good.copy(
+            scenes = good.scenes.mapIndexed { i, s ->
+                if (i != 1) s else s.copy(beats = listOf(BeatScore("mask-rise", time = 5.9f, text = "explane nobitex NeEd They're AI tuned", place = "top")))
+            },
+        )
+        val v = judge(SpellingJudge(), context(latin, prompt = "$prompt کمپین Nobitex", lexicon = lexicon))
+        assertTrue(v.findings.any { "«explane»" in it.what && it.severity == Severity.Major }, "an unknown word")
+        assertTrue(v.findings.any { "«nobitex»" in it.what && "Nobitex" in it.fix }, "the brief's casing")
+        assertTrue(v.findings.any { "«NeEd»" in it.what }, "odd casing")
+        assertTrue(v.findings.none { "They're" in it.what || "«AI»" in it.what || "tuned" in it.what }, "contractions, acronyms, inflections: ${v.findings}")
+        val fixed = SpellingJudge().revise(context(latin, prompt = "$prompt کمپین Nobitex", lexicon = lexicon), v)!!
+        assertTrue(fixed.scenes[1].beats.single().text!!.contains("Nobitex"))
+    }
+
+    @Test
+    fun theBudgetFollowsTheDevice() {
+        assertEquals(Jury.Budget(rounds = 2, variations = 1), Jury.Budget.forDevice(io.trimio.engine.models.DeviceTier.High))
+        assertEquals(Jury.Budget(rounds = 3, variations = 2), Jury.Budget.forDevice(io.trimio.engine.models.DeviceTier.Ultra))
+        assertEquals(Jury.Budget(rounds = 3, variations = 3), Jury.Budget.forDevice(null))
+        assertEquals(Jury.Budget.forDevice(null), Jury.Default.budget)
     }
 
     private companion object {

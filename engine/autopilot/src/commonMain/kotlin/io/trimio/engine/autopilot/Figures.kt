@@ -1,6 +1,7 @@
 package io.trimio.engine.autopilot
 
 import io.trimio.engine.motion.score.BeatScore
+import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.Words
 
 /**
@@ -38,6 +39,17 @@ internal class Figures(
 
     /** The number a counter shows: one with a meaning (people, views, money) over a bare one said first. */
     fun counted(s: Quantities.Sense): Quantities.Quantity? = s.quantities.firstOrNull { it.unit.isNotEmpty() && it.value >= 10 } ?: s.quantities.firstOrNull()
+
+    /**
+     * The words naming a number, said right around it («باتری Galaxy با پنج هزار میلی‌آمپر»,
+     * «صد برابر زوم»): the noun phrase just after it, else just before it; null when none is close.
+     */
+    fun near(q: Quantities.Quantity, line: Lines.Line): String? {
+        val after = (q.last + 1..minOf(line.last, q.last + NEAR)).firstOrNull { Phrases.nounish(texts[it]) && NumberWords.at(texts, it) == null }
+        val before = (maxOf(line.first, q.at - NEAR) until q.at).lastOrNull { Phrases.nounish(texts[it]) && NumberWords.at(texts, it) == null }
+        val i = after ?: before ?: return null
+        return Phrases.phraseAt(texts, line, i)
+    }
 
     /** What a counted thing is, for the label under its number («نفر اول», «ظرفیت جدید», «بازدید»). */
     fun unitLabel(q: Quantities.Quantity): String? = when (q.kind) {
@@ -166,6 +178,7 @@ internal class Figures(
     private companion object {
         const val MAX_STATS = 3
         const val DEADLINE_REACH = 4
+        const val NEAR = 3
         val UNTIL = setOf("تا", "until", "till", "by", "before")
         val COUNTED = setOf(Quantities.Kind.People, Quantities.Kind.Capacity)
         val VOUCHER_WORDS = setOf("ووچر", "وچر", "voucher", "هدیه", "جایزه", "بونوس", "bonus", "gift")

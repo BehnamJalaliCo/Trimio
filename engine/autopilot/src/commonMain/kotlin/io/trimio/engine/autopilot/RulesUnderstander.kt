@@ -91,7 +91,8 @@ object RulesUnderstander {
         fun dated(k: Int): Double? {
             val q = senses[k].quantities
             // The year may be said just before, on the line the pause cut off («تو سال ۱۴۰۱ | به ۵۲ درصد رسید»).
-            val year = (q + senses.getOrNull(k - 1)?.quantities.orEmpty()).any { it.value in YEARS && it.decimals == 0 }
+            val year = (q + senses.getOrNull(k - 1)?.quantities.orEmpty()).any { it.value in YEARS && it.decimals == 0 } ||
+                (maxOf(0, lines[k].first - YEAR_REACH)..lines[k].last).any { Phrases.key(texts[it]) in YEAR_WORDS }
             return q.firstOrNull { it.kind == Quantities.Kind.Percent }?.value?.takeIf { year }
         }
         val out = mutableMapOf<Int, List<String>>()
@@ -173,6 +174,8 @@ object RulesUnderstander {
     }
 
     private val YEARS = 1300.0..2100.0
+    private val YEAR_WORDS = setOf("سال", "year")
+    private const val YEAR_REACH = 6
     private const val MAX_ITEMS = 4
     private const val MAX_THINGS = 14
     private const val MAX_NAME_WORDS = 4

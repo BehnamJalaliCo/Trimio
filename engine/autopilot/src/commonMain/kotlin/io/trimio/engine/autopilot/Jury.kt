@@ -13,6 +13,7 @@ import io.trimio.engine.autopilot.judges.RhythmJudge
 import io.trimio.engine.autopilot.judges.SoundJudge
 import io.trimio.engine.autopilot.judges.SpellingJudge
 import io.trimio.engine.autopilot.judges.TypographyJudge
+import io.trimio.engine.models.DeviceTier
 import io.trimio.engine.motion.TypeSpec
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.score.CutPoints
@@ -61,6 +62,12 @@ interface Judge {
 
     /** The score with this judge's findings fixed, when they can be fixed in the score; null otherwise. */
     fun revise(c: Jury.Context, verdict: Verdict): Score? = null
+
+    /**
+     * Seconds of end hold (picture and music after the last word, [EditPlan.withOutro]) this judge
+     * needs, when its findings are fixed by the edit rather than the score; null otherwise.
+     */
+    fun outro(c: Jury.Context, verdict: Verdict): Float? = null
 }
 
 /** Lines a text takes when laid out at [type] inside [maxWidth] (the real text engine, when the caller has one). */
@@ -78,7 +85,22 @@ fun interface LineMeasure {
 class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) {
 
     /** At most [rounds] revisions per variation and [variations] extra seeds. */
-    data class Budget(val rounds: Int = 3, val variations: Int = 2)
+    data class Budget(val rounds: Int = 3, val variations: Int = 3) {
+        companion object {
+            /**
+             * What a device can afford: Standard and High phones 2 rounds and 1 variation, Ultra
+             * and Max 3 and 2; desktop, server and web (no tier) 3 and 3.
+             */
+            fun forDevice(tier: DeviceTier?): Budget = when (tier) {
+                DeviceTier.Standard, DeviceTier.High -> Budget(rounds = 2, variations = 1)
+                DeviceTier.Ultra, DeviceTier.Max -> Budget(rounds = 3, variations = 2)
+                null -> Budget(rounds = 3, variations = 3)
+            }
+        }
+    }
+
+    /** What the judges' fixes change: the score, and the end hold the edit should carry (null: as it is). */
+    data class Revision(val score: Score, val outro: Float? = null)
 
     /** Everything the judges look at. Words and [lines] share indices; [words] are on the output clock. */
     data class Context(
@@ -105,6 +127,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         val measure: LineMeasure? = null,
         /** The voice on the source clock: cuts are judged on the waveform when it is here, else on word timings. */
         val voice: PcmAudio? = null,
+        /** Whether a Latin word is a brand the brand library has a mark for. */
+        val brand: (String) -> Boolean = { false },
     ) {
         val duration: Float get() = compiled.composition.duration
 
@@ -142,13 +166,16 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
     )
 
     /** Every failing judge's fix applied in turn (lowest score first); null when nobody can fix anything. */
-    fun fixes(c: Context, panel: Panel): Score? {
+    fun fixes(c: Context, panel: Panel): Revision? {
         var score = c.score
+        var outro: Float? = null
+        val held = c.edit?.outro?.length ?: 0f
         for (v in panel.verdicts.filter { !it.perfect }.sortedBy { it.score }) {
             val judge = judges.firstOrNull { it.name == v.judge } ?: continue
             score = runCatching { judge.revise(c.copy(score = score), v) }.getOrNull() ?: score
+            runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }?.let { outro = maxOf(outro ?: 0f, it) }
         }
-        return score.takeIf { it != c.score }
+        return Revision(score, outro).takeIf { score != c.score || outro != null }
     }
 
     /**
@@ -161,7 +188,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
     suspend fun <T> loop(
         first: T,
         context: suspend (T) -> Context,
-        revise: suspend (T, Score) -> T,
+        revise: suspend (T, Revision) -> T,
         vary: suspend (Int) -> T?,
         log: (String) -> Unit = {},
     ): Outcome<T> {
@@ -189,7 +216,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         first: T,
         name: String,
         context: suspend (T) -> Context,
-        revise: suspend (T, Score) -> T,
+        revise: suspend (T, Revision) -> T,
         log: (String) -> Unit,
     ): Triple<T, Panel, Int> {
         var current = first
@@ -224,7 +251,10 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             LayoutJudge(), SoundJudge(), MusicJudge(), BriefJudge(), CtaJudge(),
         )
 
+        /** The desktop panel (the most generous budget); phones take [forDevice]. */
         val Default: Jury = Jury()
+
+        fun forDevice(tier: DeviceTier?): Jury = Jury(budget = Budget.forDevice(tier))
 
         private fun label(variation: Int) = if (variation == 0) "first cut" else "variation $variation"
 

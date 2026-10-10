@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
  * The face finder on the workshop's synthetic rooms, measured: the five scenario rooms (grey,
  * sage, beige, navy, white; light to deep skin) and four harder ones (off-centre, two-tone wall,
  * beard, an oak wardrobe touching the jaw), five frames across a 30 s clip, at the Workshop's
- * 90×160 and at Studio's 288×512. The box must overlap the true head (top of the hair to the
+ * 90×160 and at Studio's 288×512 (clean, and with grain and flicker). The box must overlap the true head (top of the hair to the
  * chin) by IoU ≥ 0.7, and never be the whole frame. The table also shows the old finder.
  */
 class SubjectBenchTest {
@@ -28,9 +28,15 @@ class SubjectBenchTest {
 
     private fun Subject.array() = floatArrayOf(left, top, right, bottom)
 
-    private fun rgb(f: SyntheticFootage, w: Int, h: Int, t: Float): RgbImage {
+    /** A frame as RGB; [noise] adds sensor-like grain (±noise per channel) and a small exposure flicker, as phone video has. */
+    private fun rgb(f: SyntheticFootage, w: Int, h: Int, t: Float, noise: Int = 0): RgbImage {
         val rgba = f.rgba(w, h, t)
-        return RgbImage(w, h, ByteArray(w * h * 3) { rgba[it / 3 * 4 + it % 3] })
+        val random = java.util.Random(t.toBits().toLong())
+        val gain = if (noise == 0) 1f else 1f + (random.nextFloat() - 0.5f) * 0.08f
+        return RgbImage(w, h, ByteArray(w * h * 3) {
+            val v = (rgba[it / 3 * 4 + it % 3].toInt() and 0xFF) * gain + if (noise == 0) 0 else random.nextInt(2 * noise + 1) - noise
+            v.toInt().coerceIn(0, 255).toByte()
+        })
     }
 
     @Test
@@ -43,14 +49,16 @@ class SubjectBenchTest {
             val before = LegacyFinder.find(small, SMALL_W, SMALL_H)?.array()
             val after = SubjectFinder.locate(times.map { rgb(f, SMALL_W, SMALL_H, it) })!!
             val large = SubjectFinder.locate(times.map { rgb(f, LARGE_W, LARGE_H, it) })!!
+            val noisy = SubjectFinder.locate(times.map { rgb(f, LARGE_W, LARGE_H, it, noise = 10) })!!
             val iouBefore = before?.let { SubjectFinder.iou(it, truth) } ?: 0f
             val iouAfter = SubjectFinder.iou(after.subject.array(), truth)
             val iouLarge = SubjectFinder.iou(large.subject.array(), truth)
-            rows += "%-10s before %.2f%s  after %.2f (conf %.2f)  288×512 %.2f (conf %.2f)  box %s  truth %s".format(
+            val iouNoisy = SubjectFinder.iou(noisy.subject.array(), truth)
+            rows += "%-10s before %.2f%s  after %.2f (conf %.2f)  288×512 %.2f (conf %.2f)  noisy %.2f (conf %.2f)  box %s  truth %s".format(
                 name, iouBefore, if (before != null && area(before) > 0.3f) " (whole)" else "", iouAfter, after.confidence, iouLarge, large.confidence,
-                fmt(after.subject.array()), fmt(truth),
+                iouNoisy, noisy.confidence, fmt(after.subject.array()), fmt(truth),
             )
-            for ((label, found, iou) in listOf(Triple("90×160", after, iouAfter), Triple("288×512", large, iouLarge))) {
+            for ((label, found, iou) in listOf(Triple("90×160", after, iouAfter), Triple("288×512", large, iouLarge), Triple("noisy", noisy, iouNoisy))) {
                 if (iou < 0.7f || found.prior || area(found.subject.array()) > 0.3f) failures += "$name $label: IoU %.2f prior=${found.prior}".format(iou)
             }
         }

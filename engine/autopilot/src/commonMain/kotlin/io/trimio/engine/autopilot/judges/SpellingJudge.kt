@@ -20,11 +20,12 @@ import io.trimio.engine.motion.score.Score
  * «ها/های» take the half-space where the lexicon writes them so («می‌تونید», not «میتونید»),
  * with no stray or doubled half-spaces; numbers in Persian text use Persian digits and
  * separators («۵۰٬۰۰۰», not «50,000»), and counters roll in the piece's script. Captions are what
- * was heard: their half-spaces are checked, their words are the transcript's.
+ * was heard: their half-spaces are checked, their words are the transcript's. Latin words are
+ * English or names the piece knows, sanely cased ([EnglishWords]).
  */
 class SpellingJudge : Judge {
     override val name = "spelling"
-    override val dimension = "Persian on screen"
+    override val dimension = "words on screen"
 
     override fun score(c: Jury.Context): Verdict {
         val f = mutableListOf<Finding>()
@@ -40,9 +41,20 @@ class SpellingJudge : Judge {
         f += graphics.flatMap { (t, s) -> halfSpaces(s, lex).map { (w, fix) -> Bench.finding(t, Severity.Minor, "«$w» on screen", "write «$fix»") } }.distinctBy { it.what }.capped()
         val captions = Bench.captions(c).map { it.at to it.text }
         f += captions.flatMap { (t, s) -> halfSpaces(s, lex).map { (w, fix) -> Bench.finding(t, Severity.Minor, "caption «$w»", "spell the transcript «$fix»") } }.distinctBy { it.what }.capped()
+        f += english(c, graphics, captions)
         f += digits(graphics + captions)
         f += counters(c)
         return Verdict.of(this, f)
+    }
+
+    /** Latin words: unknown ones on graphics are major, in captions (what was heard) minor; casing on both. */
+    private fun english(c: Jury.Context, graphics: List<Pair<Float, String>>, captions: List<Pair<Float, String>>): List<Finding> {
+        val en = EnglishWords(c)
+        if (!en.active) return emptyList()
+        fun scan(texts: List<Pair<Float, String>>, severity: Severity, where: String) = texts.flatMap { (t, s) ->
+            s.split(' ').mapNotNull { en.check(it) }.map { (what, fix) -> Bench.finding(t, if ("cased" in what) Severity.Minor else severity, "$where$what", fix) }
+        }.distinctBy { it.what }.capped(MAX_WORDS)
+        return scan(graphics, Severity.Major, "") + scan(captions, Severity.Minor, "caption: ")
     }
 
     private fun screen(c: Jury.Context, lex: PersianSpelling) = ScreenSpelling(lex, (c.prelude + c.words).map { it.text }, c.prompt)
@@ -113,8 +125,9 @@ class SpellingJudge : Judge {
     override fun revise(c: Jury.Context, verdict: Verdict): Score? {
         val lex = c.lexicon
         val checked = lex?.let { screen(c, it).check(c.score) {} } ?: c.score
+        val en = EnglishWords(c).takeIf { it.active }
         fun fix(s: String): String {
-            var out = s
+            var out = en?.fix(s) ?: s
             halfSpaces(s, lex).forEach { (w, right) -> out = out.replace(w, right) }
             return if (Bench.persian(out)) Numerals.toPersian(out) else out
         }

@@ -204,7 +204,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 val takeover = k in takeovers && !covered && !previousTakeover
                 val beats = mutableListOf<BeatScore>()
                 // With a cold open the hook has been seen: the body starts clean.
-                if (k == 0 && opening == null) {
+                // A first line with a graphic of its own (the two phones named, a figure) is the hook itself.
+                if (k == 0 && opening == null && read.show !in OWN_HOOK) {
                     payoffLine?.takeIf { it > 0 && u.brief.payoffFirst }?.let { hooks.hook(it, reads) }?.let { h -> beats += h; h.text?.let { hookKeys += textKey(it) } }
                 }
                 // A line inside a running beat adds nothing of its own (only the call to action).
@@ -452,7 +453,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             val candidates = reads.indices.filter { k -> k > 0 && k < lines.lastIndex && reads[k].show in TAKEOVER_SHOWS && words[lines[k].first].range.startMs >= EARLIEST_TAKEOVER_MS &&
                 (threads[k]?.bubbles?.size ?: STAGED_THREAD) >= STAGED_THREAD &&
                 // The ask keeps the speaker on screen while it plays out (the DM step after the keyword).
-                reads[k - 1].show != "comment" }
+                reads[k - 1].show != "comment" &&
+                // Nor while the line before still holds its graphic (names, a figure, a list): the cut would end it early.
+                reach(k - 1) < k }
                 // The piece's big figures first; the rest by weight, varied by seed.
                 .sortedByDescending { k ->
                     TAKEOVER_SHOWS.getValue(reads[k].show) * takeoverRng.range(0.5f, 1.5f) + (if (reads[k].show in BIG_MOMENTS || k in requested) BIG_FIRST else 0f) + (if (k == payoffLine) 1f else 0f)
@@ -482,7 +485,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** The last line a full-frame figure on line [k] would hold its scene over. */
         private fun reach(k: Int): Int {
             threads[k]?.let { return it.lastLine }
-            if (reads[k].show !in RICH_SHOWS) return k
+            if (reads[k].show !in RICH_SHOWS && reads[k].show !in HELD_SHOWS) return k
             val end = startOf(lines[k].first) + maxOf(duration(k, k), DATA_HOLD)
             return (k + 1..lines.lastIndex).takeWhile { j -> startOf(lines[j].first) - SCENE_LEAD < end }.lastOrNull() ?: k
         }
@@ -566,8 +569,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** A takeover gets a title over its graphic; a footage line may get a picture of what it names. */
         private fun extra(line: Lines.Line, read: LineRead, takeover: Boolean, hasPrimary: Boolean, count: Int): BeatScore? {
             // Rich graphics carry their own label: a title above them would say it twice.
-            val titled = takeover && hasPrimary && read.title.isNotBlank() && read.show !in setOf("headline", "stamp", "message") && read.show !in RICH_SHOWS &&
-                textKey(read.title) !in hookKeys
+            // Graphics that carry a label of their own (a counter, a picture) need no title over them.
+            val titled = takeover && hasPrimary && read.title.isNotBlank() && read.show in TITLED && textKey(read.title) !in hookKeys
             if (titled) return BeatScore(recipe = textRecipe(0.5f), text = read.title, place = "top", energy = 0.55f, mark = mark, at = line.first)
             // A picture only where the line has no graphic of its own (two things at the top would fight).
             val room = !takeover && count == 0
@@ -594,7 +597,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             return BeatScore(
                 recipe = "counter", at = at, until = minOf(line.last, at + q.count), value = q.value.toFloat(), decimals = q.decimals,
                 suffix = if (percent) "٪" else "", prefix = if ((percent && growth) || q.opened) "+" else "",
-                label = figures.unitLabel(q) ?: labelOf(line), energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
+                label = figures.unitLabel(q) ?: figures.near(q, line), energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
             )
         }
 
@@ -813,6 +816,14 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val RICH_SHOWS = setOf("voucher", "stats", "countdown", "progress")
 
         /** Shows the full frame goes to first: the piece's big figures. */
+        /** Full-frame graphics that take a title above them (they carry no label of their own). */
+        val TITLED = setOf("network", "terminal", "list", "objects", "logos", "chart")
+
+        /** Shows held long enough to be read, whose line a full-frame cut must not follow at once. */
+        val HELD_SHOWS = setOf("logos", "counter", "list", "objects", "meter", "chart")
+
+        /** A first line showing one of these opens the piece itself; no payoff hook over it. */
+        val OWN_HOOK = setOf("logos", "voucher", "stats", "countdown", "progress")
         val BIG_MOMENTS = setOf("voucher", "stats", "countdown", "list", "objects", "chart")
         const val BIG_FIRST = 10f
         const val SPEAKER_BETWEEN_S = 2f
