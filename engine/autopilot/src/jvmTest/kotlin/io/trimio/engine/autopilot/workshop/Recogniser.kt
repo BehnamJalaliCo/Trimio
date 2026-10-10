@@ -57,7 +57,7 @@ internal class Recogniser(seed: Long, private val language: String, private val 
     }
 
     private fun mishear(word: String, span: LongRange, errors: MutableList<String>): List<Pair<String, LongRange>> {
-        if (language == "en" || word.none { it in '؀'..'ۿ' }) return english(word, span, errors)
+        if (language == "en" || word.none { it in '\u0600'..'\u06FF' }) return english(word, span, errors)
         val core = word.trimEnd('،', '.', '!', '؟', ':', '»').trimStart('«')
         val tail = word.substring(word.indexOf(core) + core.length)
         val head = word.substring(0, word.indexOf(core))
@@ -65,17 +65,7 @@ internal class Recogniser(seed: Long, private val language: String, private val 
             errors += "$core → $odd (number)"
             return spread((head + odd + tail).split(' '), span)
         }
-        if ('‌' in core) {
-            val r = dice.next()
-            if (r < 0.4f) {
-                errors += "$core → ${core.replace("‌", "")} (half-space lost)"
-                return listOf(head + core.replace("‌", "") + tail to span)
-            }
-            if (r < 0.55f) {
-                errors += "$core → ${core.replace('‌', ' ')} (split)"
-                return spread((head + core.replace('‌', ' ') + tail).split(' '), span)
-            }
-        }
+        halfSpace(core, head, tail, span, errors)?.let { return it }
         if (core.length >= 3 && core !in COMMON && dice.chance(noise)) {
             val spots = core.indices.filter { i -> SOUND_ALIKE.containsKey(core[i]) && !(core[i] == 'ه' && i == core.lastIndex) }
             if (spots.isNotEmpty()) {
@@ -86,6 +76,23 @@ internal class Recogniser(seed: Long, private val language: String, private val 
             }
         }
         return listOf(word to span)
+    }
+
+    /** A half-space lost («میکنه») or turned into a space («می کنه»); null when heard right. */
+    private fun halfSpace(core: String, head: String, tail: String, span: LongRange, errors: MutableList<String>): List<Pair<String, LongRange>>? {
+        if ('\u200C' !in core) return null
+        val r = dice.next()
+        return when {
+            r < 0.4f -> {
+                errors += "$core → ${core.replace("\u200C", "")} (half-space lost)"
+                listOf(head + core.replace("\u200C", "") + tail to span)
+            }
+            r < 0.55f -> {
+                errors += "$core → ${core.replace('\u200C', ' ')} (split)"
+                spread((head + core.replace('\u200C', ' ') + tail).split(' '), span)
+            }
+            else -> null
+        }
     }
 
     private fun english(word: String, span: LongRange, errors: MutableList<String>): List<Pair<String, LongRange>> {
@@ -106,7 +113,7 @@ internal class Recogniser(seed: Long, private val language: String, private val 
         while (i < words.size) {
             val (a, ra) = words[i]
             val b = words.getOrNull(i + 1)
-            val joinable = b != null && a in JOINERS && b.first.length in 2..5 && b.first.all { it in '؀'..'ۿ' }
+            val joinable = b != null && a in JOINERS && b.first.length in 2..5 && b.first.all { it in '\u0600'..'\u06FF' }
             if (joinable && dice.chance(0.25f)) {
                 errors += "$a ${b!!.first} → ${a + b.first} (merged)"
                 out += (a + b.first) to (ra.first..b.second.last)
@@ -158,7 +165,7 @@ internal class Recogniser(seed: Long, private val language: String, private val 
         ).filter { it.key != it.value }
 
         /** Function words too short and common for whisper to misspell. */
-        val COMMON = setOf("که", "این", "اون", "رو", "از", "به", "با", "تو", "هم", "یه", "برای", "است", "هست", "بود", "می‌", "من", "ما", "شما")
+        val COMMON = setOf("که", "این", "اون", "رو", "از", "به", "با", "تو", "هم", "یه", "برای", "است", "هست", "بود", "می\u200C", "من", "ما", "شما")
 
         /** Short words that whisper runs into the next one. */
         val JOINERS = setOf("که", "بعد", "از", "به", "یه", "تو", "این", "همه", "هر")

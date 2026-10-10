@@ -1,5 +1,6 @@
 package io.trimio.engine.autopilot.golden
 
+import io.trimio.core.model.text.Numerals
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.workshop.Scenario
@@ -11,18 +12,23 @@ import java.io.File
 /**
  * The golden archive (آرشیو طلایی): the jury's scores for every workshop scenario, kept as a
  * baseline, so a change anywhere in the pipeline cannot quietly make an edit worse. A run is
- * judged by the same panel the app uses ([Autopilot.Production.panel]); against the baseline it
- * fails when any judge's score drops, and on its own when a scenario's average falls under
- * [FLOOR]. Scenarios and voices are synthetic ([Workshop]); nothing real is stored.
+ * judged by the same panel the app uses ([Autopilot.Production.panel]), plus one thing only a
+ * workshop can know: on-screen word accuracy against the scenario's [Scenario.truth] (a recogniser
+ * error that reaches the screen). Against the baseline it fails when any judge's score (or the
+ * accuracy) drops, and when a scenario's average falls under [FLOOR]. Scenarios and voices are
+ * synthetic ([Workshop]); nothing real is stored.
  */
 object GoldenArchive {
-    /** No scenario may average below this, whatever the baseline says. */
+    /** No scenario may average below this once the archive gates. */
     const val FLOOR = 9.5f
 
     /** Scores are compared at this resolution (half points are the smallest cost). */
     private const val EPS = 0.01f
 
-    /** One judged run: the panel's minimum, mean and each judge's score. */
+    /** Name of the truth-accuracy column (0–10), next to the judges. */
+    const val ACCURACY = "words"
+
+    /** One judged run: the panel's minimum, mean and each judge's score (plus [ACCURACY] when there is truth). */
     @Serializable
     data class Entry(val min: Float, val mean: Float, val judges: Map<String, Float>)
 
@@ -32,26 +38,50 @@ object GoldenArchive {
         val runs: Map<String, Entry> = emptyMap(),
     )
 
+    /** A judged run with what a reader needs: the panel's findings and the wrong words on screen. */
+    class Run(val key: String, val entry: Entry, val findings: List<String>, val wrong: List<String>, val seconds: Double)
+
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true; encodeDefaults = true }
 
-    /** The baseline as committed (on the test classpath), or null before the first update. */
+    /** The baseline as committed (on the test classpath), or null until the supervisor stores one. */
     fun load(): Baseline? = GoldenArchive::class.java.getResource("/golden/baseline.json")?.readText()?.let { json.decodeFromString(Baseline.serializer(), it) }
 
     /** The source file the baseline is written to (the test runs in the module directory). */
     val source: File get() = File("src/jvmTest/resources/golden/baseline.json")
 
+    /** Where the readable report goes (build output, never committed). */
+    val report: File get() = File("build/golden/report.txt")
+
     fun key(scenario: Scenario, seed: Long) = "${scenario.id}/$seed"
 
-    fun entry(panel: Jury.Panel) = Entry(round(panel.min), round(panel.mean), panel.verdicts.associate { it.judge to round(it.score) })
-
     /** Every scenario edited and judged with every seed. */
-    fun judge(scenarios: List<Scenario>, seeds: List<Long>, log: (String) -> Unit = {}): Map<String, Entry> =
-        scenarios.flatMap { s -> seeds.map { seed -> s to seed } }.associate { (s, seed) ->
+    fun judge(scenarios: List<Scenario>, seeds: List<Long>): List<Run> = scenarios.flatMap { s ->
+        seeds.map { seed ->
+            val t0 = System.nanoTime()
             val p = Workshop.run(s, seed)
             val panel = requireNotNull(p.panel) { "${s.id}: the autopilot ran without a jury" }
-            log("${key(s, seed).padEnd(28)} ${panel.summary()}")
-            key(s, seed) to entry(panel)
+            val (accuracy, wrong) = accuracy(s, p)
+            val judges = panel.verdicts.associate { it.judge to round(it.score) } + listOfNotNull(accuracy?.let { ACCURACY to round(it) })
+            val findings = panel.findings().filterNot { " note " in it } + wrong.map { "  $ACCURACY: «$it» on screen is a recognition error" }
+            Run(key(s, seed), Entry(round(panel.min), round(panel.mean), judges), findings, wrong, (System.nanoTime() - t0) / 1e9)
         }
+    }
+
+    /**
+     * On-screen word accuracy against the truth, 0–10: of the words shown (graphics, labels,
+     * captions) that are either in the truth or a recognition error (heard, not in the truth), the
+     * share that is right. Words the director wrote itself (labels, brief words) count neither way.
+     */
+    fun accuracy(s: Scenario, p: Autopilot.Production): Pair<Float?, List<String>> {
+        val truth = s.truth.map { norm(it.text) }.toSet()
+        val errors = s.words.map { norm(it.text) }.filter { it !in truth }.toSet()
+        val shown = (p.compiled.beats.map { it.text } + p.score.scenes.flatMap { sc -> sc.beats.flatMap { listOfNotNull(it.label) + it.items } })
+            .flatMap { it.split(' ') }.map(::norm).filter { w -> w.isNotEmpty() && w.none { it.isDigit() } }
+        val judged = shown.filter { it in truth || it in errors }
+        if (judged.isEmpty()) return null to emptyList()
+        val wrong = judged.filter { it in errors && it !in truth }
+        return 10f * (judged.size - wrong.size) / judged.size to wrong.distinct()
+    }
 
     /** What got worse: any judge below its baseline score, any run averaging under [FLOOR]. */
     fun compare(baseline: Baseline, current: Map<String, Entry>): List<String> = current.flatMap { (k, e) ->
@@ -69,6 +99,38 @@ object GoldenArchive {
         source.apply { parentFile.mkdirs() }.writeText(json.encodeToString(Baseline.serializer(), merged) + "\n")
         return merged
     }
+
+    /** A per-scenario, per-judge table (baseline in brackets when it differs), then each run's findings. */
+    fun table(runs: List<Run>, baseline: Baseline?): String = buildString {
+        val judges = runs.flatMap { it.entry.judges.keys }.distinct()
+        val width = maxOf(10, runs.maxOfOrNull { it.key.length } ?: 0) + 1
+        appendLine("scenario".padEnd(width) + "min".padStart(5) + "mean".padStart(6) + judges.joinToString("") { it.take(COLUMN - 1).padStart(COLUMN) })
+        for (r in runs) {
+            val base = baseline?.runs?.get(r.key)
+            fun cell(v: Float?, was: Float?) = (v?.let(::fmt) ?: "-") + (if (was != null && v != null && kotlin.math.abs(was - v) > EPS) "(${fmt(was)})" else "")
+            append(r.key.padEnd(width) + cell(r.entry.min, base?.min).padStart(5) + cell(r.entry.mean, base?.mean).padStart(6))
+            appendLine(judges.joinToString("") { j -> cell(r.entry.judges[j], base?.judges?.get(j)).padStart(COLUMN) })
+        }
+        val all = runs.map { it.entry }
+        if (all.isNotEmpty()) {
+            append("average".padEnd(width) + fmt(all.map { it.min }.average().toFloat()).padStart(5) + fmt(all.map { it.mean }.average().toFloat()).padStart(6))
+            appendLine(judges.joinToString("") { j -> fmt(all.mapNotNull { it.judges[j] }.average().toFloat()).padStart(COLUMN) })
+            appendLine("unanimous 10: ${all.count { it.min >= 10f - EPS }} of ${all.size}")
+        }
+        for (r in runs) {
+            appendLine("\n${r.key} (${"%.1f".format(r.seconds)}s)")
+            r.findings.forEach { appendLine(it) }
+        }
+    }
+
+    private const val COLUMN = 11
+
+    /** Lower case, Persian letter forms, no half-space, diacritics or punctuation, Latin digits. */
+    fun norm(w: String): String = Numerals.toLatin(w).lowercase()
+        .replace('ي', 'ی').replace('ك', 'ک').replace("‌", "")
+        .filter { it.isLetterOrDigit() && it !in 'ً'..'ْ' }
+
+    private fun fmt(v: Float): String = Jury.fmt(v)
 
     private fun round(v: Float) = kotlin.math.round(v * 100f) / 100f
 }

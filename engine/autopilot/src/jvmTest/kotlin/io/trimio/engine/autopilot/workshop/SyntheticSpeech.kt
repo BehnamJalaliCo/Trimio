@@ -144,7 +144,7 @@ internal object Performance {
         val core = w.filter { it.isLetterOrDigit() }
         if (core.isEmpty()) return 1
         val digits = core.count { it.isDigit() }
-        val persian = core.count { it in '؀'..'ۿ' }
+        val persian = core.count { it in '\u0600'..'\u06FF' }
         return if (persian > 0) {
             max(1, ((persian / 2.3f).roundToInt()) + (digits * 1.5f).roundToInt())
         } else {

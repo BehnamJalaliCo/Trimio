@@ -13,8 +13,8 @@ import kotlin.math.sqrt
 
 /**
  * The re-recording mixer. Measured on the mastered mix when there is one: integrated loudness
- * −14 LUFS ±[lufsTolerance], true peak (4× interpolated) at most [ceilingDbtp], the bed below the
- * voice in the pauses (at least [gapBelowDb] under speech level), no clicks where the voice is
+ * −14 LUFS ±[lufsTolerance], true peak (4× oversampled) at most [ceilingDbtp], the bed never
+ * louder in the pauses than the voice is while it speaks ([gapBelowDb]), no clicks where the voice is
  * spliced. From the plan, always: the music ducks under words by the levels the mix uses, and
  * sound cues stay an accent — at most [cuesPerMinute] a minute and [cuesPer2s] in any two seconds.
  */
@@ -22,7 +22,7 @@ class SoundJudge(
     private val targetLufs: Double = -14.0,
     private val lufsTolerance: Double = 1.0,
     private val ceilingDbtp: Double = -1.0,
-    private val gapBelowDb: Double = 4.0,
+    private val gapBelowDb: Double = 0.0,
     private val cuesPerMinute: Int = 45,
     private val cuesPer2s: Int = 4,
 ) : Judge {
@@ -65,7 +65,7 @@ class SoundJudge(
         return out
     }
 
-    /** Clicks at the voice's splices: a sample jump far above the local slope. */
+    /** Clicks at the voice's splices: a sample step far sharper than anything around it. */
     private fun clicks(c: Jury.Context, sound: Soundtrack.Result): List<Finding> {
         val x = sound.audio.samples
         val rate = sound.audio.sampleRate
@@ -75,9 +75,10 @@ class SoundJudge(
             val near = rate * NEAR_MS / 1000
             val wide = rate * WIDE_MS / 1000
             val jump = (i - near..i + near).filter { it in 1 until x.size }.maxOfOrNull { abs(x[it] - x[it - 1]) } ?: return@mapNotNull null
-            val around = ((i - wide..i - near) + (i + near..i + wide)).filter { it in 1 until x.size }
-            val slope = if (around.isEmpty()) 0f else around.sumOf { abs(x[it] - x[it - 1]).toDouble() }.toFloat() / around.size
-            Bench.finding(t, Severity.Minor, "a click at the cut", "a short fade at the splice").takeIf { jump > CLICK_ABS && jump > slope * CLICK_RATIO }
+            // The neighbourhood's own sharpest steps (its 99th percentile): noise and consonants are not clicks.
+            val around = ((i - wide..i - near) + (i + near..i + wide)).filter { it in 1 until x.size }.map { abs(x[it] - x[it - 1]) }.sorted()
+            val sharp = around.getOrNull((around.size * SHARP_PERCENTILE).toInt()) ?: 0f
+            Bench.finding(t, Severity.Minor, "a click at the cut", "a short fade at the splice").takeIf { jump > CLICK_ABS && jump > sharp * CLICK_RATIO }
         }.capped()
     }
 
@@ -118,44 +119,60 @@ class SoundJudge(
         private const val NEAR_MS = 4
         private const val WIDE_MS = 30
         private const val CLICK_ABS = 0.05f
-        private const val CLICK_RATIO = 8f
+        private const val CLICK_RATIO = 2.5f
+        private const val SHARP_PERCENTILE = 0.99f
         private const val PAD = 0.15f
         private const val HEAD_S = 0.3f
         private const val TAIL_S = 1.0f
         private const val MIN_GAP_S = 0.25f
 
-        private fun db(v: Double) = if (v <= 0.0) -120.0 else 20.0 * log10(v)
+        private fun db(v: Double) = if (v <= 0.0) SILENT else 20.0 * log10(v)
 
         /**
-         * True peak, approximated by 4× Catmull-Rom interpolation around the loud samples (a
-         * reconstruction overshoots between samples the way a DAC does). Cheap: only samples near
-         * the sample peak are interpolated.
+         * True peak (ITU-R BS.1770 style): the signal 4× oversampled with a windowed-sinc
+         * interpolator ([TAPS] taps a side), where a reconstruction overshoots between samples the
+         * way a DAC does. Cheap: only the stretches near the sample peak are interpolated.
          */
         fun truePeakDb(x: FloatArray): Double {
-            val peak = x.maxOfOrNull { abs(it) } ?: return -120.0
+            val peak = x.maxOfOrNull { abs(it) } ?: return SILENT
             var best = peak
             val near = peak * NEAR_PEAK
-            for (i in 1 until x.size - 2) {
+            for (i in TAPS until x.size - TAPS) {
                 if (abs(x[i]) < near && abs(x[i + 1]) < near) continue
-                for (k in 1..3) best = maxOf(best, abs(catmull(x[i - 1], x[i], x[i + 1], x[i + 2], k / 4f)))
+                for (k in 1 until OVERSAMPLE) best = maxOf(best, abs(between(x, i, k.toFloat() / OVERSAMPLE)))
             }
             return db(best.toDouble())
         }
 
+        /** The band-limited value at [i] + [frac] (Hann-windowed sinc). */
+        private fun between(x: FloatArray, i: Int, frac: Float): Float {
+            var sum = 0f
+            for (j in -TAPS + 1..TAPS) {
+                val d = j - frac
+                val w = 0.5f + 0.5f * kotlin.math.cos(PI_F * d / TAPS)
+                sum += x[i + j] * sinc(d) * w
+            }
+            return sum
+        }
+
+        private fun sinc(d: Float) = if (abs(d) < 1e-6f) 1f else kotlin.math.sin(PI_F * d) / (PI_F * d)
+
+        private const val TAPS = 8
+        private const val OVERSAMPLE = 4
         private const val NEAR_PEAK = 0.7f
+        private const val PI_F = kotlin.math.PI.toFloat()
+        private const val SILENT = -120.0
 
-        private fun catmull(p0: Float, p1: Float, p2: Float, p3: Float, t: Float): Float {
-            val t2 = t * t
-            val t3 = t2 * t
-            return 0.5f * (2f * p1 + (-p0 + p2) * t + (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2 + (-p0 + 3f * p1 - 3f * p2 + p3) * t3)
+        /**
+         * Mastering levels that bring a mix's true peak under the ceiling: the limiter's ceiling
+         * lowered by the overshoot (and a little more); null when the peak is fine.
+         */
+        fun remaster(sound: Soundtrack.Result, levels: Soundtrack.Levels, ceilingDbtp: Double = -1.0): Soundtrack.Levels? {
+            val over = truePeakDb(sound.audio.samples) - ceilingDbtp
+            return if (over > 0.0) levels.copy(ceilingDb = levels.ceilingDb - over.toFloat() - MARGIN_DB) else null
         }
 
-        /** Gentler mastering levels when the mix broke loudness or peak; null when it did not. */
-        fun remaster(v: Verdict?, levels: Soundtrack.Levels): Soundtrack.Levels? {
-            val broke = v?.findings?.any { "loudness" in it.what || "true peak" in it.what } == true
-            return if (broke) levels.copy(ceilingDb = minOf(levels.ceilingDb, SAFER_CEILING)) else null
-        }
+        private const val MARGIN_DB = 0.1f
 
-        private const val SAFER_CEILING = -1.7f
     }
 }

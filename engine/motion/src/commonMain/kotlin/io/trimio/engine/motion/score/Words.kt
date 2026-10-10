@@ -18,6 +18,18 @@ object Words {
         return n.length > 1 && n !in function
     }
 
+    /**
+     * A hesitation, not a word («اِم», «اوم», «ااا», «آه», "um", "uh"): captions never show it. Its time
+     * stays in the transcript (the cut list and the rhythm hear it); only the text is left out.
+     * A plain «ام» is a word («خسته ام»), so only the voweled «اِم» counts.
+     */
+    fun isFiller(word: String): Boolean {
+        val w = word.trim { !it.isLetter() && it !in '\u064B'..'\u0652' }.lowercase()
+        return w.isNotEmpty() && FILLER.matches(w)
+    }
+
+    private val FILLER = Regex("ا{2,}|آ{2,}|آه+|اِم+|امم+|او+م+|ا+ه{2,}|u+[mh]+|uhm+|e+r+m+|h+m{2,}")
+
     /** Stress weighted by meaning: loud function words do not count. */
     fun weight(w: Word): Float = if (isContent(w.text)) w.emphasis else w.emphasis * 0.15f
 

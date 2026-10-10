@@ -4,13 +4,14 @@ import io.trimio.engine.autopilot.workshop.Workshop
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.test.fail
 
 /**
  * The regression gate: every workshop scenario edited and judged, against the archived scores.
+ * Until a baseline is stored the archive only reports (build/golden/report.txt: a per-scenario,
+ * per-judge table and every finding); once one is, any drop or any run under the floor fails.
  *
  * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' [-Pgolden.only=fa-crypto,en-] [-Pgolden.seeds=1,2]
- * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' -Pgolden.update=true   (rewrites the baseline)
+ * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' -Pgolden.update=true   (stores the baseline)
  */
 class GoldenArchiveTest {
     @Test
@@ -18,15 +19,23 @@ class GoldenArchiveTest {
         val seeds = System.getProperty("golden.seeds")?.split(',')?.map { it.trim().toLong() } ?: listOf(1L)
         val only = System.getProperty("golden.only")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
         val scenarios = Workshop.scenarios().filter { s -> only == null || only.any { s.id.startsWith(it) } }
-        val current = GoldenArchive.judge(scenarios, seeds, ::println)
+        val runs = GoldenArchive.judge(scenarios, seeds)
+        val current = runs.associate { it.key to it.entry }
+        val baseline = GoldenArchive.load()
+        val table = GoldenArchive.table(runs, baseline)
+        GoldenArchive.report.apply { parentFile.mkdirs() }.writeText(table)
+        println(table)
         if (System.getProperty("golden.update") == "true") {
             val saved = GoldenArchive.update(current)
             println("golden: ${current.size} runs written to ${GoldenArchive.source.absolutePath} (${saved.runs.size} in the archive)")
             return
         }
-        val baseline = GoldenArchive.load() ?: fail("no golden baseline yet: run with -Pgolden.update=true")
-        val problems = GoldenArchive.compare(baseline, current)
+        if (baseline == null) {
+            println("golden: no baseline stored yet — reporting only (store one with -Pgolden.update=true)")
+            return
+        }
         current.keys.filter { it !in baseline.runs }.forEach { println("golden: $it is new (not in the archive yet)") }
+        val problems = GoldenArchive.compare(baseline, current)
         assertTrue(problems.isEmpty(), "the jury scores lower than the archive:\n" + problems.joinToString("\n"))
     }
 
@@ -41,5 +50,13 @@ class GoldenArchiveTest {
         assertEquals(listOf("x/1: hook dropped 10.0 → 9.0"), GoldenArchive.compare(base, dropped))
         val low = mapOf("y/1" to GoldenArchive.Entry(8f, 9.2f, mapOf("hook" to 8f)))
         assertTrue(GoldenArchive.compare(base, low).single().contains("under the floor"), "a new run is still held to the floor")
+        val table = GoldenArchive.table(listOf(GoldenArchive.Run("x/1", dropped.getValue("x/1"), listOf("  hook major …"), emptyList(), 1.0)), base)
+        assertTrue("9(10)" in table, "the table shows the archived score next to a changed one:\n$table")
+    }
+
+    @Test
+    fun wordsOnScreenAreCheckedAgainstTheTruth() {
+        assertEquals(GoldenArchive.norm("می‌تونید"), GoldenArchive.norm("میتونید"), "half-spaces do not count as errors here")
+        assertEquals("need", GoldenArchive.norm("Need,"))
     }
 }

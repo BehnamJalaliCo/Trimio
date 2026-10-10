@@ -12,7 +12,7 @@ import io.trimio.engine.motion.score.Score
 /**
  * The motion designer's eye on choreography. Every graphic holds long enough to be read: text at
  * least its reading time (the compiler's 0.35 s + 0.055 s a letter, at least 1 s), figures at
- * least [dataHold] (3.2 s; the cold open's figure holds for the opening), other elements their
+ * least [dataHold] (3.2 s; the cold open's figure holds while the opening plays), other elements their
  * recipe's own minimum. An entrance never plays over an exit in the same band; a treatment is not
  * used twice back to back within [repeatWindow]; and a longer piece uses a range of treatments.
  */
@@ -32,7 +32,7 @@ class MotionJudge(
             Bench.finding(g.at, sev, "${g.recipe} holds ${Bench.r1(held)}s of the ${Bench.r1(need)}s it needs", "hold it to ${Bench.r1(need)}s")
         }.capped(MAX_SHORT)
         f += crossing(graphics).map { (a, b) -> Bench.finding(b.at, Severity.Minor, "${b.recipe} enters over ${a.recipe}'s exit in the ${b.zone} band", "move it to the other band or wait for the exit") }.capped()
-        f += repeats(graphics).map { (a, b) -> Bench.finding(b.at, Severity.Minor, "${b.recipe} twice back to back (${Bench.r1(a.at)}s, ${Bench.r1(b.at)}s)", "vary the second treatment") }.capped()
+        f += repeats(c, graphics).map { (a, b) -> Bench.finding(b.at, Severity.Minor, "${b.recipe} twice back to back (${Bench.r1(a.at)}s, ${Bench.r1(b.at)}s)", "vary the second treatment") }.capped()
         f += variety(graphics)
         return Verdict.of(this, f)
     }
@@ -45,7 +45,7 @@ class MotionJudge(
             // The cold open's figure is up for the opening; a graphic cut by the end of the piece has nowhere to go.
             val opening = prelude > 0f && g.at < prelude
             val need = when {
-                g.recipe in Bench.DATA && opening -> minOf(dataHold, maxOf(MIN_OPENING, prelude))
+                g.recipe in Bench.DATA && opening -> (prelude - OPENING_SLACK).coerceIn(MIN_OPENING, dataHold)
                 g.recipe in Bench.DATA -> dataHold
                 g.recipe in Bench.TEXT || (g.recipe == Bench.STAMP && g.text.isNotBlank()) -> maxOf(MIN_READ, 0.35f + 0.055f * g.text.length) * READ_SLACK
                 else -> Recipes.named(g.recipe)?.minHold ?: MIN_READ
@@ -61,8 +61,9 @@ class MotionJudge(
 
     private fun sameBand(a: Compiler.Placed, b: Compiler.Placed) = a.zone == b.zone || a.zone == "full" || b.zone == "full"
 
-    private fun repeats(graphics: List<Compiler.Placed>) = graphics.zipWithNext().filter { (a, b) ->
-        a.recipe == b.recipe && a.recipe !in REPEATABLE && b.at - a.out < repeatWindow
+    /** The same treatment twice running; the cold open's figure is a flash-forward, not the first of a pair. */
+    private fun repeats(c: Jury.Context, graphics: List<Compiler.Placed>) = graphics.zipWithNext().filter { (a, b) ->
+        a.recipe == b.recipe && a.recipe !in REPEATABLE && b.at - a.out < repeatWindow && a.at >= (c.edit?.preludeLength ?: 0f)
     }
 
     private fun variety(graphics: List<Compiler.Placed>): List<Finding> {
@@ -87,7 +88,7 @@ class MotionJudge(
             if (!b.overFootage) continue
             Bench.locate(score, c.words, b)?.let { at -> score = Bench.mapBeat(score, at) { it.copy(place = Bench.otherBand(b.zone)) } }
         }
-        for ((_, b) in repeats(graphics)) {
+        for ((_, b) in repeats(c, graphics)) {
             val swap = Bench.ALTERNATE[b.recipe] ?: continue
             Bench.locate(score, c.words, b)?.let { at -> score = Bench.mapBeat(score, at) { it.copy(recipe = swap) } }
         }
@@ -106,8 +107,10 @@ class MotionJudge(
     private companion object {
         const val MIN_READ = 1.0f
         const val READ_SLACK = 0.9f
-        const val MIN_OPENING = 2.0f
-        const val TOLERANCE = 0.05f
+        const val MIN_OPENING = 1.2f
+        const val OPENING_SLACK = 0.1f
+        /** A tenth of a second short is not seen; more is. */
+        const val TOLERANCE = 0.15f
         const val MAJOR_SHARE = 0.75f
         const val MAX_SHORT = 4
         const val CROSS_TOL = 0.1f

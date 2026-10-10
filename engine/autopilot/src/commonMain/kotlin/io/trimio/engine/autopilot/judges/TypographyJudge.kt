@@ -44,7 +44,7 @@ class TypographyJudge(
         val layers = layers(c)
         val f = mutableListOf<Finding>()
         f += small(layers, width).map { (l, min) ->
-            Bench.finding(l.t, Severity.Major, "«${l.node.text.take(TRIM)}» is ${l.size.toInt()} px (needs ${(min * width).toInt()})", "give it more room or a stage")
+            Bench.finding(l.t, Severity.Major, "«${l.node.text.take(TRIM)}» (${l.node.name}) is ${l.size.toInt()} px (needs ${(min * width).toInt()})", "give it more room or a stage")
         }.capped()
         f += layers.filter { tooManyLines(c, it) }.map { l ->
             Bench.finding(l.t, Severity.Minor, "«${l.node.text.take(TRIM)}» breaks into too many lines", if (l.kind == CAPTION) "fewer words per caption" else "a shorter title")
@@ -89,15 +89,27 @@ class TypographyJudge(
         return out
     }
 
+    /**
+     * Every text layer at its settled size: the largest it is drawn while fully visible (its own
+     * and its groups' opacity), sampled when the beats have landed. A layer never fully visible is
+     * not judged (it is a transition, a ghost, a glow).
+     */
     private fun layers(c: Jury.Context): List<Layer> {
+        val moments = c.compiled.beats.flatMap { b -> listOf(minOf(b.at + LAND_AFTER, (b.at + b.out) / 2f), (b.at + b.out) / 2f, b.out - LAND_AFTER) }.distinct().sorted()
         val out = mutableListOf<Layer>()
         fun visit(n: Node, chain: List<Node>) {
             when (n) {
                 is Group -> n.children.forEach { visit(it, chain + n) }
                 is TextNode -> {
-                    val t = landed(n)
-                    val scale = (chain + n).fold(1f) { acc, p -> acc * p.transform.scale.at(t) }
-                    out += Layer(n, t, n.type.size * scale, Bench.overFootageAt(c, t))
+                    // A layer exists only while every group above it does.
+                    val all = chain + n
+                    val from = all.maxOf { it.start }
+                    val to = minOf(all.minOf { it.end }, c.duration)
+                    val seen = (moments.filter { it in from..to } + landed(from, to)).mapNotNull { t ->
+                        val opacity = all.fold(1f) { acc, p -> acc * p.transform.opacity.at(t) }
+                        (t to n.type.size * all.fold(1f) { acc, p -> acc * p.transform.scale.at(t) }).takeIf { opacity >= VISIBLE }
+                    }.maxByOrNull { it.second } ?: return
+                    out += Layer(n, seen.first, seen.second, Bench.overFootageAt(c, seen.first))
                 }
                 else -> Unit
             }
@@ -107,7 +119,7 @@ class TypographyJudge(
     }
 
     /** When a layer has landed: 1.2 s after it exists (0.7 s after its beat), or its middle when shorter. */
-    private fun landed(n: Node): Float = if (n.end.isFinite()) n.start + minOf(LAND, (n.end - n.start) / 2f) else n.start + LAND
+    private fun landed(start: Float, end: Float): Float = if (end.isFinite()) start + minOf(LAND, (end - start) / 2f) else start + LAND
 
     private fun effects(n: Node): List<EffectNode> = when (n) {
         is Group -> n.children.flatMap { effects(it) }
@@ -138,6 +150,8 @@ class TypographyJudge(
         const val LABEL = "label"
         const val TRIM = 24
         const val LAND = 1.2f
+        const val LAND_AFTER = 0.7f
+        const val VISIBLE = 0.9f
 
         /** Average advance of a glyph, in ems, for the line estimate. */
         const val GLYPH = 0.5f

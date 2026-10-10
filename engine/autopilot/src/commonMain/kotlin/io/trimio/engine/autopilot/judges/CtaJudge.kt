@@ -31,7 +31,7 @@ class CtaJudge(
         val graphics = Bench.graphics(c)
         val comment = graphics.filter { it.recipe == Bench.COMMENT }.maxByOrNull { it.out }
         if (comment == null && !asked(c)) return Verdict.of(this, listOf(Bench.finding(0f, Severity.Note, "no call to action in the speech", "-")))
-        if (comment == null) return Verdict.of(this, listOf(Bench.finding(c.duration, Severity.Critical, "the call to action never appears", "the comment field with the keyword on the last screen")))
+        if (comment == null) return Verdict.of(this, listOfNotNull(missing(c, graphics)))
         val f = mutableListOf<Finding>()
         if (comment.out < c.duration - endTolerance) {
             f += Bench.finding(comment.out, Severity.Major, "the call to action leaves at ${Bench.r1(comment.out)}s of ${Bench.r1(c.duration)}s", "hold it to the end")
@@ -52,6 +52,21 @@ class CtaJudge(
         }
         return Verdict.of(this, f)
     }
+
+    /**
+     * No comment field: with a keyword said, the ask failed (critical); an ask without one («نظرتونو
+     * کامنت کنید», «فالو کن») needs its words on screen from the ask to the end (a stamp will do).
+     */
+    private fun missing(c: Jury.Context, graphics: List<Compiler.Placed>): Finding? {
+        if (spokenKeyword(c) != null) return Bench.finding(c.duration, Severity.Critical, "the call to action never appears", "the comment field with the keyword on the last screen")
+        val i = askWord(c) ?: return null
+        val from = Bench.start(c.words, c.lines.firstOrNull { i in it.range }?.first ?: i) - 0.2f
+        val shown = graphics.any { it.recipe in ASK_SHOWS && it.at >= from && it.out >= c.duration - endTolerance }
+        return if (shown) null else Bench.finding(Bench.start(c.words, i), Severity.Major, "the speaker asks («${c.words[i].text}») but nothing on screen says so", "the ask's words on the last screen")
+    }
+
+    /** The last word of the second half that asks for something (comment, follow, save, link, DM). */
+    private fun askWord(c: Jury.Context): Int? = c.words.indices.lastOrNull { i -> i * 2 >= c.words.size && ASKS.any { norm(c.words[i].text).startsWith(it) } }
 
     /** Graphics other than the second step that land after the ask, or are still up in the last seconds. */
     private fun rivals(c: Jury.Context, graphics: List<Compiler.Placed>, comment: Compiler.Placed) = graphics.filter { g ->
@@ -81,11 +96,18 @@ class CtaJudge(
         val comment = graphics.filter { it.recipe == Bench.COMMENT }.maxByOrNull { it.out }
         var score = c.score
         val keyword = spokenKeyword(c)
-        if (comment == null) return ask(c, keyword ?: return null)
+        if (comment == null) return keyword?.let { ask(c, it) } ?: stampAsk(c)
         val at = Bench.locate(score, c.words, comment) ?: return null
-        val start = comment.at
+        // Up too briefly: the field lands as the ask's line begins instead of on the keyword.
+        val line = score.scenes[at.first].beats[at.second].at?.let { i -> c.lines.firstOrNull { i in it.range } }
+        val early = line?.first?.takeIf { comment.out - comment.at < minShow && Bench.start(c.words, it) < comment.at - 0.2f }
+        val start = early?.let { Bench.start(c.words, it) } ?: comment.at
+        if (early != null) score = score.copy(scenes = score.scenes.mapIndexed { k, sc -> if (k == at.first && k > 0 && (sc.from ?: 0) > early) sc.copy(from = early) else sc })
         score = Bench.mapBeat(score, at) { b ->
-            b.copy(hold = maxOf(b.hold ?: 0f, c.duration - start + 1f), text = if (keyword != null && norm(b.text.orEmpty()) !in said(c)) keyword else b.text)
+            b.copy(
+                at = early ?: b.at, time = if (early != null) null else b.time, hold = maxOf(b.hold ?: 0f, c.duration - start + 1f),
+                text = if (keyword != null && norm(b.text.orEmpty()) !in said(c)) keyword else b.text,
+            )
         }
         // The ask's scene runs to the end: scenes after it fold into it, and rivals landing after it go.
         val k = at.first
@@ -118,12 +140,23 @@ class CtaJudge(
         return c.score.copy(scenes = before + SceneScore(from = from, beats = listOf(beat)))
     }
 
+    /** An ask without a keyword: its own words, stamped from the ask to the end. */
+    private fun stampAsk(c: Jury.Context): Score? {
+        val i = askWord(c) ?: return null
+        val k = c.score.scenes.lastIndex.takeIf { it >= 0 } ?: return null
+        val text = (i..minOf(i + 1, c.words.lastIndex)).joinToString(" ") { c.words[it].text.trimEnd('.', '،', ',', '!', '؟', '?') }
+        val beat = BeatScore(recipe = Bench.STAMP, at = i, text = text, hold = c.duration - Bench.start(c.words, i) + 1f, energy = 0.7f, place = "top")
+        return Bench.addBeat(c.score, k, beat)
+    }
+
     private companion object {
         const val LABEL = "کامنت کن"
         const val STAMP_HOLD = 1.8f
         const val MIN_LEFT = 1f
         val MARKERS = setOf("کلمه", "کلمهی", "کلمهٔ", "کلمۀ", "word", "keyword")
         val DM = listOf("دایرکت", "دایرک", "dm", "direct", "inbox")
+        val ASKS = listOf("کامنت", "comment", "بنویس", "فالو", "follow", "سیو", "ذخیره", "save", "share", "لینک", "link", "دایرکت", "subscribe")
+        val ASK_SHOWS = setOf(Bench.COMMENT, Bench.STAMP, "lower-third")
 
         fun norm(s: String) = NumberWords.normalize(s).lowercase().trim { !it.isLetterOrDigit() }.replace("‌", "")
     }

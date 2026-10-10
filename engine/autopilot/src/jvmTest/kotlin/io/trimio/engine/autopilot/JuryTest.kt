@@ -223,7 +223,7 @@ class JuryTest {
         assertTrue(judge(SoundJudge(), context(good, sound = quiet)).findings.any { "loudness" in it.what })
         val hot = Soundtrack.Result(PcmAudio(FloatArray(n) { (mastered.audio.samples[it] * 1.6f).coerceIn(-0.99f, 0.99f) }, rate), mastered.lufs, -0.1)
         assertTrue(judge(SoundJudge(), context(good, sound = hot)).findings.any { "true peak" in it.what })
-        assertNotNull(SoundJudge.remaster(SoundJudge().score(context(good, sound = hot)), Soundtrack.Levels()))
+        assertNotNull(SoundJudge.remaster(hot, Soundtrack.Levels()), "a lower ceiling for the overshoot")
     }
 
     @Test

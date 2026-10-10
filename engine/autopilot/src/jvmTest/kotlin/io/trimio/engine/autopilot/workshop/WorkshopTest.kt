@@ -81,7 +81,8 @@ class WorkshopTest {
         if (keyword.isNotEmpty()) {
             val end = c.composition.duration
             val field = graphics.filter { it.recipe == "comment" && it.out >= end - 1.5f }
-            if (field.isEmpty()) out += "${s.id} seed $seed: the ask «$keyword» is not on the last screen (comment beats: ${graphics.filter { it.recipe == "comment" }.map { "${it.at}–${it.out} ${it.text}" }}, end $end)"
+            val shown = graphics.filter { it.recipe == "comment" }.map { "${it.at}–${it.out} ${it.text}" }
+            if (field.isEmpty()) out += "${s.id} seed $seed: the ask «$keyword» is not on the last screen (comment beats: $shown, end $end)"
         }
         return out
     }

@@ -111,12 +111,17 @@ class Autopilot(
         var levels = Soundtrack.Levels()
         var sound = master(reading, d, levels)
         var panel = jury?.deliberate(context(reading, d, sound, levels))
-        // The mixer's verdict on the measured mix: once more with a safer ceiling when loudness or peak broke.
-        SoundJudge.remaster(panel?.of("sound"), levels)?.let { safer ->
-            levels = safer
-            sound = master(reading, d, safer)
-            panel = jury?.deliberate(context(reading, d, sound, safer))
-            report += "jury: remastered with a ${safer.ceilingDb} dB ceiling"
+        // A true peak over the ceiling: once more with the limiter lowered by the overshoot, kept when the mixer prefers it.
+        val safer = SoundJudge.remaster(sound, levels)?.takeIf { panel != null }
+        if (safer != null) {
+            val again = master(reading, d, safer)
+            val second = jury?.deliberate(context(reading, d, again, safer))
+            if (second != null && (second.of("sound")?.score ?: 0f) > (panel?.of("sound")?.score ?: 0f)) {
+                levels = safer
+                sound = again
+                panel = second
+                report += "jury: remastered with a ${round1(safer.ceilingDb)} dB ceiling"
+            }
         }
         report += "sound: ${d.plan.music?.id ?: "no music"}, ${d.compiled.sfx.size} cues, ${round1(sound.lufs.toFloat())} LUFS, peak ${round1(sound.peakDb.toFloat())} dBFS"
         panel?.let { p ->

@@ -9,6 +9,7 @@ import io.trimio.engine.autopilot.Severity
 import io.trimio.engine.autopilot.Verdict
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.Score
+import io.trimio.engine.motion.score.Words
 
 /**
  * The client's representative: the edit does what the brief asked. The brief is read by keywords
@@ -65,9 +66,9 @@ class BriefJudge : Judge {
     private fun keyword(c: Jury.Context): String? {
         val tokens = c.prompt.replace("‌", " ").split(Regex("[\\s«»\"“”،,.:!?؟]+")).filter { it.isNotEmpty() }
         val said = c.words.map { norm(it.text) }.toSet()
-        // «کلمه به کلمه» is a caption mode, not a keyword: the word after the marker must be said and not a preposition.
+        // «کلمه به کلمه» is a caption mode, not a keyword: the word after the marker must be a said content word, never a function word.
         val candidates = tokens.indices.filter { i -> i + 1 < tokens.size && tokens[i].removeSuffix("ٔ").removeSuffix("ی") in MARKERS }
-            .map { it + 1 }.filter { i -> tokens[i].lowercase() !in NOT_KEYWORDS && norm(tokens[i]) in said }
+            .map { it + 1 }.filter { i -> tokens[i].lowercase() !in NOT_KEYWORDS && Words.isContent(tokens[i]) && norm(tokens[i]) in said }
         val asks = tokens.indices.filter { tokens[it].lowercase() in ASK_WORDS }
         return candidates.minByOrNull { i -> asks.minOfOrNull { kotlin.math.abs(it - i) } ?: Int.MAX_VALUE }?.let { tokens[it] }
     }
@@ -86,7 +87,7 @@ class BriefJudge : Judge {
         fun has(c: Jury.Context, vararg recipes: String) = c.compiled.beats.any { it.recipe in recipes }
 
         val ASKS = listOf(
-            Ask("a voucher card", listOf("ووچر", "voucher", "کارت هدیه", "gift card"), { c -> senses(c).any { it.money != null } }, { c -> has(c, "voucher") }),
+            Ask("a voucher card", listOf("ووچر", "voucher", "کارت هدیه", "gift card"), { c -> senses(c).any { it.voucher != null } }, { c -> has(c, "voucher") }),
             Ask("a countdown", listOf("شمارش معکوس", "countdown", "تایمر", "timer"), { c -> senses(c).any { it.deadline != null } }, { c -> has(c, "countdown") }),
             Ask("a progress bar", listOf("نوار", "progress", "ظرفیت"), { c -> senses(c).any { it.quota != null || it.filled != null } }, { c -> has(c, "progress", "meter") }),
             Ask("stats", listOf("آمار", "stats", "بازدید"), { c -> senses(c).any { it.social.size >= 2 } }, { c -> has(c, "stats", "counter", "bars") }),

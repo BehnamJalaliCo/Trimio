@@ -106,6 +106,16 @@ data class Stroke(val fill: Fill, val width: Float, val round: Boolean = true)
 
 data class Shadow(val color: Color, val dx: Float = 0f, val dy: Float = 8f, val blur: Float = 24f)
 
+/**
+ * How text over footage keeps a contrast floor whatever is behind it. The renderer samples the
+ * footage under the text every frame and, only as much as needed to reach [floor] (WCAG-style
+ * ratio) against the brightest (for light ink) or darkest (for dark ink) part of it, adds the
+ * look's guard in the tone opposite the ink: a soft glyph [Style.Halo] or a stepped [Style.Plate].
+ */
+data class Guard(val style: Style, val light: Color, val dark: Color, val floor: Float = 4.5f) {
+    enum class Style { Halo, Plate }
+}
+
 /** Alpha mask drawn in the masked node's local space. */
 data class Mask(val node: Node, val invert: Boolean = false)
 
@@ -170,7 +180,13 @@ class TextNode(
     mask: Mask? = null,
     blend: BlendMode = BlendMode.SrcOver,
     name: String = "text",
-) : Node(transform, start, end, mask, blend, name)
+) : Node(transform, start, end, mask, blend, name) {
+    /** Sits on a body of its own (a card, a bubble, a pill): its contrast is designed, not guarded. */
+    var onBody: Boolean = false
+
+    /** Set by the compiler on text over footage; see [Guard]. */
+    var guard: Guard? = null
+}
 
 /** A number that rolls from one value to another (prices, percentages, counts). */
 class CounterNode(
@@ -189,7 +205,13 @@ class CounterNode(
     mask: Mask? = null,
     blend: BlendMode = BlendMode.SrcOver,
     name: String = "counter",
-) : Node(transform, start, end, mask, blend, name)
+) : Node(transform, start, end, mask, blend, name) {
+    /** See [TextNode.onBody]. */
+    var onBody: Boolean = false
+
+    /** See [TextNode.guard]. */
+    var guard: Guard? = null
+}
 
 sealed interface ShapeSpec {
     data class Rect(val width: Anim, val height: Anim, val radius: Anim = Anim.Zero) : ShapeSpec

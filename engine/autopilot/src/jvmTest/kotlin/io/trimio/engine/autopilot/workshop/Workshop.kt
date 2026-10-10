@@ -103,7 +103,8 @@ object Workshop {
                 production.report.forEach { appendLine(it) }
                 appendLine("\nplaced (recipe zone at–out [left,top,right,bottom] text):")
                 production.compiled.beats.forEach { b ->
-                    appendLine("  ${b.recipe.padEnd(13)} ${b.zone.padEnd(7)} ${"%5.1f".format(b.at)}–${"%5.1f".format(b.out)} [${b.left.toInt()},${b.top.toInt()},${b.right.toInt()},${b.bottom.toInt()}] ${if (b.overFootage) "over" else "stage"} ${b.text}")
+                    val box = "[${b.left.toInt()},${b.top.toInt()},${b.right.toInt()},${b.bottom.toInt()}]"
+                    appendLine("  ${b.recipe.padEnd(13)} ${b.zone.padEnd(7)} ${"%5.1f".format(b.at)}–${"%5.1f".format(b.out)} $box ${if (b.overFootage) "over" else "stage"} ${b.text}")
                 }
                 appendLine("\ncompiler notes:")
                 production.compiled.notes.forEach { appendLine("  $it") }
@@ -138,7 +139,8 @@ object Workshop {
         val h = (c.height * scale).toInt()
         val columns = 6
         val sheet = org.jetbrains.skia.Surface.makeRasterN32Premul(w * columns, h * ((times.size + columns - 1) / columns))
-        val label = org.jetbrains.skia.Font(org.jetbrains.skia.FontMgr.default.matchFamilyStyle("DejaVu Sans", org.jetbrains.skia.FontStyle.BOLD) ?: org.jetbrains.skia.FontMgr.default.legacyMakeTypeface("", org.jetbrains.skia.FontStyle.BOLD), 22f)
+        val fonts = org.jetbrains.skia.FontMgr.default
+        val label = org.jetbrains.skia.Font(fonts.matchFamilyStyle("DejaVu Sans", org.jetbrains.skia.FontStyle.BOLD) ?: fonts.legacyMakeTypeface("", org.jetbrains.skia.FontStyle.BOLD), 22f)
         for ((i, m) in times.withIndex()) {
             val (t, what) = m
             val img = frames.draw(t)
@@ -168,7 +170,8 @@ object Workshop {
     /** The director model, only when the supervisor passes one (-Pauto.llm, -Pauto.llm.id, -Pauto.vision; as AutopilotProofTest). */
     private val model: LanguageModel? by lazy {
         System.getProperty("auto.llm")?.let {
-            LlamaLanguageModel(System.getProperty("auto.llm.id") ?: "qwen3.5-4b-q4km", it, ChatFormat.ChatMl, contextSize = 8192, threads = 4, visionPath = System.getProperty("auto.vision"), maxImageTokens = 96)
+            val id = System.getProperty("auto.llm.id") ?: "qwen3.5-4b-q4km"
+            LlamaLanguageModel(id, it, ChatFormat.ChatMl, contextSize = 8192, threads = 4, visionPath = System.getProperty("auto.vision"), maxImageTokens = 96)
         }
     }
     private val eyes: LanguageModel? get() = model?.takeIf { it.canSee }
