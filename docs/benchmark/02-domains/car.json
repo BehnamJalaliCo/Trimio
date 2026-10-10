@@ -1,0 +1,76 @@
+{
+ "title": "تعمیرکار خودرو",
+ "text": "اگه ماشینت موقع ترمز صدای جیغ میده، احتمالا لنت‌هات تموم شده. هر بیست هزار کیلومتر لنت رو چک کن، روغن موتور رو هر پنج هزار کیلومتر عوض کن و باد لاستیک رو ماهی یه بار تنظیم کن. این سه کار عمر ماشینت رو دو برابر می‌کنه.",
+ "score": {
+  "look": "noir",
+  "bpm": 110,
+  "scenes": [
+   {
+    "from": 0,
+    "beats": [
+     {
+      "recipe": "object",
+      "text": "ماشینت",
+      "visual": "car",
+      "label": "صدای جیغ ترمز؟",
+      "place": "center"
+     },
+     {
+      "recipe": "stamp",
+      "text": "لنت تموم شده",
+      "place": "top",
+      "energy": 0.9
+     }
+    ]
+   },
+   {
+    "from": 11,
+    "transition": "whip",
+    "bg": "grid",
+    "beats": [
+     {
+      "recipe": "objects",
+      "text": "لنت روغن موتور باد لاستیک",
+      "items": [
+       "لنت",
+       "روغن موتور",
+       "باد لاستیک"
+      ],
+      "visuals": [
+       "car brake",
+       "oil can",
+       "wheel"
+      ],
+      "place": "top"
+     },
+     {
+      "recipe": "list",
+      "text": "لنت: هر ۲۰٬۰۰۰ کیلومتر | روغن: هر ۵٬۰۰۰ کیلومتر | باد لاستیک: ماهی یک بار",
+      "place": "center"
+     }
+    ]
+   },
+   {
+    "from": 37,
+    "transition": "flash",
+    "beats": [
+     {
+      "recipe": "slam",
+      "text": "دو برابر",
+      "emphasis": [
+       "دو برابر"
+      ],
+      "energy": 0.95,
+      "place": "center"
+     },
+     {
+      "recipe": "object",
+      "visual": "trophy",
+      "place": "top",
+      "hold": 2
+     }
+    ]
+   }
+  ]
+ }
+}

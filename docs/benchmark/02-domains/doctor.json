@@ -1,0 +1,96 @@
+{
+ "title": "پزشک قلب",
+ "text": "سلام، من دکتر رضایی هستم، متخصص قلب. اگه بعد از ورزش سینه‌ات درد می‌گیره، این سه علامت رو جدی بگیر: درد قفسه سینه، تنگی نفس و سرگیجه. فشار خونت رو هر هفته چک کن و روزی سی دقیقه پیاده‌روی کن. برای مشاوره رایگان کلمه «قلب» رو کامنت کن.",
+ "score": {
+  "look": "lumen",
+  "bpm": 92,
+  "scenes": [
+   {
+    "from": 0,
+    "beats": [
+     {
+      "recipe": "lower-third",
+      "text": "دکتر رضایی",
+      "label": "متخصص قلب",
+      "place": "lower"
+     },
+     {
+      "recipe": "object",
+      "text": "متخصص قلب",
+      "visual": "anatomical heart",
+      "label": "قلب",
+      "place": "center"
+     }
+    ]
+   },
+   {
+    "from": 7,
+    "transition": "whip",
+    "beats": [
+     {
+      "recipe": "mask-rise",
+      "text": "این سه علامت رو جدی بگیر",
+      "emphasis": [
+       "سه علامت"
+      ],
+      "place": "top"
+     },
+     {
+      "recipe": "objects",
+      "text": "درد قفسه سینه، تنگی نفس و سرگیجه",
+      "items": [
+       "درد قفسه سینه",
+       "تنگی نفس",
+       "سرگیجه"
+      ],
+      "visuals": [
+       "anatomical heart",
+       "lungs",
+       "dizzy face"
+      ],
+      "place": "center"
+     }
+    ]
+   },
+   {
+    "from": 27,
+    "transition": "zoom",
+    "beats": [
+     {
+      "recipe": "objects",
+      "text": "فشار خونت",
+      "items": [
+       "فشار خون",
+       "پیاده‌روی"
+      ],
+      "visuals": [
+       "blood pressure",
+       "person walking"
+      ],
+      "place": "top"
+     },
+     {
+      "recipe": "counter",
+      "text": "سی دقیقه",
+      "value": 30,
+      "label": "دقیقه پیاده‌روی در روز",
+      "place": "center"
+     }
+    ]
+   },
+   {
+    "from": 40,
+    "transition": "flash",
+    "beats": [
+     {
+      "recipe": "comment",
+      "text": "قلب",
+      "label": "کامنت کن",
+      "hold": 4,
+      "place": "center"
+     }
+    ]
+   }
+  ]
+ }
+}

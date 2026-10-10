@@ -39,7 +39,11 @@ import kotlin.math.roundToInt
  * captions that step aside for headlines, one highlight per line, scrims under text on footage,
  * camera life, transitions with sound, grain and vignette from the look.
  */
-class Compiler(private val text: TextLayoutEngine, private val brands: BrandLibrary = BrandLibrary.Empty) {
+class Compiler(
+    private val text: TextLayoutEngine,
+    private val brands: BrandLibrary = BrandLibrary.Empty,
+    private val visuals: io.trimio.engine.motion.visual.VisualLibrary = io.trimio.engine.motion.visual.VisualLibrary.Empty,
+) {
 
     data class Input(
         val score: Score,
@@ -176,11 +180,17 @@ class Compiler(private val text: TextLayoutEngine, private val brands: BrandLibr
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items, itemTimes = b.items.map { item -> locate(item, norm, range)?.let { start(it.first) } },
-                marks = b.items.map { brands.mark(it) },
                 rtl = isRtl(beatText.ifBlank { b.label ?: "" }) || (beatText.isBlank() && this.words.any { isRtl(it.text) }), seed = id * 7 + 3,
             )
-            return Beat(id, recipe, cue, zone, k, minOut)
+            return Beat(id, recipe, pictured(cue, b), zone, k, minOut)
         }
+
+        /** Brand marks and pictures from the visual vocabulary for what the beat names. */
+        private fun pictured(cue: Cue, b: BeatScore) = cue.copy(
+            marks = b.items.map { brands.mark(it) },
+            visual = b.visual?.let { visuals.find(it) },
+            itemVisuals = b.items.indices.map { i -> visuals.find(b.visuals.getOrNull(i) ?: b.items[i]) },
+        )
 
         /** Elements not tied to words stay for the scene; spoken text stays while it is said. */
         private fun naturalEnd(b: BeatScore, recipe: Recipe, at: Float, lastIndex: Int?, sceneEnd: Float, readable: Float): Float {

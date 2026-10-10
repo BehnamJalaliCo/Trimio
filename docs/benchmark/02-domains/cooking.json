@@ -1,0 +1,90 @@
+{
+ "title": "آشپزی",
+ "text": "پاستای خامه‌ای در پونزده دقیقه! فقط به پاستا، خامه، سیر و پنیر پارمزان نیاز داری. سیر رو تو کره تفت بده، خامه رو اضافه کن و پنیر رو آخر بریز. خوشمزه‌ترین شام هفته‌ات آماده‌ست.",
+ "score": {
+  "look": "paper",
+  "bpm": 118,
+  "scenes": [
+   {
+    "from": 0,
+    "beats": [
+     {
+      "recipe": "object",
+      "text": "پاستای خامه‌ای",
+      "visual": "spaghetti",
+      "label": "پاستای خامه‌ای",
+      "place": "center",
+      "energy": 0.9
+     },
+     {
+      "recipe": "counter",
+      "text": "پونزده دقیقه",
+      "value": 15,
+      "label": "دقیقه",
+      "place": "top"
+     }
+    ]
+   },
+   {
+    "from": 5,
+    "transition": "whip",
+    "beats": [
+     {
+      "recipe": "objects",
+      "text": "پاستا، خامه، سیر و پنیر پارمزان",
+      "items": [
+       "پاستا",
+       "خامه",
+       "سیر",
+       "پنیر"
+      ],
+      "visuals": [
+       "spaghetti",
+       "glass of milk",
+       "garlic",
+       "cheese wedge"
+      ],
+      "place": "center"
+     }
+    ]
+   },
+   {
+    "from": 15,
+    "transition": "zoom",
+    "beats": [
+     {
+      "recipe": "list",
+      "text": "سیر رو تو کره تفت بده | خامه رو اضافه کن | پنیر رو آخر بریز",
+      "place": "center"
+     },
+     {
+      "recipe": "object",
+      "visual": "cooking",
+      "place": "top",
+      "hold": 3
+     }
+    ]
+   },
+   {
+    "from": 30,
+    "transition": "flash",
+    "beats": [
+     {
+      "recipe": "slam",
+      "text": "خوشمزه‌ترین شام هفته",
+      "emphasis": [
+       "خوشمزه‌ترین"
+      ],
+      "place": "center"
+     },
+     {
+      "recipe": "object",
+      "visual": "fork and knife with plate",
+      "place": "top",
+      "hold": 2.5
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -216,6 +216,27 @@ class ShapeNode(
     name: String = "shape",
 ) : Node(transform, start, end, mask, blend, name)
 
+/**
+ * An icon from the visual vocabulary. [assemble] 0→1 builds it layer by layer (each part pops
+ * into place in drawing order); single-colour icons take [tint].
+ */
+class VectorNode(
+    val icon: io.trimio.engine.motion.visual.VectorIcon,
+    val size: Float,
+    val tint: ColorAnim = Color.White.anim,
+    val assemble: Anim = Anim.One,
+    val shadow: Shadow? = null,
+    transform: Transform = Transform(),
+    start: Float = 0f,
+    end: Float = Float.POSITIVE_INFINITY,
+    mask: Mask? = null,
+    blend: BlendMode = BlendMode.SrcOver,
+    name: String = "vector",
+) : Node(transform, start, end, mask, blend, name) {
+    val width: Float get() = if (icon.width >= icon.height) size else size * icon.width / icon.height
+    val height: Float get() = if (icon.height >= icon.width) size else size * icon.height / icon.width
+}
+
 /** Colour grade for footage: exposure, contrast, saturation and a warm/cool tint. */
 data class Grade(
     val exposure: Anim = Anim.Zero,

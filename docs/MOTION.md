@@ -35,10 +35,21 @@
 - `transition`: cut | whip | zoom | flash | leak — `camera`: push-in | pull-out | drift | still
 - `bg`: media | aurora | grid | plain — `mark`: block | ink | underline | circle
 
+## تصویر هر مفهوم (همهٔ حوزه‌ها)
+
+کارگردان فقط می‌گوید چه چیزی دیده شود، به انگلیسی؛ موتور از واژگان بصری (حدود ۱۸ هزار نماد آزاد: ایموجی رنگی، پزشکی، Material، Tabler) بهترینش را پیدا می‌کند:
+
+```json
+{"recipe": "object", "text": "متخصص قلب", "visual": "anatomical heart", "label": "قلب"}
+{"recipe": "objects", "items": ["پاستا", "خامه", "سیر"], "visuals": ["spaghetti", "glass of milk", "garlic"]}
+{"recipe": "logos", "items": ["Claude Code", "Codex"]}
+```
+
 ## رسپی‌ها
 
 متن: `mask-rise` `slam` `pop-captions` `type-on` `blur-in` `flip` `spread` `stack` `glitch`
 المان: `counter` `ticker` `chart` `bars` `icon` `lower-third` `stamp` `list`
+توضیحی: `chips` `terminal` `network` `meter` `comment` — برند: `logos` — شیء: `object` `objects`
 
 نام‌های تقریبی هم پذیرفته می‌شوند (مثلاً impact → slam، caption → pop-captions، price → ticker).
 آیکون‌ها: arrow-up/down، trend-up/down، check، bolt، fire، star، bell، target، coin، lock، clock، heart، warning، rocket، eye، spark و نام‌های مترادف (btc، pump، dump، signal، tp…).

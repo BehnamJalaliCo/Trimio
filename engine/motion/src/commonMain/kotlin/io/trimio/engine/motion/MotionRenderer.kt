@@ -46,6 +46,7 @@ class MotionRenderer(
     private val media: MediaSource = MediaSource.None,
 ) {
     internal val text = TextLayoutEngine(measurer, fonts)
+    private val vectors = VectorPainter()
     private val blocks = HashMap<TextNode, TextBlock>()
     private val frame = Rect(0f, 0f, composition.width.toFloat(), composition.height.toFloat())
     private val shutter = composition.shutterAngle / 360f / composition.fps
@@ -71,6 +72,7 @@ class MotionRenderer(
         is ShapeNode -> shapeSize(node.shape, t)
         is MediaNode -> Size(node.width, node.height)
         is EffectNode -> frame.size
+        is VectorNode -> Size(node.width, node.height)
     }
 
     internal fun matrixOf(node: Node, t: Float): M3 {
@@ -130,6 +132,7 @@ class MotionRenderer(
             is ShapeNode -> drawShape(node, t, alpha)
             is MediaNode -> drawMedia(node, t, alpha)
             is EffectNode -> drawEffect(node.effect, t, alpha, frame.size)
+            is VectorNode -> vectors.draw(this, node, t, alpha)
         }
     }
 

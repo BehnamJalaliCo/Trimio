@@ -97,4 +97,8 @@ data class BeatScore(
     val mark: String? = null,
     /** Items shown one by one (tool names, checklist rows); quoted items land when they are said. */
     val items: List<String> = emptyList(),
+    /** What to picture, in English ("stethoscope", "car engine"): searched in the visual vocabulary. */
+    val visual: String? = null,
+    /** One picture per item, in English, aligned with [items]. */
+    val visuals: List<String> = emptyList(),
 )

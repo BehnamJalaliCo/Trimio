@@ -54,6 +54,9 @@ data class Cue(
     val itemTimes: List<Float?> = emptyList(),
     /** Brand marks for the items, when they are brands. */
     val marks: List<BrandMark> = emptyList(),
+    /** Pictures from the visual vocabulary: the beat's own, and one per item. */
+    val visual: io.trimio.engine.motion.visual.VectorIcon? = null,
+    val itemVisuals: List<io.trimio.engine.motion.visual.VectorIcon?> = emptyList(),
     /** How to mark emphasis ("block", "ink", "underline", "circle"); the look decides when null. */
     val mark: String? = null,
     /** True when footage is behind: text gets a shadow, cards get more body. */
@@ -91,7 +94,7 @@ data class Built(
 
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
-    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all
+    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",
@@ -112,7 +115,10 @@ object Recipes {
         "map" to "network", "nodes" to "network", "graph-map" to "network", "mindmap" to "network", "tree" to "network",
         "usage" to "meter", "compare" to "meter", "saving" to "meter", "savings" to "meter", "before-after" to "meter",
         "cta" to "comment", "comment-cta" to "comment", "keyword" to "comment", "dm" to "comment",
-        "emoji" to "icon", "sticker" to "icon", "bar" to "bars", "bar-chart" to "bars", "checklist" to "list", "steps" to "list",
+        "sticker" to "object", "emoji" to "object", "illustration" to "object", "prop" to "object",
+        "picture" to "object", "visual" to "object",
+        "stickers" to "objects", "ingredients" to "objects", "items" to "objects", "things" to "objects",
+        "bar" to "bars", "bar-chart" to "bars", "checklist" to "list", "steps" to "list",
     )
 
     fun named(name: String?): Recipe? {

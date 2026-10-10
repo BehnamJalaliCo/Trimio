@@ -36,3 +36,7 @@ tasks.withType<Test>().configureEach {
     }
     maxHeapSize = "3g"
 }
+
+tasks.withType<Test>().configureEach {
+    providers.gradleProperty("visuals.dir").orNull?.let { systemProperty("visuals.dir", it) }
+}

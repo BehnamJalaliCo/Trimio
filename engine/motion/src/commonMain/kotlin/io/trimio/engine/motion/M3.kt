@@ -42,6 +42,17 @@ internal class M3(val m: FloatArray = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0
 
     val isIdentity: Boolean get() = m.contentEquals(IDENTITY.m)
 
+    /** Inverse of an affine matrix (last row 0 0 1), or null when it is singular. */
+    fun inverse(): M3? {
+        val det = m[0] * m[4] - m[1] * m[3]
+        if (kotlin.math.abs(det) < 1e-9f) return null
+        val a = m[4] / det
+        val b = -m[1] / det
+        val c = -m[3] / det
+        val d = m[0] / det
+        return M3(floatArrayOf(a, b, -(a * m[2] + b * m[5]), c, d, -(c * m[2] + d * m[5]), 0f, 0f, 1f))
+    }
+
     companion object {
         val IDENTITY = M3()
         fun translate(x: Float, y: Float) = M3(floatArrayOf(1f, 0f, x, 0f, 1f, y, 0f, 0f, 1f))
