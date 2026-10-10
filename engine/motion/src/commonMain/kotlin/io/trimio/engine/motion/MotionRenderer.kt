@@ -259,7 +259,7 @@ class MotionRenderer(
      * as its own words), padded above the first and below the last.
      */
     private fun DrawScope.drawPlate(block: TextBlock, line: TextLine, size: Float, plate: Pair<Color, Float>, alpha: Float, radius: Float) {
-        val a = (alpha * plate.second).coerceIn(0f, 1f)
+        val a = (alpha * plateOpacity(plate.second)).coerceIn(0f, 1f)
         if (a <= 0.002f) return
         val padX = size * PLATE_X
         val padY = size * PLATE_Y
@@ -396,7 +396,7 @@ class MotionRenderer(
         val guard = node.guard?.takeIf { !node.onBody }
         guarded(guard, inkOf(node.fill, t), box.inflate(size * 0.25f))?.let { g ->
             if (guard?.style == Guard.Style.Plate) {
-                val a = (alpha * g.second).coerceIn(0f, 1f)
+                val a = (alpha * plateOpacity(g.second)).coerceIn(0f, 1f)
                 val r = box.inflate(size * PLATE_Y)
                 drawRoundRect(g.first, Offset(r.left - size * (PLATE_X - PLATE_Y), r.top), Size(r.width + size * (PLATE_X - PLATE_Y) * 2f, r.height), androidx.compose.ui.geometry.CornerRadius(size * guard.radius), alpha = a)
             } else {
@@ -586,6 +586,12 @@ class MotionRenderer(
         return Contrast.guard(ink, tone, guard).takeIf { it.second > MIN_GUARD }
     }
 
+    /**
+     * A plate reads as paper, not as a grey veil: it goes opaque quickly (still continuously, so
+     * it never pops) — a half-transparent light plate over a dark picture looks dirty.
+     */
+    private fun plateOpacity(strength: Float) = (strength * PLATE_RISE).coerceAtMost(1f).let { it * it * (3f - 2f * it) }
+
     /** The colour a fill reads as (gradients: their average), for contrast decisions. */
     private fun inkOf(fill: Fill, t: Float): Color = when (fill) {
         is Fill.Solid -> fill.color.at(t)
@@ -654,6 +660,7 @@ class MotionRenderer(
         const val HALO_SOFT = 0.1f
         const val PLATE_X = 0.32f
         const val PLATE_Y = 0.14f
+        const val PLATE_RISE = 2.5f
         const val MAX_BLUR_SAMPLES = 28
         const val BLOCK_AIR = 0.06f
         const val SEAM = 0.75f
