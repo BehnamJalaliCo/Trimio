@@ -195,7 +195,7 @@ class Compiler(
             val spokenText = if (recipe.kind == Recipe.Kind.Text && atIndex != null) (atIndex..(lastIndex ?: atIndex)).joinToString(" ") { words[it].text } else ""
             val beatText = clean(b.text ?: spokenText)
             val readable = maxOf(MIN_READ, 0.35f + 0.055f * beatText.length, recipe.minHold)
-            val out = minOf(maxOf(naturalEnd(b, recipe, at, lastIndex, sceneEnds[k], readable), at + readable), sceneEnds[k] + 0.05f, at + MAX_HOLD)
+            val out = minOf(maxOf(naturalEnd(b, recipe, at, lastIndex, sceneEnds[k], readable), at + readable), sceneEnds[k] + 0.05f, at + if (recipe.name in LONG_FORM) MAX_THREAD_HOLD else MAX_HOLD)
             val words = beatText.split(' ').count { it.isNotEmpty() }
             val minOut = minOf(at + readable, out)
             val over = overFootage(scene)
@@ -563,6 +563,9 @@ class Compiler(
         private const val FOOTAGE_TEXTURE = 0.35f
         private const val MIN_READ = 1.0f
         private const val MAX_HOLD = 7f
+        /** A chat thread plays as long as the story it tells. */
+        private const val MAX_THREAD_HOLD = 24f
+        private val LONG_FORM = setOf("message")
         private const val LINGER = 0.55f
         private const val EXIT_TAIL = 0.4f
         private const val MIN_SCENE = 1.2f
