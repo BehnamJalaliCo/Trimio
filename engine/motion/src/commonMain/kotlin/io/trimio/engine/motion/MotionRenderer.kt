@@ -270,7 +270,8 @@ class MotionRenderer(
         val padX = size * PLATE_X
         val padY = size * PLATE_Y
         val top = if (line.index == 0) line.inkTop - padY else line.top
-        val bottom = if (line.index == block.lines.lastIndex) line.inkBottom + padY else line.top + line.height
+        // Stacked lines overlap by a pixel so the stepped plate has no seam.
+        val bottom = if (line.index == block.lines.lastIndex) line.inkBottom + padY else line.top + line.height + 1f
         drawRoundRect(
             plate.first, Offset(line.x + from - padX, top), Size(to - from + padX * 2f, bottom - top),
             androidx.compose.ui.geometry.CornerRadius(size * radius), alpha = a,
@@ -669,8 +670,8 @@ class MotionRenderer(
         /** Below this strength a guard is not drawn at all. */
         const val MIN_GUARD = 0.01f
         /** Halo stroke width and softness, and plate padding, as fractions of the font size. */
-        const val HALO_WIDTH = 0.16f
-        const val HALO_SOFT = 0.1f
+        const val HALO_WIDTH = 0.1f
+        const val HALO_SOFT = 0.22f
         const val PLATE_X = 0.32f
         const val PLATE_Y = 0.14f
         const val PLATE_RISE = 2.5f

@@ -95,7 +95,7 @@ internal class Rhythm(
                 val spoken = spokenEnd(b, scenes, k)?.let { it - start }
                 val early = if (room < MIN_LIFE && b.at != null && b.recipe in MOVABLE) earlier(b, scenes, k, e) else null
                 when {
-                    b.recipe == "comment" -> b
+                    b.recipe == "comment" || b.recipe == "endcard" -> b
                     // Words said at the very end of a scene come up a little before they are said.
                     early != null -> early
                     room < maxOf(MIN_LIFE, least(b)) - 0.01f -> null.also { dropped++ }
@@ -300,15 +300,8 @@ internal class Rhythm(
 
     private fun nounish(i: Int): Boolean = nounishWord(texts[i]) && NumberWords.at(texts, i) == null
 
-    /** A noun or adjective worth the screen: not a function word, verb, adverb, time word, number or unit. */
-    private fun nounishWord(w: String): Boolean {
-        val n = NumberWords.normalize(w).trimEnd('.', '،', ',')
-        return Words.isContent(w) && n.length >= MIN_POP && !verb(n) && n !in STOP_WORDS && w.none { it.isDigit() } &&
-            Quantities.unitOf(w) == null && n != keyword?.let(NumberWords::normalize)
-    }
-
-    /** A conjugated verb («می‌گفتیم», «بکنی», «گذاشتم», «شده»), normalised: not something to show. */
-    private fun verb(n: String): Boolean = ((n.startsWith("می") || n.startsWith("نمی")) && n.length >= MIN_VERB) || VERB.matches(n)
+    /** A noun or adjective worth the screen ([Phrases.nounish]), and not the call to action's keyword. */
+    private fun nounishWord(w: String): Boolean = Phrases.nounish(w) && Phrases.key(w) != keyword?.let(Phrases::key)
 
     /** Something concrete named near these words, with a picture not shown yet. */
     private fun pictureNear(candidates: List<Int>): Pair<Int, String>? {
@@ -370,26 +363,12 @@ internal class Rhythm(
          * one by one, a chat thread's bubbles, and the figures (counting up, filling, ticking, the
          * voucher's reveal).
          */
-        private val SELF_PACED = setOf("comment", "logos", "list", "objects", "countdown", "counter", "voucher", "stats", "progress", "message")
-
-        /** Adverbs, time words and fillers: said with stress, but nothing to pop on screen. */
-        private val STOP_WORDS = setOf(
-            "دیروز", "امروز", "فردا", "پریروز", "الان", "الآن", "حالا", "هنوز", "همیشه", "هرگز", "فقط", "خیلی", "راحت", "سریع", "درجا", "اول", "آخر", "دیگه",
-            "دیگر", "فعال", "دریافت", "باز", "تموم", "تمام", "پر", "یعنی", "بعد", "قبل", "اینجا", "اونجا", "همونجا", "اینجوری", "اونجوری", "واقعا", "اصلا",
-            "کلا", "دقیقا", "عزیزم", "بابا", "فلان", "همون", "همین", "یکی", "بیشتر", "کمتر", "نیازی", "مخصوص", "اسمش", "اولش", "برام", "براتون", "موفق",
-            "really", "just", "actually", "going", "gonna", "doing", "today", "yesterday", "now", "very",
-        )
-
-        /** Conjugations of everyday verbs («بکنی», «گذاشتم», «شده», «بریم», «نبود»), normalised. */
-        private val VERB = Regex(
-            "^(ن|ب|نمی|می)?(کن|کرد|شد|شو|دار|داشت|ذار|ذاشت|زار|گذار|گذاشت|گیر|گرفت|داد|ده|رو|رفت|ر|گو|گ|گفت|خور|خورد|تون|تونست|خواه|خواست|" +
-                "بین|دید|یا|اومد|آمد|باش|بود|هست|است|نیست|زن|زد|فرست|فرستاد|نویس|نوشت|کش|کشید)(م|ی|ه|ید|یم|ند|ین|ن|ش|یت|مون|تون|شون)?$",
-        )
+        private val SELF_PACED = setOf("comment", "endcard", "logos", "list", "objects", "countdown", "counter", "voucher", "stats", "progress", "message")
 
         /** Picture queries that are not pictures: logos and abstract icons. */
         private val NOT_PICTURES = listOf("logo", "icon", "interface", "overlay", "screen showing")
 
-        private val UNCAPPED = setOf("message", "comment")
+        private val UNCAPPED = setOf("message", "comment", "endcard")
         private const val RHYTHM_GAP = 2.5f
         private const val MIN_RHYTHM_GAP = 1.8f
         private const val MAX_RHYTHM_GAP = 4.5f
@@ -397,12 +376,10 @@ internal class Rhythm(
         private const val MIN_LIFE = 1.5f
         private const val RETRY_STEP = 0.5f
         private const val LONE_NOUN = 4
-        private const val MIN_VERB = 4
         private const val MIN_SHOT = 1.0f
         private const val FILL_HOLD = 1.6f
         private const val STAMP_SPACING = 8f
         private const val MAX_FILLS = 400
-        private const val MIN_POP = 3
         private const val TYPICAL_TEXT = 12
 
         // As the compiler holds beats.

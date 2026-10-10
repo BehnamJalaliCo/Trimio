@@ -195,6 +195,67 @@ class PersianSpellingTest {
     }
 
     @Test
+    fun mergedWordsSplitAtAKnownPair() {
+        assertEquals(mapOf(1 to "که دیگه"), spelling.correct(listOf("گفت", "کهدیگه", "نمیام")))
+        assertEquals(mapOf(1 to "همه چیزم"), spelling.correct(listOf("من", "همهچیذم", "رو")))
+        assertEquals(mapOf(1 to "که امروز"), spelling.correct(listOf("فرصتی", "کهامروض", "داریم")))
+        assertTrue(spelling.correct(listOf("کتابخونه", "همیشه", "شلوغه")).isEmpty())
+    }
+
+    @Test
+    fun splitPrefixesJoin() {
+        assertEquals(mapOf(1 to "ناامید", 2 to ""), spelling.correct(listOf("واقعاً", "نا", "امید", "بودم")))
+        assertEquals(mapOf(0 to "بی‌ترتیب", 1 to ""), spelling.correct(listOf("بی", "ترتیب", "می‌ریزم")))
+        assertEquals(mapOf(1 to "بی‌ترتیب"), spelling.correct(listOf("کارامو", "بیترتیب", "می‌ریزم")))
+        // «هم کار» is "work too", not «همکار».
+        assertTrue(spelling.correct(listOf("ما", "هم", "کار", "می‌کنیم")).isEmpty())
+    }
+
+    @Test
+    fun placeNamesJoinAfterAStreet() {
+        assertEquals(mapOf(1 to "ولیعصره،", 2 to ""), spelling.correct(listOf("خیابون", "ولی", "عصره،", "بالاتر")))
+        assertTrue(spelling.correct(listOf("ولی", "عصر", "که", "شد")).isEmpty(), "but in the evening")
+    }
+
+    @Test
+    fun numbersHeardAsOtherWords() {
+        assertEquals("صد", spelling.correct("سد و بیست و پنج متره".split(' '))[0])
+        assertEquals("شصت", spelling.correct("شست درصد".split(' '))[0])
+        assertEquals("دوازده", spelling.correct("دوازه ساعت".split(' '))[0])
+        assertTrue(spelling.correct("پشت سد کرج".split(' ')).isEmpty())
+        assertTrue(spelling.correct("انگشت شست".split(' ')).isEmpty())
+    }
+
+    @Test
+    fun briefLatinTargetsAreNamesNotEverydayWords() {
+        assertTrue(Proofreader.fromBrief(listOf("I", "made", "25", "more"), "make it engaging", spelling).isEmpty())
+        val news = "News explainer, serious tone. Show the numbers with charts and counters, dark look, no music."
+        assertTrue(Proofreader.fromBrief(listOf("you", "need", "to", "watch", "Chat"), news, spelling).isEmpty())
+        val coach = "Customer testimonial for Coach Maya's program. Warm and honest, calm music, phrase captions."
+        assertEquals(mapOf(0 to "Coach", 1 to "Maya's"), Proofreader.fromBrief(listOf("coach", "Mya's", "group", "Walk", "back"), coach, spelling))
+        val tools = "Punchy reel. Show the logos of Notion, ChatGPT, Claude and Google Calendar as I name them, word-by-word captions."
+        assertEquals(
+            mapOf(0 to "Notion.", 1 to "ChatGPT", 2 to "", 4 to "Claude،"),
+            Proofreader.fromBrief(listOf("Nation.", "Chat", "GPT", "یا", "Cloud،"), tools, spelling),
+        )
+        assertEquals(mapOf(1 to "Google Calendar", 2 to ""), Proofreader.fromBrief(listOf("تو", "گوگل", "کلندر", "و"), tools, spelling))
+    }
+
+    @Test
+    fun brandsSaidInPersianTakeTheBriefsSpelling() {
+        assertEquals(mapOf(1 to "Nobitex"), Proofreader.fromBrief(listOf("صرافی", "نوبیتکس", "برای"), "ریلز برای کمپین Nobitex، سبک نوآر", spelling))
+        assertEquals(mapOf(1 to "Lumina"), Proofreader.fromBrief(listOf("سرم", "لومینا", "که"), "ریلز فروش برای لانچ سرم Lumina؛ پرانرژی", spelling))
+        assertEquals(
+            mapOf(1 to "Nike", 3 to "Adidas"),
+            Proofreader.fromBrief(listOf("کتونی‌های", "نایک", "و", "آدیداس", "پنجاه"), "تخفیف Nike و Adidas", spelling),
+        )
+        assertEquals(mapOf(0 to "Galaxy S24 Ultra", 1 to "", 2 to "", 3 to ""), Proofreader.fromBrief(listOf("گلکسی", "اس", "۲۴", "اولترا"), "مقایسهٔ Galaxy S24 Ultra و iPhone 15 Pro Max", spelling))
+        // Not named in the brief, or a common Persian word: stays Persian.
+        assertTrue(Proofreader.fromBrief(listOf("کتونی‌های", "نایک"), "یه ریلز جذاب بساز", spelling).isEmpty())
+        assertTrue(Proofreader.fromBrief(listOf("آدم", "نیک", "و", "خوب"), "تخفیف Nike", spelling).isEmpty())
+    }
+
+    @Test
     fun directorFixesOfUnknownWordsAreConfirmedByTheList() {
         // «کارورد» is no word; the director's «کاربر» is two slips away and a common word.
         assertEquals(mapOf(1 to "کاربر"), Proofreader.align(listOf("هر", "کارورد", "در"), 0, "هر کاربر در"))

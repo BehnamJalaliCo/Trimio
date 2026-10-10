@@ -42,7 +42,10 @@ class Studio(
     /** Plans one edit of [video]. [transcript] skips recognition when given. */
     suspend fun produce(video: File, prompt: String, seed: Long, transcript: Transcript, understanding: Understanding? = null, onStage: (String, Float) -> Unit = { _, _ -> }): Autopilot.Production {
         val voice = Media.audio(video, RATE)
-        val subject = Media.subject(video)
+        // The head from the pixels; when the director can see, its own eyes check the box on a few frames.
+        val frames = Media.frames(video)
+        val found = SubjectFinder.locate(frames)
+        val subject = eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
         return Autopilot(text, brands, visuals, model, knowledge, taste, eyes, eyes?.let { grabber(video) }).produce(
             Autopilot.Request(transcript, voice, prompt, seed, footage = "main", subject = subject, understanding = understanding),
             onStage,
@@ -96,23 +99,27 @@ object Media {
         return PcmAudio(FloatArray(fb.remaining()).also { fb.get(it) }, rate)
     }
 
-    /** The speaker's face from five small frames across the video. */
-    fun subject(file: File): Subject? {
+    /** The speaker's head from five small frames across the video ([SubjectFinder]; never the whole frame). */
+    fun subject(file: File): Subject? = SubjectFinder.locate(frames(file))?.subject
+
+    /**
+     * [count] small RGB frames spread across the video, [width] px wide: the face finder reads
+     * them (it scales them down itself) and a seeing model can look at the same pictures.
+     */
+    fun frames(file: File, count: Int = 5, width: Int = 288): List<io.trimio.engine.llm.RgbImage> {
         val (sw, sh) = FfmpegFootage.probe(file)
-        val w = 90
-        val h = (w * sh / sw.toFloat()).roundToInt() / 2 * 2
+        val h = (width * sh / sw.toFloat()).roundToInt() / 2 * 2
         val duration = duration(file)
-        val frames = (1..5).mapNotNull { k ->
-            val t = duration * k / 6f
+        return (1..count).mapNotNull { k ->
+            val t = duration * k / (count + 1f)
             val p = ProcessBuilder(
                 "ffmpeg", "-loglevel", "error", "-ss", "%.2f".format(t), "-i", file.absolutePath, "-frames:v", "1",
-                "-vf", "scale=$w:$h", "-f", "rawvideo", "-pix_fmt", "rgba", "-",
+                "-vf", "scale=$width:$h", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
             ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
             val bytes = p.inputStream.readBytes()
             p.waitFor()
-            bytes.takeIf { it.size == w * h * 4 }
+            bytes.takeIf { it.size == width * h * 3 }?.let { io.trimio.engine.llm.RgbImage(width, h, it) }
         }
-        return SubjectFinder.find(frames, w, h)
     }
 
     fun duration(file: File): Float {

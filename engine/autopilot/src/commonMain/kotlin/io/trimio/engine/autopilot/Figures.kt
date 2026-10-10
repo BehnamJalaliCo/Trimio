@@ -50,12 +50,12 @@ internal class Figures(
     /** Money viewers get: the amount, its unit, what it is, and the coin's mark. */
     fun voucher(line: Lines.Line, sense: Quantities.Sense, read: LineRead, e: Float, place: String): BeatScore? {
         val q = sense.voucher ?: sense.money ?: return null
-        return voucherBeat(q, read, voucherLabel(line, q, read), place).copy(until = line.last, energy = maxOf(e, 0.8f))
+        return voucherBeat(q, voucherLabel(line, q, read), place).copy(until = line.last, energy = maxOf(e, 0.8f))
     }
 
-    fun voucherBeat(q: Quantities.Quantity, read: LineRead, label: String?, place: String): BeatScore {
-        // The compiler attaches the brand's mark to the first item: the coin's canonical name.
-        val brand = q.brand ?: read.items.firstOrNull { name -> name.any { it in 'A'..'Z' || it in 'a'..'z' } }
+    fun voucherBeat(q: Quantities.Quantity, label: String?, place: String): BeatScore {
+        // The compiler attaches the brand's mark to the first item: the coin's canonical name, only when that coin is named.
+        val brand = q.brand
         return BeatScore(
             recipe = "voucher", at = q.at, value = q.value.toFloat(), decimals = q.decimals, suffix = q.unit.ifBlank { null },
             label = label, items = listOfNotNull(brand), place = place,
@@ -108,6 +108,29 @@ internal class Figures(
         )
     }
 
+    /**
+     * A deadline said without hours («ولی فقط تا جمعه شب»، "until Friday midnight"): the countdown
+     * carries the words said, from «تا»/"until" through the day, and no invented number.
+     */
+    fun deadline(line: Lines.Line, e: Float, place: String): BeatScore? {
+        val day = line.range.firstOrNull { Phrases.key(texts[it]) in BriefAsks.DAYS } ?: return null
+        val from = (maxOf(line.first, day - 2)..day).firstOrNull { Phrases.key(texts[it]) in UNTIL } ?: day
+        val to = (day..minOf(line.last, day + 2)).firstOrNull { texts[it].last() in ",،.!?؟" } ?: minOf(line.last, day + 1)
+        return BeatScore(
+            recipe = "countdown", at = day, until = line.last, label = (from..to).joinToString(" ") { Phrases.clean(texts[it]) }, energy = maxOf(e, 0.8f), place = place,
+        )
+    }
+
+    /** A number the brief asked to show as a bar ("the 5,000 units of the first batch"): the bar fills to it, labelled as said. */
+    fun capacity(line: Lines.Line, sense: Quantities.Sense, e: Float, place: String): BeatScore? {
+        val q = sense.quantities.firstOrNull { it.value >= 1 } ?: return null
+        val what = (q.last + 1..minOf(line.last, q.last + 2)).takeWhile { Phrases.nounish(texts[it]) }.joinToString(" ") { Phrases.clean(texts[it]) }
+        return BeatScore(
+            recipe = "progress", at = q.at, until = line.last, value = 100f, from = 0f, label = listOf(Quantities.digits(q.value, rtl), what).filter { it.isNotBlank() }.joinToString(" "),
+            energy = maxOf(e, 0.7f), place = place,
+        )
+    }
+
     /** «تا پایان کمپین»: what the time runs out on, from the words of the line. */
     private fun deadlineLabel(line: Lines.Line): String {
         // «… ساعتم بیشتر | نمونده از کمپینشون»: what ends is often said just after the line.
@@ -143,6 +166,7 @@ internal class Figures(
     private companion object {
         const val MAX_STATS = 3
         const val DEADLINE_REACH = 4
+        val UNTIL = setOf("تا", "until", "till", "by", "before")
         val COUNTED = setOf(Quantities.Kind.People, Quantities.Kind.Capacity)
         val VOUCHER_WORDS = setOf("ووچر", "وچر", "voucher", "هدیه", "جایزه", "بونوس", "bonus", "gift")
         val LESS = setOf("کمتر", "زیر", "under", "less")

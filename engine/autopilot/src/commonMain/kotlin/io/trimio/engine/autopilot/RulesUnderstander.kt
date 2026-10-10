@@ -2,14 +2,17 @@ package io.trimio.engine.autopilot
 
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.motion.score.NumberWords
-import io.trimio.engine.motion.score.Words
 
 /**
  * The understanding step without a model: what can be read reliably from the words alone. Names
- * in Latin script (and coins named in Persian) are brands, numbers are counters — or, when their
- * units say so, a voucher (money given), stats (views and comments), a countdown (hours left) or
- * a progress bar (a quota that filled) — "send me the word X" is the call to action, the line with
- * the strongest number is the payoff, and each line's most stressed words are its title. Every edit still gets the planner's full craft; it just knows less about the content.
+ * (Latin words that sit like names, coins named in Persian) are brands; concrete things («تخم‌مرغ»,
+ * "garlic", «قرص») get a picture; lists said out loud become lists; numbers are counters — or, when
+ * their units say so, a voucher (money given), stats (views and comments), a countdown (hours
+ * left), a progress bar (a quota that filled), a chart (a percentage across years); the ask
+ * (comment a word, DM, follow, save, the link in the bio, share, a question) is the call to action;
+ * the line whose number means most (a result, a price, a gift — not a frequency) is the payoff;
+ * and each line's title is the noun phrase it stresses. Every edit still gets the planner's full
+ * craft; it just knows less about the content.
  */
 object RulesUnderstander {
 
@@ -17,38 +20,101 @@ object RulesUnderstander {
         val words = transcript.words
         val texts = words.map { it.text }
         val norm = texts.map(NumberWords::normalize)
-        val entities = names(texts) + coins(texts)
-        val ctaLines = lines.filter { isCtaLine(it, texts, norm) }.toSet()
-        val cta = cta(ctaLines.firstOrNull(), texts, norm)
+        val things = things(texts)
+        val entities = names(texts, prompt) + coins(texts) + things
+        val ask = Asks.read(texts, lines)
         val senses = lines.map { Quantities.sense(texts.subList(it.first, it.last + 1), it.first) }
+        val lists = Enumerations.lists(texts, lines)
+        val wantsList = BriefAsks.read(prompt).any { it.kind == "list" }
+        val series = series(texts, lines, senses)
         val reads = lines.mapIndexed { k, line ->
-            val inLine = entities.filter { it.at in line.range }.map { it.name }.distinct()
+            val inLine = entities.filter { it.at in line.range && it.kind == "brand" }.map { it.name }.distinct()
             val number = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull()
-            // The numbers' meaning picks the richer graphics: a voucher, stats, a countdown, a progress bar.
-            val rich = senses[k].richShow()
+            // The numbers' meaning picks the richer graphics; money is a voucher only when it is given.
+            val rich = senses[k].richShow()?.takeIf { it != "voucher" || senses[k].gift }
+            val list = lists[k]
+            val title = Phrases.title(words, line)
+            val thing = things.firstOrNull { it.at in line.range && (title.isEmpty() || Phrases.key(it.name) in title.split(' ').map(Phrases::key)) }
             when {
-                line in ctaLines -> LineRead(role = "cta", show = "comment", title = cta!!.keyword)
+                ask?.first == k -> LineRead(role = "cta", show = "comment", title = ask.second.keyword)
                 inLine.size >= 2 -> LineRead(role = "list", show = "logos", items = inLine, energy = 0.7f)
+                list != null -> listRead(list, texts, wantsList)
                 rich != null -> LineRead(
-                    role = if (rich == "voucher") "benefit" else "number", show = rich, title = title(line, words),
+                    role = if (rich == "voucher") "benefit" else "number", show = rich, title = title,
                     items = listOfNotNull(senses[k].voucher?.brand.takeIf { rich == "voucher" }), energy = 0.85f,
                 )
-                number != null && (number.percent || number.value >= 10) -> LineRead(role = "number", show = "counter", title = title(line, words), energy = 0.8f)
-                else -> LineRead(role = "claim", show = "headline", title = title(line, words), energy = 0.4f + 0.5f * line.range.maxOf { words[it].emphasis })
+                k in series -> LineRead(role = "comparison", show = "chart", title = title, items = series.getValue(k), energy = 0.75f)
+                number != null && (number.percent || number.value >= 10) -> LineRead(role = "number", show = "counter", title = title, energy = 0.8f)
+                Enumerations.step(texts, line) != null -> LineRead(role = "steps", show = "headline", title = stepTitle(texts, line), energy = 0.75f)
+                thing != null -> LineRead(role = "claim", show = "object", title = title, visual = thing.visual, energy = 0.6f)
+                else -> LineRead(role = "claim", show = "headline", title = title, energy = 0.4f + 0.5f * line.range.maxOf { words[it].emphasis })
             }
         }
-        val payoff = lines.indices.filter { senses[it].quantities.isNotEmpty() }.maxByOrNull { senses[it].weight() }
+        val payoff = lines.indices.filter { k ->
+            senses[k].quantities.any { it.kind == Quantities.Kind.Percent || it.value >= 10 } || Payoff.isResult(texts, lines[k]) && senses[k].quantities.isNotEmpty()
+        }.maxByOrNull { Payoff.score(senses[it], texts, lines[it]) }?.takeIf { Payoff.score(senses[it], texts, lines[it]) > 0 }
         val coins = senses.any { s -> s.quantities.any { it.brand != null } }
         return Understanding(
             title = reads.firstOrNull()?.title.orEmpty(),
-            domain = if (coins || norm.any { it in CRYPTO }) "crypto" else "general",
+            domain = if (coins) "crypto" else Concepts.domainOf(texts, prompt),
             mood = brief(prompt).let { if (it.energy >= 0.7f) "energetic" else "confident" },
             brief = brief(prompt),
             entities = entities,
             lines = reads,
             hook = payoff?.let { Hook(it, reads[it].title) },
-            cta = cta,
+            cta = ask?.second,
         )
+    }
+
+    /** A list said out loud: pictures in a row when most items are things the vocabulary shows (and the brief did not ask for a list), else rows. */
+    private fun listRead(list: Enumerations.Said, texts: List<String>, wantsList: Boolean): LineRead {
+        val items = list.items.map { r -> r.joinToString(" ") { Phrases.clean(texts[it]) } }
+        val visuals = list.items.map { r -> r.firstNotNullOfOrNull { Concepts.visualOf(texts[it]) } }
+        val pictured = visuals.count { it != null }
+        return if (!wantsList && pictured >= 2 && pictured * 2 >= items.size) {
+            val kept = items.indices.filter { visuals[it] != null }.take(MAX_ITEMS)
+            LineRead(role = "list", show = "objects", items = kept.map { items[it] }, visual = kept.joinToString(",") { visuals[it]!! }, energy = 0.7f)
+        } else {
+            LineRead(role = "list", show = "list", items = items.take(MAX_ITEMS), energy = 0.7f)
+        }
+    }
+
+    /** A step's title as said: the counter and the thing («حرکت اول پلانک», "Number one Control plus"). */
+    private fun stepTitle(texts: List<String>, line: Lines.Line): String =
+        Enumerations.step(texts, line)?.joinToString(" ") { Phrases.clean(texts[it]) }.orEmpty()
+
+    /**
+     * Percentages said for two or more years in neighbouring lines («سال ۱۴۰۱ … پنجاه و دو درصد»،
+     * «سال ۱۴۰۲ … سی و نه درصد»): one chart on the first line, its points the figures said.
+     */
+    private fun series(texts: List<String>, lines: List<Lines.Line>, senses: List<Quantities.Sense>): Map<Int, List<String>> {
+        fun dated(k: Int): Double? {
+            val q = senses[k].quantities
+            // The year may be said just before, on the line the pause cut off («تو سال ۱۴۰۱ | به ۵۲ درصد رسید»).
+            val year = (q + senses.getOrNull(k - 1)?.quantities.orEmpty()).any { it.value in YEARS && it.decimals == 0 }
+            return q.firstOrNull { it.kind == Quantities.Kind.Percent }?.value?.takeIf { year }
+        }
+        val out = mutableMapOf<Int, List<String>>()
+        var k = 0
+        while (k < lines.size) {
+            val first = dated(k)
+            if (first == null) { k++; continue }
+            val run = mutableListOf(k)
+            var j = k + 1
+            while (j < lines.size && j - run.last() <= 2) { if (dated(j) != null) run += j; j++ }
+            if (run.size >= 2) out[k] = run.map { Quantities.digits(dated(it)!!, false) }
+            k = run.last() + 1
+        }
+        return out
+    }
+
+    /** Concrete things said, once each: entities with a picture query («تخم‌مرغ» → egg). */
+    private fun things(texts: List<String>): List<Entity> {
+        val seen = mutableSetOf<String>()
+        return texts.indices.mapNotNull { i ->
+            val visual = Concepts.visualOf(texts[i])?.takeIf { NumberWords.at(texts, i) == null && seen.add(it) } ?: return@mapNotNull null
+            Entity(i, i, Phrases.clean(texts[i]), kind = "object", visual = visual)
+        }.take(MAX_THINGS)
     }
 
     /** Coins named in Persian («تتر», «بیت‌کوین»): brands, so their marks can be found. */
@@ -57,63 +123,29 @@ object RulesUnderstander {
         Entity(i, i, unit.brand!!, kind = "brand")
     }
 
-    /** Runs of capitalised Latin words, split at commas: "Claude Code، Codex" → two names. */
-    private fun names(texts: List<String>): List<Entity> {
+    /** Runs of names ([Names]), split at commas: "Claude Code، Codex" → two names. */
+    private fun names(texts: List<String>, prompt: String): List<Entity> {
         val out = mutableListOf<Entity>()
         var i = 0
         while (i < texts.size) {
-            if (!latinName(texts[i])) { i++; continue }
+            if (!Names.isName(texts, i, prompt)) { i++; continue }
             val start = i
             val parts = mutableListOf<String>()
-            while (i < texts.size && latinName(texts[i])) {
-                parts += texts[i].trimEnd('،', ',', '.')
+            while (i < texts.size && (i == start || Names.isName(texts, i, prompt) || nameTail(texts[i])) && parts.size < MAX_NAME_WORDS) {
+                parts += Names.bare(texts[i])
                 i++
-                if (texts[i - 1].last() in "،,.") break
+                if (texts[i - 1].last() in "،,.:!?؟") break
             }
             out += Entity(start, i - 1, parts.joinToString(" "), kind = "brand")
         }
         return out
     }
 
-    private fun latinName(w: String) = w.trimEnd('،', ',', '.').let { it.isNotEmpty() && it.first().isUpperCase() && it.all { c -> c.isLetterOrDigit() || c in "-+." } && !isCommonWord(it) }
+    /** The rest of a product name after its brand: "Pro", "Max", "15", "S24". */
+    private fun nameTail(w: String) = Names.bare(w).let { b -> b.isNotEmpty() && (b.all { it.isDigit() } || (b.first().isUpperCase() && b.all { it.isLetterOrDigit() })) }
 
     /** English words capitalised only because they start a sentence ("I", "The", "Someone"): not names. */
-    fun isCommonWord(w: String) = w.trimEnd('،', ',', '.', '?', '!').lowercase() in COMMON_CAPITALS
-
-    private val COMMON_CAPITALS = setOf(
-        "i", "the", "a", "an", "and", "but", "so", "or", "someone", "somebody", "this", "that", "these", "those", "it", "we", "you", "he", "she", "they",
-        "my", "your", "our", "his", "her", "their", "if", "when", "why", "what", "how", "where", "yesterday", "today", "now", "then", "also", "just",
-        "no", "yes", "there", "here", "not", "do", "don't", "is", "are", "was", "in", "on", "for", "with", "after", "before", "one", "every", "all",
-    )
-
-    /**
-     * A call to action asks: "send me the word X", "comment X", "write …" — an imperative, or a
-     * keyword marker with a send verb. «کامنت بذاریم» in a story or «پنج هزار کامنت» (a stat) is
-     * not one, and the ask comes in the second half of the piece.
-     */
-    private fun isCtaLine(line: Lines.Line, texts: List<String>, norm: List<String>): Boolean {
-        if (line.last * 2 < norm.size) return false
-        val w = line.range.map { norm[it] }
-        val marker = w.any { it in KEYWORD_MARKERS } || line.range.any { '«' in texts[it] || '"' in texts[it] }
-        val send = w.any { it in SEND }
-        val asked = w.indices.any { i -> w[i] in ASK && (i + 1..minOf(w.lastIndex, i + 2)).any { w[it] in IMPERATIVE } }
-        return w.any { it in SEND_IMPERATIVE } || asked || (marker && send)
-    }
-
-    private fun cta(line: Lines.Line?, texts: List<String>, norm: List<String>): Cta? {
-        line ?: return null
-        val quoted = line.range.firstOrNull { '«' in texts[it] || '"' in texts[it] }
-        val marked = line.range.firstOrNull { norm[it] in KEYWORD_MARKERS }?.let { it + 1 }?.takeIf { it <= line.last }
-        val keyword = (quoted ?: marked)?.let { texts[it].trim('«', '»', '"', '.', '،', ',') }.orEmpty()
-        val w = line.range.map { norm[it] }
-        val action = if (w.none { it in SEND || it in ASK } && w.any { d -> DM.any { d.startsWith(it) } }) "dm" else "comment"
-        return Cta(action = action, keyword = keyword)
-    }
-
-    private fun title(line: Lines.Line, words: List<io.trimio.core.model.transcript.Word>): String {
-        val peak = line.range.filter { Words.isContent(words[it].text) }.maxByOrNull { Words.weight(words[it]) } ?: return ""
-        return (peak..minOf(line.last, peak + 1)).joinToString(" ") { words[it].text.trimEnd('.', '،', ',') }
-    }
+    fun isCommonWord(w: String) = Names.isCommonWord(w)
 
     /** The brief, read by keywords in Persian and English. */
     fun brief(prompt: String): BriefRead {
@@ -140,11 +172,8 @@ object RulesUnderstander {
         )
     }
 
-    private val SEND = setOf("ارسال", "بفرست", "بفرستید", "کامنت", "بنویس", "بنویسید", "comment", "dm")
-    private val SEND_IMPERATIVE = setOf("بفرست", "بفرستید", "بفرستین", "بنویس", "بنویسید", "بنویسین")
-    private val ASK = setOf("کامنت", "comment", "ارسال", "send", "type", "write")
-    private val IMPERATIVE = setOf("کن", "بکن", "کنید", "بکنید", "کنین", "بکنین", "بذار", "بذارید", "بزار", "بزارید", "بزن", "بزنید", "below", "me", "it")
-    private val KEYWORD_MARKERS = setOf("کلمه", "کلمهی", "کلمهٔ", "کلمۀ", "word", "keyword")
-    private val DM = listOf("دایرکت", "دایرک", "dm", "direct", "inbox")
-    private val CRYPTO = setOf("صرافی", "کریپتو", "ترید", "ارز", "بیتکوین", "تتر", "crypto", "exchange", "trading")
+    private val YEARS = 1300.0..2100.0
+    private const val MAX_ITEMS = 4
+    private const val MAX_THINGS = 14
+    private const val MAX_NAME_WORDS = 4
 }

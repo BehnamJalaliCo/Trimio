@@ -38,6 +38,11 @@ object Quantities {
         val first: Boolean = false,
         /** New room opened («دو هزار تا دیگه ظرفیت باز شده»). */
         val opened: Boolean = false,
+        /**
+         * A calendar year («سال ۱۴۰۱», 2024, «سال نود و هفت»): shown as written, without a thousands
+         * separator, and never counted up like an amount (see [NumberWords.Found.year]).
+         */
+        val year: Boolean = false,
     ) {
         val last: Int get() = maxOf(at + count - 1, unitAt)
         val social: Boolean get() = kind in SOCIAL
@@ -114,6 +119,7 @@ object Quantities {
             val unit = inline ?: norm.getOrNull(j)?.let(::unitOf)
             val unitAt = if (inline == null && unit != null) j else -1
             val kind = when {
+                f.year -> Kind.Plain
                 f.percent -> Kind.Percent
                 unit != null -> unit.kind
                 else -> Kind.Plain
@@ -125,6 +131,7 @@ object Quantities {
                 remaining = kind == Kind.Duration && remainingIn(after),
                 first = after.firstOrNull() in FIRST,
                 opened = kind == Kind.Capacity && (norm.subList(end, minOf(norm.size, end + LOOK_AHEAD)).any { it in OPENED }),
+                year = f.year,
             )
         }
     }

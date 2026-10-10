@@ -43,12 +43,15 @@ internal class Hooks(
         // Money given opens on its own card most of the time; a counter or a slam are the seeded alternatives.
         senses[k].voucher?.let { money -> return moneyHook(k, money, title, reads) }
         val counter = number != null && (number.percent || number.value >= 2) && hookRng.chance(0.8f)
-        // The number that pays off: the time left, the views; else the first said.
+        // The number that pays off: the time left, the views; else the one with a meaning.
         val sense = senses[k]
-        val q = sense.deadline ?: sense.social.firstOrNull()
+        val q = sense.deadline ?: sense.social.firstOrNull() ?: figures.counted(sense)
         return when {
-            counter && q != null -> counterHook(q.value, q.decimals, false, figures.unitLabel(q) ?: title)
+            counter && q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: title)
             counter -> counterHook(number!!.value, number.decimals, number.percent, title)
+            // A slam needs a phrase; with only a word or none, the number itself opens the piece.
+            ' ' in title -> textHook(title)
+            q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: title)
             title.isNotBlank() -> textHook(title)
             else -> null
         }
@@ -73,7 +76,7 @@ internal class Hooks(
         val title = titleOf(k, reads)
         notes += "cold open: line $k (${q?.value ?: title}), ${o.length}s"
         val beat = when {
-            q != null && q.kind == Quantities.Kind.Money -> figures.voucherBeat(q, reads[k], figures.voucherLabel(lines[k], q, reads[k]), place = "top")
+            q != null && q.kind == Quantities.Kind.Money -> figures.voucherBeat(q, figures.voucherLabel(lines[k], q, reads[k]), place = "top")
                 .copy(at = null, until = null, time = 0f, hold = hold, energy = 0.95f).also { usedRecipes += it.recipe }
             q != null -> counterHook(q.value, q.decimals, q.kind == Quantities.Kind.Percent, figures.unitLabel(q) ?: title).copy(time = 0f, hold = hold)
             title.isNotBlank() -> textHook(title).copy(time = 0f, hold = hold)
@@ -86,7 +89,7 @@ internal class Hooks(
         val what = figures.voucherLabel(lines[k], q, reads[k])
         val r = hookRng.next()
         return when {
-            r < VOUCHER_HOOK -> figures.voucherBeat(q, reads[k], what, place = "top")
+            r < VOUCHER_HOOK -> figures.voucherBeat(q, what, place = "top")
                 .copy(at = null, until = null, time = 0.05f, hold = PAYOFF_HOLD, energy = 0.95f).also { usedRecipes += it.recipe }
             r < VOUCHER_HOOK + COUNTER_HOOK -> counterHook(q.value, q.decimals, false, listOfNotNull(q.unit.ifBlank { null }, what).joinToString(" "))
             else -> textHook(title.ifBlank { "${Quantities.digits(q.value, rtl)} ${q.unit}".trim() })
@@ -95,8 +98,8 @@ internal class Hooks(
 
     private fun counterHook(value: Double, decimals: Int, percent: Boolean, title: String): BeatScore {
         usedRecipes += "counter"
-        // The counter shows the number: its label keeps only the words.
-        val label = title.split(' ').filter { w -> w.none { it.isDigit() } && w !in setOf("٪", "%", "درصد") }.joinToString(" ")
+        // The counter shows the number: its label keeps only the words that are not the number itself («پنجاه هزار»).
+        val label = title.split(' ').filter { w -> w.none { it.isDigit() } && w !in setOf("٪", "%", "درصد", "و") && NumberWords.at(listOf(w), 0) == null }.joinToString(" ")
         return BeatScore(
             recipe = "counter", time = 0.05f, hold = DATA_HOLD, value = value.toFloat(), decimals = decimals,
             suffix = if (percent) "٪" else "", label = label.ifBlank { null }, energy = 0.95f, place = "top",

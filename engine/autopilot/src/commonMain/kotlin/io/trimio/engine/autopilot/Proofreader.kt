@@ -23,7 +23,12 @@ object Proofreader {
     private val ENDS = charArrayOf('.', '،', ',', '!', '?', '؟')
     private val SEPARATORS = Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+")
 
-    fun fromBrief(words: List<String>, brief: String): Map<Int, String> {
+    /**
+     * Words the brief spells: Persian sound-alikes and slips of its words, its compounds heard in halves,
+     * and its Latin names ([BriefNames]) heard misspelled, in halves or said in Persian. [spelling] tells
+     * names from everyday English and common Persian words (without it, only case and shape do).
+     */
+    fun fromBrief(words: List<String>, brief: String, spelling: PersianSpelling? = PersianSpelling.shared): Map<Int, String> {
         // «سرمایهٔ» in the brief is «سرمایه» with an ezafe: the same word, never a reason to add the mark.
         val vocabulary = brief.split(SEPARATORS).map(::withoutEzafe)
             .flatMap { t -> listOf(t) + t.split('‌') }.filter { it.length >= 2 }.toSet()
@@ -31,21 +36,24 @@ object Proofreader {
         // Words the creator quoted («کد») are deliberate spellings: a one-vowel slip still matches.
         val quoted = Regex("[«\"“]([^»\"”]{2,24})[»\"”]").findAll(brief).map { it.groupValues[1].trim() }.toList()
         val compounds = vocabulary.filter { '‌' in it && it.length >= COMPOUND_LENGTH }.groupBy { skeleton(it) }
+        val names = BriefNames(brief, spelling?.english.orEmpty())
         val out = mutableMapOf<Int, String>()
         var i = 0
         while (i < words.size) {
             val w = words[i]
             val core = w.trimEnd(*ENDS)
+            val name = names.at(words, i) { spelling?.count(it) ?: 0 }
             val compound = briefCompound(core, w, words.getOrNull(i + 1), compounds)
-            if (compound != null) {
-                out[i] = compound
-                out[i + 1] = ""
-                i += 2
+            val span = name?.second ?: if (compound != null) 2 else 1
+            val whole = name?.let { it.first + words[i + span - 1].takeLastWhile { c -> !c.isLetterOrDigit() } } ?: compound
+            if (whole != null) {
+                out[i] = whole
+                for (k in 1 until span) out[i + k] = ""
             } else {
-                val match = if (core.length < 2 || core in vocabulary) null else briefMatch(core, byKey, vocabulary, quoted)
+                val match = if (core.length < 2 || core in vocabulary) null else briefMatch(core, byKey, names, quoted)
                 if (match != null && match != core) out[i] = match + w.substring(core.length)
-                i++
             }
+            i += span
         }
         return out
     }
@@ -69,30 +77,52 @@ object Proofreader {
      */
     suspend fun fromLexicon(words: List<String>, brief: String, fixed: Map<Int, String> = emptyMap()): Map<Int, String> {
         val current = words.mapIndexed { i, w -> fixed[i] ?: w }
-        val fixes = PersianSpelling.load().correct(current, brief.split(SEPARATORS).filter { it.length >= 2 })
+        val persian = PersianSpelling.load().correct(current, brief.split(SEPARATORS).filter { it.length >= 2 })
+        val fixes = persian + latinJoins(current).filterKeys { it !in persian && (it + 1) !in persian }
         // The other half of a joined pair, if [i] is one.
         fun partner(i: Int) = if (fixes[i] == "") i - 1 else (i + 1).takeIf { fixes[it] == "" }
         return fixes.filterKeys { i -> i !in fixed && partner(i)?.let { it in fixed } != true }
     }
 
+    /**
+     * Latin names the recogniser splits in two ("Chat GPT", "Open AI", "Air Pods") and a size said with its
+     * letter ("10 K" → 10K): joined as written. The brief's own names are handled by [fromBrief].
+     */
+    private fun latinJoins(words: List<String>): Map<Int, String> {
+        val out = mutableMapOf<Int, String>()
+        var i = 0
+        while (i < words.size - 1) {
+            val a = words[i]
+            val b = words[i + 1].trimEnd(*ENDS)
+            val tail = words[i + 1].substring(b.length)
+            val name = JOINED_NAMES[(a + b).lowercase()]?.takeIf { a.isNotEmpty() && a.last().isLetterOrDigit() }
+            val size = (a + b).takeIf { a.isNotEmpty() && a.all { it.isDigit() } && b in SIZE_LETTERS }
+            val whole = name ?: size
+            if (whole != null) {
+                out[i] = whole + tail
+                out[i + 1] = ""
+            }
+            i += if (whole != null) 2 else 1
+        }
+        return out
+    }
+
+    /** Product names whisper writes in two words, as their makers spell them. */
+    private val JOINED_NAMES = listOf(
+        "ChatGPT", "OpenAI", "AirPods", "iPhone", "iPad", "MacBook", "YouTube", "TikTok", "WhatsApp", "LinkedIn", "PayPal", "GitHub",
+        "PlayStation", "PowerPoint", "OneDrive", "DeepSeek", "CapCut", "AirDrop", "FaceTime", "HubSpot", "MailChimp", "WordPress",
+    ).associateBy { it.lowercase() }
+    private val SIZE_LETTERS = setOf("K", "k", "M", "B")
+
     /** «ۀ» and «هٔ» (the written ezafe) as a plain «ه». */
     private fun withoutEzafe(w: String) = w.replace("\u0654", "").replace('\u06C0', 'ه')
 
-    private fun briefMatch(core: String, byKey: Map<String, List<String>>, vocabulary: Set<String>, quoted: List<String>): String? {
+    private fun briefMatch(core: String, byKey: Map<String, List<String>>, names: BriefNames, quoted: List<String>): String? {
+        // A Latin word takes only a name's spelling ("Cloud" → Claude), never another English word's ("need" → News).
+        if (core.any { it in 'A'..'Z' || it in 'a'..'z' }) return names.respell(core.trim { !it.isLetterOrDigit() })
         val k = key(core)
         return byKey[k]?.firstOrNull() ?: byKey[k + "ه"]?.firstOrNull()?.takeIf { core.length >= 3 }
-            ?: latinName(core, vocabulary) ?: quoted.firstOrNull { q -> core.length >= 3 && vowelEdit(core, q) }
-    }
-
-    /** "Cloud" → "Claude" when the brief spells the name: same first letter, two edits at most, not a prefix. */
-    private fun latinName(w: String, vocabulary: Set<String>): String? {
-        if (w.length < 4 || w.none { it in 'A'..'Z' || it in 'a'..'z' }) return null
-        return vocabulary.firstOrNull { v -> v.length >= 4 && closeName(v, w) }
-    }
-
-    private fun closeName(v: String, w: String): Boolean {
-        val prefix = v.startsWith(w, ignoreCase = true) || w.startsWith(v, ignoreCase = true)
-        return !prefix && v.first().equals(w.first(), ignoreCase = true) && distance(v.lowercase(), w.lowercase()) <= 2
+            ?: quoted.firstOrNull { q -> core.length >= 3 && vowelEdit(core, q) }
     }
 
     /** Aligns a corrected line to the recognised [original] words (index offset [first]). */

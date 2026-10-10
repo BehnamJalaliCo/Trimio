@@ -3,7 +3,6 @@ package io.trimio.engine.autopilot
 import io.trimio.engine.autopilot.resources.Res
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import kotlin.math.ln
-import kotlin.math.min
 
 /**
  * Offline Persian spelling for recognised speech, from a word-frequency list (files/spelling/fa_words.tsv).
@@ -18,10 +17,18 @@ import kotlin.math.min
  * «دایرکت» because the speaker says «دایرکت» later, and «هشت ساتم» becomes «هشت ساعت هم» because «ساعت»
  * was heard (and after a number the «م» is «هم»).
  */
-class PersianSpelling(private val counts: Map<String, Int>) {
+class PersianSpelling(
+    private val counts: Map<String, Int>,
+    /** Everyday English (files/spelling/en_words.tsv, lowercase → count): a brief's Latin word in it is no name. */
+    val english: Map<String, Int> = emptyMap(),
+) {
 
-    private val total: Double = counts.values.sumOf { it.toDouble() }
+    internal val total: Double = counts.values.sumOf { it.toDouble() }
     private val bySound: Map<String, List<String>> = counts.keys.groupBy(::soundKey)
+    private val joins = PersianJoins(this)
+
+    /** Listed words that sound like [w] (sound-alike letters merged, half-spaces ignored). */
+    internal fun sounding(w: String): List<String> = bySound[soundKey(w)].orEmpty()
 
     /** How often [word] occurs in the list (0 when unknown); half-spaces and Arabic letter forms normalised. */
     fun count(word: String): Int = counts[normalize(word)] ?: 0
@@ -42,19 +49,22 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         while (i < parts.size) {
             val w = parts[i]
             val next = parts.getOrNull(i + 1)
-            val joined = next?.takeIf { joinable(w, it) }?.let { join(w.core, it.core) }
-            if (joined != null && next != null) {
-                out[i] = w.head + joined + next.tail
-                out[i + 1] = ""
-                i += 2
+            val prev = parts.getOrNull(i - 1)?.core
+            val third = parts.getOrNull(i + 2)
+            val joined = joined(w, next, third, prev)
+            if (joined != null) {
+                val last = i + joined.second - 1
+                out[i] = w.head + joined.first + parts[last].tail
+                for (k in i + 1..last) out[k] = ""
+                i = last + 1
                 continue
             }
             if (persian(w.core) && !w.voweled) {
                 // A word heard twice the same way is taken as meant (a name, a brand) unless a sound-alike fixes it.
                 val soundOnly = (heard[w.core] ?: 0) > 1 && count(w.core) == 0
-                val prev = parts.getOrNull(i - 1)?.core
-                val fixed = confusion(w.core, prev, next?.core, doc, settled) ?: number(w.core, next?.core) ?: halfSpace(w.core)
-                    ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) }
+                val around = Around(prev, next?.core, third?.core)
+                val fixed = confusion(w.core, prev, next?.core, doc, settled) ?: joins.misspelling(w.core) ?: numeral(w.core, around)
+                    ?: joins.halfSpace(w.core) ?: joins.prefixed(w.core) ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) } ?: joins.unmerge(w.core)
                 if (fixed != null) out[i] = w.head + fixed + w.tail
             }
             i++
@@ -194,46 +204,38 @@ class PersianSpelling(private val counts: Map<String, Int>) {
     private fun inDoc(w: String, doc: Set<String>, core: String) =
         (w != core && w in doc) || stems(w).any { it.length >= 4 && it != core && it in doc }
 
-    /** «می/نمی» joined to the verb and plural «ها/های» to the noun with a half-space, as the list spells them. */
-    private fun halfSpace(w: String): String? {
-        if (ZWNJ in w) return null
-        val prefix = VERB_PREFIXES.firstOrNull { w.startsWith(it) && w.length - it.length >= 2 }
-        if (prefix != null) {
-            val rest = w.substring(prefix.length)
-            val zw = prefix + ZWNJ + rest
-            return zw.takeIf { count(zw) > 0 || (count(w) == 0 && count(rest) >= KNOWN_STEM) }
-        }
-        val suffix = PLURALS.firstOrNull { w.endsWith(it) && w.length - it.length >= 2 } ?: return null
-        val zw = w.dropLast(suffix.length) + ZWNJ + suffix
-        // «تنها» stays: the list almost never writes «تن‌ها».
-        return zw.takeIf { count(zw) > 0 && count(zw) * PLURAL_RATIO >= count(w) }
-    }
+    /** The words around one: the one before, after, and the one after that. */
+    private class Around(val prev: String?, val next: String?, val after: String?)
 
-    /** Two recognised words that are one: an affix, a clitic, or a compound the list knows far better joined. */
-    private fun join(a: String, b: String): String? {
-        if (a in VERB_PREFIXES) return (a + ZWNJ + b).takeIf { b.length >= 2 && (count(it) > 0 || count(a + b) > 0) }
-        if (a.length < 2 || b.length < 2) return (a + ZWNJ + b).takeIf { b == "ی" && a.endsWith('ه') && count(a) >= KNOWN_STEM }
-        val bound = b in BOUND && count(a) >= KNOWN_STEM
-        if (bound && (b in CLITIC_WORDS || count(a + ZWNJ + b) > 0)) return a + ZWNJ + b
-        val j = bySound[soundKey(a + b)].orEmpty().filter { count(it) >= KNOWN_STEM }.maxByOrNull { count(it) } ?: return null
-        val fa = count(a).toDouble()
-        val fb = count(b).toDouble()
-        // How much likelier the joined word is than the two words meeting by chance.
-        val ratio = count(j) * total / (fa * fb + 1)
-        val compound = j == a + ZWNJ + b && count(j) >= COMPOUND_SHARE * min(fa, fb)
-        val respelled = j.replace(ZWNJ_S, "") != a + b
-        val rare = min(fa, fb) < RARE
-        return j.takeIf { ratio >= JOIN_RATIO && (compound || respelled || rare) }
+    /** A number word the recogniser misspelled, read as one: «سی سد»'s «سد», «چلا هشت», «پنجا هزار», «شست درصد». */
+    private fun numeral(core: String, around: Around): String? = numberSlip(core, around) ?: around.next?.let { number(core, it) }
+
+    /**
+     * «سد هزار» → «صد هزار», «شست درصد» → «شصت درصد», «دوازه ساعت» → «دوازده ساعت»: a number heard as
+     * another word, put right where a number is said (a number, a scale, «و» and a number, or a measure
+     * after it). A misspelling that is no word at all («دویس», «چارصد») is always put right.
+     */
+    private fun numberSlip(core: String, around: Around): String? {
+        val meant = NUMBER_SLIPS[core] ?: return null
+        val next = around.next
+        val counting = next in NUMBER_WORDS || next in SCALES || (next == "و" && around.after in NUMBER_WORDS)
+        val measured = next in MEASURES && core != "هشتا"
+        return meant.takeIf { count(core) == 0 || counting || measured }
     }
 
     /** Spoken tens: «چلا هشت» → «چهل و هشت», «پنجا هزار» → «پنجاه هزار». */
     private fun number(core: String, next: String?): String? {
+        // «هفتادوپنج» → «هفتاد و پنج».
+        TENS.entries.firstNotNullOfOrNull { (t, full) -> core.removePrefix(t + "و").takeIf { core.startsWith(t + "و") && it in UNITS }?.let { "$full و $it" } }
+            ?.let { return it }
         next ?: return null
+        // «سی سه» → «سی و سه»: the «و» between tens and units, not heard.
+        if (core in TENS.values && next in UNITS && core != next) return "$core و"
         if (next in UNITS) {
             TENS.entries.firstOrNull { (t, _) -> core == t + "و" || core == t + "ا" }?.let { return it.value + " و" }
         }
         val full = TENS[core] ?: return null
-        return full.takeIf { it != core && (next in UNITS || next in SCALES || next == "و") }
+        return full.takeIf { it != core && (next in UNITS || next in SCALES || next == "و" || next in MEASURES || next == "تا") }
     }
 
     /**
@@ -247,7 +249,7 @@ class PersianSpelling(private val counts: Map<String, Int>) {
     }
 
     /** A known stem with a colloquial clitic («کلیپت», «کمپینو», «دایرکتتو») or a verb prefix is a word, not a slip. */
-    private fun decomposes(w: String): Boolean {
+    internal fun decomposes(w: String): Boolean {
         if (ZWNJ in w) return w.split(ZWNJ).all { count(it) > 0 || it in CLITICS || it in VERB_PREFIXES }
         if (stems(w).any { count(it) >= KNOWN_STEM * 2 }) return true
         return STEM_PREFIXES.any { p -> w.startsWith(p) && w.length - p.length >= 3 && count(w.substring(p.length)) >= KNOWN_STEM * 2 }
@@ -263,6 +265,13 @@ class PersianSpelling(private val counts: Map<String, Int>) {
 
     /** A word split into leading punctuation, normalised letters and trailing punctuation; [voweled] words are deliberate (Arabic, poetry). */
     private data class Parts(val head: String, val core: String, val tail: String, val voweled: Boolean)
+
+    /** Words heard apart that are one, and how many: «قدم به قدم» (three) or a pair ([PersianJoins.join]). */
+    private fun joined(w: Parts, next: Parts?, third: Parts?, prev: String?): Pair<String, Int>? {
+        if (next == null || !joinable(w, next)) return null
+        if (third != null && joinable(next, third)) joins.repeated(w.core, next.core, third.core)?.let { return it to 3 }
+        return joins.join(w.core, next.core, prev)?.let { it to 2 }
+    }
 
     /** Two Persian words with nothing but a space between them. */
     private fun joinable(a: Parts, b: Parts) = a.tail.isEmpty() && b.head.isEmpty() && listOf(a, b).all { persian(it.core) && !it.voweled }
@@ -295,17 +304,21 @@ class PersianSpelling(private val counts: Map<String, Int>) {
             private set
 
         @OptIn(ExperimentalResourceApi::class)
-        suspend fun load(): PersianSpelling =
-            shared ?: parse(Res.readBytes("files/spelling/fa_words.tsv").decodeToString()).also { shared = it }
+        suspend fun load(): PersianSpelling = shared ?: parse(
+            Res.readBytes("files/spelling/fa_words.tsv").decodeToString(),
+            Res.readBytes("files/spelling/en_words.tsv").decodeToString(),
+        ).also { shared = it }
 
-        /** "word<TAB>count" lines. */
-        fun parse(tsv: String): PersianSpelling {
-            val counts = HashMap<String, Int>(LIST_SIZE)
+        /** "word<TAB>count" lines: the Persian list and, optionally, the English one. */
+        fun parse(tsv: String, englishTsv: String = ""): PersianSpelling = PersianSpelling(counts(tsv, LIST_SIZE), counts(englishTsv, ENGLISH_SIZE))
+
+        private fun counts(tsv: String, size: Int): Map<String, Int> {
+            val counts = HashMap<String, Int>(size)
             for (line in tsv.lineSequence()) {
                 val tab = line.indexOf('\t')
                 if (tab > 0) counts[line.substring(0, tab)] = line.substring(tab + 1).trim().toIntOrNull() ?: continue
             }
-            return PersianSpelling(counts)
+            return counts
         }
 
         private const val ZWNJ = '\u200C'
@@ -328,13 +341,10 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         private const val KNOWN_STEM = 100
         private const val RATIO = 100
         private const val RATIO_PARSED = 1000
-        private const val PLURAL_RATIO = 50
-        private const val JOIN_RATIO = 1000.0
-        private const val COMPOUND_SHARE = 0.3
-        private const val RARE = 50.0
         private const val MIN_EDIT_LENGTH = 4
         private const val LONG_WORD = 6
         private const val LIST_SIZE = 131_072
+        private const val ENGLISH_SIZE = 32_768
 
         /** One letter per sound class (the ones [soundKey] maps to). */
         private const val ALPHABET = "ابپتجچخدرزژسشعفقکگلمنوهی"
@@ -343,10 +353,7 @@ class PersianSpelling(private val counts: Map<String, Int>) {
 
         private val VERB_PREFIXES = listOf("نمی", "می")
         private val STEM_PREFIXES = listOf("نمی", "می", "ب", "ن")
-        private val PLURALS = listOf("هایی", "های", "ها")
-        private val BOUND = setOf("ها", "های", "هایی", "تر", "ترین", "تون", "شون", "مون")
-        private val CLITIC_WORDS = setOf("ها", "های", "هایی", "تون", "شون", "مون")
-        private val CLITICS = listOf(
+        internal val CLITICS = listOf(
             "تان", "شان", "مان", "یت", "یش", "یم", "و", "رو", "ت", "تو", "ش", "شو", "م", "مو", "مون", "تون", "شون", "ه", "ی",
             "ام", "ات", "اش", "ای", "یه", "ها", "های", "هاش", "هات", "هام", "هاتون", "هاشون", "هامون", "ست",
         )
@@ -388,6 +395,15 @@ class PersianSpelling(private val counts: Map<String, Int>) {
             Confusion("کارورد", "کاربر"),
             // «تیه» (a wilderness) is never done or made: «تیه می‌کنه» is «تهیه می‌کنه».
             Confusion("تیه", "تهیه", after = DO),
+        )
+
+        /** Number words whisper writes as another word, or as none. */
+        private val NUMBER_SLIPS = mapOf(
+            "سد" to "صد", "شست" to "شصت", "دویس" to "دویست", "هشتا" to "هشتاد", "چارصد" to "چهارصد", "پونزه" to "پونزده", "دوازه" to "دوازده",
+        )
+        /** Words that measure a number said before them. */
+        private val MEASURES = setOf(
+            "ساعت", "دقیقه", "ثانیه", "روز", "هفته", "ماه", "سال", "نفر", "متر", "کیلو", "گرم", "درصد", "تومن", "تومان", "دلار", "واحد", "برابر",
         )
 
         private val SCALES = setOf("صد", "هزار", "میلیون", "میلیارد", "تومن", "تومان", "دلار", "درصد", "سال")
