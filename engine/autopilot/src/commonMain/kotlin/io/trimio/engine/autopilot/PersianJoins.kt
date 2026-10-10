@@ -78,7 +78,8 @@ internal class PersianJoins(private val lex: PersianSpelling) {
      * from one; the likeliest split wins.
      */
     fun unmerge(core: String): String? {
-        if (core.length < MIN_MERGED || ZWNJ in core || count(core) >= KNOWN || lex.decomposes(core)) return null
+        val plain = core.length >= MIN_MERGED && ZWNJ !in core
+        if (!plain || count(core) >= KNOWN || lex.decomposes(core)) return null
         return (2..core.length - 2).mapNotNull { k ->
             val head = core.substring(0, k)
             val rest = core.substring(k)
@@ -94,16 +95,16 @@ internal class PersianJoins(private val lex: PersianSpelling) {
      * («نا امید»), a place name after a street («خیابون ولی عصره»), or a compound the list knows far better
      * joined («برنامه ریزی», «تخم مرغ‌ها»), its clitic kept.
      */
-    fun join(a: String, b: String, prev: String?): String? {
-        if (a in VERB_PREFIXES) return (a + ZWNJ + b).takeIf { b.length >= 2 && (count(it) > 0 || count(a + b) > 0) }
-        if (a in SPLIT_PREFIXES) splitPrefix(a, b)?.let { return it }
-        if (prev in STREETS) place(a, b)?.let { return it }
+    fun join(a: String, b: String, prev: String?): String? = when {
+        a in VERB_PREFIXES -> (a + ZWNJ + b).takeIf { b.length >= 2 && (count(it) > 0 || count(a + b) > 0) }
+        a in SPLIT_PREFIXES && splitPrefix(a, b) != null -> splitPrefix(a, b)
+        prev in STREETS && place(a, b) != null -> place(a, b)
         // «سی نه» (thirty-nine said without «و») is two numbers, not «سینه».
-        if (a in NUMBERS && b in NUMBERS) return null
-        if (a.length < 2 || b.length < 2) return letter(a, b)
-        if (b in BOUND) return bound(a, b)
-        if (b == "تایی" && a in NUMBERS) return a + ZWNJ + b
-        return compound(a, b)
+        a in NUMBERS && b in NUMBERS -> null
+        a.length < 2 || b.length < 2 -> letter(a, b)
+        b in BOUND -> bound(a, b)
+        b == "تایی" && a in NUMBERS -> a + ZWNJ + b
+        else -> compound(a, b)
     }
 
     /** «آیلتس م» → «آیلتسم», «پایه ی» → «پایه‌ی»: a one-letter clitic heard as a word. */
@@ -158,7 +159,10 @@ internal class PersianJoins(private val lex: PersianSpelling) {
         return j.takeIf { ratio >= JOIN_RATIO && (compound || respelled || rare) }
     }
 
-    private fun glue(word: String, rest: String) = if (rest.isNotEmpty() && rest[0] != ZWNJ && word.endsWith('ه') && rest != "ه") ZWNJ_S else ""
+    private fun glue(word: String, rest: String): String {
+        val clitic = rest.isNotEmpty() && rest[0] != ZWNJ
+        return if (clitic && word.endsWith('ه') && rest != "ه") ZWNJ_S else ""
+    }
 
     /**
      * «نا امید» → «ناامید», «بی ترتیب» → «بی‌ترتیب»: a prefix split off its word, joined as the list writes

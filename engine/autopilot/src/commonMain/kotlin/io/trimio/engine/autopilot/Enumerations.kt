@@ -37,7 +37,8 @@ object Enumerations {
             val from = if (persian || n.getOrNull(j - 1) == "number") i - 1 else i
             // The thing named after the counter, up to two words, never a verb; a counter alone is no title.
             var end = i
-            while (end + 1 <= line.last && end - i < 2 && Phrases.nounish(texts[end + 1]) && NumberWords.at(texts, end + 1) == null) end++
+            fun names(j: Int) = j <= line.last && Phrases.nounish(texts[j]) && NumberWords.at(texts, j) == null
+            while (end - i < 2 && names(end + 1)) end++
             return (from..end).takeIf { end > i }
         }
         return null

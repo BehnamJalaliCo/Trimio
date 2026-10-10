@@ -114,7 +114,6 @@ object NumberWords {
             val w = normalize(words[j])
             val unit = units[w]
             val scale = scales[w]
-            val nextUnit = words.getOrNull(j + 1)?.let(::normalize)?.let { n -> units[n]?.toLong() ?: HUNDRED.takeIf { n in hundreds } }
             when {
                 w in hundreds && any && group in 1..9 -> { group *= 100; smallest = group; lastWasNumber = true }
                 // «سی صد» is سیصد split in two, not thirty hundreds.
@@ -124,7 +123,7 @@ object NumberWords {
                 unit != null && unit < smallest -> { group += unit; smallest = unit.toLong(); any = true; lastWasNumber = true }
                 // A scale can open a number: «هزار نفر» is a thousand people.
                 scale != null -> { total += maxOf(group, 1) * scale; group = 0; smallest = scale; any = true; lastWasNumber = true }
-                w in joiners && any && lastWasNumber && nextUnit != null && nextUnit < smallest -> lastWasNumber = false
+                any && lastWasNumber && joinsOn(words, j, smallest) -> lastWasNumber = false
                 else -> break
             }
             afterThirty = w == "سی"
@@ -139,6 +138,14 @@ object NumberWords {
         j += percentAt(words, j)
         if (j - i == 1 && normalize(words[i]) in ambiguous) return null
         return Found(i, j - i, value, percent, decimals)
+    }
+
+    /** «و» at [j] carries the number on: a smaller part follows («چهل و دو»), not a new number («… و چهل و سه»). */
+    private fun joinsOn(words: List<String>, j: Int, smallest: Long): Boolean {
+        if (normalize(words[j]) !in joiners) return false
+        val n = words.getOrNull(j + 1)?.let(::normalize) ?: return false
+        val next = units[n]?.toLong() ?: HUNDRED.takeIf { n in hundreds } ?: return false
+        return next < smallest
     }
 
     /** Words a percent sign takes at [j]: «درصد», "percent", "per cent" (2), or 0. */

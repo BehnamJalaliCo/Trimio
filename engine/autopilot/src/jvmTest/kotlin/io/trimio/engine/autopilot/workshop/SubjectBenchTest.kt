@@ -1,3 +1,6 @@
+// Pixel-measuring test code: flat loops read better here than split for the rule.
+@file:Suppress("ComplexCondition")
+
 package io.trimio.engine.autopilot.workshop
 
 import io.trimio.engine.autopilot.SubjectFinder

@@ -43,18 +43,18 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
         val a = words[0]
         val b = words.getOrNull(1)
         if (b != null && latin(a) && latin(b)) single.firstOrNull { it.equals(a + b, ignoreCase = true) }?.let { return it to 2 }
-        for (k in words.size downTo 1) {
-            val span = words.subList(0, k)
-            if (!span.all(::spoken) || span.none { w -> w.any { it.isLetter() } }) continue
-            val key = span.joinToString("") { persianSkeleton(it) }
-            val name = bySkeleton[key] ?: continue
-            // A common Persian word is itself, unless its consonants say much: «نیک» (good) is no Nike, «مقایسه» no "Max";
-            // «سامسونگ» is Samsung. Of several words, one must be rare («گوگل کلندر»).
-            val rare = span.any { w -> w.any { it.isLetter() } && persianCount(w) < COMMON_PERSIAN }
-            val sure = key.length >= LONG_KEY + k || rare
-            if (sure) return name.joinToString(" ") to k
-        }
-        return null
+        return (words.size downTo 1).firstNotNullOfOrNull { k -> said(words.subList(0, k), persianCount)?.let { it to k } }
+    }
+
+    /** The name [span] says in Persian, or null. */
+    private fun said(span: List<String>, persianCount: (String) -> Int): String? {
+        if (!span.all(::spoken) || span.none { w -> w.any { it.isLetter() } }) return null
+        val key = span.joinToString("") { persianSkeleton(it) }
+        val name = bySkeleton[key] ?: return null
+        // A common Persian word is itself, unless its consonants say much: «نیک» (good) is no Nike, «مقایسه» no "Max";
+        // «سامسونگ» is Samsung. Of several words, one must be rare («گوگل کلندر»).
+        val rare = span.any { w -> w.any { it.isLetter() } && persianCount(w) < COMMON_PERSIAN }
+        return name.joinToString(" ").takeIf { key.length >= LONG_KEY + span.size || rare }
     }
 
     // ------------------------------------------------------------------ names

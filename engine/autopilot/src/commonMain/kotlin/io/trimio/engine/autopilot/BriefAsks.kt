@@ -45,14 +45,18 @@ object BriefAsks {
         val out = reads.toMutableList()
         val placed = mutableSetOf<Int>()
         for (a in asks) {
-            val k = lineFor(a, texts, lines, senses)?.takeIf { it !in keep && out[it].show != "comment" } ?: continue
-            val show = when (a.kind) {
-                "counter" -> "counter".takeIf { out[k].show !in setOf("voucher", "stats", "countdown", "progress") }
-                "countdown", "progress", "voucher" -> a.kind
-                else -> null
-            } ?: continue
-            out[k] = out[k].copy(show = show)
-            placed += k
+            val k = lineFor(a, texts, lines, senses)?.takeIf { it !in keep && out[it].show != "comment" }
+            val show = k?.let { j ->
+                when (a.kind) {
+                    "counter" -> "counter".takeIf { out[j].show !in setOf("voucher", "stats", "countdown", "progress") }
+                    "countdown", "progress", "voucher" -> a.kind
+                    else -> null
+                }
+            }
+            if (k != null && show != null) {
+                out[k] = out[k].copy(show = show)
+                placed += k
+            }
         }
         return out to placed
     }

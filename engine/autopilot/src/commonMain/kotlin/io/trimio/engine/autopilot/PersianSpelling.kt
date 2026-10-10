@@ -228,11 +228,12 @@ class PersianSpelling(
     }
 
     /** Spoken tens: «چلا هشت» → «چهل و هشت», «پنجا هزار» → «پنجاه هزار». */
-    private fun number(core: String, next: String?): String? {
+    private fun number(core: String, next: String?): String? =
         // «هفتادوپنج» → «هفتاد و پنج».
         TENS.entries.firstNotNullOfOrNull { (t, full) -> core.removePrefix(t + "و").takeIf { core.startsWith(t + "و") && it in UNITS }?.let { "$full و $it" } }
-            ?.let { return it }
-        next ?: return null
+            ?: next?.let { tens(core, it) }
+
+    private fun tens(core: String, next: String): String? {
         // «سی سه» → «سی و سه»: the «و» between tens and units, not heard.
         if (core in TENS.values && next in UNITS && core != next) return "$core و"
         if (next in UNITS) {

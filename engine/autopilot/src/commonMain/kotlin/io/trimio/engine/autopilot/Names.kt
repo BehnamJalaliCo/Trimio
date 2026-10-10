@@ -14,11 +14,13 @@ object Names {
         if (w.length < 2) return false
         // "Galaxy", "ChatGPT", and camel-case names ("iPhone").
         val capital = w.first().isUpperCase() || w.drop(1).any { it.isUpperCase() }
-        if (!w.first().isLetter() || !capital || !w.all { it.isLetterOrDigit() || it in "-+." }) return false
+        val shaped = w.first().isLetter() && w.all { it.isLetterOrDigit() || it in "-+." }
+        if (!shaped || !capital) return false
         val low = w.lowercase()
         if (low in COMMON || low in CALENDAR || low in PLACES) return false
         val inBrief = brief.isNotBlank() && Regex("(?i)(^|[^\\p{L}])${Regex.escape(w)}([^\\p{L}]|$)").containsMatchIn(brief)
-        if (w.all { !it.isLetter() || it.isUpperCase() } && w.count { it.isLetter() } >= 2 && !inBrief) return false
+        val shouted = w.all { !it.isLetter() || it.isUpperCase() } && w.count { it.isLetter() } >= 2
+        if (shouted && !inBrief) return false
         val persian = texts.count { t -> t.any { it in '؀'..'ۿ' } } * 2 > texts.size
         val sentenceStart = i == 0 || texts[i - 1].trimEnd().lastOrNull()?.let { c -> c in ".!?؟:…" } == true || texts[i - 1].trimEnd().endsWith("--")
         // A run of capitals carries a name across ("Meet Nova Buds Pro": Nova is mid-sentence).

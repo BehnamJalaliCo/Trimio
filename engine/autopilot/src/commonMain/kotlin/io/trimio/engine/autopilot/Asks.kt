@@ -31,13 +31,20 @@ object Asks {
         val marker = w.any { it in KEYWORD_MARKERS }
         return when {
             keyword != null && (asked || marker || dm) -> Cta(action = if (dm) "dm" else "comment", keyword = keyword)
+            else -> plain(line, texts, w, ::any) ?: Cta(action = "dm").takeIf { dm && asked }
+        }
+    }
+
+    /** An ask with no keyword: follow, save, the link in the bio, share, a question for the comments. */
+    private fun plain(line: Lines.Line, texts: List<String>, w: List<String>, any: (Collection<String>) -> Boolean): Cta? {
+        val pointed = w.any { it in IMPERATIVE } || "this" in w || "it" in w
+        val question = line.range.any { texts[it].trimEnd().lastOrNull()?.let { c -> c in "?؟" } == true || texts.getOrNull(it + 1)?.let { n -> Phrases.key(n) in WRITE } == true }
+        return when {
             any(FOLLOW) -> Cta(action = "follow")
-            any(SAVE) && (w.any { it in IMPERATIVE } || "this" in w || "it" in w || w.any { it.startsWith("سیوش") }) -> Cta(action = "save")
+            any(SAVE) && (pointed || w.any { it.startsWith("سیوش") }) -> Cta(action = "save")
             any(LINK) && any(BIO) -> Cta(action = "link")
-            any(SHARE) && (w.any { it.startsWith("بفرستش") } || "this" in w || "it" in w || "send" in w) -> Cta(action = "share")
-            line.range.any { texts[it].trimEnd().lastOrNull()?.let { c -> c in "?؟" } == true || texts.getOrNull(it + 1)?.let { n -> Phrases.key(n) in WRITE } == true } && any(COMMENTS) ->
-                Cta(action = "comment")
-            dm && asked -> Cta(action = "dm")
+            any(SHARE) && (pointed || w.any { it.startsWith("بفرستش") } || "send" in w) -> Cta(action = "share")
+            question && any(COMMENTS) -> Cta(action = "comment")
             else -> null
         }
     }

@@ -204,10 +204,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 val takeover = k in takeovers && !covered && !previousTakeover
                 val beats = mutableListOf<BeatScore>()
                 // With a cold open the hook has been seen: the body starts clean.
-                // A first line with a graphic of its own (the two phones named, a figure) is the hook itself.
-                if (k == 0 && opening == null && read.show !in OWN_HOOK) {
-                    payoffLine?.takeIf { it > 0 && u.brief.payoffFirst }?.let { hooks.hook(it, reads) }?.let { h -> beats += h; h.text?.let { hookKeys += textKey(it) } }
-                }
+                if (k == 0) beats += hook(read)
                 // A line inside a running beat adds nothing of its own (only the call to action).
                 beats += beatsFor(k, line, read, takeover, hasHook = beats.isNotEmpty()).filter { !covered || it.recipe == "comment" || it.recipe == "endcard" || it in ask.beats }
                 coveredUntil = maxOf(coveredUntil, beats.maxOfOrNull { it.until ?: it.at ?: -1 } ?: -1, heldUntil(k, beats, takeovers))
@@ -236,6 +233,14 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             rhythm.vary(scenes)
             rhythm.prune(scenes, least)
             notes += rhythm.notes
+        }
+
+        /** The payoff first, unless a cold open showed it or the first line's own graphic (the two phones named, a figure) is the hook itself. */
+        private fun hook(first: LineRead): List<BeatScore> {
+            if (opening != null || first.show in OWN_HOOK) return emptyList()
+            val h = payoffLine?.takeIf { it > 0 && u.brief.payoffFirst }?.let { hooks.hook(it, reads) } ?: return emptyList()
+            h.text?.let { hookKeys += textKey(it) }
+            return listOf(h)
         }
 
         /**
@@ -414,16 +419,18 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             "logos" -> brands || read.items.any { locate(it, line) != null }
             "comment" -> u.cta != null && line.last >= words.size * 2 / 3
             // A list is of things, not the line's own words in order.
-            "list", "objects" -> read.items.size >= 2 && read.items.count { item -> item.length >= 3 } >= 2 &&
-                // A list said out loud (its items are what was said), not the model echoing the line's words.
-                (read.role == "list" || !read.items.all { item -> line.range.any { texts[it].trimEnd('،', ',', '.') == item } }) &&
-                // Items speak the video's language (or are names said in the line), never picture prompts.
-                read.items.all { item -> !rtl || item.any { it in '\u0600'..'\u06FF' } || locate(item, line) != null }
+            "list", "objects" -> listed(line, read)
             "chart" -> number || (line.first..line.last).any { norm[it] in GROWTH || norm[it] in DECLINE }
             in RICH_SHOWS -> sense(line).supports(read.show)
             else -> locate(read.title, line) != null || read.items.any { locate(it, line) != null } ||
                 u.entities.any { it.at in line.range && it.visual.isNotBlank() } || (read.gist.isNotBlank() && read.visual.isNotBlank() && line.size >= 4 && repeatOf(lines.indexOf(line)) == null)
         }
+
+        /** A list of things: two or more items, said out loud (not the model echoing the line's words), in the video's language. */
+        private fun listed(line: Lines.Line, read: LineRead): Boolean = read.items.size >= 2 && read.items.count { item -> item.length >= 3 } >= 2 &&
+            (read.role == "list" || !read.items.all { item -> line.range.any { texts[it].trimEnd('،', ',', '.') == item } }) &&
+            // Items speak the video's language (or are names said in the line), never picture prompts.
+            read.items.all { item -> !rtl || item.any { it in '\u0600'..'\u06FF' } || locate(item, line) != null }
 
         /** An earlier line with the very same reading (a model loop). */
         private fun repeatOf(k: Int): Int? = u.lines.getOrNull(k)?.let { read ->

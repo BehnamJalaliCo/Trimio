@@ -75,7 +75,8 @@ class SubjectGrounding(private val eyes: LanguageModel, private val maxFrames: I
         /** A model's 0–1000 box as fractions, when it is a box at all. */
         internal fun box(seen: Seen): Subject? {
             val b = seen.head
-            if (seen.person != "yes" || b.size != 4 || b.any { it !in 0..1000 } || b[2] <= b[0] || b[3] <= b[1]) return null
+            val ordered = b.size == 4 && b[2] > b[0] && b[3] > b[1]
+            if (seen.person != "yes" || !ordered || b.any { it !in 0..1000 }) return null
             return Subject(b[0] / 1000f, b[1] / 1000f, b[2] / 1000f, b[3] / 1000f).takeIf(::plausible)
         }
 

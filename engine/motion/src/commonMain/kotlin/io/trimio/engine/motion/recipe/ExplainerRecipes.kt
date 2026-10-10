@@ -459,8 +459,79 @@ object ExplainerRecipes {
         }
     }
 
+    /**
+     * The end card for an ask without a keyword (follow, save, link, share, a question): an accent
+     * button springs up with the action's icon and the call in the piece's language, the reason
+     * above it, a ring pulses like a live button, and an arrow keeps pointing at the action.
+     */
+    val EndCard = object : Recipe("endcard", Kind.Element) {
+        override val preferredHeight = 0.2f
+        override val minHold = 2.5f
+        override fun build(cue: Cue, look: Look, fit: Fitter): Built {
+            val at = cue.at - Craft.LEAD
+            val call = cue.text.ifBlank { cue.items.firstOrNull() ?: "" }
+            val h = minOf(cue.height * 0.46f, cue.width * 0.2f)
+            val y = cue.y + cue.height * 0.12f
+            val cf = fit.fit(call, look.headline, h * 0.5f, cue.width * 0.7f, h * 0.8f, maxLines = 1)
+            val icon = Icons.path(END_ICONS[cue.icon?.lowercase()] ?: "bolt")
+            val w = cf.width + h * (if (icon != null) 1.9f else 1.1f)
+            val enter = Transform(
+                x = cue.x.anim, y = y.anim + Anim.tween(h * 0.9f, 0f, at, at + 0.5f, Easing.ExpoOut),
+                opacity = Anim.tween(0f, 1f, at, at + 0.15f), scale = pulse(at + 1.4f, cue.out, 0.9f, 0.03f),
+            )
+            val nodes = mutableListOf<Node>()
+            // A ring breathing out of the button, like a live control asking to be pressed.
+            val ringAt = at + 0.7f
+            nodes += ShapeNode(
+                ShapeSpec.Rect(w.anim, h.anim, (h / 2f).anim), stroke = Stroke(look.accent.fill(), h * 0.05f),
+                transform = Transform(x = cue.x.anim, y = y.anim, scale = Anim.tween(1f, 1.18f, ringAt, ringAt + 0.9f, Easing.ExpoOut),
+                    opacity = Anim.tween(0.8f, 0f, ringAt, ringAt + 0.9f)), name = "endcard-ring",
+            )
+            nodes += ShapeNode(
+                ShapeSpec.Rect(w.anim, h.anim, (h / 2f).anim), fill = Fill.Linear(listOf(look.accent, look.hot), angle = 20f.anim),
+                shadow = Shadow(Color.Black.copy(alpha = 0.45f), 0f, 18f, 40f), transform = enter, name = "endcard-button",
+            )
+            val iconX = if (cue.rtl) cue.x + w / 2f - h * 0.6f else cue.x - w / 2f + h * 0.6f
+            val textX = if (icon == null) cue.x else if (cue.rtl) iconX - h * 0.45f - cf.width / 2f else iconX + h * 0.45f + cf.width / 2f
+            icon?.let {
+                nodes += ShapeNode(
+                    ShapeSpec.Path(it, Icons.VIEWPORT, h * 0.46f), stroke = Stroke(look.onAccent.fill(), h * 0.06f),
+                    trimEnd = Anim.tween(0f, 1f, at + 0.3f, at + 0.8f, Easing.ExpoOut),
+                    transform = Transform(x = iconX.anim, y = enter.y, opacity = enter.opacity, scale = enter.scale), name = "endcard-icon",
+                )
+            }
+            nodes += Craft.onBody(TextNode(
+                call, cf.type, look.onAccent.fill(), rtl = cue.rtl,
+                animators = listOf(TextAnimator(TextUnit.Word, UnitState(opacity = 0f, dy = 0.6f), at = at + 0.25f, duration = 0.45f, stagger = 0.08f, ease = Easing.ExpoOut)),
+                transform = Transform(x = textX.anim, y = enter.y, opacity = enter.opacity, scale = enter.scale), name = "endcard-call",
+            ))
+            cue.label?.takeIf { it.isNotBlank() }?.let { label ->
+                val lf = fit.fit(label, look.headline, cue.height * 0.24f, cue.width, cue.height * 0.34f, maxLines = 1)
+                nodes += TextNode(
+                    label, lf.type, look.ink.fill(), rtl = cue.rtl, shadow = Craft.shadow(cue, look, lf.type.size),
+                    animators = listOf(TextAnimator(TextUnit.Word, UnitState(dy = 1.3f), at = at, duration = 0.6f, stagger = 0.07f, ease = Easing.ExpoOut, clipToLine = true)),
+                    transform = Transform(x = cue.x.anim, y = (y - h * 0.5f - lf.height * 0.75f).anim), name = "endcard-title",
+                )
+            }
+            val arrowAt = at + 0.8f
+            val bob = Anim.keys(List(((cue.out - arrowAt) / 0.35f).toInt().coerceAtLeast(1) + 1) { k -> Anim.Key(arrowAt + k * 0.35f, if (k % 2 == 0) 0f else h * 0.18f, Easing.SineInOut) })
+            nodes += ShapeNode(
+                ShapeSpec.Path(Icons.path("arrow-down")!!, Icons.VIEWPORT, h * 0.6f), stroke = Stroke(look.accent.fill(), h * 0.07f),
+                trimEnd = Anim.tween(0f, 1f, arrowAt, arrowAt + 0.4f, Easing.ExpoOut),
+                transform = Transform(x = cue.x.anim, y = (y + h * 1.05f).anim + bob), name = "endcard-arrow",
+            )
+            return Built(listOf(group(cue, nodes, name)), sfx = listOf(Sfx(at, SfxKind.Swish, 0.5f), Sfx(at + 0.35f, SfxKind.Pop, 0.8f)))
+        }
+    }
+
+    /** The action's icon on the end card. */
+    private val END_ICONS = mapOf(
+        "follow" to "heart", "save" to "star", "link" to "arrow-up", "share" to "arrow-right",
+        "question" to "spark", "dm" to "bell", "comment" to "bell", "subscribe" to "bell", "notify" to "bell",
+    )
+
     private const val MAX_CHIPS = 8
     private const val MAX_NODES = 11
 
-    val all: List<Recipe> = listOf(Chips, Terminal, Network, Meter, Comment)
+    val all: List<Recipe> = listOf(Chips, Terminal, Network, Meter, Comment, EndCard)
 }

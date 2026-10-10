@@ -118,8 +118,8 @@ internal class FaceScene(val frames: List<FacePixels>) {
         val strip = maxOf(2, w / BORDER_DIVISOR)
         return Array(h) { y ->
             val kept = ArrayList<Float>()
-            for (f in frames) for (x in 0 until w) {
-                if (x in strip until w - strip) continue
+            val edges = (0 until strip) + (w - strip until w)
+            for (f in frames) for (x in edges) {
                 val i = y * w + x
                 if (near(kept, f.luma[i], f.cb[i], f.cr[i])) continue
                 kept += f.luma[i]; kept += f.cb[i]; kept += f.cr[i]

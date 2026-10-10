@@ -655,7 +655,7 @@ class Compiler(
         private const val MAX_HOLD = 7f
         /** A chat thread plays as long as the story it tells; the call to action holds to the end. */
         private const val MAX_THREAD_HOLD = 24f
-        private val LONG_FORM = setOf("message", "comment")
+        private val LONG_FORM = setOf("message", "comment", "endcard")
         private const val LINGER = 0.55f
         private const val EXIT_TAIL = 0.4f
         private const val STAGE_HOLD = 3.5f

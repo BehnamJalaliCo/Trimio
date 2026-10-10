@@ -183,7 +183,7 @@ class CtaJudge(
         val MARKERS = setOf("کلمه", "کلمهی", "کلمهٔ", "کلمۀ", "word", "keyword")
         val DM = listOf("دایرکت", "دایرک", "dm", "direct", "inbox")
         val ASKS = listOf("کامنت", "comment", "بنویس", "فالو", "follow", "سیو", "ذخیره", "save", "share", "لینک", "link", "دایرکت", "subscribe")
-        val ASK_SHOWS = setOf(Bench.COMMENT, Bench.STAMP, "lower-third")
+        val ASK_SHOWS = setOf(Bench.COMMENT, "endcard", Bench.STAMP, "lower-third")
 
         fun norm(s: String) = NumberWords.normalize(s).lowercase().trim { !it.isLetterOrDigit() }.replace("‌", "")
     }

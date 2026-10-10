@@ -1,3 +1,6 @@
+// Pixel-measuring test code: flat loops read better here than split for the rule.
+@file:Suppress("CyclomaticComplexMethod", "NestedBlockDepth", "LoopWithTooManyJumpStatements", "MaxLineLength")
+
 package io.trimio.engine.motion
 
 import androidx.compose.ui.graphics.Color

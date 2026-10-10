@@ -99,11 +99,15 @@ object RulesUnderstander {
         var k = 0
         while (k < lines.size) {
             val first = dated(k)
-            if (first == null) { k++; continue }
             val run = mutableListOf(k)
-            var j = k + 1
-            while (j < lines.size && j - run.last() <= 2) { if (dated(j) != null) run += j; j++ }
-            if (run.size >= 2) out[k] = run.map { Quantities.digits(dated(it)!!, false) }
+            if (first != null) {
+                var j = k + 1
+                while (j < lines.size && j - run.last() <= 2) {
+                    if (dated(j) != null) run += j
+                    j++
+                }
+                if (run.size >= 2) out[k] = run.map { Quantities.digits(dated(it)!!, false) }
+            }
             k = run.last() + 1
         }
         return out
@@ -132,7 +136,8 @@ object RulesUnderstander {
             if (!Names.isName(texts, i, prompt)) { i++; continue }
             val start = i
             val parts = mutableListOf<String>()
-            while (i < texts.size && (i == start || Names.isName(texts, i, prompt) || nameTail(texts[i])) && parts.size < MAX_NAME_WORDS) {
+            fun goesOn(j: Int) = j == start || Names.isName(texts, j, prompt) || nameTail(texts[j])
+            while (i < texts.size && goesOn(i) && parts.size < MAX_NAME_WORDS) {
                 parts += Names.bare(texts[i])
                 i++
                 if (texts[i - 1].last() in "،,.:!?؟") break
