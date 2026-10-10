@@ -370,7 +370,8 @@ object DataRecipes {
             val hasLabels = labels.any { it != null }
             // Room left for the figures under the board's caption, when it has one.
             val stage = !cue.overMedia
-            val room = cue.height * (if (stage) 1.12f else 1f) * (if (cue.label.isNullOrBlank()) 1f else 0.82f)
+            val reach = cue.height * (if (stage) STAGE_REACH else 1f)
+            val room = reach * (if (cue.label.isNullOrBlank()) 1f else 0.82f)
             // Side by side, or stacked as rows: whichever lets the figures be clearly bigger.
             val rowPref = room * (if (hasLabels) 0.46f else 0.66f)
             val side = figures.minOf { sizeFor(it, look, fit, cue.width / n * 0.84f, rowPref) }
@@ -383,7 +384,7 @@ object DataRecipes {
             val stagger = Craft.pace(cue.energy, 0.45f, 0.28f)
             val times = List(n) { i -> maxOf(at, (cue.itemTimes.getOrNull(i) ?: (cue.at + i * stagger)) - Craft.LEAD) }
             val settle = Craft.pace(cue.energy, 1.2f, 0.75f)
-            val board = Board(cue, look, fit, figures, labels, size, times, settle, rtl, cue.height * (if (stage) 1.12f else 1f))
+            val board = Board(cue, look, fit, figures, labels, size, times, settle, rtl, reach)
             val nodes = if (stacked) board.rows() else board.columns()
             val lands = times.map { it + settle }
             return Built(
@@ -437,7 +438,7 @@ object DataRecipes {
             /** Side by side: each figure centred in its column, its label under its accent rule. */
             fun columns(): List<Node> {
                 val colW = cue.width / n
-                val lf = labels.map { l -> l?.let { fit.fit(it, look.body, maxOf(size * 0.36f, cue.width * 0.034f), colW * 0.9f, size * 0.9f, maxLines = 2) } }
+                val lf = matched(maxOf(size * 0.36f, cue.width * 0.034f), colW * 0.9f, size * 0.9f)
                 val labelH = lf.maxOf { it?.height ?: 0f }
                 val gap = size * 0.2f
                 val blockH = numberH + gap + rule + if (labelH > 0f) gap + labelH else 0f
@@ -477,9 +478,11 @@ object DataRecipes {
                 val rowH = minOf((height - headH) / n, numberH * 1.4f)
                 val numCol = figures.indices.maxOf { composite(it) }
                 val colGap = size * 0.32f
-                val lf = labels.map { l -> l?.let { fit.fit(it, look.body, size * 0.4f, cue.width - numCol - colGap, numberH, maxLines = 2) } }
+                val bar = size * 0.28f
+                val lf = matched(size * 0.4f, cue.width - numCol - colGap - bar, numberH)
                 val total = numCol + colGap + (lf.maxOfOrNull { it?.width ?: 0f } ?: 0f)
-                val start = cue.x - dir * total / 2f
+                // Centred with the accent bar that hangs off the reading-start edge.
+                val start = cue.x - dir * (total - bar) / 2f
                 val top = cue.y - (rowH * n + headH) / 2f + headH
                 val nodes = mutableListOf<Node>()
                 if (cue.overMedia) nodes += panel(look, cue.x, cue.y, maxOf(total, head?.width ?: 0f) + size * 1.2f, rowH * n + headH + size * 0.4f, times.first())
@@ -545,6 +548,13 @@ object DataRecipes {
                     )
                 }
                 return nodes
+            }
+
+            /** Labels fitted, then all set at the smallest of their sizes: a set reads as one voice. */
+            fun matched(preferred: Float, maxW: Float, maxH: Float): List<Fitted?> {
+                val first = labels.map { l -> l?.let { fit.fit(it, look.body, preferred, maxW, maxH, maxLines = 2) } }
+                val common = first.minOfOrNull { it?.type?.size ?: preferred } ?: preferred
+                return labels.map { l -> l?.let { fit.fit(it, look.body, common, maxW, maxH, maxLines = 2) } }
             }
 
             fun labelNode(label: String, f: Fitted, x: Float, y: Float, at: Float, maxWidth: Float) = TextNode(
@@ -946,6 +956,8 @@ object DataRecipes {
     private const val UNIT_GAP = 0.16f
     /** Stack the figures only when that makes them this much bigger. */
     private const val STACK_GAIN = 1.15f
+    /** How far past its slot a stats board may reach on a full-frame stage (nothing else shares the frame). */
+    private const val STAGE_REACH = 1.3f
     private const val CONTRAST = 0.3f
     private const val FULL = 99.5f
     private const val STAMP_DROP = 0.16f
