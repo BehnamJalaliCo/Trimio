@@ -75,7 +75,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val usedRecipes = mutableListOf<String>()
         val usedTransitions = mutableListOf<String>()
         var ctaPlaced = false
-        val shownLogos = mutableListOf<String>()
+        val shownLogos = mutableSetOf<String>()
+        val rtl = texts.count { w -> w.any { it in '\u0600'..'\u06FF' } } * 2 > texts.size
 
         fun run(): Plan {
             if (words.isEmpty() || lines.isEmpty()) {
@@ -85,12 +86,21 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             val takeovers = chooseTakeovers(reads)
             val scenes = mutableListOf<SceneScore>()
             var previousTakeover = false
+            // A beat that runs on past its line (a list of names) keeps its scene until it is done.
+            var coveredUntil = -1
             for ((k, line) in lines.withIndex()) {
                 val read = reads[k]
-                val takeover = k in takeovers
+                val covered = line.first <= coveredUntil && scenes.isNotEmpty()
+                val takeover = k in takeovers && !covered
                 val beats = mutableListOf<BeatScore>()
                 if (k == 0) hook(reads)?.let { beats += it }
-                beats += beatsFor(k, line, read, takeover, hasHook = beats.isNotEmpty())
+                // A line inside a running beat adds nothing of its own (only the call to action).
+                beats += beatsFor(k, line, read, takeover, hasHook = beats.isNotEmpty()).filter { !covered || it.recipe == "comment" }
+                coveredUntil = maxOf(coveredUntil, beats.maxOfOrNull { it.until ?: it.at ?: -1 } ?: -1)
+                if (covered) {
+                    scenes[scenes.lastIndex] = scenes.last().let { it.copy(beats = it.beats + beats) }
+                    continue
+                }
                 val transition = when {
                     k == 0 -> null
                     takeover -> transitionRng.weighted(intoTakeover()).also { usedTransitions += it }
@@ -128,33 +138,44 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** The model's reading checked against what the line actually says. */
         private fun refine(k: Int, raw: LineRead): LineRead {
             val line = lines[k]
-            // Titles speak the video's language: an English title on a Persian piece is dropped (names excepted).
-            val rtl = texts.count { w -> w.any { it in '\u0600'..'\u06FF' } } * 2 > texts.size
-            val read = if (rtl && raw.title.isNotBlank() && raw.title.none { it in '\u0600'..'\u06FF' } && u.entities.none { it.name.equals(raw.title, true) }) raw.copy(title = "") else raw
+            val read = localised(raw)
             val number = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull()
-            val brands = brandsIn(line)
-            val grounded = grounded(line, read, number != null, brands.isNotEmpty())
-            val show = when {
+            // A list of names often runs on into the next line ("…به Claude Code، | Codex یا OpenCode…"):
+            // the logos start with the first name and carry the rest.
+            val own = brandsIn(line)
+            val after = if (own.isEmpty()) emptyList() else (k + 1..minOf(lines.lastIndex, k + 2)).asSequence()
+                .map { brandsIn(lines[it]) }.takeWhile { it.isNotEmpty() }.flatten().toList()
+            val brands = (own + after).distinctBy { it.lowercase() }
+            val show = showFor(line, read, number, brands)
+            if (show != "logos") return read.copy(show = show)
+            val items = (brands + read.items.filter { it.isLogoName() && locate(it, line) != null }).distinctBy { it.lowercase() }
+            // Names already shown as logos by an earlier line are not shown again.
+            val fresh = items.filter { it.lowercase() !in shownLogos }
+            if (fresh.size * 2 < items.size || fresh.isEmpty()) return read.copy(show = if (read.title.isNotBlank()) "headline" else "none", items = emptyList())
+            shownLogos += fresh.map { it.lowercase() }
+            return read.copy(show = show, items = items)
+        }
+
+        /** Titles speak the video's language: an English title on a Persian piece is dropped (names excepted). */
+        private fun localised(raw: LineRead): LineRead {
+            val foreign = raw.title.isNotBlank() && raw.title.none { it in '\u0600'..'\u06FF' }
+            val name = u.entities.any { it.name.equals(raw.title, true) }
+            return if (rtl && foreign && !name) raw.copy(title = "") else raw
+        }
+
+        private fun showFor(line: Lines.Line, read: LineRead, number: NumberWords.Found?, brands: List<String>): String {
+            val bigNumber = number != null && (number.percent || number.value >= 10)
+            val plain = read.show == "none" || read.show == "headline"
+            return when {
                 // A list of names said in the line is always shown as logos, whatever was asked.
                 brands.size >= 2 -> "logos"
-                !grounded -> if (read.title.isNotBlank() && locate(read.title, line) != null) "headline" else "none"
-                read.show == "counter" && number == null -> "headline"
-                read.show == "meter" && number == null -> "headline"
+                !grounded(line, read, number != null, brands.isNotEmpty()) -> if (read.title.isNotBlank() && locate(read.title, line) != null) "headline" else "none"
+                read.show in setOf("counter", "meter") && number == null -> "headline"
                 read.show == "logos" && brands.isEmpty() && read.items.isEmpty() -> "headline"
                 read.show == "comment" && u.cta == null -> "headline"
-                (read.show == "none" || read.show == "headline") && number != null && (number.percent || number.value >= 10) -> if (showRng.chance(0.75f)) "counter" else read.show
+                plain && bigNumber -> if (showRng.chance(0.75f)) "counter" else read.show
                 else -> read.show
             }
-            val items = if (show == "logos") (read.items.filter { it.isLogoName() } + brands).distinctBy { it.lowercase() } else read.items
-            // Names already shown as logos by the previous line are not shown again.
-            val previous = shownLogos.toSet()
-            val fresh = items.filter { it.lowercase() !in previous }
-            if (show == "logos") {
-                if (fresh.isEmpty()) return read.copy(show = if (read.title.isNotBlank()) "headline" else "none", items = emptyList())
-                shownLogos += fresh.map { it.lowercase() }
-                return read.copy(show = show, items = items)
-            }
-            return read.copy(show = show, items = items)
         }
 
         /**
@@ -169,7 +190,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             "comment" -> u.cta != null && line.last >= words.size * 2 / 3
             // A list is of things, not the line's own words in order.
             "list", "objects" -> read.items.size >= 2 && read.items.count { item -> item.length >= 3 } >= 2 &&
-                !read.items.all { item -> line.range.any { texts[it].trimEnd('،', ',', '.') == item } }
+                !read.items.all { item -> line.range.any { texts[it].trimEnd('،', ',', '.') == item } } &&
+                // Items speak the video's language (or are names said in the line), never picture prompts.
+                read.items.all { item -> !rtl || item.any { it in '\u0600'..'\u06FF' } || locate(item, line) != null }
             "chart" -> number || (line.first..line.last).any { norm[it] in GROWTH || norm[it] in DECLINE }
             else -> locate(read.title, line) != null || read.items.any { locate(it, line) != null } ||
                 u.entities.any { it.at in line.range && it.visual.isNotBlank() } || (read.gist.isNotBlank() && read.visual.isNotBlank() && line.size >= 4 && repeatOf(read) == null)
@@ -201,7 +224,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             var used = 0f
             for (k in candidates) {
                 val d = duration(k, k)
-                if (k - 1 in chosen || k + 1 in chosen || used + d > budget || d < MIN_TAKEOVER_S) continue
+                val neighbour = k - 1 in chosen || k + 1 in chosen
+                if (neighbour || used + d > budget || d < MIN_TAKEOVER_S) continue
                 chosen += k
                 used += d
             }
@@ -214,22 +238,30 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** The payoff, before anything else: a counter for a number, else a slammed title. */
         private fun hook(reads: List<LineRead>): BeatScore? {
-            val k = payoffLine ?: return null
-            if (!u.brief.payoffFirst || k == 0) return null
-            val line = lines.getOrNull(k) ?: return null
+            val k = payoffLine?.takeIf { it > 0 && u.brief.payoffFirst } ?: return null
+            val line = lines[k]
             val number = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull()
             val title = (u.hook?.title?.takeIf { u.hook.line == k } ?: reads[k].title).ifBlank { u.hook?.title.orEmpty() }.trim()
             notes += "hook: payoff of line $k first (${number?.value ?: title})"
-            if (number != null && (number.percent || number.value >= 2) && hookRng.chance(0.8f)) {
-                usedRecipes += "counter"
-                // The counter shows the number: its label keeps only the words.
-                val label = title.split(' ').filter { w -> w.none { it.isDigit() } && w !in setOf("٪", "%", "درصد") }.joinToString(" ")
-                return BeatScore(
-                    recipe = "counter", time = 0.05f, hold = 2.3f, value = number.value.toFloat(), decimals = number.decimals,
-                    suffix = if (number.percent) "٪" else "", label = label.ifBlank { null }, energy = 0.95f, place = "top",
-                )
+            val counter = number != null && (number.percent || number.value >= 2) && hookRng.chance(0.8f)
+            return when {
+                counter -> counterHook(number!!, title)
+                title.isNotBlank() -> textHook(title)
+                else -> null
             }
-            if (title.isBlank()) return null
+        }
+
+        private fun counterHook(number: NumberWords.Found, title: String): BeatScore {
+            usedRecipes += "counter"
+            // The counter shows the number: its label keeps only the words.
+            val label = title.split(' ').filter { w -> w.none { it.isDigit() } && w !in setOf("٪", "%", "درصد") }.joinToString(" ")
+            return BeatScore(
+                recipe = "counter", time = 0.05f, hold = 2.3f, value = number.value.toFloat(), decimals = number.decimals,
+                suffix = if (number.percent) "٪" else "", label = label.ifBlank { null }, energy = 0.95f, place = "top",
+            )
+        }
+
+        private fun textHook(title: String): BeatScore {
             val recipe = recipeRng.weighted(listOf("slam" to 1f, "stack" to 0.6f, "spread" to 0.4f).map { (r, w) -> r to w * taste.recipe(r) })
             usedRecipes += recipe
             return BeatScore(recipe = recipe, time = 0.05f, hold = 2.2f, text = title, energy = 0.95f, place = "top", mark = mark)
@@ -239,35 +271,54 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         private fun beatsFor(k: Int, line: Lines.Line, read: LineRead, takeover: Boolean, hasHook: Boolean): List<BeatScore> {
             val e = (read.energy * 0.6f + energy * 0.4f).coerceIn(0.2f, 1f)
-            val primary = when (read.show) {
-                "counter" -> counter(line, read, e, takeover)
-                "logos" -> logos(line, read)
-                "terminal" -> terminal(line, read, takeover)
-                "network" -> network(line, read, takeover)
-                "meter" -> meter(line, read, takeover)
-                "chart" -> chart(line, read, takeover)
-                "object" -> objectBeat(line, read, takeover)
-                "objects" -> objects(line, read, takeover)
-                "list" -> list(line, read, takeover)
-                "comment" -> if (ctaPlaced) null else comment(line, read)
-                "lower-third" -> lowerThird(line, read)
-                "stamp" -> stamp(line, read, e)
-                "headline" -> headline(line, read, e, takeover)
-                else -> null
-            }
+            val primary = primary(line, read, e, takeover)
             val out = mutableListOf<BeatScore>()
             // The hook owns the first seconds: line 0's own graphic waits unless it is the CTA.
-            if (primary != null && !(hasHook && k == 0 && read.show !in setOf("comment", "lower-third"))) out += primary
-            // A takeover gets a title over its graphic; a footage line may get a picture of what it names.
-            if (takeover && primary != null && read.title.isNotBlank() && read.show !in setOf("headline", "stamp")) {
-                out += BeatScore(recipe = textRecipe(0.5f), text = read.title, place = "top", energy = 0.55f, mark = mark, at = line.first)
-            } else if (!takeover && out.size < 2 && read.show in setOf("headline", "none", "stamp") && showRng.chance(0.55f * taste.density)) {
-                pictureFor(line)?.let { out += it }
-            }
+            val waits = hasHook && k == 0 && read.show !in setOf("comment", "lower-third")
+            if (primary != null && !waits) out += primary
+            extra(line, read, takeover, primary != null, out.size)?.let { out += it }
             if (out.any { it.recipe == "comment" }) ctaPlaced = true
             if (k == lines.lastIndex && !ctaPlaced) u.cta?.let { cta -> comment(line, read.copy(title = cta.keyword))?.let { out += it; ctaPlaced = true } }
             usedRecipes += out.map { it.recipe }
             return out
+        }
+
+        private fun primary(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? = when (compact(read, takeover)) {
+            "counter" -> counter(line, read, e, takeover)
+            "logos" -> logos(line, read)
+            "terminal" -> terminal(line, read, takeover)
+            "network" -> network(line, read, takeover)
+            "meter" -> meter(line, read, takeover)
+            "chart" -> chart(line, read, takeover)
+            "object" -> objectBeat(line, read, takeover)
+            "objects" -> objects(line, read, takeover)
+            "list" -> list(line, read, takeover)
+            "comment" -> if (ctaPlaced) null else comment(line, read)
+            "lower-third" -> lowerThird(line, read)
+            "stamp" -> stamp(line, read, e)
+            "headline" -> headline(line, read, e, takeover)
+            else -> null
+        }
+
+        /**
+         * Over the speaker only compact graphics fit (the face owns the middle): a map, a meter, a
+         * chart or a list needs the whole frame, so on footage it becomes its compact cousin.
+         */
+        private fun compact(read: LineRead, takeover: Boolean): String = if (takeover) read.show else when (read.show) {
+            "network" -> if (read.visual.isNotBlank()) "object" else "headline"
+            "meter" -> "counter"
+            "chart" -> "counter"
+            "list" -> "headline"
+            else -> read.show
+        }
+
+        /** A takeover gets a title over its graphic; a footage line may get a picture of what it names. */
+        private fun extra(line: Lines.Line, read: LineRead, takeover: Boolean, hasPrimary: Boolean, count: Int): BeatScore? {
+            val titled = takeover && hasPrimary && read.title.isNotBlank() && read.show !in setOf("headline", "stamp")
+            if (titled) return BeatScore(recipe = textRecipe(0.5f), text = read.title, place = "top", energy = 0.55f, mark = mark, at = line.first)
+            // A picture only where the line has no graphic of its own (two things at the top would fight).
+            val room = !takeover && count == 0
+            return if (room && showRng.chance(PICTURE_CHANCE * taste.density)) pictureFor(line, read) else null
         }
 
         private fun headline(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
@@ -293,27 +344,41 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         private fun logos(line: Lines.Line, read: LineRead): BeatScore? {
             val names = read.items.take(5).ifEmpty { return null }
-            val first = names.firstNotNullOfOrNull { locate(it, line)?.first } ?: line.first
-            return BeatScore(recipe = "logos", at = first, until = line.last, items = names, place = "top")
+            // From the first name said to the last, which may be on the next line.
+            val k = lines.indexOf(line)
+            val span = Lines.Line(line.first, lines[minOf(lines.lastIndex, k + 2)].last)
+            val first = names.firstNotNullOfOrNull { locate(it, span)?.first } ?: line.first
+            val last = names.mapNotNull { locate(it, span)?.last }.maxOrNull() ?: line.last
+            return BeatScore(recipe = "logos", at = first, until = maxOf(line.last, last), items = names, place = "top")
         }
 
         private fun terminal(line: Lines.Line, read: LineRead, takeover: Boolean): BeatScore = BeatScore(
             recipe = "terminal", at = line.first, until = line.last,
-            label = read.items.getOrNull(0)?.takeIf { it.isAscii() } ?: "install ${slug(u.topic)}",
+            label = read.items.getOrNull(0)?.takeIf { it.isCommand() } ?: "install ${slug(u.topic)}",
             items = listOf(read.items.getOrNull(1)?.takeIf { it.isAscii() } ?: "done"), place = if (takeover) "center" else "top",
         )
 
         private fun network(line: Lines.Line, read: LineRead, takeover: Boolean): BeatScore = BeatScore(
-            recipe = "network", at = focus(line), items = read.items.take(9).ifEmpty { NETWORK_DEFAULTS[u.domain] ?: emptyList() },
+            recipe = "network", at = focus(line), items = nodes(read),
             icon = showRng.pick(listOf("eye", "target", "spark", "bolt")), place = if (takeover) "center" else "top",
         )
+
+        /** Five to nine node labels: the model's, then names from the piece, then the domain's usual parts. */
+        private fun nodes(read: LineRead): List<String> {
+            val own = read.items.filter { it.length in 2..14 }
+            val names = u.entities.map { it.name }.filter { it.length in 2..14 }
+            val usual = NETWORK_DEFAULTS[u.domain] ?: NETWORK_DEFAULTS.getValue("tech")
+            val parts = if (own.size >= MIN_NODES - 2) own else own + usual
+            return (parts + names).distinctBy { it.lowercase() }.take(maxOf(MIN_NODES, own.size).coerceAtMost(MAX_NODES))
+        }
 
         private fun meter(line: Lines.Line, read: LineRead, takeover: Boolean): BeatScore? {
             val n = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull() ?: return null
             return BeatScore(
                 recipe = "meter", at = line.first + n.start, until = line.last, value = n.value.toFloat().coerceIn(1f, 99f),
-                items = read.items.take(2).takeIf { it.size == 2 } ?: emptyList(), label = read.title.ifBlank { null },
-                place = if (takeover) "full" else "top",
+                items = read.items.take(2).takeIf { it.size == 2 && it.all { i -> !rtl || i.any { c -> c in '\u0600'..'\u06FF' } } } ?: emptyList(),
+                // On a full-frame scene the title rides above; the meter keeps only its number.
+                label = read.title.ifBlank { null }.takeIf { !takeover }, place = if (takeover) "center" else "top",
             )
         }
 
@@ -368,10 +433,12 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             read.title.ifBlank { null }?.let { BeatScore(recipe = "stamp", at = focus(line), text = it, energy = maxOf(e, 0.75f), place = "top") }
 
         /** A sticker of the most concrete thing the line names, if the vocabulary has one. */
-        private fun pictureFor(line: Lines.Line): BeatScore? {
+        private fun pictureFor(line: Lines.Line, read: LineRead): BeatScore? {
             val entity = u.entities.firstOrNull { it.at in line.range && it.visual.isNotBlank() && it.kind in setOf("object", "concept", "place", "product") }
-                ?: return null
-            return BeatScore(recipe = "object", at = entity.at, visual = entity.visual, hold = 1.8f, place = "top")
+            if (entity != null) return BeatScore(recipe = "object", at = entity.at, visual = entity.visual, hold = 1.8f, place = "top")
+            // The line's own picture, when it names something concrete (a short noun phrase).
+            val query = read.visual.substringBefore(',').trim().takeIf { q -> q.split(' ').size in 1..3 && q.none { it.isDigit() } } ?: return null
+            return BeatScore(recipe = "object", at = focus(line), visual = query, hold = 1.8f, place = "top", label = read.title.ifBlank { null })
         }
 
         // ------------------------------------------------------------ choices
@@ -473,6 +540,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         const val MIN_TAKEOVER_S = 1.4f
         const val CTA_TAIL = 0.45f
         const val EARLIEST_TAKEOVER_MS = 3500L
+        const val MIN_NODES = 7
+        const val PICTURE_CHANCE = 0.7f
+        const val MAX_NODES = 9
 
         val GROWTH = setOf("رشد", "سود", "افزایش", "بیشتر", "up", "growth", "more", "increase")
         val DECLINE = setOf("کاهش", "ریزش", "سقوط", "کمتر", "ضرر", "down", "drop", "less", "decrease", "loss")
@@ -493,6 +563,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         }
 
         fun String.isAscii() = isNotBlank() && all { it.code < 128 }
+
+        /** Looks like something typed in a shell: lower-case ASCII starting with a tool or verb. */
+        fun String.isCommand() = isAscii() && ' ' in this && split(' ').first().let { it == it.lowercase() && it.length in 2..12 }
 
         /** Names worth a logo tile: Latin-script names ("Claude Code"), not Persian common words. */
         fun String.isLogoName() = any { it in 'A'..'Z' || it in 'a'..'z' }

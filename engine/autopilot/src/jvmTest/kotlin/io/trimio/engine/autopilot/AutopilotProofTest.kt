@@ -43,7 +43,8 @@ class AutopilotProofTest {
         // 1. Speech, recognised by the app's own whisper.cpp (cached: it does not change between seeds).
         val transcriptFile = File(out, "transcript.json")
         val transcript = if (transcriptFile.isFile) {
-            Transcript(Language.Persian, json.decodeFromString(ListSerializer(W.serializer()), transcriptFile.readText()).map { Word(it.w, TimeRange((it.s * 1000).toLong(), (it.e * 1000).toLong()), language = Language.Persian) })
+            val saved = json.decodeFromString(ListSerializer(W.serializer()), transcriptFile.readText())
+            Transcript(Language.Persian, saved.map { Word(it.w, TimeRange((it.s * 1000).toLong(), (it.e * 1000).toLong()), language = Language.Persian) })
         } else {
             val whisper = System.getProperty("auto.whisper") ?: error("set -Pauto.whisper")
             val t0 = System.nanoTime()
@@ -63,7 +64,16 @@ class AutopilotProofTest {
         for (seed in seeds) {
             val t0 = System.nanoTime()
             val studio = Studio(brands, visuals, llm, knowledge)
-            val production = runBlocking { studio.produce(video, prompt, seed, transcript) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
+            // -Pauto.reuse=<file>: plan from a saved reading (no model run), for fast iteration and variations.
+            val reuse = System.getProperty("auto.reuse")?.let(::File)?.takeIf { it.isFile }?.let { json.decodeFromString(Understanding.serializer(), it.readText()) }
+            val production = runBlocking { studio.produce(video, prompt, seed, transcript, reuse) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
+            System.getProperty("auto.frames")?.split(',')?.map { it.trim().toFloat() }?.let { times ->
+                val c = production.compiled.composition
+                io.trimio.engine.motion.export.FfmpegFootage(video, c.fps, c.width, c.height).use { footage ->
+                    val frames = io.trimio.engine.motion.export.MotionExporter.Frames(c, footage)
+                    for (t in times) File(out, "seed-$seed-at-$t.png").writeBytes(frames.draw(t).encodeToData(org.jetbrains.skia.EncodedImageFormat.PNG)!!.bytes)
+                }
+            }
             val planned = (System.nanoTime() - t0) / 1e9
             File(out, "seed-$seed-report.txt").writeText(production.report.joinToString("\n") + "\n\nplanned in ${planned}s\n")
             File(out, "seed-$seed-score.json").writeText(Score.encode(production.score))

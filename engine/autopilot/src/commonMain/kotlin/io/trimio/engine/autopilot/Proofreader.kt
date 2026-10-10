@@ -21,22 +21,27 @@ object Proofreader {
         val out = mutableMapOf<Int, String>()
         for ((i, w) in words.withIndex()) {
             val core = w.trimEnd('.', '،', ',', '!', '?', '؟')
-            if (core.length < 2 || core in vocabulary) continue
-            val k = key(core)
-            val match = byKey[k]?.firstOrNull() ?: byKey[k + "ه"]?.firstOrNull()?.takeIf { core.length >= 3 }
-                ?: latinName(core, vocabulary) ?: quoted.firstOrNull { q -> core.length >= 3 && vowelEdit(core, q) } ?: continue
-            if (match != core) out[i] = match + w.substring(core.length)
+            val match = if (core.length < 2 || core in vocabulary) null else briefMatch(core, byKey, vocabulary, quoted)
+            if (match != null && match != core) out[i] = match + w.substring(core.length)
         }
         return out
+    }
+
+    private fun briefMatch(core: String, byKey: Map<String, List<String>>, vocabulary: Set<String>, quoted: List<String>): String? {
+        val k = key(core)
+        return byKey[k]?.firstOrNull() ?: byKey[k + "ه"]?.firstOrNull()?.takeIf { core.length >= 3 }
+            ?: latinName(core, vocabulary) ?: quoted.firstOrNull { q -> core.length >= 3 && vowelEdit(core, q) }
     }
 
     /** "Cloud" → "Claude" when the brief spells the name: same first letter, two edits at most, not a prefix. */
     private fun latinName(w: String, vocabulary: Set<String>): String? {
         if (w.length < 4 || w.none { it in 'A'..'Z' || it in 'a'..'z' }) return null
-        return vocabulary.firstOrNull { v ->
-            v.length >= 4 && v.first().equals(w.first(), ignoreCase = true) && distance(v.lowercase(), w.lowercase()) <= 2 &&
-                !v.startsWith(w, ignoreCase = true) && !w.startsWith(v, ignoreCase = true)
-        }
+        return vocabulary.firstOrNull { v -> v.length >= 4 && closeName(v, w) }
+    }
+
+    private fun closeName(v: String, w: String): Boolean {
+        val prefix = v.startsWith(w, ignoreCase = true) || w.startsWith(v, ignoreCase = true)
+        return !prefix && v.first().equals(w.first(), ignoreCase = true) && distance(v.lowercase(), w.lowercase()) <= 2
     }
 
     /** Aligns a corrected line to the recognised [original] words (index offset [first]). */
@@ -78,7 +83,7 @@ object Proofreader {
         val a = strip(original)
         val c = strip(fixed)
         if (c.isEmpty() || a == c) return false
-        if (fixed.any { !it.isLetterOrDigit() && it != '‌' && it !in original && it !in ".،,!?؟" }) return false
+        if (fixed.any { foreign(it, original) }) return false
         if (key(a) == key(c)) return true
         val latin = a.any { it in 'A'..'Z' || it in 'a'..'z' } && c.any { it in 'A'..'Z' || it in 'a'..'z' }
         if (latin) return distance(a, c) <= maxOf(2, a.length / 2) && a.first().equals(c.first(), ignoreCase = true)
@@ -95,6 +100,9 @@ object Proofreader {
         val i = long.indices.firstOrNull { it >= short.length || long[it] != short[it] } ?: return false
         return i > 0 && long[i] in "اویه" && long.removeRange(i, i + 1) == short
     }
+
+    /** A character the fix brought in that is neither a letter, a half-space nor the original's punctuation. */
+    private fun foreign(ch: Char, original: String) = !ch.isLetterOrDigit() && ch != '\u200C' && ch !in original && ch !in ".،,!?؟"
 
     private fun strip(s: String) = s.filter { it.isLetterOrDigit() }
 

@@ -1,6 +1,7 @@
 package io.trimio.engine.motion.score
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.motion.Anim
 import io.trimio.engine.motion.Camera
@@ -176,13 +177,21 @@ class Compiler(
             val cue = Cue(
                 text = beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = (b.energy ?: defaultEnergy(recipe)).coerceIn(0f, 1f), emphasis = emphasisOf(beatText, b.emphasis, quoted, this.words),
-                wordTimes = quoted?.takeIf { it.count() == words }?.map { start(it) },
+                // Words land as spoken only when they are spoken during this beat (a hook that
+                // quotes a line said later keeps its own timing).
+                wordTimes = quoted?.takeIf { q -> q.count() == words && exact(b.text, q) && start(q.first) in (at - 0.6f)..(at + 1.2f) }?.map { start(it) },
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items, itemTimes = b.items.map { item -> locate(item, norm, range)?.let { start(it.first) } },
                 rtl = isRtl(beatText.ifBlank { b.label ?: "" }) || (beatText.isBlank() && this.words.any { isRtl(it.text) }), seed = id * 7 + 3,
             )
             return Beat(id, recipe, pictured(cue, b), zone, k, minOut)
+        }
+
+        /** Every word of [text] is said, in order, at [range] (a loose match only places the beat). */
+        private fun exact(text: String?, range: IntRange): Boolean {
+            val q = text.orEmpty().split(' ').map(NumberWords::normalize).filter { it.isNotEmpty() }
+            return q.size == range.count() && q.indices.all { j -> norm[range.first + j].trimEnd('.', '،', ',') == q[j].trimEnd('.', '،', ',') }
         }
 
         /** Brand marks and pictures from the visual vocabulary for what the beat names. */
@@ -212,12 +221,11 @@ class Compiler(
             val nodes = mutableListOf<Node>()
             // Backgrounds exist only from the cut: before it, the previous scene is still on screen.
             when (sceneBg(scene, input)) {
-                // Over footage an aurora scene needs its own field; without footage the base already is one.
-                "aurora" -> if (input.footage != null) nodes += EffectNode(Effect.Aurora(look.aurora, seed = k + 1), start = s)
+                // Over footage a graphic scene needs its own stage; without footage the base already is one.
+                "aurora" -> if (input.footage != null) nodes += EffectNode(Effect.Aurora(stage(look), seed = k + 1), start = s)
                 "grid" -> {
-                    nodes += EffectNode(Effect.Aurora(look.aurora, seed = k + 1), start = s)
-                    nodes += EffectNode(Effect.Grid(w / 9f, look.ink, 0.07f.anim), start = s)
-                    nodes += EffectNode(Effect.Vignette(0.55f.anim), start = s)
+                    nodes += EffectNode(Effect.Aurora(stage(look), seed = k + 1), start = s)
+                    nodes += EffectNode(Effect.Grid(w / 9f, look.ink, 0.05f.anim), start = s)
                 }
                 "plain" -> nodes += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
             }
@@ -268,7 +276,26 @@ class Compiler(
                 keys += Anim.Key(sceneStarts[k], from, Easing.Hold)
                 keys += Anim.Key(sceneEnds[k] - 0.001f, to, Easing.SineInOut)
             }
-            return if (keys.isEmpty()) Anim.One else Anim.keys(keys)
+            val base = if (keys.isEmpty()) Anim.One else Anim.keys(keys)
+            return pulses().fold(base) { acc, p -> acc + p }
+        }
+
+        /**
+         * Punches on the words the speaker leans on: a quick 3.5% push that settles to 1% — the
+         * editor's way of underlining speech. At most one every 2 s, only over footage.
+         */
+        private fun pulses(): List<Anim> {
+            val out = mutableListOf<Anim>()
+            var last = -10f
+            for (w in words) {
+                val t = w.range.startMs / 1000f
+                val k = sceneStarts.indexOfLast { it <= t }.coerceAtLeast(0)
+                val ok = w.emphasis >= PULSE_STRESS && t - last >= PULSE_GAP && overFootage(scenes[k]) && t - sceneStarts[k] > 0.3f
+                if (!ok) continue
+                out += io.trimio.engine.motion.anim(0f, t - 0.04f) { by(0.035f, 0.12f, Easing.ExpoOut); by(0.01f, 0.7f, Easing.SineInOut); hold(sceneEnds[k] - 0.02f); by(0f, 0.01f) }
+                last = t
+            }
+            return out
         }
     }
 
@@ -391,6 +418,19 @@ class Compiler(
         return if (words[strongest].emphasis >= 0.6f) setOf(strongest - quoted.first) else emptySet()
     }
 
+    /**
+     * A full-frame stage for graphic scenes: the look's canvas lit by soft pools of its accent and
+     * heat colours, so the graphic sits in light instead of on a dark smudge.
+     */
+    private fun stage(look: Look): List<Color> {
+        fun mix(c: Color, t: Float) = Color(
+            look.canvas.red + (c.red - look.canvas.red) * t, look.canvas.green + (c.green - look.canvas.green) * t,
+            look.canvas.blue + (c.blue - look.canvas.blue) * t, 1f,
+        )
+        val dark = look.canvas.luminance() < 0.5f
+        return listOf(look.canvas, mix(look.accent, if (dark) 0.2f else 0.35f), mix(look.hot, if (dark) 0.16f else 0.22f), mix(look.positive, if (dark) 0.1f else 0.15f))
+    }
+
     private fun gradeOf(look: Look) = when (look.name) {
         "paper" -> Grade(contrast = 1.04f.anim, saturation = 0.85f.anim)
         "lumen" -> Grade(contrast = 1.06f.anim, saturation = 0.95f.anim, temperature = (-0.4f).anim)
@@ -489,6 +529,8 @@ class Compiler(
         private const val SNAP_WINDOW = 0.1f
         private const val MIN_SFX_GAP = 0.12f
         private const val CAPTION_ID_BASE = 100_000
+        private const val PULSE_STRESS = 0.72f
+        private const val PULSE_GAP = 2f
 
         fun isRtl(s: String) = s.any { it in '؀'..'ۿ' || it in 'ﭐ'..'﷿' || it in 'ﹰ'..'﻿' }
 

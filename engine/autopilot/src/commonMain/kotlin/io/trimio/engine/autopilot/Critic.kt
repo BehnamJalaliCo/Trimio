@@ -35,13 +35,13 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
             phrase(line, words)?.let { p -> scenes = scenes.addBeat(0, BeatScore(recipe = "slam", text = p, energy = 0.9f, place = "top")) }
         }
 
-        // 2. Stillness: every visual change (graphic in, scene cut) counted; long gaps get a punch-in cut.
-        val changes = (graphics.map { it.at } + sceneStarts(score, words) + 0f + duration).sorted()
-        for ((a, b) in changes.zipWithNext()) {
-            if (b - a <= maxStill) continue
+        // 2. Stillness: stretches with no graphic on screen and no cut; long ones get a punch-in cut.
+        // (A graphic on screen is alive — its own choreography is the change.)
+        val changes = (graphics.flatMap { listOf(it.at, it.out) } + sceneStarts(score, words) + 0f + duration).sorted()
+        val quiet = changes.zipWithNext().filter { (a, b) -> b - a > maxStill && graphics.none { g -> g.at < b - 0.05f && g.out > a + 0.05f } }
+        for ((a, b) in quiet) {
             val mid = (a + b) / 2f
-            val word = words.indexOfFirst { it.range.startMs / 1000f >= mid }.takeIf { it > 0 } ?: continue
-            if (scenes.any { it.from == word }) continue
+            val word = words.indexOfFirst { it.range.startMs / 1000f >= mid }.takeIf { w -> w > 0 && scenes.none { it.from == w } } ?: continue
             issues += Issue(a, "still", "${kotlin.math.round((b - a) * 10f) / 10f}s without a visual change")
             // A new scene over footage alternates the punch-in: the cheapest, most natural change.
             scenes = (scenes + SceneScore(from = word)).sortedBy { it.from ?: 0 }
@@ -62,7 +62,8 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
         }
 
         // 5. The call to action owns the end.
-        if (cta != null && cta.keyword.isNotBlank() && graphics.none { it.recipe == "comment" && it.out >= duration - 1.5f }) {
+        val ctaShown = graphics.any { it.recipe == "comment" && it.out >= duration - 1.5f }
+        if (cta != null && cta.keyword.isNotBlank() && !ctaShown) {
             issues += Issue(duration, "cta", "the call to action is not on the last screen")
             val last = scenes.lastIndex
             if (last >= 0 && scenes[last].beats.none { it.recipe == "comment" }) {

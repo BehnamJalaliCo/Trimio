@@ -33,7 +33,7 @@ kotlin {
 
 // ./gradlew :engine:autopilot:jvmTest -Pauto.video=… -Pauto.prompt=… -Pauto.seeds=1,2,3 (see AutopilotProofTest)
 tasks.withType<Test>().configureEach {
-    listOf("auto.video", "auto.prompt", "auto.seeds", "auto.llm", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir").forEach { key ->
+    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.seeds", "auto.llm", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
     // Host builds of libtrimio_llama and libtrimio_whisper (:engine:llm/:engine:asr buildHostNative).

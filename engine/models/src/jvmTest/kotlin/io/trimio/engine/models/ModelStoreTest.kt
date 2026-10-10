@@ -128,7 +128,8 @@ class ModelStoreTest {
     fun catalogPicksBestModelForRam() {
         assertEquals(ModelCatalog.whisperSmallQ8, ModelCatalog.bestFor(ModelKind.Speech, 8))
         assertEquals(ModelCatalog.whisperTurboQ5, ModelCatalog.bestFor(ModelKind.Speech, 12))
-        assertEquals(ModelCatalog.whisperTurboQ8, ModelCatalog.bestFor(ModelKind.Speech, 16))
+        // Ultra phones get the full large-v3: the best Persian spelling and punctuation.
+        assertEquals(ModelCatalog.whisperLargeV3Q5, ModelCatalog.bestFor(ModelKind.Speech, 16))
         assertTrue(ModelCatalog.all.all { it.sha256.length == 64 && it.urls.first().startsWith(ModelCatalog.CDN) })
 
         // Director models: a 2-3 GB default on every supported phone, bigger/MoE tiers above it.

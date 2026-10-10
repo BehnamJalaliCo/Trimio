@@ -36,7 +36,10 @@ object Lines {
         for (i in words.indices) {
             val next = words.getOrNull(i + 1)
             val gap = next?.let { it.range.startMs - words[i].range.endMs } ?: 0L
-            if (next == null || words[i].endsSentence || words[i].text.last() in END || gap >= pauseMs || breath(i)) {
+            val ends = next == null || words[i].endsSentence || words[i].text.last() in END
+            // Never inside a name ("Claude | Code"): a pause between two Latin words is a breath, not a break.
+            val inName = next != null && latin(words[i].text) && latin(next.text) && words[i].text.last() !in SOFT
+            if (ends || (!inName && (gap >= pauseMs || breath(i)))) {
                 lines += Line(start, i)
                 start = i + 1
             }
@@ -64,7 +67,8 @@ object Lines {
         val out = mutableListOf<Line>()
         for (l in lines) {
             val prev = out.lastOrNull()
-            if (prev != null && (l.size < minWords || prev.size < minWords) && prev.size + l.size <= MAX_MERGED) {
+            val scrap = prev != null && (l.size < minWords || prev.size < minWords)
+            if (scrap && prev!!.size + l.size <= MAX_MERGED) {
                 out[out.lastIndex] = Line(prev.first, l.last)
             } else {
                 out += l

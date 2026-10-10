@@ -114,9 +114,13 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
         val widthCache = HashMap<String, Float>()
         fun width(s: String) = widthCache.getOrPut(s) { measureLine(s, style).size.width.toFloat() }
 
+        // Some display faces ship a hairline space (Ravagh's is ~0.07 em): words would read as one.
+        // Gaps are widened with extra spaces to at least a quarter em.
+        val space = (width("ا ا") - width("اا")).coerceAtLeast(1f)
+        val gap = " ".repeat(kotlin.math.ceil(MIN_WORD_GAP * type.size / space).toInt().coerceIn(1, MAX_SPACES))
         val lineTexts = text.split('\n').flatMap { paragraph ->
             val words = paragraph.split(' ', '\t').filter { it.isNotEmpty() }
-            if (words.isEmpty()) listOf("") else balance(words, maxWidth, ::width)
+            if (words.isEmpty()) listOf("") else balance(words, maxWidth, gap, ::width)
         }
         val lineBox = type.size * type.lineHeight
         var wordIndex = 0
@@ -153,8 +157,8 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
      * Splits [words] into the fewest lines that fit [maxWidth], then rebalances them so the widest
      * line is as narrow as possible (CSS `text-wrap: balance`).
      */
-    private fun balance(words: List<String>, maxWidth: Float, width: (String) -> Float): List<String> {
-        fun span(i: Int, j: Int) = words.subList(i, j).joinToString(" ")
+    private fun balance(words: List<String>, maxWidth: Float, gap: String, width: (String) -> Float): List<String> {
+        fun span(i: Int, j: Int) = words.subList(i, j).joinToString(gap)
         if (maxWidth == Float.POSITIVE_INFINITY || width(span(0, words.size)) <= maxWidth) return listOf(span(0, words.size))
         // Fewest lines, greedily.
         var count = 0
@@ -165,7 +169,7 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
             count++
             i = j
         }
-        if (words.size > MAX_BALANCED_WORDS || count <= 1) return greedy(words, maxWidth, width)
+        if (words.size > MAX_BALANCED_WORDS || count <= 1) return greedy(words, maxWidth, gap, width)
         // best[k][j]: narrowest possible widest line when words[0, j) are set in k lines.
         val inf = Float.POSITIVE_INFINITY
         val n = words.size
@@ -178,18 +182,18 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
             val score = maxOf(best[k - 1][s], w)
             if (fits && score < best[k][j]) { best[k][j] = score; cut[k][j] = s }
         }
-        if (best[count][n] == inf) return greedy(words, maxWidth, width)
+        if (best[count][n] == inf) return greedy(words, maxWidth, gap, width)
         val lines = ArrayDeque<String>()
         var j = n
         for (k in count downTo 1) { val s = cut[k][j]; lines.addFirst(span(s, j)); j = s }
         return lines.toList()
     }
 
-    private fun greedy(words: List<String>, maxWidth: Float, width: (String) -> Float): List<String> {
+    private fun greedy(words: List<String>, maxWidth: Float, gap: String, width: (String) -> Float): List<String> {
         val lines = mutableListOf<String>()
         var current = ""
         for (w in words) {
-            val next = if (current.isEmpty()) w else "$current $w"
+            val next = if (current.isEmpty()) w else "$current$gap$w"
             if (current.isNotEmpty() && width(next) > maxWidth) { lines += current; current = w } else current = next
         }
         if (current.isNotEmpty()) lines += current
@@ -234,6 +238,8 @@ class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: Mo
 
     private companion object {
         const val MAX_BALANCED_WORDS = 40
+        const val MIN_WORD_GAP = 0.26f
+        const val MAX_SPACES = 6
         const val PROBE_SIZE = 100f
         const val INK_ALPHA = 100
         const val ZWNJ = '\u200C'

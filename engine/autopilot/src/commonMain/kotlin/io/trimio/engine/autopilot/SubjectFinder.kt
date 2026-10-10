@@ -17,15 +17,8 @@ object SubjectFinder {
         val gw = width / cell
         val gh = height / cell
         val votes = IntArray(gw * gh)
-        for (f in frames) {
-            for (gy in 0 until gh) for (gx in 0 until gw) {
-                var skin = 0
-                for (y in gy * cell until (gy + 1) * cell) for (x in gx * cell until (gx + 1) * cell) {
-                    val i = (y * width + x) * 4
-                    if (isSkin(f[i].toInt() and 0xFF, f[i + 1].toInt() and 0xFF, f[i + 2].toInt() and 0xFF)) skin++
-                }
-                if (skin * 2 >= cell * cell) votes[gy * gw + gx]++
-            }
+        for (f in frames) for (gy in 0 until gh) for (gx in 0 until gw) {
+            if (skinCell(f, width, gx * cell, gy * cell, cell)) votes[gy * gw + gx]++
         }
         val need = (frames.size * 0.6f).toInt().coerceAtLeast(1)
         val on = BooleanArray(votes.size) { votes[it] >= need }
@@ -43,6 +36,16 @@ object SubjectFinder {
             right = ((xs.max() + 1).toFloat() / gw + MARGIN).coerceIn(0f, 1f),
             bottom = ((bottom + 1).toFloat() / gh + MARGIN).coerceIn(0f, 1f),
         )
+    }
+
+    /** At least half the pixels of the [cell]-sized square at ([x0], [y0]) are skin. */
+    private fun skinCell(f: ByteArray, width: Int, x0: Int, y0: Int, cell: Int): Boolean {
+        var skin = 0
+        for (y in y0 until y0 + cell) for (x in x0 until x0 + cell) {
+            val i = (y * width + x) * 4
+            if (isSkin(f[i].toInt() and 0xFF, f[i + 1].toInt() and 0xFF, f[i + 2].toInt() and 0xFF)) skin++
+        }
+        return skin * 2 >= cell * cell
     }
 
     private fun isSkin(r: Int, g: Int, b: Int): Boolean {

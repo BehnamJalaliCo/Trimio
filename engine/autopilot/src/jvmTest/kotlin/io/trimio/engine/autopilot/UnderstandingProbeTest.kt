@@ -22,7 +22,8 @@ class UnderstandingProbeTest {
         val path = System.getProperty("auto.llm") ?: return
         val words = Json.parseToJsonElement(File("../../docs/benchmark/01-repo-map/words.json").readText()).jsonArray.map { e ->
             val o = e.jsonObject
-            Word(o.getValue("w").jsonPrimitive.content, TimeRange((o.getValue("s").jsonPrimitive.float * 1000).toLong(), (o.getValue("e").jsonPrimitive.float * 1000).toLong()), language = Language.Persian)
+            val range = TimeRange((o.getValue("s").jsonPrimitive.float * 1000).toLong(), (o.getValue("e").jsonPrimitive.float * 1000).toLong())
+            Word(o.getValue("w").jsonPrimitive.content, range, language = Language.Persian)
         }
         val prompt = System.getProperty("auto.prompt")?.let { p -> File(p).takeIf { it.isFile }?.readText() ?: p } ?: ""
         LlamaLanguageModel("probe", path, ChatFormat.ChatMl, contextSize = 8192, threads = 4).use { model ->

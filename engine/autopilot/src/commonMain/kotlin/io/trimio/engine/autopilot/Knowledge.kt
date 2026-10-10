@@ -77,21 +77,20 @@ class WebKnowledge(
         return text.ifEmpty { null }
     }
 
-    override suspend fun brand(name: String): BrandLibrary.Entry? {
-        val index = fetch("$SIMPLE_ICONS/_data/simple-icons.json")?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() } ?: return null
-        val list = (index as? JsonObject)?.get("icons")?.jsonArray ?: index as? kotlinx.serialization.json.JsonArray ?: return null
+    override suspend fun brand(name: String): BrandLibrary.Entry? = answer {
+        val index = json.parseToJsonElement(fetch("$SIMPLE_ICONS/_data/simple-icons.json").need())
+        val list = (index as? JsonObject)?.get("icons")?.jsonArray ?: index.jsonArray
         val k = BrandLibrary.key(name)
-        val hit = list.map { it.jsonObject }.firstOrNull { o ->
-            val title = o["title"]?.jsonPrimitive?.contentOrNull ?: return@firstOrNull false
-            val aliases = o["aliases"]?.jsonObject?.get("aka")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
-            BrandLibrary.key(title) == k || aliases.any { BrandLibrary.key(it) == k } || o["slug"]?.jsonPrimitive?.contentOrNull == k
-        } ?: return null
+        val hit = list.map { it.jsonObject }.firstOrNull { o -> names(o).any { BrandLibrary.key(it) == k } }.need()
         val title = hit.getValue("title").jsonPrimitive.content
-        val slug = hit["slug"]?.jsonPrimitive?.contentOrNull ?: slugOf(title)
-        val svg = fetch("$SIMPLE_ICONS/icons/$slug.svg") ?: return null
-        val d = Regex("""\sd="([^"]+)"""").find(svg)?.groupValues?.get(1) ?: return null
-        return BrandLibrary.Entry(title, hit["hex"]?.jsonPrimitive?.contentOrNull ?: "111111", d)
+        val svg = fetch("$SIMPLE_ICONS/icons/${hit["slug"]?.jsonPrimitive?.contentOrNull ?: slugOf(title)}.svg").need()
+        val d = Regex("""\sd="([^"]+)"""").find(svg)?.groupValues?.get(1).need()
+        BrandLibrary.Entry(title, hit["hex"]?.jsonPrimitive?.contentOrNull ?: "111111", d)
     }
+
+    /** A Simple Icons entry's title, slug and aliases. */
+    private fun names(o: JsonObject): List<String> = listOfNotNull(o["title"]?.jsonPrimitive?.contentOrNull, o["slug"]?.jsonPrimitive?.contentOrNull) +
+        o["aliases"]?.jsonObject?.get("aka")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
 
     override suspend fun icons(query: String, limit: Int): List<VectorIcon> {
         val q = query.trim().ifEmpty { return emptyList() }
@@ -102,12 +101,15 @@ class WebKnowledge(
         val out = mutableListOf<VectorIcon>()
         for (full in ordered) {
             if (out.size >= limit) break
-            val (set, name) = full.split(':', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
-            val data = fetch("$ICONIFY/${set.encodeURLPathPart()}.json?icons=${name.encodeURLQueryComponent()}") ?: continue
-            val icon = runCatching { iconOf(set, name, json.parseToJsonElement(data).jsonObject, q) }.getOrNull() ?: continue
-            out += icon
+            webIcon(full, q)?.let { out += it }
         }
         return out
+    }
+
+    private suspend fun webIcon(full: String, query: String): VectorIcon? = answer {
+        val (set, name) = full.split(':', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+        val data = fetch("$ICONIFY/${set.encodeURLPathPart()}.json?icons=${name.encodeURLQueryComponent()}").need()
+        iconOf(set, name, json.parseToJsonElement(data).jsonObject, query).need()
     }
 
     private fun iconOf(set: String, name: String, data: JsonObject, query: String): VectorIcon? {
@@ -126,16 +128,21 @@ class WebKnowledge(
         return o["description"]?.jsonPrimitive?.contentOrNull?.takeIf { it.length in 3..60 }
     }
 
-    override suspend fun price(name: String): Knowledge.Price? {
-        val search = fetch("$COINGECKO/search?query=${name.encodeURLQueryComponent()}") ?: return null
-        val coin = runCatching { json.parseToJsonElement(search).jsonObject.getValue("coins").jsonArray.firstOrNull()?.jsonObject }.getOrNull() ?: return null
-        val id = coin["id"]?.jsonPrimitive?.contentOrNull ?: return null
-        val symbol = coin["symbol"]?.jsonPrimitive?.contentOrNull?.uppercase() ?: return null
-        val prices = fetch("$COINGECKO/simple/price?ids=$id&vs_currencies=usd&include_24hr_change=true") ?: return null
-        val p = runCatching { json.parseToJsonElement(prices).jsonObject.getValue(id).jsonObject }.getOrNull() ?: return null
-        val usd = p["usd"]?.jsonPrimitive?.doubleOrNull ?: return null
-        return Knowledge.Price(symbol, usd, p["usd_24h_change"]?.jsonPrimitive?.doubleOrNull ?: 0.0)
+    override suspend fun price(name: String): Knowledge.Price? = answer {
+        val search = json.parseToJsonElement(fetch("$COINGECKO/search?query=${name.encodeURLQueryComponent()}").need()).jsonObject
+        val coin = search.getValue("coins").jsonArray.first().jsonObject
+        val id = coin.getValue("id").jsonPrimitive.content
+        val prices = json.parseToJsonElement(fetch("$COINGECKO/simple/price?ids=$id&vs_currencies=usd&include_24hr_change=true").need()).jsonObject
+        val p = prices.getValue(id).jsonObject
+        Knowledge.Price(coin.getValue("symbol").jsonPrimitive.content.uppercase(), p.getValue("usd").jsonPrimitive.doubleOrNull.need(), p["usd_24h_change"]?.jsonPrimitive?.doubleOrNull ?: 0.0)
     }
+
+    /** Runs a lookup in which any missing piece means "no answer". */
+    private inline fun <T> answer(block: () -> T): T? = try { block() } catch (_: NoAnswer) { null } catch (_: RuntimeException) { null }
+
+    private fun <T> T?.need(): T = this ?: throw NoAnswer()
+
+    private class NoAnswer : RuntimeException()
 
     private companion object {
         const val SIMPLE_ICONS = "https://cdn.jsdelivr.net/npm/simple-icons@13.21.0"

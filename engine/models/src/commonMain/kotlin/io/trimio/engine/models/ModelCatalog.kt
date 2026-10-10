@@ -85,6 +85,13 @@ object ModelCatalog {
         "گفتار بسیار دقیق", "Most accurate speech",
     )
 
+    /** Full large-v3 (not turbo): all 32 decoder layers; clearly better Persian spelling and punctuation. */
+    val whisperLargeV3Q5 = whisper(
+        "whisper-large-v3-q5", "ggml-large-v3-q5_0.bin", 1_081_140_203,
+        "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1", DeviceTier.Ultra,
+        "گفتار دقیق‌ترین (فارسی)", "Most accurate speech (Persian)",
+    )
+
     private fun llm(
         id: String, repo: String, file: String, size: Long, sha: String, tier: DeviceTier, fa: String, en: String,
         license: String, format: ChatFormat, activeB: Float? = null, default: Boolean = false,
@@ -124,7 +131,7 @@ object ModelCatalog {
     )
 
     val all: List<ModelSpec> = listOf(
-        whisperBaseQ8, whisperSmallQ8, whisperTurboQ5, whisperTurboQ8,
+        whisperBaseQ8, whisperSmallQ8, whisperTurboQ5, whisperTurboQ8, whisperLargeV3Q5,
         qwen35_4b, gemma4E4b, lfm25_8bA1b, qwen35_9b,
     )
 
