@@ -91,7 +91,11 @@ class Autopilot(
         val brandLibrary = research(understanding, report)
 
         onStage("plan", 0.55f)
-        val output = analysis.edit.remap(transcript).words
+        // The payoff said first, when this piece and seed call for it; the body starts after it.
+        val open = ColdOpen.choose(transcript.words, lines, understanding, request.prompt, request.seed)
+        val edit = open?.let { analysis.edit.withColdOpen(it.source, COLD_OPEN_GAP) } ?: analysis.edit
+        open?.let { report += "cold open: «${texts.slice(it.words).joinToString(" ")}» ${round1(it.length)}s" }
+        val output = edit.remap(transcript).words
         val plan = Planner(taste, request.prompt).plan(output, lines, understanding, request.seed, footage = request.footage != null)
         report += plan.notes
 
@@ -101,14 +105,14 @@ class Autopilot(
         onStage("compile", 0.75f)
         val compiler = Compiler(text, brandLibrary, picked.second)
         var score = picked.first
-        var compiled = compile(compiler, score, transcript, analysis.edit, request)
+        var compiled = compile(compiler, score, transcript, edit, request)
         val critic = Critic()
         repeat(CRITIC_PASSES) { pass ->
             val review = critic.review(score, compiled, output, lines, understanding.cta)
             review.issues.forEach { report += "critic ${pass + 1}: ${it.kind} at ${round1(it.at)}s — ${it.detail}" }
             val revised = review.revised ?: return@repeat
             score = revised
-            compiled = compile(compiler, score, transcript, analysis.edit, request)
+            compiled = compile(compiler, score, transcript, edit, request)
         }
         val looker = eyes
         if (looker != null && grabber != null) {
@@ -116,7 +120,7 @@ class Autopilot(
             val (_, revised) = VisionCritic(looker).review(score, compiled, output, grabber) { report += it }
             if (revised != null) {
                 score = revised
-                compiled = compile(compiler, score, transcript, analysis.edit, request)
+                compiled = compile(compiler, score, transcript, edit, request)
                 report += "eyes: edit revised from what was seen"
             }
         }
@@ -124,11 +128,11 @@ class Autopilot(
 
         onStage("sound", 0.9f)
         val sound = Soundtrack(request.voice.sampleRate).master(
-            request.voice, analysis.edit, output, compiled.composition.duration, plan.music, musicSeed = request.seed.toInt(), cues = compiled.sfx,
+            request.voice, edit, edit.preludeWords(transcript) + output, compiled.composition.duration, plan.music, musicSeed = request.seed.toInt(), cues = compiled.sfx,
         )
         report += "sound: ${plan.music?.id ?: "no music"}, ${compiled.sfx.size} cues, ${round1(sound.lufs.toFloat())} LUFS, peak ${round1(sound.peakDb.toFloat())} dBFS"
         onStage("done", 1f)
-        return Production(compiled, score, plan, understanding, sound, analysis.edit, report)
+        return Production(compiled, score, plan, understanding, sound, edit, report)
     }
 
     private suspend fun understand(transcript: Transcript, prompt: String, lines: List<Lines.Line>, seed: Long, report: MutableList<String>): Understanding {
@@ -173,6 +177,7 @@ class Autopilot(
 
     private companion object {
         const val CRITIC_PASSES = 2
+        const val COLD_OPEN_GAP = 0.25f
         const val TEMPERATURE = 0.3f
         val BRAND_KINDS = setOf("brand", "app", "product", "organization")
 
