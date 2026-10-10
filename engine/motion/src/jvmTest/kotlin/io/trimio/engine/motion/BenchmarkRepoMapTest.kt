@@ -171,6 +171,7 @@ class BenchmarkRepoMapTest {
             SfxKind.Whoosh to ("whoosh" to 0.32f), SfxKind.Swish to ("swoosh" to 0.22f), SfxKind.Hit to ("impact" to 0.3f),
             SfxKind.Boom to ("impact" to 0.5f), SfxKind.Pop to ("pop" to 0.25f), SfxKind.Click to ("glitch" to 0.2f),
             SfxKind.Riser to ("riser" to 0.2f), SfxKind.Tick to ("tick" to 0.18f), SfxKind.Shimmer to ("shimmer" to 0.22f),
+            SfxKind.Rewind to ("rewind" to 0.28f),
         )
         for ((i, cue) in cues.withIndex()) {
             val (id, g) = voices.getValue(cue.kind)

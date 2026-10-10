@@ -2,7 +2,10 @@ package io.trimio.engine.autopilot
 
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.transcript.Transcript
+import io.trimio.core.model.transcript.Word
+import io.trimio.engine.autopilot.judges.SoundJudge
 import io.trimio.engine.llm.LanguageModel
+import io.trimio.engine.motion.TextAlign
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.BeatScore
@@ -22,7 +25,9 @@ import io.trimio.engine.motion.visual.VisualLibrary
  * 4. plan — the seed's edit, by the craft rules ([Planner]), with the creator's [Taste];
  * 5. pick pictures — candidates proposed, the model chooses ([VisualPicker]);
  * 6. compile and critique — until the supervising [Critic] has nothing left to fix;
- * 7. master the sound ([Soundtrack]).
+ * 7. the [Jury]: ten judges score the edit; until every one gives 10 it is revised with their
+ *    fixes, then other variations are tried, and the best panel's edit goes on;
+ * 8. master the sound ([Soundtrack]), and the jury hears the mix.
  */
 class Autopilot(
     private val text: TextLayoutEngine,
@@ -35,6 +40,8 @@ class Autopilot(
     private val eyes: LanguageModel? = model?.takeIf { it.canSee },
     /** Renders frames of a compiled edit for the eyes; without it the critic judges structure only. */
     private val grabber: FrameGrabber? = null,
+    /** The panel of judges every edit must satisfy before delivery; null skips it (one critic-checked cut). */
+    private val jury: Jury? = Jury.Default,
 ) {
     data class Request(
         /** Recognised words on the source clock. */
@@ -59,6 +66,8 @@ class Autopilot(
         val soundtrack: Soundtrack.Result,
         val edit: EditPlan,
         val report: List<String>,
+        /** The jury's verdict on the delivered edit (null when no jury sat). */
+        val panel: Jury.Panel? = null,
     )
 
     suspend fun produce(request: Request, onStage: (stage: String, progress: Float) -> Unit = { _, _ -> }): Production {
@@ -92,53 +101,134 @@ class Autopilot(
         val brandLibrary = research(understanding, report)
 
         onStage("plan", 0.55f)
+        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon)
+        val first = draft(reading, request.seed, look = true, onStage) { report += it }
+        // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
+        val d = deliberate(reading, first, onStage, report)
+        d.compiled.beats.filter { it.recipe != "pop-captions" }.forEach { report += "  ${it.recipe.padEnd(12)} ${it.zone.padEnd(6)} ${round1(it.at)}–${round1(it.out)}  ${it.text}" }
+
+        onStage("sound", 0.9f)
+        var levels = Soundtrack.Levels()
+        var sound = master(reading, d, levels)
+        var panel = jury?.deliberate(context(reading, d, sound, levels))
+        // The mixer's verdict on the measured mix: once more with a safer ceiling when loudness or peak broke.
+        SoundJudge.remaster(panel?.of("sound"), levels)?.let { safer ->
+            levels = safer
+            sound = master(reading, d, safer)
+            panel = jury?.deliberate(context(reading, d, sound, safer))
+            report += "jury: remastered with a ${safer.ceilingDb} dB ceiling"
+        }
+        report += "sound: ${d.plan.music?.id ?: "no music"}, ${d.compiled.sfx.size} cues, ${round1(sound.lufs.toFloat())} LUFS, peak ${round1(sound.peakDb.toFloat())} dBFS"
+        panel?.let { p ->
+            report += "jury: ${if (p.unanimous) "every judge gives 10" else "not unanimous — best panel within the budget"} | ${p.summary()}"
+            report += p.findings()
+        }
+        onStage("done", 1f)
+        return Production(d.compiled, d.score, d.plan, understanding, sound, d.edit, report, panel)
+    }
+
+    /** What every variation of one request shares: the words, their lines and reading, the silence cut, the marks, the lexicon. */
+    private class Reading(
+        val request: Request,
+        val cut: EditPlan,
+        val transcript: Transcript,
+        val lines: List<Lines.Line>,
+        val understanding: Understanding,
+        val brands: BrandLibrary,
+        val lexicon: PersianSpelling,
+    )
+
+    /** One seed's edit, compiled and through the critics. */
+    private data class Draft(
+        val seed: Long,
+        val plan: Planner.Plan,
+        val score: Score,
+        val compiled: Compiler.Output,
+        val edit: EditPlan,
+        val output: List<Word>,
+        val compiler: Compiler,
+        val looks: List<VisionCritic.Look>,
+    )
+
+    /** Plans, pictures, compiles and critiques the edit of [seed]; the eyes look only when [look] (they are slow). */
+    private suspend fun draft(r: Reading, seed: Long, look: Boolean, onStage: (String, Float) -> Unit, log: (String) -> Unit): Draft {
+        val request = r.request
+        val transcript = r.transcript
+        val texts = transcript.words.map { it.text }
         // The payoff said first, when this piece and seed call for it; the body starts after it.
-        val open = ColdOpen.choose(transcript.words, lines, understanding, request.prompt, request.seed)
-        val edit = open?.let { analysis.edit.withColdOpen(it.source, COLD_OPEN_GAP) } ?: analysis.edit
-        open?.let { report += "cold open: «${texts.slice(it.words).joinToString(" ")}» ${round1(it.length)}s" }
+        val open = ColdOpen.choose(transcript.words, r.lines, r.understanding, request.prompt, seed, request.voice)
+        val edit = open?.applyTo(r.cut, COLD_OPEN_GAP) ?: r.cut
+        open?.let { log("cold open: «${texts.slice(it.words).joinToString(" ")}» ${round1(it.length)}s") }
         val output = edit.remap(transcript).words
         val plan = Planner(taste, request.prompt).plan(
-            output, lines, understanding, request.seed, footage = request.footage != null,
+            output, r.lines, r.understanding, seed, footage = request.footage != null,
             opening = open?.let { Planner.Opening(edit.preludeLength, it.line, it.words) },
         )
-        report += plan.notes
+        plan.notes.forEach(log)
 
         onStage("pictures", 0.6f)
-        val picked = pictures(plan.score, output, lines, report)
+        val picked = pictures(plan.score, output, r.lines, log)
 
         onStage("compile", 0.75f)
-        val compiler = Compiler(text, brandLibrary, picked.second)
+        val compiler = Compiler(text, r.brands, picked.second)
         // Nothing reaches the screen misspelled: every Persian word was heard, briefed or is known.
-        var score = ScreenSpelling(lexicon, transcript.words.map { it.text }, request.prompt).check(picked.first) { report += it }
+        var score = ScreenSpelling(r.lexicon, texts, request.prompt).check(picked.first, log)
         var compiled = compile(compiler, score, transcript, edit, request)
         val critic = Critic()
         repeat(CRITIC_PASSES) { pass ->
-            val review = critic.review(score, compiled, output, lines, understanding.cta)
-            review.issues.forEach { report += "critic ${pass + 1}: ${it.kind} at ${round1(it.at)}s — ${it.detail}" }
+            val review = critic.review(score, compiled, output, r.lines, r.understanding.cta)
+            review.issues.forEach { log("critic ${pass + 1}: ${it.kind} at ${round1(it.at)}s — ${it.detail}") }
             val revised = review.revised ?: return@repeat
             score = revised
             compiled = compile(compiler, score, transcript, edit, request)
         }
+        var looks = emptyList<VisionCritic.Look>()
         val looker = eyes
-        if (looker != null && grabber != null) {
+        if (look && looker != null && grabber != null) {
             onStage("look", 0.85f)
-            val (_, revised) = VisionCritic(looker).review(score, compiled, output, grabber) { report += it }
+            val (seen, revised) = VisionCritic(looker).review(score, compiled, output, grabber, log)
+            looks = seen
             if (revised != null) {
                 score = revised
                 compiled = compile(compiler, score, transcript, edit, request)
-                report += "eyes: edit revised from what was seen"
+                log("eyes: edit revised from what was seen")
             }
         }
-        compiled.beats.filter { it.recipe != "pop-captions" }.forEach { report += "  ${it.recipe.padEnd(12)} ${it.zone.padEnd(6)} ${round1(it.at)}–${round1(it.out)}  ${it.text}" }
-
-        onStage("sound", 0.9f)
-        val sound = Soundtrack(request.voice.sampleRate).master(
-            request.voice, edit, edit.preludeWords(transcript) + output, compiled.composition.duration, plan.music, musicSeed = request.seed.toInt(), cues = compiled.sfx,
-        )
-        report += "sound: ${plan.music?.id ?: "no music"}, ${compiled.sfx.size} cues, ${round1(sound.lufs.toFloat())} LUFS, peak ${round1(sound.peakDb.toFloat())} dBFS"
-        onStage("done", 1f)
-        return Production(compiled, score, plan, understanding, sound, edit, report)
+        return Draft(seed, plan, score, compiled, edit, output, compiler, looks)
     }
+
+    /**
+     * The jury's loop over [first]: the judges' own fixes, recompiled, then other variation seeds,
+     * until every judge gives 10 or the budget is spent; the best panel's edit goes on.
+     */
+    private suspend fun deliberate(r: Reading, first: Draft, onStage: (String, Float) -> Unit, report: MutableList<String>): Draft {
+        val j = jury ?: return first
+        onStage("jury", 0.87f)
+        val outcome = j.loop(
+            first,
+            context = { d -> context(r, d) },
+            revise = { d, s -> d.copy(score = s, compiled = compile(d.compiler, s, r.transcript, d.edit, r.request)) },
+            vary = { k -> draft(r, r.request.seed * VARIATION_STRIDE + k, look = false, onStage = { _, _ -> }) { report += "variation $k: $it" } },
+            log = { report += it },
+        )
+        val chosen = if (outcome.best.seed == r.request.seed) "the first cut" else "variation seed ${outcome.best.seed}"
+        report += "jury: $chosen after ${outcome.rounds} revision rounds and ${outcome.variations} variations"
+        return outcome.best
+    }
+
+    /** What the judges read about [d]; [sound] once it is mastered. */
+    private fun context(r: Reading, d: Draft, sound: Soundtrack.Result? = null, levels: Soundtrack.Levels = Soundtrack.Levels()) = Jury.Context(
+        compiled = d.compiled, score = d.score, words = d.output, lines = r.lines, understanding = r.understanding, prompt = r.request.prompt,
+        music = d.plan.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.transcript), subject = r.request.subject,
+        footage = r.request.footage != null, sound = sound, levels = levels, looks = d.looks, lexicon = r.lexicon, measure = measure, voice = r.request.voice,
+    )
+
+    private val measure = LineMeasure { s, type, maxWidth, rtl -> text.layout(s, type, maxWidth, TextAlign.Center, rtl).lines.size }
+
+    private fun master(r: Reading, d: Draft, levels: Soundtrack.Levels): Soundtrack.Result = Soundtrack(r.request.voice.sampleRate).master(
+        r.request.voice, d.edit, d.edit.preludeWords(r.transcript) + d.output, d.compiled.composition.duration, d.plan.music,
+        musicSeed = r.request.seed.toInt(), cues = d.compiled.sfx, levels = levels,
+    )
 
     private suspend fun understand(transcript: Transcript, prompt: String, lines: List<Lines.Line>, seed: Long, report: MutableList<String>): Understanding {
         val m = model ?: return RulesUnderstander.understand(transcript, prompt, lines).also { report += "understand: rules (no model)" }
@@ -160,7 +250,7 @@ class Autopilot(
     }
 
     /** Every picture query in the score, resolved to one chosen icon id. */
-    private suspend fun pictures(score: Score, words: List<io.trimio.core.model.transcript.Word>, lines: List<Lines.Line>, report: MutableList<String>): Pair<Score, VisualLibrary> {
+    private suspend fun pictures(score: Score, words: List<Word>, lines: List<Lines.Line>, log: (String) -> Unit): Pair<Score, VisualLibrary> {
         val context = mutableMapOf<String, String>()
         for (scene in score.scenes) for (b in scene.beats) {
             val line = lines.firstOrNull { (b.at ?: scene.from ?: -1) in it.range }?.let { words.textOf(it.range) }.orEmpty()
@@ -168,7 +258,7 @@ class Autopilot(
         }
         if (context.isEmpty()) return score to visuals
         val result = VisualPicker(visuals, knowledge, model).pick(context)
-        result.picks.forEach { (q, id) -> report += "picture: \"$q\" → ${id ?: "none"}" }
+        result.picks.forEach { (q, id) -> log("picture: \"$q\" → ${id ?: "none"}") }
         fun BeatScore.resolved() = copy(
             visual = visual?.let { result.picks[it] ?: if (it in result.picks) null else it },
             visuals = visuals.map { result.picks[it] ?: it },
@@ -195,6 +285,8 @@ class Autopilot(
         const val CRITIC_PASSES = 2
         const val COLD_OPEN_GAP = 0.25f
         const val TEMPERATURE = 0.3f
+        /** Variation k of seed s is seed s × 1000 + k: far from the next seeds a creator asks for. */
+        const val VARIATION_STRIDE = 1000L
         val BRAND_KINDS = setOf("brand", "app", "product", "organization")
 
         fun round1(v: Float) = kotlin.math.round(v * 10f) / 10f

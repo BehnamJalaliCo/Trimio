@@ -60,6 +60,7 @@ class MotionTestKit(
                     io.trimio.engine.motion.recipe.SfxKind.Riser -> "riser" to 0.3f
                     io.trimio.engine.motion.recipe.SfxKind.Tick -> "tick" to 0.3f
                     io.trimio.engine.motion.recipe.SfxKind.Shimmer -> "shimmer" to 0.35f
+                    io.trimio.engine.motion.recipe.SfxKind.Rewind -> "rewind" to 0.4f
                 }
                 val pcm = sfx.generate(id, seed = i + 1) ?: continue
                 val start = (cue.at * rate).toInt()

@@ -79,7 +79,8 @@ data class Fitted(val type: TypeSpec, val width: Float, val height: Float, val l
 /** A camera reaction, added on top of the scene's own camera (zoom is an offset from 1). */
 data class CameraMove(val zoom: Anim = Anim.Zero, val x: Anim = Anim.Zero, val y: Anim = Anim.Zero, val rotation: Anim = Anim.Zero)
 
-enum class SfxKind { Whoosh, Hit, Pop, Click, Riser, Swish, Tick, Shimmer, Boom }
+/** Sound cues. [Rewind] is a reverse swell that peaks 0.36 s after its start (a cold open's restart). */
+enum class SfxKind { Whoosh, Hit, Pop, Click, Riser, Swish, Tick, Shimmer, Boom, Rewind }
 
 data class Sfx(val at: Float, val kind: SfxKind, val gain: Float = 1f)
 

@@ -27,6 +27,7 @@ class ProceduralSfx(private val rate: Int = 48_000) {
         Effect("ding", "دینگ", "Ding"),
         Effect("cash", "صدای پول", "Cash register"),
         Effect("glitch", "گلیچ", "Glitch"),
+        Effect("rewind", "برگشت", "Rewind"),
     )
 
     fun generate(id: String, seed: Int = 1): PcmAudio? {
@@ -44,6 +45,7 @@ class ProceduralSfx(private val rate: Int = 48_000) {
             "ding" -> ding(s, 1_318f, 900)
             "cash" -> cash(s, seed)
             "glitch" -> glitch(s, seed)
+            "rewind" -> rewind(s, seed)
             else -> return null
         }
         return PcmAudio(Synth.normalize(fadeOut(samples, s)), rate)
@@ -200,10 +202,42 @@ class ProceduralSfx(private val rate: Int = 48_000) {
         return out
     }
 
+    /**
+     * An editor's rewind into a restart: a reverse swell — air through a band-pass opening up and a
+     * faint tape whine gliding up as if spooling back — that peaks exactly [REWIND_PEAK_MS] in (the
+     * cut) and drops away in a short, darkening tail. One continuous filter path, so the peak has
+     * no seam.
+     */
+    private fun rewind(s: Synth, seed: Int): FloatArray {
+        val out = s.buffer(REWIND_PEAK_MS + REWIND_TAIL_MS)
+        val peak = rate * REWIND_PEAK_MS / 1000
+        val noise = Synth.Noise(seed)
+        val bp = Synth.Svf(rate)
+        val osc = Synth.Osc(rate)
+        for (i in out.indices) {
+            val rising = i < peak
+            val x = if (rising) i.toFloat() / peak else 1f
+            val fall = if (rising) 1f else s.decay(s.seconds(i - peak), 110f)
+            // Slow then fast in, quick out: the shape of a reversed cymbal.
+            val env = if (rising) x * x * x else s.decay(s.seconds(i - peak), 70f)
+            val cutoff = (350f + 5_400f * x * x) * fall + 250f * (1f - fall)
+            val air = bp.process(noise.pink(), cutoff, 1.3f).band
+            val whine = osc.sine((200f + 1_100f * x * x) * (0.35f + 0.65f * fall)) * 0.12f
+            out[i] = (air + whine) * env
+        }
+        return out
+    }
+
     /** 5 ms fade so no effect ends on a click. */
     private fun fadeOut(buffer: FloatArray, s: Synth): FloatArray {
         val n = minOf(buffer.size, s.rate * 5 / 1000)
         for (k in 0 until n) buffer[buffer.size - 1 - k] *= k.toFloat() / n
         return buffer
+    }
+
+    companion object {
+        /** Where the rewind peaks (the cut it leads into), ms from its start. */
+        const val REWIND_PEAK_MS = 360
+        private const val REWIND_TAIL_MS = 150
     }
 }

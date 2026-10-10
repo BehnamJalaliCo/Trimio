@@ -38,9 +38,11 @@ kotlin {
 
 // ./gradlew :engine:autopilot:jvmTest -Pauto.video=… -Pauto.prompt=… -Pauto.seeds=1,2,3 (see AutopilotProofTest)
 tasks.withType<Test>().configureEach {
-    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.llm.id", "auto.gold", "auto.transcript", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir").forEach { key ->
+    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.llm.id", "auto.gold", "auto.transcript", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir", "workshop.stills", "workshop.only", "workshop.seeds", "workshop.out", "jury.benchmark", "golden.update", "golden.only", "golden.seeds").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
+    // ColdOpenAudioTest: -Pcoldopen.wav=voice.wav -Pcoldopen.transcript=transcript.json [-Pcoldopen.out=dir]
+    listOf("coldopen.wav", "coldopen.transcript", "coldopen.out").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
     // Host builds of libtrimio_llama and libtrimio_whisper (:engine:llm/:engine:asr buildHostNative).
     systemProperty("trimio.native.dir", providers.gradleProperty("auto.native").getOrElse(layout.buildDirectory.dir("host-native").get().asFile.absolutePath))
     maxHeapSize = "4g"

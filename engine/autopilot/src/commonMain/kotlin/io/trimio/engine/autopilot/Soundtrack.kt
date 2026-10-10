@@ -8,6 +8,7 @@ import io.trimio.engine.assets.ProceduralSfx
 import io.trimio.engine.audio.LoudnessMeter
 import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.SfxKind
+import io.trimio.engine.motion.score.CutPoints
 import io.trimio.engine.motion.score.EditPlan
 import kotlin.math.PI
 import kotlin.math.abs
@@ -15,12 +16,13 @@ import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.log10
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
  * The mastered soundtrack (research report, audio): the voice cut to the edit with short
- * equal-power fades, cleaned (high-pass) and levelled (gentle compression); music under it that
+ * equal-power crossfades, cleaned (high-pass) and levelled (gentle compression); music under it that
  * ducks 8 dB while words are spoken and breathes up in the gaps; the sound cues; then the whole
  * mix brought to -14 LUFS with peaks held under -1 dBTP.
  */
@@ -49,11 +51,11 @@ class Soundtrack(private val rate: Int = 48_000) {
     ): Result {
         require(voice.sampleRate == rate) { "voice must be at $rate Hz" }
         val n = (duration * rate).toInt()
-        val mix = cut(voice, edit, n)
+        val mix = splice(voice, edit, n)
         highPass(mix, HPF_HZ)
         compress(mix)
         val voicePeak = mix.maxOfOrNull { abs(it) } ?: 0f
-        if (music != null) addMusic(mix, music, musicSeed, words, n, levels, voiceRms(mix, words))
+        if (music != null) addMusic(mix, music, musicSeed, words, n, levels, voiceRms(mix, words), enter = edit.preludeLength)
         addCues(mix, cues, voicePeak)
         // Gain to target, limit, and again: limiting peaks lowers loudness a little each pass.
         repeat(LOUDNESS_PASSES) {
@@ -67,23 +69,37 @@ class Soundtrack(private val rate: Int = 48_000) {
         return Result(out, m.integratedLufs, m.samplePeakDb)
     }
 
-    /** The voice spliced to the cut list, 10 ms equal-power fades at every cut. */
-    private fun cut(voice: PcmAudio, edit: EditPlan, n: Int): FloatArray {
+    /**
+     * The voice spliced to the cut list with equal-power fades ([CutPoints.FADE]) at every cut, so
+     * no join clicks. Where two pieces meet on the output clock they crossfade, each running half a
+     * fade into its handle (the source beyond its cut point, quiet: cuts sit in valleys), with
+     * sin/cos gains whose powers sum to one. Where a piece meets silence (the cold open's ends, the
+     * body after the restart) it fades within itself: the cut points were chosen so that the fade
+     * covers only the quiet before an onset or after a tail.
+     */
+    internal fun splice(voice: PcmAudio, edit: EditPlan, n: Int): FloatArray {
         val out = FloatArray(n)
-        val fade = rate / 100
-        for (seg in edit.played) {
-            val a = (seg.sourceStart * rate).toInt()
-            val len = (seg.length * rate).toInt()
-            val o = (seg.outStart * rate).toInt()
-            for (i in 0 until len) {
-                val k = o + i
-                if (k !in out.indices || a + i !in voice.samples.indices) continue
-                val p = minOf(1f, i / fade.toFloat(), (len - i) / fade.toFloat())
-                out[k] += voice.samples[a + i] * sin(p * PI.toFloat() / 2f)
+        val played = edit.played
+        val fade = (CutPoints.FADE * rate).toInt().coerceAtLeast(2)
+        for ((k, seg) in played.withIndex()) {
+            val a = (seg.sourceStart * rate).roundToInt()
+            val o = (seg.outStart * rate).roundToInt()
+            val len = (seg.sourceEnd * rate).roundToInt() - a
+            val from = if (k > 0 && joined(played[k - 1], seg)) -fade / 2 else 0
+            val to = len + if (k < played.lastIndex && joined(seg, played[k + 1])) fade - fade / 2 else 0
+            for (i in from until to) {
+                val at = o + i
+                if (at !in out.indices || a + i !in voice.samples.indices) continue
+                val fadeIn = ((i - from + 0.5f) / fade).coerceIn(0f, 1f)
+                val fadeOut = ((to - i - 0.5f) / fade).coerceIn(0f, 1f)
+                out[at] += voice.samples[a + i] * sin(fadeIn * HALF_PI) * sin(fadeOut * HALF_PI)
             }
         }
         return out
     }
+
+    /** Two pieces that meet on the output clock (a cut, not a gap). */
+    private fun joined(a: EditPlan.Segment, b: EditPlan.Segment) = abs(b.outStart - a.outEnd) < JOIN_S
 
     /** Second-order Butterworth high-pass: rumble and plosive thumps out, voice untouched. */
     private fun highPass(x: FloatArray, hz: Float) {
@@ -130,8 +146,12 @@ class Soundtrack(private val rate: Int = 48_000) {
         return if (count == 0) 0.1f else sqrt(sum / count).toFloat()
     }
 
-    /** Music ducked under words (40 ms attack, 400 ms release), out over the last 0.8 s. */
-    private fun addMusic(mix: FloatArray, mood: MusicMood, seed: Int, words: List<Word>, n: Int, levels: Levels, voiceRms: Float) {
+    /**
+     * Music ducked under words (40 ms attack, 400 ms release), out over the last 0.8 s. With a cold
+     * open it [enter]s on the restart: the flash-forward plays dry, and the bed lands with the
+     * rewind's hit (on its own grid, so beats snapped to it stay on it).
+     */
+    private fun addMusic(mix: FloatArray, mood: MusicMood, seed: Int, words: List<Word>, n: Int, levels: Levels, voiceRms: Float, enter: Float) {
         val bed = ProceduralMusic(rate).render(mood, seed).audio.samples
         if (bed.isEmpty()) return
         val bedRms = sqrt(bed.sumOf { (it * it).toDouble() } / bed.size).toFloat().coerceAtLeast(1e-4f)
@@ -147,7 +167,7 @@ class Soundtrack(private val rate: Int = 48_000) {
             val c = if (target < gain) attack else release
             gain = target + (gain - target) * c
             val tail = ((n - i) / (rate * 0.8f)).coerceIn(0f, 1f)
-            val head = (i / (rate * 0.03f)).coerceIn(0f, 1f)
+            val head = ((i - enter * rate) / (rate * 0.03f)).coerceIn(0f, 1f)
             mix[i] += bed[i % bed.size] * gain * tail * head
         }
     }
@@ -191,10 +211,14 @@ class Soundtrack(private val rate: Int = 48_000) {
         const val RATIO = 2.5f
         const val MAX_GAIN = 16f
         const val LOUDNESS_PASSES = 3
+        const val HALF_PI = 1.5707964f
+        /** Pieces closer than this on the output clock are one join. */
+        const val JOIN_S = 0.002f
         val VOICES = mapOf(
             SfxKind.Whoosh to ("whoosh" to 0.32f), SfxKind.Swish to ("swoosh" to 0.22f), SfxKind.Hit to ("impact" to 0.3f),
             SfxKind.Boom to ("impact" to 0.5f), SfxKind.Pop to ("pop" to 0.25f), SfxKind.Click to ("glitch" to 0.2f),
             SfxKind.Riser to ("riser" to 0.2f), SfxKind.Tick to ("tick" to 0.18f), SfxKind.Shimmer to ("shimmer" to 0.22f),
+            SfxKind.Rewind to ("rewind" to 0.26f),
         )
     }
 }

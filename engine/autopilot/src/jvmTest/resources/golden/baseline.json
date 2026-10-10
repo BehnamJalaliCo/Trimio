@@ -1,0 +1,21 @@
+{
+    "note": "Jury panel scores per workshop scenario and seed (synthetic). Rewrite with -Pgolden.update=true.",
+    "runs": {
+        "fa-crypto-bitcoin/1": {
+            "min": 8.0,
+            "mean": 9.55,
+            "judges": {
+                "hook": 10.0,
+                "rhythm": 10.0,
+                "motion": 9.0,
+                "typography": 10.0,
+                "spelling": 10.0,
+                "layout": 10.0,
+                "sound": 8.5,
+                "music": 10.0,
+                "brief": 8.0,
+                "cta": 10.0
+            }
+        }
+    }
+}

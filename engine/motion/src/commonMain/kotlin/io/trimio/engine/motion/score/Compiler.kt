@@ -143,6 +143,13 @@ class Compiler(
         /** Footage is on screen behind this scene (not covered by a full-frame takeover). */
         fun overFootage(scene: SceneScore) = input.footage != null && sceneBg(scene, input) == "media"
 
+        /** Output time the piece restarts after a cold open (null without one). */
+        val restart: Float? = input.edit?.takeIf { it.opening.isNotEmpty() }?.preludeLength
+
+        /** A scene's entering transition, unless the cold open's restart already is one. */
+        fun entering(k: Int): String? = scenes.getOrNull(k)?.transition?.lowercase()
+            ?.takeIf { k > 0 && restart?.let { r -> abs(sceneStarts[k] - r) < RESTART_WINDOW } != true }
+
         fun sceneWords(k: Int): IntRange {
             val a = words.indexOfFirst { it.range.startMs / 1000f >= sceneStarts[k] }.let { if (it < 0) words.size else it }
             val b = words.indexOfLast { it.range.startMs / 1000f < sceneEnds[k] }
@@ -164,8 +171,8 @@ class Compiler(
 
             val transitions = mutableListOf<Node>()
             val transitionSfx = mutableListOf<Sfx>()
-            // Out of a cold open the piece starts over with a flash and a hit: "here's how".
-            input.edit?.prelude?.let { transitionOverlay("flash", it.outEnd, look, transitions, transitionSfx) }
+            // Out of a cold open the piece starts over: a rewind into a white dip, "here's how".
+            restart?.let { r -> rewind(r, transitions, transitionSfx) }
             val sceneGroups = scenes.indices.map { k -> sceneGroup(k, built, transitions, transitionSfx) }
             // Footage already has its own texture: lighter grain and vignette over it.
             val texture = if (input.footage != null) FOOTAGE_TEXTURE else 1f
@@ -278,8 +285,8 @@ class Compiler(
                 "plain" -> nodes += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
             }
             built.filterKeys { it.scene == k }.values.forEach { nodes += it.nodes }
-            val enter = scene.transition?.lowercase().takeIf { k > 0 }
-            val (tx, sc, op) = sceneMotion(enter, scenes.getOrNull(k + 1)?.transition?.lowercase(), s, e, w.toFloat())
+            val enter = entering(k)
+            val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat())
             transitionOverlay(enter, s, look, transitions, sfx)
             val t = Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim + tx, y = (h / 2f).anim, scale = sc, opacity = op)
             return Group(nodes, transform = t, start = s - 0.6f, end = e + 0.3f, name = "scene-$k")
@@ -293,18 +300,41 @@ class Compiler(
             val zoom = footageZoom()
             val sub = input.subject ?: Subject(0.3f, 0.3f, 0.7f, 0.6f)
             val segments = input.edit?.played ?: listOf(EditPlan.Segment(0f, duration, 0f))
+            val opening = input.edit?.opening?.size ?: 0
+            fun place(scale: Anim, blur: Anim = Anim.Zero) =
+                Transform(x = (w * sub.centerX).anim, y = (h * sub.centerY).anim, anchorX = sub.centerX, anchorY = sub.centerY, scale = scale, blur = blur)
+            // The cold open's last frames are pulled into the restart (a push and a smear into the white).
+            val pull = restart?.let { r -> Anim.tween(0f, REWIND_PUSH, r - REWIND_IN, r, Easing.ExpoIn) } ?: Anim.Zero
+            val smear = restart?.let { r -> Anim.tween(0f, REWIND_BLUR, r - REWIND_IN * 0.7f, r, Easing.ExpoIn) } ?: Anim.Zero
             segments.mapIndexed { i, seg ->
+                val cold = i < opening
                 MediaNode(
                     input.footage, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = seg.sourceStart, grade = gradeOf(look),
-                    transform = Transform(x = (w * sub.centerX).anim, y = (h * sub.centerY).anim, anchorX = sub.centerX, anchorY = sub.centerY, scale = zoom),
+                    transform = if (cold) place(zoom + pull, smear) else place(zoom),
                     start = seg.outStart, end = if (i == segments.lastIndex) Float.POSITIVE_INFINITY else seg.outEnd, name = "footage-$i",
                 )
-            } + listOf(
+            } + listOfNotNull(restart?.let { r -> settle(r, segments.getOrNull(opening), ::place, zoom) }) + listOf(
                 EffectNode(Effect.Scrim(fromBottom = true, coverage = 0.4f, opacity = 0.5f.anim)),
                 EffectNode(Effect.Scrim(fromBottom = false, coverage = 0.36f, opacity = 0.42f.anim)),
             )
         } else {
             listOf(EffectNode(Effect.Aurora(look.aurora)))
+        }
+
+        /**
+         * The rewind's landing: the body's first frame, held through the restart's transition, zooms
+         * back from a step too close (motion-blurred: the group moves) as the white clears, so the
+         * first word starts on a settled frame. Nothing to hold when the body follows at once.
+         */
+        private fun settle(r: Float, body: EditPlan.Segment?, place: (Anim, Anim) -> Transform, zoom: Anim): Node? {
+            val first = body?.takeIf { it.outStart - r > 0.5f / input.fps } ?: return null
+            val hold = MediaNode(
+                input.footage ?: return null, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = first.sourceStart, speed = 0f, grade = gradeOf(look),
+                transform = place(zoom, Anim.Zero), start = r, end = first.outStart, name = "footage-restart",
+            )
+            val scale = Anim.tween(REWIND_BACK, 1f, r, first.outStart, Easing.ExpoOut)
+            val t = Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim, y = (h / 2f).anim, scale = scale)
+            return Group(listOf(hold), transform = t, start = r, end = first.outStart, name = "rewind")
         }
 
         /** Punch-ins on footage scenes: alternate tight and wide at each cut, with a slow push. */
@@ -511,6 +541,22 @@ class Compiler(
         return Triple(Anim.keys(xKeys), Anim.keys(scaleKeys), Anim.keys(opKeys))
     }
 
+    /**
+     * The cold open's restart, an editor's rewind rather than a cut: the last frames of the
+     * flash-forward push in and smear (see base) into a quick white dip that peaks on the cut and
+     * clears as the body's first frame settles; a reverse swell rises into the cut and lands with
+     * a soft hit. The flash-forward itself sits under a deeper vignette that releases here, so the
+     * opening reads as "later", the body as "now".
+     */
+    private fun rewind(r: Float, overlays: MutableList<Node>, sfx: MutableList<Sfx>) {
+        val dip = anim(0f, r - REWIND_DIP) { by(REWIND_WHITE, REWIND_DIP, Easing.ExpoIn); by(0f, REWIND_CLEAR, Easing.ExpoOut) }
+        overlays += EffectNode(Effect.Flash(Color.White, dip), start = r - REWIND_DIP, end = r + REWIND_CLEAR, name = "rewind-dip")
+        val frame = anim(FLASH_FORWARD_VIGNETTE, 0f) { hold(r - REWIND_IN); by(FLASH_FORWARD_VIGNETTE + 0.12f, REWIND_IN, Easing.ExpoIn); by(0f, VIGNETTE_RELEASE, Easing.SineInOut) }
+        overlays += EffectNode(Effect.Vignette(frame), start = 0f, end = r + VIGNETTE_RELEASE, name = "flash-forward")
+        sfx += Sfx(r - REWIND_SWELL, SfxKind.Rewind, 1f)
+        sfx += Sfx(r, SfxKind.Hit, 0.5f)
+    }
+
     private fun transitionOverlay(kind: String?, s: Float, look: Look, overlays: MutableList<Node>, sfx: MutableList<Sfx>) {
         when (kind) {
             "whip" -> sfx += Sfx(s - 0.12f, SfxKind.Whoosh, 0.9f)
@@ -589,6 +635,23 @@ class Compiler(
         private const val CAPTION_ID_BASE = 100_000
         private const val PULSE_STRESS = 0.72f
         private const val PULSE_GAP = 2f
+        /** A scene starting this close to a cold open's restart takes the restart as its transition. */
+        private const val RESTART_WINDOW = 0.6f
+        /** Rewind: the cold open's push into the cut (scale added, over [REWIND_IN] s) and its smear (px). */
+        private const val REWIND_IN = 0.12f
+        private const val REWIND_PUSH = 0.06f
+        private const val REWIND_BLUR = 9f
+        /** Rewind: the body's held first frame starts this much too close and settles to 1. */
+        private const val REWIND_BACK = 1.09f
+        /** Rewind: the white dip rises over [REWIND_DIP] s to [REWIND_WHITE] and clears over [REWIND_CLEAR] s. */
+        private const val REWIND_DIP = 0.07f
+        private const val REWIND_WHITE = 0.8f
+        private const val REWIND_CLEAR = 0.24f
+        /** Rewind: the reverse swell's rise before its peak on the cut (ProceduralSfx "rewind"). */
+        private const val REWIND_SWELL = 0.36f
+        /** The flash-forward's extra vignette, released over [VIGNETTE_RELEASE] s after the restart. */
+        private const val FLASH_FORWARD_VIGNETTE = 0.22f
+        private const val VIGNETTE_RELEASE = 0.45f
 
         fun isRtl(s: String) = s.any { it in '؀'..'ۿ' || it in 'ﭐ'..'﷿' || it in 'ﹰ'..'﻿' }
 

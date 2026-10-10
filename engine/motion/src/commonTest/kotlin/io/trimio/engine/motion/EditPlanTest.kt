@@ -32,4 +32,27 @@ class EditPlanTest {
         assertEquals(cold.prelude, cold.played.first())
         assertEquals(cold.segments.size + 1, cold.played.size)
     }
+
+    @Test
+    fun aTightenedColdOpenPlaysBackToBackAndTheBodyRestartsOnItsFirstWord() {
+        val words = listOf(w("سلام", 0.5f, 0.9f), w("امروز", 1.0f, 1.4f), w("سیصد", 10f, 10.5f), w("تتر", 10.6f, 11f), w("اولیه", 11.6f, 12f), w("کامنت", 15f, 15.5f))
+        val plain = EditPlan.tighten(words, emptyList(), 16f)
+        // The pause before «اولیه» tightened out of the opening; the body restarts 20 ms before «سلام».
+        val cold = plain.withColdOpen(listOf(9.95f..11.1f, 11.5f..12.05f), gap = 0.25f, restart = 0.48f)
+        assertEquals(2, cold.opening.size)
+        assertEquals(cold.opening[0].outEnd, cold.opening[1].outStart, 1e-5f)
+        assertEquals(9.95f, cold.prelude!!.sourceStart, 1e-5f)
+        assertEquals(12.05f, cold.prelude!!.sourceEnd, 1e-5f)
+        assertEquals(1.7f, cold.preludeLength, 1e-4f)
+        assertEquals(1.95f, cold.bodyStart, 1e-4f)
+        assertEquals(0.48f, cold.segments.first().sourceStart, 1e-5f)
+        // The first word lands as the transition resolves, everything after it moves alike.
+        val body = cold.remap(Transcript(Language.Persian, words)).words
+        assertEquals(1.97f, body.first().range.startMs / 1000f, 0.002f)
+        assertEquals(plain.duration + 1.95f - plain.segments.first().outStart + (plain.segments.first().sourceStart - 0.48f), cold.duration, 1e-3f)
+        val opening = cold.preludeWords(Transcript(Language.Persian, words))
+        assertEquals(listOf("سیصد", "تتر", "اولیه"), opening.map { it.text })
+        assertEquals(1.15f + 0.1f, opening.last().range.startMs / 1000f, 0.002f)
+        assertEquals(plain.cutCount + 2, cold.cutCount)
+    }
 }

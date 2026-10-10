@@ -11,12 +11,18 @@ import io.trimio.core.model.transcript.Word
 class EditPlan(
     val segments: List<Segment>,
     /**
-     * A cold open: a stretch of the source (the payoff) played first, before the piece starts
-     * from its beginning. It sits outside the timeline mapping — the body's words keep one place
-     * each — and the body's segments start after it.
+     * A cold open: stretches of the source (the payoff, a pause inside it tightened) played first,
+     * back to back, before the piece starts from its beginning. They sit outside the timeline
+     * mapping — the body's words keep one place each — and the body's segments start after them.
      */
-    val prelude: Segment? = null,
+    val opening: List<Segment> = emptyList(),
 ) {
+
+    /**
+     * The cold open as one stretch of the source, its first cut to its last, from 0 on the output
+     * clock (null without one). What actually plays is [opening]; [preludeLength] is its length.
+     */
+    val prelude: Segment? get() = if (opening.isEmpty()) null else Segment(opening.first().sourceStart, opening.last().sourceEnd, 0f)
 
     /** [sourceStart, sourceEnd) of the source, played from [outStart] on the output clock. */
     data class Segment(val sourceStart: Float, val sourceEnd: Float, val outStart: Float) {
@@ -45,33 +51,62 @@ class EditPlan(
         },
     )
 
-    val cutCount: Int get() = (segments.size - 1).coerceAtLeast(0) + (if (prelude != null) 1 else 0)
+    val cutCount: Int get() = (segments.size - 1).coerceAtLeast(0) + opening.size
 
     /** Everything that plays, in output order (the cold open first): what footage and voice follow. */
-    val played: List<Segment> get() = listOfNotNull(prelude) + segments
+    val played: List<Segment> get() = opening + segments
 
-    /** Output length of the cold open (0 without one). */
-    val preludeLength: Float get() = prelude?.length ?: 0f
+    /** Output length of the cold open (0 without one): where the piece restarts. */
+    val preludeLength: Float get() = opening.lastOrNull()?.outEnd ?: 0f
+
+    /** Output time the body's first frame plays (after the cold open and its transition). */
+    val bodyStart: Float get() = segments.firstOrNull()?.outStart ?: preludeLength
 
     /** The words heard in the cold open, on the output clock (captions for it). */
-    fun preludeWords(transcript: Transcript): List<io.trimio.core.model.transcript.Word> {
-        val p = prelude ?: return emptyList()
-        return transcript.words.filter { w -> w.range.startMs / 1000f >= p.sourceStart - 0.02f && w.range.endMs / 1000f <= p.sourceEnd + 0.02f }.map { w ->
-            val a = p.outStart + (w.range.startMs / 1000f - p.sourceStart).coerceAtLeast(0f)
-            val b = minOf(p.outEnd, p.outStart + (w.range.endMs / 1000f - p.sourceStart))
-            w.copy(range = TimeRange((a * 1000).toLong(), (maxOf(b, a + 0.05f) * 1000).toLong()))
+    fun preludeWords(transcript: Transcript): List<Word> = transcript.words.mapNotNull { w ->
+        val s = w.range.startMs / 1000f
+        val e = w.range.endMs / 1000f
+        // Heard when the cold open plays its middle; a recognised edge outside the cut is clamped to it.
+        if (opening.none { (s + e) / 2f in it.sourceStart..<it.sourceEnd }) return@mapNotNull null
+        val a = preludeTime(s)
+        w.copy(range = TimeRange((a * 1000).toLong(), (maxOf(preludeTime(e), a + 0.05f) * 1000).toLong()))
+    }
+
+    /** Output time of a source time within the cold open; inside a removed pause it lands on the cut. */
+    private fun preludeTime(source: Float): Float {
+        for (p in opening) {
+            if (source < p.sourceStart) return p.outStart
+            if (source < p.sourceEnd) return p.outStart + (source - p.sourceStart)
         }
+        return preludeLength
     }
 
     /**
      * The same cut with [source] (seconds of the source) played first as a cold open, followed by
-     * a [gap] of silence-free transition time; the body shifts later by the prelude's length.
+     * a [gap] of transition time; the body shifts later by the prelude's length.
      */
-    fun withColdOpen(source: ClosedFloatingPointRange<Float>, gap: Float = 0f): EditPlan {
-        val length = source.endInclusive - source.start
-        if (length <= 0f) return this
-        val shift = length + gap
-        return EditPlan(segments.map { it.copy(outStart = it.outStart + shift) }, Segment(source.start, source.endInclusive, 0f))
+    fun withColdOpen(source: ClosedFloatingPointRange<Float>, gap: Float = 0f): EditPlan = withColdOpen(listOf(source), gap)
+
+    /**
+     * The cold open as [stretches] of the source played back to back (a payoff whose inner pause was
+     * tightened), then a [gap] for the restart transition, then the body. With [restart] (a source
+     * time just before the first word's real onset, see [CutPoints.cutIn]) the body's first
+     * segment begins exactly there: the first word lands as the transition resolves, no dead air.
+     */
+    fun withColdOpen(stretches: List<ClosedFloatingPointRange<Float>>, gap: Float, restart: Float? = null): EditPlan {
+        val kept = stretches.filter { it.endInclusive > it.start }
+        if (kept.isEmpty()) return this
+        var out = 0f
+        val pieces = kept.map { r -> Segment(r.start, r.endInclusive, out).also { out += it.length } }
+        val first = segments.firstOrNull()
+        val from = restart?.takeIf { first != null && it in 0f..<first.sourceEnd } ?: first?.sourceStart ?: 0f
+        // Re-anchoring the first segment moves everything after it by the same amount.
+        val grown = (first?.sourceStart ?: 0f) - from
+        val shift = out + gap - (first?.outStart ?: 0f)
+        val body = segments.mapIndexed { i, s ->
+            if (i == 0) s.copy(sourceStart = from, outStart = s.outStart + shift) else s.copy(outStart = s.outStart + shift + grown)
+        }
+        return EditPlan(body, pieces)
     }
 
     companion object {
