@@ -21,7 +21,7 @@ import io.trimio.engine.motion.score.Words
  * - names become logos, numbers counters, concrete things pictures, lists rows; numbers with a
  *   meaning get the graphic that says it ([Quantities]): money given a voucher, views and comments
  *   a stats board, hours left a countdown, a quota that filled a progress bar;
- * - over the speaker no stretch goes without a visual event ([keepAlive]);
+ * - over the speaker no stretch goes without a visual event ([Rhythm]);
  * - the call to action is the clearest thing on the last screen.
  */
 class Planner(private val taste: Taste = Taste(), private val brief: String = "") {
@@ -102,6 +102,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         var reads: List<LineRead> = emptyList()
         val rtl = texts.count { w -> w.any { it in '\u0600'..'\u06FF' } } * 2 > texts.size
 
+        /** Graphics drawn from what the numbers mean. */
+        val figures = Figures(texts, norm, rtl) { quote, line -> locate(quote, line) }
+
         fun run(): Plan {
             if (words.isEmpty() || lines.isEmpty()) {
                 return Plan(Score(look = look, captions = CaptionScore(show = false)), music, Choices(seed, look, music?.id, emptyList(), emptyList()), notes)
@@ -129,8 +132,11 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 scenes += scene(k, line, read, takeover, previousTakeover, beats)
                 previousTakeover = takeover
             }
-            keepAlive(scenes)
-            vary(scenes)
+            // Over the speaker, no stretch without a visual event; no text treatment three times running.
+            val rhythm = Rhythm(words, lines, reads, u, taste, fillRng, energy, usedRecipes, usedVisuals, ::locate)
+            if (footage) rhythm.keepAlive(scenes)
+            rhythm.vary(scenes)
+            notes += rhythm.notes
             val captionWords = taste.captionWords ?: when (u.brief.captions) {
                 "word" -> captionRng.pick(listOf(2, 3, 3))
                 "phrase" -> captionRng.pick(listOf(4, 5))
@@ -322,11 +328,11 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** A meaningful number opens on its own graphic half the time (a voucher), else a counter with its unit. */
         private fun quantityHook(k: Int, q: Quantities.Quantity): BeatScore {
             val line = lines[k]
-            val label = listOfNotNull(q.unit.ifBlank { null }, if (q.kind == Quantities.Kind.Money) voucherLabel(line, q, reads[k]) else null)
+            val label = listOfNotNull(q.unit.ifBlank { null }, if (q.kind == Quantities.Kind.Money) figures.voucherLabel(line, q, reads[k]) else null)
                 .joinToString(" ").ifBlank { null }
             if (q.kind == Quantities.Kind.Money && hookRng.chance(0.5f)) {
                 usedRecipes += "voucher"
-                return voucherBeat(q, reads[k], voucherLabel(line, q, reads[k]), place = "top").copy(at = null, until = null, time = 0.05f, hold = 2.4f, energy = 0.95f)
+                return figures.voucherBeat(q, reads[k], figures.voucherLabel(line, q, reads[k]), place = "top").copy(at = null, until = null, time = 0.05f, hold = 2.4f, energy = 0.95f)
             }
             return counterHook(q.value, q.decimals, false, label ?: reads[k].title)
         }
@@ -462,107 +468,15 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             return BeatScore(
                 recipe = "counter", at = at, until = minOf(line.last, at + q.count), value = q.value.toFloat(), decimals = q.decimals,
                 suffix = if (percent) "٪" else "", prefix = if ((percent && growth) || q.opened) "+" else "",
-                label = unitLabel(q) ?: read.title.ifBlank { null }, energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
+                label = figures.unitLabel(q) ?: read.title.ifBlank { null }, energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
             )
         }
 
-        /** What a counted thing is, for the label under its number («نفر اول», «ظرفیت جدید», «بازدید»). */
-        private fun unitLabel(q: Quantities.Quantity): String? = when (q.kind) {
-            Quantities.Kind.People -> if (q.first) (if (rtl) "${q.unit} اول" else "first ${q.unit}") else q.unit
-            Quantities.Kind.Capacity -> if (q.opened) (if (rtl) "ظرفیت جدید" else "new ${q.unit}") else q.unit
-            Quantities.Kind.Percent, Quantities.Kind.Plain -> null
-            else -> q.unit.ifBlank { null }
-        }
-
-        /** Money viewers get: the amount, its unit, what it is, and the coin's mark. */
-        private fun voucher(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
-            val q = sense(line).let { it.voucher ?: it.money } ?: return counter(line, read, e, takeover)
-            return voucherBeat(q, read, voucherLabel(line, q, read), place = if (takeover) "center" else "top").copy(until = line.last, energy = maxOf(e, 0.8f))
-        }
-
-        private fun voucherBeat(q: Quantities.Quantity, read: LineRead, label: String?, place: String): BeatScore {
-            // The compiler attaches the brand's mark to the first item: the coin's canonical name.
-            val brand = q.brand ?: read.items.firstOrNull { it.isLogoName() }
-            return BeatScore(
-                recipe = "voucher", at = q.at, value = q.value.toFloat(), decimals = q.decimals, suffix = q.unit.ifBlank { null },
-                label = label, items = listOfNotNull(brand), place = place,
-            )
-        }
-
-        /** What the money is: the words right after the unit («سرمایه اولیه»), else "voucher" if said, else the line's title. */
-        private fun voucherLabel(line: Lines.Line, q: Quantities.Quantity, read: LineRead): String? {
-            val after = mutableListOf<String>()
-            var i = q.last + 1
-            while (i <= line.last && after.size < 2 && Words.isContent(texts[i]) && texts[i].none { it.isDigit() } && Quantities.unitOf(texts[i]) == null) {
-                after += texts[i].trimEnd('.', '،', ',')
-                if (texts[i].last() in ".،,") break
-                i++
-            }
-            if (after.isNotEmpty()) return after.joinToString(" ")
-            val named = line.range.firstOrNull { norm[it].trimEnd('.', '،', ',') in VOUCHER_WORDS }
-            if (named != null) return texts[named].trimEnd('.', '،', ',')
-            return read.title.takeIf { t -> t.isNotBlank() && t.none { it.isDigit() } && locate(t, Lines.Line(q.at, q.last)) == null }
-        }
-
-        /** Views and comments (or any two or three numbers said together) on one board. */
-        private fun stats(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
-            val sense = sense(line)
-            val qs = sense.social.ifEmpty { sense.quantities.filter { it.value >= 1 && it.kind != Quantities.Kind.Duration } }.take(MAX_STATS)
-            if (qs.size < 2) return counter(line, read, e, takeover)
-            val labels = qs.mapIndexed { i, q -> q.unit.ifBlank { read.items.getOrNull(i).orEmpty() } }
-            // The time it took, when said («کمتر از دوازده ساعت»), rides along as the board's label.
-            val span = sense.quantities.firstOrNull { it.kind == Quantities.Kind.Duration && !it.remaining }?.let { d ->
-                val less = (maxOf(line.first, d.at - 2) until d.at).any { norm[it] in LESS }
-                val n = Quantities.digits(d.value, rtl)
-                if (rtl) (if (less) "کمتر از $n ${d.unit}" else "در $n ${d.unit}") else (if (less) "in under $n ${d.unit}" else "in $n ${d.unit}")
-            }
-            return BeatScore(
-                recipe = "stats", at = qs.first().at, until = line.last, items = labels, points = qs.map { it.value.toFloat() },
-                label = span, energy = maxOf(e, 0.75f), place = if (takeover) "center" else "top",
-            )
-        }
-
-        /** Time left: hours or minutes ticking down to what ends. */
-        private fun countdown(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
-            val sense = sense(line)
-            val q = sense.deadline ?: sense.quantities.firstOrNull { it.kind == Quantities.Kind.Duration } ?: return counter(line, read, e, takeover)
-            return BeatScore(
-                recipe = "countdown", at = q.at, until = line.last, value = q.value.toFloat(), decimals = q.decimals, suffix = q.unit.ifBlank { null },
-                label = deadlineLabel(line), energy = maxOf(e, 0.8f), place = if (takeover) "center" else "top",
-            )
-        }
-
-        /** «تا پایان کمپین»: what the time runs out on, from the words of the line. */
-        private fun deadlineLabel(line: Lines.Line): String {
-            val noun = line.range.firstNotNullOfOrNull { i -> DEADLINES.entries.firstOrNull { norm[i].startsWith(it.key) }?.value }
-            return when {
-                noun != null && rtl -> "تا پایان $noun"
-                noun != null -> "until the $noun ends"
-                rtl -> "زمان باقی‌مانده"
-                else -> "left"
-            }
-        }
-
-        /** A quota filling up (the first thousand people), stamped full when it is; over the speaker, at the top. */
-        private fun progress(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
-            val sense = sense(line)
-            val q = sense.quota ?: sense.quantities.firstOrNull { it.kind in setOf(Quantities.Kind.People, Quantities.Kind.Capacity) }
-            val filled = sense.filled
-            if (q == null && filled == null) return counter(line, read, e, takeover)
-            val value = if (q?.kind == Quantities.Kind.Percent) q.value.toFloat().coerceIn(0f, 100f) else 100f
-            val counted = q?.takeIf { it.kind != Quantities.Kind.Percent } ?: sense.quantities.firstOrNull { it.kind in setOf(Quantities.Kind.People, Quantities.Kind.Capacity) }
-            val label = counted?.let { c ->
-                val n = Quantities.digits(c.value, rtl)
-                when {
-                    rtl -> listOfNotNull(n, c.unit.ifBlank { null }, "اول".takeIf { c.first }).joinToString(" ")
-                    else -> listOfNotNull("first".takeIf { c.first }, n, c.unit.ifBlank { null }).joinToString(" ")
-                }
-            } ?: read.title.ifBlank { null }
-            return BeatScore(
-                recipe = "progress", at = q?.at ?: filled!!.first, until = line.last, value = value, from = 0f, label = label,
-                text = if (value >= 100f) (if (rtl) "تکمیل" else "FULL") else null, energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
-            )
-        }
+        private fun place(takeover: Boolean) = if (takeover) "center" else "top"
+        private fun voucher(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean) = figures.voucher(line, sense(line), read, e, place(takeover)) ?: counter(line, read, e, takeover)
+        private fun stats(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean) = figures.stats(line, sense(line), read, e, place(takeover)) ?: counter(line, read, e, takeover)
+        private fun countdown(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean) = figures.countdown(line, sense(line), e, place(takeover)) ?: counter(line, read, e, takeover)
+        private fun progress(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean) = figures.progress(line, sense(line), read, e, place(takeover)) ?: counter(line, read, e, takeover)
 
         private fun logos(line: Lines.Line, read: LineRead): BeatScore? {
             val names = read.items.take(5).ifEmpty { return null }
@@ -657,201 +571,12 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** A sticker of the most concrete thing the line names, if the vocabulary has one. */
         private fun pictureFor(line: Lines.Line, read: LineRead): BeatScore? {
-            val entity = u.entities.firstOrNull { it.at in line.range && it.visual.isNotBlank() && it.kind in PICTURED && it.visual !in usedVisuals }
+            val entity = u.entities.firstOrNull { it.at in line.range && it.visual.isNotBlank() && it.kind in Rhythm.PICTURED && it.visual !in usedVisuals }
             if (entity != null) return BeatScore(recipe = "object", at = entity.at, visual = entity.visual, hold = 1.8f, place = "top").also { usedVisuals += entity.visual }
             // The line's own picture, when it names something concrete (a short noun phrase).
             val query = read.visual.substringBefore(',').trim().takeIf { q -> q.split(' ').size in 1..3 && q.none { it.isDigit() } && q !in usedVisuals } ?: return null
             usedVisuals += query
             return BeatScore(recipe = "object", at = focus(line), visual = query, hold = 1.8f, place = "top", label = read.title.ifBlank { null })
-        }
-
-        // ------------------------------------------------------------ rhythm
-
-        /**
-         * Over the speaker, a visual event at least every [rhythmGap] seconds: a beat landing or a
-         * cut. Where a stretch would hold only captions, one event is added on the stressed word,
-         * rotating between a keyword pop, a picture of what is named, a punch-in cut and (rarely,
-         * on high energy) a stamp — never a third graphic on screen, never the same treatment
-         * three times running. A call to action on screen owns its stretch; so does a list of
-         * names landing one by one, and full-frame scenes are graphics already.
-         */
-        private fun keepAlive(scenes: MutableList<SceneScore>) {
-            if (!footage) return
-            val counts = mutableMapOf<String, Int>()
-            var k = 0
-            var from = 0f
-            var guard = 0
-            while (k < scenes.size && guard++ < MAX_FILLS) {
-                val hole = if (scenes[k].bg == null) firstHole(scenes, k, from) else null
-                if (hole == null) {
-                    k++
-                    from = 0f
-                    continue
-                }
-                val kind = fillAt(scenes, k, hole)
-                if (kind != null) counts[kind] = (counts[kind] ?: 0) + 1
-                // Nothing fits (two graphics up, no word to land on): accept this stretch, look further.
-                from = if (kind == null) hole + rhythmGap else hole
-            }
-            if (counts.isNotEmpty()) notes += "rhythm: every ${round1(rhythmGap)}s — " + counts.entries.joinToString { "${it.value} ${it.key}" }
-        }
-
-        /** The longest a footage stretch may go without an event: wider for a sparse taste, tighter for a dense one. */
-        val rhythmGap: Float = (RHYTHM_GAP / taste.density.coerceIn(0.5f, 1.5f)).coerceIn(MIN_RHYTHM_GAP, MAX_RHYTHM_GAP)
-        var lastFill: String? = null
-        var lastStampAt = -100f
-
-        private fun sceneStart(scenes: List<SceneScore>, k: Int) = if (k == 0) 0f else startOf(scenes[k].from ?: 0)
-        private fun sceneEnd(scenes: List<SceneScore>, k: Int) = scenes.getOrNull(k + 1)?.from?.let(::startOf) ?: (endOf(words.lastIndex) + CTA_TAIL)
-        private fun sceneWords(scenes: List<SceneScore>, k: Int) = (scenes[k].from ?: 0)..((scenes.getOrNull(k + 1)?.from ?: words.size) - 1).coerceAtLeast(scenes[k].from ?: 0)
-
-        /** When a beat lands, as the compiler will place it. */
-        private fun beatStart(b: BeatScore, scenes: List<SceneScore>, k: Int): Float {
-            b.time?.let { return it }
-            b.at?.let { return startOf(it) }
-            val range = sceneWords(scenes, k)
-            val quoted = b.text?.let { locate(it, Lines.Line(range.first, range.last)) }
-            return quoted?.let { startOf(it.first) } ?: (sceneStart(scenes, k) + 0.2f)
-        }
-
-        /** Roughly when a beat leaves, as the compiler will hold it (elements stay for their scene). */
-        private fun beatEnd(b: BeatScore, start: Float, sceneEnd: Float): Float {
-            val hold = b.hold
-            val until = b.until
-            val end = when {
-                hold != null -> start + hold
-                until != null -> endOf(until) + LINGER
-                b.recipe in TEXT_RECIPES -> start + maxOf(1f, 0.35f + 0.055f * (b.text?.length ?: TYPICAL_TEXT))
-                else -> sceneEnd
-            }
-            return minOf(end, sceneEnd + 0.05f, start + MAX_HOLD)
-        }
-
-        /** Until when a beat keeps the screen alive by itself: the hook, the call to action, names landing one by one. */
-        private fun aliveUntil(b: BeatScore, start: Float, sceneEnd: Float) = if (b.recipe in SELF_PACED || b.time != null) beatEnd(b, start, sceneEnd) else start
-
-        /** The start of the first stretch in scene [k] after [from] longer than [rhythmGap] with no event, or null. */
-        private fun firstHole(scenes: List<SceneScore>, k: Int, from: Float): Float? {
-            val s = sceneStart(scenes, k)
-            val e = sceneEnd(scenes, k)
-            val range = sceneWords(scenes, k)
-            if (range.isEmpty()) return null
-            val speechEnd = minOf(e, endOf(range.last))
-            var t = maxOf(s, from)
-            for ((a, alive) in scenes[k].beats.map { b -> beatStart(b, scenes, k).let { it to aliveUntil(b, it, e) } }.sortedBy { it.first }) {
-                if (a - t > rhythmGap) return t
-                t = maxOf(t, a, alive)
-            }
-            return if (speechEnd - t > rhythmGap) t else null
-        }
-
-        /** Adds one event in scene [k] soon after [t0]; returns its kind, or null when nothing fits. */
-        private fun fillAt(scenes: MutableList<SceneScore>, k: Int, t0: Float): String? {
-            val e = sceneEnd(scenes, k)
-            val s = sceneStart(scenes, k)
-            val target = t0 + rhythmGap * 0.7f
-            val candidates = sceneWords(scenes, k).filter { i -> startOf(i) in (t0 + MIN_LEAD)..(t0 + rhythmGap) && startOf(i) < e - MIN_TAIL }
-            if (candidates.isEmpty()) return null
-            val spans = scenes[k].beats.map { b -> beatStart(b, scenes, k).let { it to beatEnd(b, it, e) } }
-            fun crowded(t: Float) = spans.count { (a, b) -> a < t + FILL_HOLD && b > t + 0.1f } >= 2
-            val word = candidates.filter { i -> popWord(i) && !crowded(startOf(i)) }.maxByOrNull { i -> Words.weight(words[i]) - 0.15f * kotlin.math.abs(startOf(i) - target) }
-            val cut = candidates.filter { i -> startOf(i) - s >= MIN_SHOT && e - startOf(i) >= MIN_SHOT && spans.none { (a, b) -> a < startOf(i) - 0.05f && b > startOf(i) + 0.05f } }
-                .maxByOrNull { i -> -kotlin.math.abs(startOf(i) - target) + (if (texts.getOrNull(i - 1)?.lastOrNull()?.let { it in ".،," } == true) 0.5f else 0f) + 0.3f * Words.weight(words[i]) }
-            val picture = pictureNear(candidates)?.takeIf { !crowded(startOf(it.first)) }
-            val energyAt = word?.let { lineEnergy(it) } ?: 0f
-            val options = listOfNotNull(
-                ("pop" to 1f).takeIf { word != null },
-                ("picture" to 1.3f).takeIf { picture != null },
-                ("punch" to 0.9f).takeIf { cut != null },
-                ("stamp" to 0.35f).takeIf { word != null && energyAt >= 0.6f && words[word].emphasis >= 0.6f && startOf(word) - lastStampAt >= STAMP_SPACING },
-            ).map { (kind, w) -> kind to w * (if (kind == lastFill) 0.25f else 1f) * (if (kind == "punch") 1f else taste.density.coerceIn(0.5f, 1.5f)) }
-            if (options.isEmpty()) return null
-            val kind = fillRng.weighted(options)
-            lastFill = kind
-            when (kind) {
-                "punch" -> {
-                    val at = startOf(cut!!)
-                    val (before, after) = scenes[k].beats.partition { beatStart(it, scenes, k) < at - 0.01f }
-                    scenes[k] = scenes[k].copy(beats = before)
-                    scenes.add(k + 1, SceneScore(from = cut, beats = after))
-                }
-                "picture" -> {
-                    val (i, query) = picture!!
-                    usedVisuals += query
-                    scenes[k] = scenes[k].copy(beats = scenes[k].beats + BeatScore(recipe = "object", at = i, visual = query, hold = FILL_HOLD, place = "top").also { usedRecipes += it.recipe })
-                }
-                "stamp" -> {
-                    lastStampAt = startOf(word!!)
-                    val beat = BeatScore(recipe = "stamp", at = word, text = texts[word].trimEnd('.', '،', ','), hold = 1.4f, energy = 0.85f, place = "top")
-                    scenes[k] = scenes[k].copy(beats = scenes[k].beats + beat.also { usedRecipes += it.recipe })
-                }
-                else -> {
-                    val i = word!!
-                    val two = NumberWords.normalize(texts[i]).length <= SHORT_WORD && i + 1 in sceneWords(scenes, k) && Words.isContent(texts[i + 1]) && texts[i].last() !in ".،,"
-                    val text = (i..(if (two) i + 1 else i)).joinToString(" ") { texts[it].trimEnd('.', '،', ',') }
-                    val recipe = popRecipe(energyAt, startOf(i), scenes)
-                    scenes[k] = scenes[k].copy(beats = scenes[k].beats + BeatScore(recipe = recipe, at = i, text = text, energy = energyAt, place = "top").also { usedRecipes += recipe })
-                }
-            }
-            return kind
-        }
-
-        /** A word worth popping: content, not a verb or filler, not a number, not the call to action's keyword. */
-        private fun popWord(i: Int): Boolean {
-            val n = NumberWords.normalize(texts[i]).trimEnd('.', '،', ',')
-            val verb = texts[i].startsWith("می\u200c") || texts[i].startsWith("نمی\u200c") || n in LIGHT_WORDS
-            return Words.isContent(texts[i]) && !verb && n.length >= MIN_POP && NumberWords.at(texts, i) == null && texts[i].none { it.isDigit() } &&
-                n != u.cta?.keyword?.let(NumberWords::normalize) && Quantities.unitOf(texts[i]) == null
-        }
-
-        /** Something concrete named near these words, with a picture not shown yet. */
-        private fun pictureNear(candidates: List<Int>): Pair<Int, String>? {
-            val range = candidates.first()..candidates.last()
-            u.entities.firstOrNull { it.at in range && it.visual.isNotBlank() && it.visual !in usedVisuals && it.kind in PICTURED }?.let { return it.at to it.visual }
-            val k = lines.indexOfFirst { candidates.first() in it.range }.takeIf { it >= 0 } ?: return null
-            val query = reads.getOrNull(k)?.visual?.substringBefore(',')?.trim()?.takeIf { q -> q.isNotEmpty() && q.split(' ').size in 1..3 && q.none { it.isDigit() } && q !in usedVisuals }
-            return query?.let { (candidates.firstOrNull { Words.isContent(texts[it]) } ?: candidates.first()) to it }
-        }
-
-        private fun lineEnergy(i: Int): Float {
-            val read = reads.getOrNull(lines.indexOfFirst { i in it.range }) ?: return energy
-            return (read.energy * 0.6f + energy * 0.4f).coerceIn(0.2f, 1f)
-        }
-
-        /** A short text treatment for one word, never the third of a kind in a row. */
-        private fun popRecipe(e: Float, at: Float, scenes: List<SceneScore>): String {
-            val options = when {
-                e >= 0.75f -> listOf("slam" to 1f, "flip" to 0.6f, "spread" to 0.4f, "glitch" to if (u.domain in TECH) 0.4f else 0f)
-                e >= 0.5f -> listOf("mask-rise" to 1f, "flip" to 0.7f, "slam" to 0.4f, "type-on" to 0.3f)
-                else -> listOf("blur-in" to 1f, "mask-rise" to 0.7f, "flip" to 0.3f)
-            }
-            // Like the critic, repetition is judged among text treatments only.
-            val line = timeline(scenes).filter { it.second in TEXT_RECIPES }
-            val before = line.filter { it.first < at }.map { it.second }.takeLast(2)
-            val after = line.filter { it.first >= at }.map { it.second }.take(2)
-            fun third(r: String) = (before.size == 2 && before.all { it == r }) || (before.lastOrNull() == r && after.firstOrNull() == r) ||
-                (after.size == 2 && after.all { it == r })
-            val live = options.filter { !third(it.first) }.map { (r, w) -> r to w * taste.recipe(r) * if (before.lastOrNull() == r) 0.3f else 1f }
-            return fillRng.weighted(live.ifEmpty { listOf("mask-rise" to 1f, "flip" to 1f).filter { !third(it.first) }.ifEmpty { listOf("blur-in" to 1f) } })
-        }
-
-        /** Every beat of the edit in screen order: (time, recipe). */
-        private fun timeline(scenes: List<SceneScore>): List<Pair<Float, String>> =
-            scenes.indices.flatMap { k -> scenes[k].beats.map { beatStart(it, scenes, k) to it.recipe } }.sortedBy { it.first }
-
-        /** A text treatment used three times running is swapped for a neighbour (the critic's rule, kept upfront). */
-        private fun vary(scenes: MutableList<SceneScore>) {
-            data class At(val k: Int, val j: Int, val t: Float)
-            val order = scenes.indices.flatMap { k ->
-                scenes[k].beats.indices.filter { j -> scenes[k].beats[j].recipe in TEXT_RECIPES }.map { j -> At(k, j, beatStart(scenes[k].beats[j], scenes, k)) }
-            }.sortedBy { it.t }
-            for (n in 2 until order.size) {
-                val r = order.subList(n - 2, n + 1).map { scenes[it.k].beats[it.j].recipe }
-                if (r.toSet().size != 1) continue
-                val (k, j) = order[n].let { it.k to it.j }
-                val swap = ALTERNATE_TEXT.getValue(r[0])
-                scenes[k] = scenes[k].copy(beats = scenes[k].beats.mapIndexed { i, b -> if (i == j) b.copy(recipe = swap) else b })
-            }
         }
 
         // ------------------------------------------------------------ choices
@@ -967,50 +692,10 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** Readings the numbers may upgrade to a rich show. */
         val UPGRADABLE = setOf("headline", "counter", "none")
-        val TEXT_RECIPES = setOf("slam", "mask-rise", "type-on", "blur-in", "flip", "spread", "stack", "glitch")
-        val ALTERNATE_TEXT = mapOf(
-            "slam" to "flip", "mask-rise" to "flip", "type-on" to "mask-rise", "blur-in" to "mask-rise",
-            "flip" to "mask-rise", "spread" to "slam", "stack" to "slam", "glitch" to "slam",
-        )
-
-        /** Beats that keep the screen alive on their own while up: the call to action, names landing one by one. */
-        val SELF_PACED = setOf("comment", "logos", "list", "objects")
-        val PICTURED = setOf("object", "concept", "place", "product")
-
-        /** Light verbs and fillers: said with stress, but nothing to pop on screen. */
-        val LIGHT_WORDS = setOf(
-            "کردم", "کردن", "کردیم", "کرد", "کنید", "بکنید", "بکنی", "بکنیم", "کنی", "کنم", "بکن", "شد", "شده", "شدن", "گذاشتم", "گذاشت", "دادن", "داد",
-            "گرفتن", "گرفت", "نبود", "باشید", "باشین", "نیست", "بریم", "برو", "اومده", "رفتیم", "یعنی", "الان", "دیگه", "همون", "همونجا", "اینجوری", "اونجا",
-            "really", "just", "actually", "going", "gonna", "doing",
-        )
         val DM_WORDS = listOf("دایرکت", "دایرک", "dm", "direct", "inbox")
         val CHECK_VERBS = setOf("کن", "بکن", "کنید", "بکنید", "کنین", "بکنین", "check", "it")
-        val VOUCHER_WORDS = setOf("ووچر", "وچر", "voucher", "هدیه", "جایزه", "بونوس", "bonus", "gift")
-        val LESS = setOf("کمتر", "زیر", "under", "less")
-        val DEADLINES = mapOf(
-            "کمپین" to "کمپین", "جشنواره" to "جشنواره", "تخفیف" to "تخفیف", "حراج" to "حراج", "ثبتنام" to "ثبت‌نام", "مهلت" to "مهلت",
-            "مسابقه" to "مسابقه", "چالش" to "چالش", "پیشنهاد" to "پیشنهاد", "campaign" to "campaign", "sale" to "sale", "offer" to "offer", "deal" to "deal",
-        )
-        const val MAX_STATS = 3
         const val CTA_REPRISE_S = 7f
 
-        // Rhythm.
-        const val RHYTHM_GAP = 2.5f
-        const val MIN_RHYTHM_GAP = 1.8f
-        const val MAX_RHYTHM_GAP = 4.5f
-        const val MIN_LEAD = 0.8f
-        const val MIN_TAIL = 0.4f
-        const val MIN_SHOT = 1.0f
-        const val FILL_HOLD = 1.6f
-        const val STAMP_SPACING = 8f
-        const val MAX_FILLS = 400
-        const val SHORT_WORD = 3
-        const val MIN_POP = 3
-        const val TYPICAL_TEXT = 12
-        const val LINGER = 0.55f
-        const val MAX_HOLD = 7f
-
-        fun round1(v: Float) = kotlin.math.round(v * 10f) / 10f
         const val MIN_TAKEOVER_S = 1.4f
         const val CTA_TAIL = 0.45f
         const val EARLIEST_TAKEOVER_MS = 3500L

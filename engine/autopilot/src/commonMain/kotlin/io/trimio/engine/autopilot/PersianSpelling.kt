@@ -108,10 +108,10 @@ class PersianSpelling(private val counts: Map<String, Int>) {
     }
 
     /**
-     * Sound-alikes, a dropped «ع»/«ه» and a doubled letter are always worth trying; an added letter or a
-     * last «د»/«ه» swapped needs a long word (few neighbours) or a rare listed one («بازید»); a dropped last letter or a swap inside the word
-     * («کارورد» → «کاربرد», not «کاربر») needs the word heard elsewhere — a wrong guess here would also hide
-     * the slip from the director.
+     * Sound-alikes, a dropped «ع»/«ه» and a doubled letter are always worth trying. An added letter or a
+     * last «د»/«ه» swapped needs a long word (few neighbours) or a rare listed one («بازید»). A dropped last
+     * letter or a swap inside the word needs the word heard elsewhere: «کارورد» would become «کاربرد», and
+     * a wrong real word also hides the slip from the director, who would have written «کاربر».
      */
     private fun allowed(cost: Int, length: Int, seen: Boolean, listed: Boolean): Boolean = when {
         seen -> true
@@ -160,7 +160,8 @@ class PersianSpelling(private val counts: Map<String, Int>) {
     private fun join(a: String, b: String): String? {
         if (a in VERB_PREFIXES) return (a + ZWNJ + b).takeIf { b.length >= 2 && (count(it) > 0 || count(a + b) > 0) }
         if (a.length < 2 || b.length < 2) return (a + ZWNJ + b).takeIf { b == "ی" && a.endsWith('ه') && count(a) >= KNOWN_STEM }
-        if (b in BOUND && count(a) >= KNOWN_STEM && (b in CLITIC_WORDS || count(a + ZWNJ + b) > 0)) return a + ZWNJ + b
+        val bound = b in BOUND && count(a) >= KNOWN_STEM
+        if (bound && (b in CLITIC_WORDS || count(a + ZWNJ + b) > 0)) return a + ZWNJ + b
         val j = bySound[soundKey(a + b)].orEmpty().filter { count(it) >= KNOWN_STEM }.maxByOrNull { count(it) } ?: return null
         val fa = count(a).toDouble()
         val fb = count(b).toDouble()
@@ -195,7 +196,7 @@ class PersianSpelling(private val counts: Map<String, Int>) {
     private data class Parts(val head: String, val core: String, val tail: String, val voweled: Boolean)
 
     /** Two Persian words with nothing but a space between them. */
-    private fun joinable(a: Parts, b: Parts) = a.tail.isEmpty() && b.head.isEmpty() && persian(a.core + b.core) && !(a.voweled || b.voweled)
+    private fun joinable(a: Parts, b: Parts) = a.tail.isEmpty() && b.head.isEmpty() && listOf(a, b).all { persian(it.core) && !it.voweled }
 
     private fun split(word: String): Parts {
         val head = word.takeWhile { !it.isLetterOrDigit() }
@@ -223,8 +224,8 @@ class PersianSpelling(private val counts: Map<String, Int>) {
             return PersianSpelling(counts)
         }
 
-        private const val ZWNJ = '‌'
-        private const val ZWNJ_S = "‌"
+        private const val ZWNJ = '\u200C'
+        private const val ZWNJ_S = "\u200C"
 
         // Slip costs in tenths of a slip; a slip costs a factor of SLIP in frequency.
         private const val SOUND = 0
@@ -297,18 +298,20 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         internal fun normalize(w: String): String {
             val s = buildString(w.length) {
                 for (ch in w) {
-                    if (ch in 'ً'..'ْ' || ch == 'ٰ' || ch == 'ـ' || ch == 'ٔ' || ch == '‍') continue
-                    if (ch == ZWNJ && (isEmpty() || last() == ZWNJ)) continue
-                    append(LETTERS[ch] ?: ch)
+                    val repeated = ch == ZWNJ && (isEmpty() || last() == ZWNJ)
+                    if (!mark(ch) && !repeated) append(LETTERS[ch] ?: ch)
                 }
             }
             return s.trimEnd(ZWNJ)
         }
 
+        /** Diacritics, tatweel, hamza above and the zero-width joiner: dropped for lookup. */
+        private fun mark(ch: Char) = ch in '\u064B'..'\u0652' || ch in "\u0640\u0654\u0670\u200D"
+
         private val LETTERS = mapOf('ي' to 'ی', 'ى' to 'ی', 'ك' to 'ک', 'ة' to 'ه', 'ۀ' to 'ه')
 
         /** Persian letters (and half-spaces) only: Latin words, digits and symbols are never touched. */
-        private fun persian(w: String) = w.isNotEmpty() && w.all { it == ZWNJ || (it in 'ء'..'ۿ' && it.isLetter()) }
+        private fun persian(w: String) = w.isNotEmpty() && w.all { it == ZWNJ || (it in '\u0621'..'\u06FF' && it.isLetter()) }
 
         private fun distance(a: String, b: String): Int {
             val dp = IntArray(b.length + 1) { it }

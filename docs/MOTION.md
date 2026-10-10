@@ -43,6 +43,10 @@
 {"recipe": "object", "text": "متخصص قلب", "visual": "anatomical heart", "label": "قلب"}
 {"recipe": "objects", "items": ["پاستا", "خامه", "سیر"], "visuals": ["spaghetti", "glass of milk", "garlic"]}
 {"recipe": "logos", "items": ["Claude Code", "Codex"]}
+{"recipe": "voucher", "value": 350, "suffix": "تتر", "label": "سرمایه اولیه", "items": ["Tether"]}
+{"recipe": "countdown", "value": 48, "suffix": "ساعت", "label": "تا پایان کمپین"}
+{"recipe": "stats", "items": ["بازدید", "کامنت"], "points": [50000, 5000]}
+{"recipe": "progress", "value": 100, "label": "۱۰۰۰ نفر اول", "text": "تکمیل"}
 ```
 
 ## رسپی‌ها
@@ -50,6 +54,7 @@
 متن: `mask-rise` `slam` `pop-captions` `type-on` `blur-in` `flip` `spread` `stack` `glitch`
 المان: `counter` `ticker` `chart` `bars` `icon` `lower-third` `stamp` `list`
 توضیحی: `chips` `terminal` `network` `meter` `comment` — برند: `logos` — شیء: `object` `objects`
+داده و تبلیغ: `countdown` (شمارش معکوس مهلت) `stats` (چند آمار کنار هم) `progress` (نوار ظرفیت با مهر «تکمیل») `voucher` (کارت ووچر با لوگوی ارز)
 
 نام‌های تقریبی هم پذیرفته می‌شوند (مثلاً impact → slam، caption → pop-captions، price → ticker).
 آیکون‌ها: arrow-up/down، trend-up/down، check، bolt، fire، star، bell، target، coin، lock، clock، heart، warning، rocket، eye، spark و نام‌های مترادف (btc، pump، dump، signal، tp…).

@@ -62,8 +62,8 @@ data class FitReport(
  *   memory-mapped). The rest is touched for every token: on ARM most K-quants are repacked into
  *   anonymous memory, and even mmap'd weights that the OS drops are re-read from flash per token;
  * - the KV cache for its [DirectorProfile.contextSize], plus recurrent/sliding-window state;
- * - logits for a whole micro-batch ([LOGIT_ROWS] × vocabulary × 4 B: 0.5 GB for Qwen's 248k
- *   vocabulary) and activations;
+ * - logits for [LOGIT_ROWS] positions (the native bridge reserves only the last one; a whole
+ *   micro-batch would be 0.5 GB with Qwen's 248k vocabulary) and activations;
  * - its eyes (projector weights and encoder activations, or the light looker as a second model),
  *   because the vision critic looks at frames while the director is loaded;
  * - the app itself while rendering those frames ([APP_BYTES]).
@@ -83,7 +83,7 @@ object DeviceFit {
      * JNI only ever reads the last token's logits; setting `n_outputs_max = 1` there would save
      * ~0.5 GB per Qwen/Gemma model, and this constant should then become 1.
      */
-    const val LOGIT_ROWS = 512L
+    const val LOGIT_ROWS = 1L
 
     /** Activations of one 512-token micro-batch on CPU. */
     const val ACTIVATION_BYTES = 64L shl 20

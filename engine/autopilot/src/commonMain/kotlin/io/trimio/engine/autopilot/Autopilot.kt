@@ -133,7 +133,9 @@ class Autopilot(
 
     private suspend fun understand(transcript: Transcript, prompt: String, lines: List<Lines.Line>, seed: Long, report: MutableList<String>): Understanding {
         val m = model ?: return RulesUnderstander.understand(transcript, prompt, lines).also { report += "understand: rules (no model)" }
-        return runCatching { Understander(m).understand(transcript, prompt, lines, seed = seed.toInt(), temperature = TEMPERATURE) }
+        // Each model family reads at its own calibrated temperature (engine/models DirectorProfile).
+        val temperature = io.trimio.engine.models.DirectorProfile.forModelId(m.id)?.understandingTemperature ?: TEMPERATURE
+        return runCatching { Understander(m).understand(transcript, prompt, lines, seed = seed.toInt(), temperature = temperature) }
             .onFailure { report += "understand: model failed (${it.message}); rules instead" }
             .getOrElse { RulesUnderstander.understand(transcript, prompt, lines) }
             .also { report += "understand: ${m.id}" }

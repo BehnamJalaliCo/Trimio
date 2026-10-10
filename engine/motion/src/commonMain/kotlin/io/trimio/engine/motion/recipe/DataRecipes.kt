@@ -104,7 +104,14 @@ object DataRecipes {
         return Anim.keys(List(n + 1) { i -> (t0 + (t1 - t0) * i / n).let { t -> Anim.Key(t, f(t), Easing.Linear) } })
     }
 
-    private fun digits(s: String, rtl: Boolean) = if (rtl) Numerals.toPersian(s) else s
+    /** Persian digits, the Persian thousands separator «٬», decimal «٫» and percent «٪» in RTL pieces. */
+    private fun digits(s: String, rtl: Boolean) = if (rtl) sign(Numerals.toPersian(s).replace(',', '٬').replace('.', '٫'), true) else s
+
+    /** Persian percent for Persian pieces, whatever the director wrote. */
+    private fun sign(s: String, rtl: Boolean) = if (rtl) s.replace('%', '٪') else s
+
+    /** Persian numbers group only from five digits: «۱۰۰۰» reads cleaner than any separator. */
+    private fun grouped(v: Float, rtl: Boolean) = !rtl || abs(v) >= COMPACT
 
     private fun persian(s: String) = s.any { it in '؀'..'ۿ' }
 
@@ -145,8 +152,9 @@ object DataRecipes {
             val v = (cue.value ?: DEFAULT_HOURS).coerceAtLeast(0f)
             val from = (cue.from ?: ceil(v * 1.6f + 1f)).coerceAtLeast(v)
             val label = cue.label ?: cue.text.takeIf { it.isNotBlank() }
-            val band = if (label != null) cue.height * 0.16f else 0f
-            val d = minOf(cue.width * 0.78f, cue.height - band * 1.25f)
+            val band = if (label != null) cue.height * 0.15f else 0f
+            // A takeover ring is the frame's hero (it may breathe past the slot a little); over footage it fits the band.
+            val d = if (cue.overMedia) minOf(cue.width * 0.78f, cue.height - band * 1.25f) else minOf(cue.width * 0.74f, cue.height * 1.1f - band * 1.2f)
             val cx = cue.x
             val cy = cue.y - band * 0.6f
             val count = at + 0.4f
@@ -261,7 +269,7 @@ object DataRecipes {
 
         /** The number rolling down to what is left, and its unit underneath. */
         private fun face(cue: Cue, look: Look, fit: Fitter, d: Float, cx: Float, cy: Float, from: Float, v: Float, clock: Clock, beat: Anim): List<Node> {
-            val sample = digits(cue.prefix + formatFixed(maxOf(from, v), cue.decimals, true), cue.rtl)
+            val sample = digits(cue.prefix + formatFixed(maxOf(from, v), cue.decimals, grouped(maxOf(from, v), cue.rtl)), cue.rtl)
             val unit = cue.suffix.trim().takeIf { it.isNotEmpty() }
             val nf = fit.fit(sample, look.number, d * 0.4f, d * 0.6f, d * (if (unit != null) 0.36f else 0.46f), maxLines = 1)
             val uf = unit?.let { fit.fit(it, look.body.copy(weight = 800), nf.type.size * 0.27f, d * 0.5f, d * 0.14f, maxLines = 1) }
@@ -270,7 +278,8 @@ object DataRecipes {
             val scale = anim(0.7f, clock.at + 0.1f) { by(1f, 0.55f, Easing.Land); hold(clock.land); by(1.12f, 0.07f, Easing.ExpoOut); by(1f, 0.4f, Easing.Land) } + beat
             val nodes = mutableListOf<Node>(
                 CounterNode(
-                    value = Anim.tween(from, v, clock.count, clock.land, Easing.ExpoOut), decimals = cue.decimals, prefix = cue.prefix,
+                    value = Anim.tween(from, v, clock.count, clock.land, Easing.ExpoOut), decimals = cue.decimals, prefix = sign(cue.prefix, cue.rtl),
+                    grouping = grouped(maxOf(from, v), cue.rtl),
                     persianDigits = cue.rtl, type = nf.type, fill = look.ink.fill(), shadow = Craft.shadow(cue, look, nf.type.size),
                     transform = Transform(x = cx.anim, y = numberY.anim, scale = scale, opacity = Anim.tween(0f, 1f, clock.at + 0.1f, clock.at + 0.25f)),
                     name = "countdown-number",
@@ -331,14 +340,14 @@ object DataRecipes {
 
     private fun figure(v: Float, cue: Cue, rtl: Boolean): Figure {
         if (cue.suffix.isNotEmpty() || abs(v) < COMPACT) {
-            return Figure(v, cue.decimals, cue.prefix, cue.suffix, digits(cue.prefix + formatFixed(v, cue.decimals, true) + cue.suffix, rtl), null)
+            return Figure(v, cue.decimals, sign(cue.prefix, rtl), sign(cue.suffix, rtl), digits(cue.prefix + formatFixed(v, cue.decimals, grouped(v, rtl)) + cue.suffix, rtl), null)
         }
         val million = abs(v) >= MILLION
         val k = if (million) v / MILLION else v / THOUSAND
         val decimals = if (k == round(k)) 0 else 1
         val text = cue.prefix + formatFixed(k, decimals, true)
         // A Persian unit word is its own text: inside the counter's left-to-right run it would land on the wrong side.
-        return if (rtl) Figure(k, decimals, cue.prefix, "", digits(text, true), if (million) "میلیون" else "هزار")
+        return if (rtl) Figure(k, decimals, sign(cue.prefix, true), "", digits(text, true), if (million) "میلیون" else "هزار")
         else Figure(k, decimals, cue.prefix, if (million) "M" else "K", text + if (million) "M" else "K", null)
     }
 
@@ -360,17 +369,21 @@ object DataRecipes {
             val figures = values.map { figure(it, cue, rtl) }
             val hasLabels = labels.any { it != null }
             // Room left for the figures under the board's caption, when it has one.
-            val room = cue.height * (if (cue.label.isNullOrBlank()) 1f else 0.82f)
+            val stage = !cue.overMedia
+            val room = cue.height * (if (stage) 1.12f else 1f) * (if (cue.label.isNullOrBlank()) 1f else 0.82f)
             // Side by side, or stacked as rows: whichever lets the figures be clearly bigger.
             val rowPref = room * (if (hasLabels) 0.46f else 0.66f)
             val side = figures.minOf { sizeFor(it, look, fit, cue.width / n * 0.84f, rowPref) }
             val rowH = room / n
-            val stacked = n > 1 && figures.minOf { sizeFor(it, look, fit, cue.width * 0.56f, rowH * 0.66f) }.let { s -> s > side * STACK_GAIN }
-            val size = if (stacked) figures.minOf { sizeFor(it, look, fit, cue.width * 0.56f, rowH * 0.66f) } else side
+            // On a stage the rows run tighter (label beside, not under) and win whenever they are not smaller.
+            val rowShare = if (stage) 0.78f else 0.66f
+            val stackSize = figures.minOf { sizeFor(it, look, fit, cue.width * 0.6f, rowH * rowShare) }
+            val stacked = n > 1 && stackSize > side * (if (stage) 1f else STACK_GAIN)
+            val size = if (stacked) stackSize else side
             val stagger = Craft.pace(cue.energy, 0.45f, 0.28f)
             val times = List(n) { i -> maxOf(at, (cue.itemTimes.getOrNull(i) ?: (cue.at + i * stagger)) - Craft.LEAD) }
             val settle = Craft.pace(cue.energy, 1.2f, 0.75f)
-            val board = Board(cue, look, fit, figures, labels, size, times, settle, rtl)
+            val board = Board(cue, look, fit, figures, labels, size, times, settle, rtl, cue.height * (if (stage) 1.12f else 1f))
             val nodes = if (stacked) board.rows() else board.columns()
             val lands = times.map { it + settle }
             return Built(
@@ -394,6 +407,8 @@ object DataRecipes {
         private inner class Board(
             val cue: Cue, val look: Look, val fit: Fitter, val figures: List<Figure>, val labels: List<String?>,
             val size: Float, val times: List<Float>, val settle: Float, val rtl: Boolean,
+            /** The height the board may use (a stage lets it breathe past the slot a little). */
+            val height: Float,
         ) {
             val n = figures.size
             val type = look.number.at(size)
@@ -459,10 +474,10 @@ object DataRecipes {
 
             /** Stacked as a table: figures aligned on the reading-start edge, labels in a second column. */
             fun rows(): List<Node> {
-                val rowH = minOf((cue.height - headH) / n, numberH * 1.5f)
+                val rowH = minOf((height - headH) / n, numberH * 1.4f)
                 val numCol = figures.indices.maxOf { composite(it) }
                 val colGap = size * 0.32f
-                val lf = labels.map { l -> l?.let { fit.fit(it, look.body, size * 0.38f, cue.width - numCol - colGap, numberH, maxLines = 2) } }
+                val lf = labels.map { l -> l?.let { fit.fit(it, look.body, size * 0.4f, cue.width - numCol - colGap, numberH, maxLines = 2) } }
                 val total = numCol + colGap + (lf.maxOfOrNull { it?.width ?: 0f } ?: 0f)
                 val start = cue.x - dir * total / 2f
                 val top = cue.y - (rowH * n + headH) / 2f + headH
@@ -508,7 +523,7 @@ object DataRecipes {
                 val land = t0 + settle
                 val edge = if (rtl) left + composite(i) else left
                 fun number(name: String) = CounterNode(
-                    value = Anim.tween(0f, f.value, t0, land, Easing.ExpoOut), decimals = f.decimals, prefix = f.prefix, suffix = f.suffix,
+                    value = Anim.tween(0f, f.value, t0, land, Easing.ExpoOut), decimals = f.decimals, prefix = f.prefix, suffix = f.suffix, grouping = grouped(f.value, rtl),
                     persianDigits = rtl, type = type, fill = look.ink.fill(), shadow = if (name == "stats-number") Craft.shadow(cue, look, size) else null,
                     transform = Transform(
                         x = edge.anim, y = y.anim + Anim.tween(size * 0.3f, 0f, t0, t0 + 0.6f, Easing.ExpoOut), anchorX = if (rtl) 1f else 0f,
@@ -556,18 +571,27 @@ object DataRecipes {
             val full = target >= FULL
             val words = cue.words.size
             val label = cue.label ?: cue.text.takeIf { it.isNotBlank() && words > 2 }
-            val w = cue.width * 0.94f
-            val bh = (cue.height * 0.2f).coerceIn(20f, 84f)
+            // On a full-frame stage the device owns the frame: sized by the width, the percentage as the hero.
+            val stage = !cue.overMedia
+            val w = cue.width * (if (stage) 0.96f else 0.94f)
+            val bh = if (stage) cue.width * 0.11f else (cue.height * 0.2f).coerceIn(20f, 84f)
             val voice = look.body.copy(weight = 800)
-            val pct = digits(cue.prefix + formatFixed(target, cue.decimals, true), cue.rtl) + cue.suffix.ifEmpty { if (cue.rtl) "٪" else "%" }
-            val cf = fit.fit(pct, look.number, bh * 1.7f, w * 0.36f, bh * 2f, maxLines = 1)
-            val lf = label?.let { fit.fit(it, voice, bh * 0.95f, w - cf.width - bh, bh * 1.6f, maxLines = 1) }
-            val headerH = maxOf(cf.height, lf?.height ?: 0f)
-            val gap = bh * 0.6f
+            val unit = sign(cue.suffix.ifEmpty { "%" }, cue.rtl)
+            val pct = digits(cue.prefix + formatFixed(target, cue.decimals, false), cue.rtl) + unit
+            val cf = if (stage) fit.fit(pct, look.number, bh * 2.6f, w * 0.7f, bh * 2.8f, maxLines = 1) else fit.fit(pct, look.number, bh * 1.7f, w * 0.36f, bh * 2f, maxLines = 1)
+            val lf = label?.let { if (stage) fit.fit(it, voice, bh * 0.8f, w, bh * 1.4f, maxLines = 1) else fit.fit(it, voice, bh * 0.95f, w - cf.width - bh, bh * 1.6f, maxLines = 1) }
+            val labelH = lf?.height ?: 0f
+            val headerH = if (stage) labelH + bh * 0.2f + cf.height else maxOf(cf.height, labelH)
+            val gap = bh * (if (stage) 0.45f else 0.6f)
             val total = headerH + gap + bh
-            val headerY = cue.y - total / 2f + headerH / 2f
+            val top = cue.y - total / 2f
+            val headerY = top + headerH / 2f
             val barY = cue.y + total / 2f - bh / 2f
             val dir = if (cue.rtl) -1f else 1f
+            // Stage: label on top, the percentage centred under it. Over footage: one header row, label and value at either end.
+            val valueX = if (stage) cue.x else cue.x + dir * w / 2f
+            val valueY = if (stage) top + labelH + bh * 0.2f + cf.height / 2f else headerY
+            val valueAnchor = if (stage) 0.5f else if (cue.rtl) 0f else 1f
             val startX = cue.x - dir * w / 2f
             val t0 = at + 0.35f
             val t1 = t0 + Craft.pace(cue.energy, 1.7f, 1.05f) * maxOf(0.45f, (target - start) / 100f)
@@ -578,10 +602,10 @@ object DataRecipes {
             nodes += bar(cue, look, Bar(startX, barY, w, bh, cue.rtl), start, target, t0, t1, ease, if (full) land else null)
             val heat = if (full) ColorAnim.tween(look.ink, look.hot, land, land + 0.12f) else look.ink.let { ColorAnim.of(it) }
             nodes += CounterNode(
-                value = Anim.tween(start, target, t0, t1, ease), decimals = cue.decimals, prefix = cue.prefix, suffix = cue.suffix.ifEmpty { if (cue.rtl) "٪" else "%" },
+                value = Anim.tween(start, target, t0, t1, ease), decimals = cue.decimals, prefix = sign(cue.prefix, cue.rtl), suffix = unit, grouping = false,
                 persianDigits = cue.rtl, type = cf.type, fill = Fill.Solid(heat), shadow = Craft.shadow(cue, look, cf.type.size),
                 transform = Transform(
-                    x = (cue.x + dir * w / 2f).anim, y = headerY.anim, anchorX = if (cue.rtl) 0f else 1f,
+                    x = valueX.anim, y = valueY.anim, anchorX = valueAnchor,
                     scale = anim(1f, land) { by(1.12f, 0.07f, Easing.ExpoOut); by(1f, 0.35f, Easing.Land) },
                     opacity = Anim.tween(0f, 1f, t0 - 0.1f, t0 + 0.1f),
                 ),
@@ -590,7 +614,11 @@ object DataRecipes {
             if (label != null && lf != null) {
                 nodes += TextNode(
                     label, lf.type, look.ink.fill(), rtl = cue.rtl, shadow = Craft.shadow(cue, look, lf.type.size), animators = listOf(rise(at + 0.1f)),
-                    transform = Transform(x = (startX + dir * lf.width / 2f).anim, y = (headerY + (headerH - lf.height) * 0.3f).anim), name = "progress-label",
+                    transform = Transform(
+                        x = (if (stage) cue.x else startX + dir * lf.width / 2f).anim,
+                        y = (if (stage) top + labelH / 2f else headerY + (headerH - lf.height) * 0.3f).anim,
+                    ),
+                    name = "progress-label",
                 )
             }
             if (!full) {
@@ -684,17 +712,19 @@ object DataRecipes {
      * counts up to its value, and a glint sweeps the card as it lands. It floats gently until it goes.
      */
     val Voucher = object : Recipe("voucher", Kind.Element) {
-        override val preferredHeight = 0.26f
+        override val preferredHeight = 0.3f
         override val minHold = 3f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
             val at = cue.at - Craft.LEAD
-            val w = minOf(cue.width * 0.96f, cue.height * 0.96f * RATIO)
-            val h = w / RATIO
+            // A takeover ticket is taller (a bigger amount); over footage it stays a long strip for the top band.
+            val ratio = if (cue.overMedia) RATIO else STAGE_RATIO
+            val w = minOf(cue.width * 0.98f, cue.height * 0.98f * ratio)
+            val h = w / ratio
             val mark = cue.marks.firstOrNull()
             val tint = mark?.color ?: look.accent
             val count = at + 0.45f
             val land = count + Craft.pace(cue.energy, 1.4f, 0.9f)
-            val t = Ticket(w, h, w * 0.32f, h * 0.085f, w * 0.16f, h * 0.3f, cue.rtl)
+            val t = Ticket(w, h, w * (if (cue.overMedia) 0.32f else 0.28f), h * 0.085f, w * 0.16f, h * 0.3f, cue.rtl)
             val nodes = mutableListOf<Node>()
             // A halo in the currency's colour lifts the ticket off any background.
             nodes += ShapeNode(
@@ -835,7 +865,9 @@ object DataRecipes {
             val mainW = t.w - t.stubW
             val unit = cue.suffix.trim().takeIf { it.isNotEmpty() }
             val label = cue.label ?: cue.text.takeIf { it.isNotBlank() }
-            val nf = fit.fit(digits(cue.prefix + formatFixed(v, cue.decimals, true), cue.rtl), look.number, t.h * 0.38f, mainW * (if (unit != null) 0.56f else 0.8f), t.h * 0.42f, maxLines = 1)
+            val nf = fit.fit(digits(cue.prefix + formatFixed(v, cue.decimals, grouped(v, cue.rtl)), cue.rtl), look.number,
+                t.h * (if (cue.overMedia) 0.38f else 0.46f), mainW * (if (unit == null) 0.8f else if (cue.overMedia) 0.56f else 0.6f), t.h * (if (cue.overMedia) 0.42f else 0.48f), maxLines = 1,
+            )
             val uf = unit?.let { fit.fit(it, look.headline, nf.type.size * 0.4f, mainW * 0.3f, t.h * 0.2f, maxLines = 1) }
             val gap = nf.type.size * 0.16f
             val total = nf.width + (uf?.let { it.width + gap } ?: 0f)
@@ -846,7 +878,8 @@ object DataRecipes {
             val unitX = if (cue.rtl) left + (uf?.width ?: 0f) / 2f else left + nf.width + gap + (uf?.width ?: 0f) / 2f
             val nodes = mutableListOf<Node>(
                 CounterNode(
-                    value = Anim.tween(0f, v, count, land, Easing.ExpoOut), decimals = cue.decimals, prefix = cue.prefix, persianDigits = cue.rtl,
+                    value = Anim.tween(0f, v, count, land, Easing.ExpoOut), decimals = cue.decimals, prefix = sign(cue.prefix, cue.rtl), persianDigits = cue.rtl,
+                    grouping = grouped(v, cue.rtl),
                     type = nf.type, fill = look.ink.fill(),
                     transform = Transform(
                         x = numberEdge.anim, y = y.anim, anchorX = if (cue.rtl) 0f else 1f,
@@ -917,6 +950,7 @@ object DataRecipes {
     private const val FULL = 99.5f
     private const val STAMP_DROP = 0.16f
     private const val RATIO = 2.15f
+    private const val STAGE_RATIO = 1.7f
     private const val CORNER = 0.09f
     private const val DASHES = 9
     private const val BARS = 18

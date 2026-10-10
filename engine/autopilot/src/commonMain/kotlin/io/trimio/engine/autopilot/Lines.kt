@@ -55,7 +55,10 @@ object Lines {
      */
     private fun breakUp(line: Line, words: List<Word>, maxWords: Int): List<Line> {
         if (line.size <= maxWords) return listOf(line)
-        val inner = (line.first + 2 until line.last - 1)
+        // Never between the words of one spoken number («دو | هزار», «سیصد و | پنجاه»).
+        val numbers = io.trimio.engine.motion.score.NumberWords.findAll(words.subList(line.first, line.last + 1).map { it.text })
+            .flatMap { f -> (line.first + f.start) until (line.first + f.start + f.count - 1) }.toSet()
+        val inner = (line.first + 2 until line.last - 1).filter { it !in numbers }
         val middle = line.first + line.size / 2f
         val cut = inner.filter { words[it].text.last() in SOFT && !(latin(words[it].text) && latin(words[it + 1].text)) }
             .minByOrNull { kotlin.math.abs(it + 0.5f - middle) }

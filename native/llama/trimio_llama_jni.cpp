@@ -172,6 +172,9 @@ Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring 
     cp.n_ubatch = 512;
     cp.n_threads = n_threads;
     cp.n_threads_batch = n_threads;
+    // Only the last position's logits are ever read: reserving them for a whole batch would cost
+    // ~0.5 GB with a 248k vocabulary (the difference between fitting an 8 GB phone or not).
+    cp.n_outputs_max = 1;
     cp.no_perf = true;
     llama_context * ctx = llama_init_from_model(model, cp);
     if (ctx == nullptr) {
