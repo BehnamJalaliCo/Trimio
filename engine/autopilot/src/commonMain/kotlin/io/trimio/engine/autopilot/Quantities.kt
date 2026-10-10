@@ -132,19 +132,45 @@ object Quantities {
     /** The line's numbers with its cues; [offset] shifts word positions to transcript indices. */
     fun sense(words: List<String>, offset: Int = 0): Sense {
         val norm = words.map(NumberWords::normalize)
-        val filled = norm.indices.firstNotNullOfOrNull { i ->
-            when {
-                norm[i] in FILLED_ONE -> i..i
-                norm[i] in FILLED_HEAD && norm.getOrNull(i + 1) in FILLED_TAIL -> i..i + 1
-                else -> null
-            }
-        }
+        val filled = norm.indices.firstNotNullOfOrNull { i -> filledAt(norm, i) }
         return Sense(
             quantities = read(words).map { it.shifted(offset) },
             filled = filled?.let { (it.first + offset)..(it.last + offset) },
             gift = norm.any { w -> GIFT.any { w.startsWith(it) } },
             price = norm.any { it in PRICE },
         )
+    }
+
+    /**
+     * Every line's sense, read across line breaks: speech pauses split «دو هزار | تا دیگه ظرفیت»,
+     * «ساعتم بیشتر | نمونده» and «پنجاه هزار بازدید | خورد و پنج هزار کامنت», so units and cues are
+     * read on the whole transcript and each number belongs to the line it starts in. Social numbers
+     * said in the next line join this line's (one stats board, not two counters); a gift said in
+     * the next line («سیصد و پنجاه تتر سرمایه | اولیه …») still makes this one a gift.
+     */
+    fun senses(texts: List<String>, lines: List<Lines.Line>): List<Sense> {
+        val norm = texts.map(NumberWords::normalize)
+        val all = read(texts)
+        val fills = norm.indices.mapNotNull { i -> filledAt(norm, i) }
+        fun own(line: Lines.Line) = all.filter { it.at in line.range }
+        return lines.mapIndexed { k, line ->
+            val next = lines.getOrNull(k + 1)
+            val mine = own(line)
+            val joined = if (mine.any { it.social } && next != null) mine + own(next).filter { it.social } else mine
+            val window = line.first..(next?.last ?: line.last)
+            Sense(
+                quantities = joined,
+                filled = fills.firstOrNull { it.first in line.range },
+                gift = window.any { i -> GIFT.any { norm[i].startsWith(it) } },
+                price = line.range.any { norm[it] in PRICE },
+            )
+        }
+    }
+
+    private fun filledAt(norm: List<String>, i: Int): IntRange? = when {
+        norm[i] in FILLED_ONE -> i..i
+        norm[i] in FILLED_HEAD && norm.getOrNull(i + 1)?.trimEnd('.', '،', ',') in FILLED_TAIL -> i..i + 1
+        else -> null
     }
 
     /** What a unit word means, tolerant of Persian suffixes («تتری», «ساعته», «بازدیدها»). */

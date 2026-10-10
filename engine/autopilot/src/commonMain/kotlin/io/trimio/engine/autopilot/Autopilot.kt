@@ -96,7 +96,10 @@ class Autopilot(
         val edit = open?.let { analysis.edit.withColdOpen(it.source, COLD_OPEN_GAP) } ?: analysis.edit
         open?.let { report += "cold open: «${texts.slice(it.words).joinToString(" ")}» ${round1(it.length)}s" }
         val output = edit.remap(transcript).words
-        val plan = Planner(taste, request.prompt).plan(output, lines, understanding, request.seed, footage = request.footage != null)
+        val plan = Planner(taste, request.prompt).plan(
+            output, lines, understanding, request.seed, footage = request.footage != null,
+            opening = open?.let { Planner.Opening(edit.preludeLength, it.line, it.words) },
+        )
         report += plan.notes
 
         onStage("pictures", 0.6f)

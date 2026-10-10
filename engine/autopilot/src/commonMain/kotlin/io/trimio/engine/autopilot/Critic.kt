@@ -66,8 +66,10 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
         if (cta != null && cta.keyword.isNotBlank() && !ctaShown) {
             issues += Issue(duration, "cta", "the call to action is not on the last screen")
             val last = scenes.lastIndex
+            // The word as the planner placed it (what the speaker said), not the model's spelling of it.
+            val keyword = scenes.flatMap { it.beats }.lastOrNull { it.recipe == "comment" }?.text ?: cta.keyword
             if (last >= 0 && scenes[last].beats.none { it.recipe == "comment" }) {
-                scenes = scenes.addBeat(last, BeatScore(recipe = "comment", text = cta.keyword, hold = 4f, label = "کامنت کن", place = "top"))
+                scenes = scenes.addBeat(last, BeatScore(recipe = "comment", text = keyword, hold = 4f, label = "کامنت کن", place = "top"))
             }
         }
 

@@ -27,11 +27,11 @@ data class ColdOpen(
         fun choose(words: List<Word>, lines: List<Lines.Line>, understanding: Understanding, prompt: String, seed: Long): ColdOpen? {
             val k = understanding.hook?.line ?: return null
             val line = lines.getOrNull(k) ?: return null
-            val q = payoff(words, line) ?: return null
             if (!asked(prompt) && !Rng(seed).fork(SALT).chance(CHANCE)) return null
-            val span = span(words, q, line).takeIf { seconds(words, it.first, it.last) >= MIN_S } ?: return null
-            val a = (words[span.first].range.startMs - LEAD_MS) / 1000f
-            val b = (words[span.last].range.endMs + TAIL_MS) / 1000f
+            val span = payoff(words, line)?.let { q -> span(words, q, line) }?.takeIf { seconds(words, it.first, it.last) >= MIN_S } ?: return null
+            // A breath either side, but never into the neighbouring words.
+            val a = maxOf(words[span.first].range.startMs - LEAD_MS, (words.getOrNull(span.first - 1)?.range?.endMs ?: 0L) + 1) / 1000f
+            val b = minOf(words[span.last].range.endMs + TAIL_MS, words.getOrNull(span.last + 1)?.range?.startMs?.minus(1) ?: Long.MAX_VALUE) / 1000f
             return ColdOpen(a.coerceAtLeast(0f)..b, k, span)
         }
 

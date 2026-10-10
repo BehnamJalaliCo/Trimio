@@ -18,6 +18,27 @@ internal class Figures(
     private val locate: (String, Lines.Line) -> IntRange?,
 ) {
 
+    /** What makes two rich graphics the same figure (a voucher said twice is shown once). */
+    fun keyOf(show: String, s: Quantities.Sense): String? = when (show) {
+        "voucher" -> s.money?.let { "voucher ${it.value}" }
+        "countdown" -> (s.deadline ?: s.quantities.firstOrNull { it.kind == Quantities.Kind.Duration })?.let { "countdown ${it.value}" }
+        "progress" -> "progress ${s.quota?.value}"
+        "stats" -> "stats ${s.social.map { it.value }}"
+        else -> null
+    }
+
+    /** The numbers a rich show puts on screen. */
+    fun figureOf(s: Quantities.Sense, show: String): List<Quantities.Quantity> = when (show) {
+        "voucher" -> listOfNotNull(s.voucher ?: s.money)
+        "stats" -> s.social.ifEmpty { s.quantities }
+        "countdown" -> listOfNotNull(s.deadline ?: s.quantities.firstOrNull { it.kind == Quantities.Kind.Duration })
+        "progress" -> listOfNotNull(s.quota) + s.quantities.filter { it.kind in COUNTED }.take(1)
+        else -> emptyList()
+    }
+
+    /** The number a counter shows: one with a meaning (people, views, money) over a bare one said first. */
+    fun counted(s: Quantities.Sense): Quantities.Quantity? = s.quantities.firstOrNull { it.unit.isNotEmpty() && it.value >= 10 } ?: s.quantities.firstOrNull()
+
     /** What a counted thing is, for the label under its number («نفر اول», «ظرفیت جدید», «بازدید»). */
     fun unitLabel(q: Quantities.Quantity): String? = when (q.kind) {
         Quantities.Kind.People -> if (q.first) (if (rtl) "${q.unit} اول" else "first ${q.unit}") else q.unit
@@ -41,12 +62,15 @@ internal class Figures(
         )
     }
 
-    /** What the money is: the words right after the unit («سرمایه اولیه»), else "voucher" if said, else the line's title. */
+    /**
+     * What the money is: the words right after the unit («سرمایه اولیه», even when a pause put
+     * «اولیه» on the next line), else "voucher" if said, else the line's title.
+     */
     fun voucherLabel(line: Lines.Line, q: Quantities.Quantity, read: LineRead): String? {
         val after = mutableListOf<String>()
         var i = q.last + 1
         fun labelWord(j: Int) = Words.isContent(texts[j]) && texts[j].none { it.isDigit() } && Quantities.unitOf(texts[j]) == null
-        while (i <= line.last && after.size < 2 && labelWord(i)) {
+        while (i <= minOf(texts.lastIndex, q.last + 2) && after.size < 2 && labelWord(i)) {
             after += texts[i].trimEnd('.', '،', ',')
             if (texts[i].last() in ".،,") break
             i++
@@ -69,7 +93,7 @@ internal class Figures(
             if (rtl) (if (less) "کمتر از $n ${d.unit}" else "در $n ${d.unit}") else (if (less) "in under $n ${d.unit}" else "in $n ${d.unit}")
         }
         return BeatScore(
-            recipe = "stats", at = qs.first().at, until = line.last, items = labels, points = qs.map { it.value.toFloat() },
+            recipe = "stats", at = qs.first().at, until = maxOf(line.last, qs.maxOf { it.last }), items = labels, points = qs.map { it.value.toFloat() },
             label = span, energy = maxOf(e, 0.75f), place = place,
         )
     }
@@ -85,7 +109,8 @@ internal class Figures(
 
     /** «تا پایان کمپین»: what the time runs out on, from the words of the line. */
     private fun deadlineLabel(line: Lines.Line): String {
-        val noun = line.range.firstNotNullOfOrNull { i -> DEADLINES.entries.firstOrNull { norm[i].startsWith(it.key) }?.value }
+        // «… ساعتم بیشتر | نمونده از کمپینشون»: what ends is often said just after the line.
+        val noun = (line.first..minOf(texts.lastIndex, line.last + DEADLINE_REACH)).firstNotNullOfOrNull { i -> DEADLINES.entries.firstOrNull { norm[i].startsWith(it.key) }?.value }
         return when {
             noun != null && rtl -> "تا پایان $noun"
             noun != null -> "until the $noun ends"
@@ -116,6 +141,7 @@ internal class Figures(
 
     private companion object {
         const val MAX_STATS = 3
+        const val DEADLINE_REACH = 4
         val COUNTED = setOf(Quantities.Kind.People, Quantities.Kind.Capacity)
         val VOUCHER_WORDS = setOf("ووچر", "وچر", "voucher", "هدیه", "جایزه", "بونوس", "bonus", "gift")
         val LESS = setOf("کمتر", "زیر", "under", "less")
