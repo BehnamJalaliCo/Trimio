@@ -148,7 +148,8 @@ class JuryTest {
 
         val crowded = good.copy(
             scenes = good.scenes.mapIndexed { i, s ->
-                if (i != 2) s else s.copy(beats = s.beats + BeatScore("slam", text = "سیصد", time = 9.2f, hold = 2f, place = "center") + BeatScore("stamp", text = "هدیه", time = 9.4f, hold = 2f, place = "lower"))
+                val more = listOf(BeatScore("slam", text = "سیصد", time = 9.2f, hold = 2f, place = "center"), BeatScore("stamp", text = "هدیه", time = 9.4f, hold = 2f, place = "lower"))
+                if (i != 2) s else s.copy(beats = s.beats + more)
             },
         )
         assertTrue(judge(RhythmJudge(), context(crowded)).findings.any { "three graphics" in it.what })
@@ -173,7 +174,8 @@ class JuryTest {
     fun typographyReadsTheSceneGraph() {
         assertEquals(10f, judge(TypographyJudge(), context(good)).score)
         val c = context(good)
-        fun text(s: String, size: Float, rtl: Boolean) = TextNode(s, TypeSpec(BrandFonts.Role.Display, 600, size), Color.White.fill(), maxWidth = 900f, rtl = rtl, start = 2f, end = 5f, name = "mask-rise")
+        fun text(s: String, size: Float, rtl: Boolean) =
+            TextNode(s, TypeSpec(BrandFonts.Role.Display, 600, size), Color.White.fill(), maxWidth = 900f, rtl = rtl, start = 2f, end = 5f, name = "mask-rise")
         val root = Group(listOf(text("سلام دوستان", 18f, rtl = true), text("سلام دوستان", 80f, rtl = false)))
         val bad = c.copy(compiled = c.compiled.copy(composition = Composition(1080, 1920, 30, c.duration, Color.Black, root)))
         val v = judge(TypographyJudge(), bad)
@@ -268,7 +270,10 @@ class JuryTest {
         val broken = good.copy(
             scenes = listOf(
                 SceneScore(from = 0),
-                SceneScore(from = 9, beats = listOf(BeatScore("mask-rise", at = 14, text = "هزار نفر اول", place = "top"), BeatScore("stack", text = "سیصد تتر", time = 6.2f, hold = 2.5f, place = "full"))),
+                SceneScore(
+                    from = 9,
+                    beats = listOf(BeatScore("mask-rise", at = 14, text = "هزار نفر اول", place = "top"), BeatScore("stack", text = "سیصد تتر", time = 6.2f, hold = 2.5f, place = "full")),
+                ),
                 SceneScore(from = 22, beats = listOf(BeatScore("voucher", at = 22, hold = 3.3f, value = 300f, suffix = "تتر", label = "هدیه", items = listOf("Tether"), place = "top"))),
             ),
         )

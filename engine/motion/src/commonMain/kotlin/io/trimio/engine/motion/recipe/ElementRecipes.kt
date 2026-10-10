@@ -142,7 +142,8 @@ object ElementRecipes {
                 cue.copy(prefix = cue.prefix.ifEmpty { if (up) "+" else "" }, suffix = cue.suffix.ifEmpty { "%" }, decimals = if (cue.decimals == 0) 1 else cue.decimals),
                 look, h * 0.42f, at + 0.3f, 0.9f, cue.x + w / 2f - h * 1.1f, cue.y, color, persian = false,
             )
-            return Built(listOf(group(cue, listOf(pill, dot, arrow, sym, change), name)), sfx = listOf(Sfx(at, SfxKind.Swish, 0.6f), Sfx(at + 1.2f, SfxKind.Tick, 0.5f)))
+            // Symbol and change sit on the pill.
+            return Built(listOf(group(cue, listOf(pill, dot, arrow, Craft.onBody(sym), Craft.onBody(change)), name)), sfx = listOf(Sfx(at, SfxKind.Swish, 0.6f), Sfx(at + 1.2f, SfxKind.Tick, 0.5f)))
         }
     }
 

@@ -171,24 +171,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var variation = 0
         var candidate: T? = first
         while (candidate != null) {
-            var current: T = candidate
-            var ctx = context(current)
-            var panel = deliberate(ctx)
-            log("jury ${label(variation)} round 0: ${panel.summary()}")
-            var round = 0
-            while (!panel.unanimous && round < budget.rounds) {
-                val fixed = fixes(ctx, panel) ?: break
-                round++
-                rounds++
-                val next = revise(current, fixed)
-                val nextCtx = context(next)
-                val nextPanel = deliberate(nextCtx)
-                log("jury ${label(variation)} round $round: ${nextPanel.summary()}")
-                if (!nextPanel.betterThan(panel)) break
-                current = next
-                ctx = nextCtx
-                panel = nextPanel
-            }
+            val (current, panel, spent) = polish(candidate, label(variation), context, revise, log)
+            rounds += spent
             if (panel.betterThan(bestPanel)) {
                 best = current
                 bestPanel = panel
@@ -198,6 +182,37 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             candidate = vary(variation)
         }
         return Outcome(best, bestPanel ?: deliberate(context(best)), rounds, variation)
+    }
+
+    /** One candidate through up to [Budget.rounds] revisions; a revision that does not improve the panel ends it. */
+    private suspend fun <T> polish(
+        first: T,
+        name: String,
+        context: suspend (T) -> Context,
+        revise: suspend (T, Score) -> T,
+        log: (String) -> Unit,
+    ): Triple<T, Panel, Int> {
+        var current = first
+        var ctx = context(current)
+        var panel = deliberate(ctx)
+        log("jury $name round 0: ${panel.summary()}")
+        var round = 0
+        var improving = true
+        while (improving && !panel.unanimous && round < budget.rounds) {
+            val fixed = fixes(ctx, panel) ?: break
+            round++
+            val next = revise(current, fixed)
+            val nextCtx = context(next)
+            val nextPanel = deliberate(nextCtx)
+            log("jury $name round $round: ${nextPanel.summary()}")
+            improving = nextPanel.betterThan(panel)
+            if (improving) {
+                current = next
+                ctx = nextCtx
+                panel = nextPanel
+            }
+        }
+        return Triple(current, panel, round)
     }
 
     companion object {

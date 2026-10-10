@@ -21,8 +21,9 @@ import kotlin.math.sin
  * wall colour, framing) so layout and the face finder meet more than one room. Rendering stills
  * over it needs no video and no vision model.
  */
-internal class SyntheticFootage(variant: Int) : MediaSource {
-    private val look = LOOKS[Math.floorMod(variant, LOOKS.size)]
+internal class SyntheticFootage private constructor(private val look: Look) : MediaSource {
+    constructor(variant: Int) : this(LOOKS[Math.floorMod(variant, LOOKS.size)])
+
     private var cachedAt = Float.NaN
     private var cached: ImageBitmap? = null
 
@@ -47,6 +48,17 @@ internal class SyntheticFootage(variant: Int) : MediaSource {
         return bitmap.readPixels()!!
     }
 
+    /**
+     * The true head at [time], as fractions of the frame: from the top of the hair to the chin (or
+     * the beard), hair included at the sides. The face finder is measured against it.
+     */
+    fun head(time: Float): FloatArray {
+        val cx = look.x + sway(time)
+        val headY = look.headY + nod(time)
+        val bottom = headY + if (look.beard) BEARD_BOTTOM else 200f
+        return floatArrayOf((cx - 175f) / W, (headY - 230f) / H, (cx + 175f) / W, bottom / H)
+    }
+
     private fun paint(c: Canvas, scale: Float, t: Float) {
         c.save()
         c.scale(scale, scale)
@@ -59,10 +71,13 @@ internal class SyntheticFootage(variant: Int) : MediaSource {
 
     private fun room(c: Canvas) {
         val (r, g, b) = look.wall
-        // The wall, lit from the window side, in bands.
+        // The wall, lit from the window side, in bands; a two-tone room paints its right part apart.
         for (k in 0 until 48) {
             val f = k / 47f
             c.drawRect(Rect.makeXYWH(0f, k * 40f, W.toFloat(), 41f), fill(Color.makeRGB((r * (1 - 0.45f * f)).toInt(), (g * (1 - 0.45f * f)).toInt(), (b * (1 - 0.45f * f)).toInt())))
+            look.split?.let { (r2, g2, b2) ->
+                c.drawRect(Rect.makeXYWH(SPLIT_X, k * 40f, W - SPLIT_X, 41f), fill(Color.makeRGB((r2 * (1 - 0.45f * f)).toInt(), (g2 * (1 - 0.45f * f)).toInt(), (b2 * (1 - 0.45f * f)).toInt())))
+            }
         }
         // Floor.
         c.drawRect(Rect.makeXYWH(0f, 1500f, W.toFloat(), 420f), fill(Color.makeRGB(r / 3, g / 3, b / 3)))
@@ -88,13 +103,21 @@ internal class SyntheticFootage(variant: Int) : MediaSource {
             c.drawOval(Rect.makeXYWH(sx + 70f + dx, 1270f + dy, 70f, 120f), fill(Color.makeRGB(50, 110, 60)))
         }
         c.drawCircle(if (look.windowLeft) 980f else 100f, 300f, 70f, fill(Color.makeARGB(120, 255, 220, 150)))
+        // A light oak wardrobe just behind the speaker's shoulder: skin-coloured, touching the jaw.
+        if (look.wardrobe) {
+            val x0 = look.x + 140f
+            c.drawRect(Rect.makeXYWH(x0, 380f, 280f, 1070f), fill(Color.makeRGB(196, 150, 108)))
+            for (k in 1..5) c.drawRect(Rect.makeXYWH(x0, 380f + k * 178f, 280f, 3f), fill(Color.makeRGB(176, 132, 92)))
+        }
     }
 
+    private fun sway(t: Float) = 12f * sin(2 * PI * t / 3.7).toFloat()
+
+    private fun nod(t: Float) = 6f * sin(2 * PI * t / 2.3).toFloat()
+
     private fun person(c: Canvas, t: Float) {
-        val sway = 12f * sin(2 * PI * t / 3.7).toFloat()
-        val nod = 6f * sin(2 * PI * t / 2.3).toFloat()
-        val cx = look.x + sway
-        val headY = look.headY + nod
+        val cx = look.x + sway(t)
+        val headY = look.headY + nod(t)
         val (sr, sg, sb) = look.skin
         val skin = Color.makeRGB(sr, sg, sb)
         // Shoulders and torso.
@@ -110,6 +133,13 @@ internal class SyntheticFootage(variant: Int) : MediaSource {
             c.drawOval(Rect.makeXYWH(cx + side * 62f - 18f, headY - 40f, 36f, 20f), fill(Color.makeRGB(40, 30, 28)))
             c.drawRect(Rect.makeXYWH(cx + side * 62f - 30f, headY - 75f, 60f, 10f), fill(look.hair))
         }
+        // A full beard over the jaw, down past the chin.
+        if (look.beard) {
+            c.save()
+            c.clipRect(Rect.makeLTRB(cx - 200f, headY + 50f, cx + 200f, headY + 400f))
+            c.drawOval(Rect.makeXYWH(cx - 152f, headY - 190f, 304f, 190f + BEARD_BOTTOM), fill(look.hair))
+            c.restore()
+        }
         val open = 6f + 14f * (0.5f + 0.5f * sin(2 * PI * t * 4.6).toFloat())
         c.drawRRect(RRect.makeXYWH(cx - 42f, headY + 85f, 84f, open, open / 2), fill(Color.makeRGB(110, 45, 45)))
     }
@@ -122,11 +152,17 @@ internal class SyntheticFootage(variant: Int) : MediaSource {
         val x: Float,
         val headY: Float,
         val windowLeft: Boolean,
+        val beard: Boolean = false,
+        /** A second wall colour right of [SPLIT_X] (a two-tone room). */
+        val split: Triple<Int, Int, Int>? = null,
+        val wardrobe: Boolean = false,
     )
 
     companion object {
         const val W = 1080
         const val H = 1920
+        private const val SPLIT_X = 600f
+        private const val BEARD_BOTTOM = 235f
 
         private val LOOKS = listOf(
             // A cool grey studio wall, centred, light skin.
@@ -139,6 +175,25 @@ internal class SyntheticFootage(variant: Int) : MediaSource {
             Look(Triple(50, 64, 100), Triple(160, 108, 78), Color.makeRGB(214, 200, 170), Color.makeRGB(18, 14, 12), 610f, 780f, windowLeft = true),
             // A white wall, a tight frame (big head high in the frame).
             Look(Triple(228, 228, 226), Triple(230, 182, 150), Color.makeRGB(60, 90, 140), Color.makeRGB(90, 60, 30), 540f, 640f, windowLeft = false),
+        )
+
+        /**
+         * Rooms harder than the scenarios' five, for the face finder's bench only (outside the
+         * scenarios' rotation, so no scenario changes): an off-centre speaker, a two-tone wall
+         * (beige and dark teal, split behind the head), a bearded speaker, and a light oak wardrobe
+         * touching the jaw.
+         */
+        val HARD = listOf("off-centre", "two-tone", "beard", "wardrobe")
+
+        /** The [HARD] room [name]. */
+        fun hard(name: String): SyntheticFootage = SyntheticFootage(
+            when (name) {
+                "off-centre" -> Look(Triple(130, 160, 130), Triple(198, 140, 105), Color.makeRGB(40, 40, 46), Color.makeRGB(20, 16, 14), 270f, 800f, windowLeft = false)
+                "two-tone" -> Look(Triple(205, 182, 150), Triple(224, 172, 138), Color.makeRGB(30, 34, 44), Color.makeRGB(36, 26, 22), 560f, 760f, windowLeft = true, split = Triple(40, 72, 80))
+                "beard" -> Look(Triple(150, 160, 175), Triple(214, 160, 124), Color.makeRGB(70, 90, 70), Color.makeRGB(42, 30, 24), 540f, 740f, windowLeft = false, beard = true)
+                "wardrobe" -> Look(Triple(228, 228, 226), Triple(224, 172, 138), Color.makeRGB(30, 34, 44), Color.makeRGB(36, 26, 22), 500f, 760f, windowLeft = true, wardrobe = true)
+                else -> error("no hard room $name")
+            },
         )
     }
 }

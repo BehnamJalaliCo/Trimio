@@ -2,6 +2,7 @@ package io.trimio.engine.motion.recipe
 
 import androidx.compose.ui.graphics.Color
 import io.trimio.core.brand.BrandFonts
+import io.trimio.engine.motion.Guard
 import io.trimio.engine.motion.TypeSpec
 
 /**
@@ -42,6 +43,12 @@ data class Look(
     val mark: Mark = Mark.Block,
     /** Text over footage gets a soft shadow so it never depends on the picture. */
     val textShadow: Color = Color.Black.copy(alpha = 0.55f),
+    /**
+     * How the look keeps text legible over any footage (see [Guard]): dark looks ring light ink
+     * with a soft dark halo where the picture is bright; the paper look sets its dark ink on
+     * paper plates where the picture is dark — it stays itself instead of inverting.
+     */
+    val guard: Guard = Guard(Guard.Style.Halo, light = Color(0xFFF2EDE4), dark = Color(0xFF0B0A09)),
 ) {
     /**
      * The same look with another accent ("#D7FF3A"): emphasis blocks, numbers and rings follow it;
@@ -111,6 +118,7 @@ data class Look(
             vignette = 0.12f,
             roundness = 0f,
             textShadow = Color.Transparent,
+            guard = Guard(Guard.Style.Plate, light = Color(0xFFEFEDE6), dark = Color(0xFF111111), radius = 0.06f),
         )
 
         /** Cool, luminous and calm: iridescent light on deep blue, soft blur entrances. */
@@ -136,6 +144,7 @@ data class Look(
             vignette = 0.45f,
             roundness = 1.4f,
             mark = Mark.Ink,
+            guard = Guard(Guard.Style.Halo, light = Color(0xFFF4F6FF), dark = Color(0xFF070B14)),
         )
 
         val all = listOf(Noir, Paper, Lumen)

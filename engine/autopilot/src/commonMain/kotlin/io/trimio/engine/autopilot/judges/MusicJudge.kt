@@ -37,14 +37,18 @@ class MusicJudge(
         if (music != null) {
             f += fit(c, music, brief.energy)
             val bpm = c.score.bpm
-            if (bpm == null || abs(bpm - music.bpm) > 0.5f) f += Bench.finding(0f, Severity.Minor, "the beat grid (${bpm ?: "none"}) is not the track's ${music.bpm} bpm", "snap hits to the track's grid")
+            if (bpm == null || abs(bpm - music.bpm) > 0.5f) {
+                f += Bench.finding(0f, Severity.Minor, "the beat grid (${bpm ?: "none"}) is not the track's ${music.bpm} bpm", "snap hits to the track's grid")
+            }
         }
         val sound = c.sound
         if (sound != null && music != null) {
             val x = sound.audio.samples
             val n = (sound.audio.sampleRate * tailMs / 1000).coerceAtMost(x.size)
             val last = (x.size - n until x.size).maxOfOrNull { abs(x[it]) } ?: 0f
-            if (last > END_PEAK) f += Bench.finding(c.duration, Severity.Minor, "the mix is still at ${(last * 100).toInt()}% on the last frame", "fade the bed out over the last 0.8 s")
+            if (last > END_PEAK) {
+                f += Bench.finding(c.duration, Severity.Minor, "the mix is still at ${(last * 100).toInt()}% on the last frame", "fade the bed out over the last 0.8 s")
+            }
         }
         return Verdict.of(this, f)
     }

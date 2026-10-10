@@ -52,9 +52,17 @@ class MotionRenderer(
     private val frame = Rect(0f, 0f, composition.width.toFloat(), composition.height.toFloat())
     private val shutter = composition.shutterAngle / 360f / composition.fps
 
+    /** What the footage behind the frame looks like right now: guarded text reads it (see [Guard]). */
+    private val backdrop = Backdrop()
+
+    /** Node space → frame space for whatever is being drawn (the DrawScope's own transform, tracked). */
+    private var current = M3.IDENTITY
+
     fun block(node: TextNode): TextBlock = blocks.getOrPut(node) { text.layout(node.text, node.type, node.maxWidth, node.align, node.rtl) }
 
     fun render(scope: DrawScope, t: Float) = with(scope) {
+        backdrop.reset()
+        current = M3.IDENTITY
         drawRect(composition.background)
         val cam = composition.camera
         val cx = composition.width / 2f
@@ -132,7 +140,10 @@ class MotionRenderer(
             is CounterNode -> drawCounter(node, t, alpha)
             is ShapeNode -> drawShape(node, t, alpha)
             is MediaNode -> drawMedia(node, t, alpha)
-            is EffectNode -> drawEffect(node.effect, t, alpha, frame.size, soft)
+            is EffectNode -> {
+                (node.effect as? Effect.Scrim)?.let { backdrop.scrim(it.fromBottom, it.coverage, it.opacity.at(t) * alpha, frame.height) }
+                drawEffect(node.effect, t, alpha, frame.size, soft)
+            }
             is VectorNode -> vectors.draw(this, node, t, alpha)
         }
     }
@@ -192,6 +203,11 @@ class MotionRenderer(
         val size = node.type.size
         val base = fillBrush(node.fill, t, Size(block.width, block.height))
         val baseColor = (node.fill as? Fill.Solid)?.color?.at(t)
+        // Over footage: as much guard as the picture behind needs, in the look's style.
+        val guard = node.guard?.takeIf { !node.onBody }
+        val guarding = guarded(guard, inkOf(node.fill, t), Rect(0f, 0f, block.width, block.height).inflate(size * 0.25f))
+        val plate = guarding?.takeIf { guard?.style == Guard.Style.Plate }
+        val halo = guarding?.takeIf { guard?.style == Guard.Style.Halo }
         // Which unit level drives clipping: the finest unit any animator uses.
         val unitLevel = node.animators.minOfOrNull { it.unit.ordinal }?.let { TextUnit.entries[it] } ?: TextUnit.All
         val maskLine = node.animators.any { it.clipToLine }
@@ -201,6 +217,10 @@ class MotionRenderer(
                 TextUnit.Char -> line.chars.map { it to stateFor(node, block, TextUnit.Char, it.index, t) + stateFor(node, block, TextUnit.Word, wordAt(line, it.center), t) }
                 TextUnit.Word -> line.words.map { it to stateFor(node, block, TextUnit.Word, it.index, t) }
                 else -> emptyList()
+            }
+            if (plate != null) {
+                val seen = lineState.opacity * (units.maxOfOrNull { it.second.opacity } ?: 1f)
+                drawPlate(block, line, size, plate, alpha * seen.coerceIn(0f, 1f), guard!!.radius)
             }
             // Units at rest draw as one piece: no clip seams once the words have landed.
             val pieces = if (units.all { it.second.isRest }) listOf(wholeLine(line, size) to UnitState.REST) else units
@@ -222,7 +242,7 @@ class MotionRenderer(
                         M3.translate(-pivot.x, -pivot.y)
                     withM(m) {
                         val drawUnit: DrawScope.() -> Unit = {
-                            clipIf(!whole, clip) { drawLineWithDecorations(node, block, line, t, a, base, baseColor) }
+                            clipIf(!whole, clip) { drawLineWithDecorations(node, block, line, t, a, base, baseColor, halo) }
                         }
                         val blur = state.blur * size
                         if (blur > 0.5f) blurred(clip.inflate(blur * 2), blur, drawUnit) else drawUnit()
@@ -232,6 +252,23 @@ class MotionRenderer(
         }
         // Loops around words draw over everything, unclipped.
         for (d in node.decorations.filterIsInstance<Decoration.Circle>()) drawCircleMark(d, block, t, alpha)
+    }
+
+    /**
+     * A plate behind one line in the guard tone: lines stack into one stepped plate (each as wide
+     * as its own words), padded above the first and below the last.
+     */
+    private fun DrawScope.drawPlate(block: TextBlock, line: TextLine, size: Float, plate: Pair<Color, Float>, alpha: Float, radius: Float) {
+        val a = (alpha * plate.second).coerceIn(0f, 1f)
+        if (a <= 0.002f) return
+        val padX = size * PLATE_X
+        val padY = size * PLATE_Y
+        val top = if (line.index == 0) line.inkTop - padY else line.top
+        val bottom = if (line.index == block.lines.lastIndex) line.inkBottom + padY else line.top + line.height
+        drawRoundRect(
+            plate.first, Offset(line.x - padX, top), Size(line.width + padX * 2f, bottom - top),
+            androidx.compose.ui.geometry.CornerRadius(size * radius), alpha = a,
+        )
     }
 
     private fun wholeLine(line: TextLine, size: Float) = UnitBox(-1, 0f, line.width, -size * 4, line.width + size * 4)
@@ -247,9 +284,12 @@ class MotionRenderer(
     }
 
     /** One line of text with the blocks, underlines and ink that belong to it. */
-    private fun DrawScope.drawLineWithDecorations(node: TextNode, block: TextBlock, line: TextLine, t: Float, alpha: Float, base: Brush, baseColor: Color?) {
+    private fun DrawScope.drawLineWithDecorations(
+        node: TextNode, block: TextBlock, line: TextLine, t: Float, alpha: Float, base: Brush, baseColor: Color?, halo: Pair<Color, Float>? = null,
+    ) {
         val size = node.type.size
         val origin = Offset(line.x, line.glyphTop)
+        halo?.let { halo(line.layout, origin, size, it, alpha) }
         val blocks = node.decorations.filterIsInstance<Decoration.Block>().mapNotNull { d -> blockRect(d, line, t, size, node.rtl)?.let { d to it } }
         for ((d, r) in blocks) {
             val m = if (d.skew != 0f) M3.translate(r.center.x, r.center.y) * M3.skewX(d.skew) * M3.translate(-r.center.x, -r.center.y) else M3.IDENTITY
@@ -351,6 +391,18 @@ class MotionRenderer(
     private fun DrawScope.drawCounter(node: CounterNode, t: Float, alpha: Float) {
         val layout = counterLayout(node, t)
         val shadow = node.shadow?.let { androidx.compose.ui.graphics.Shadow(it.color.copy(alpha = it.color.alpha * alpha), Offset(it.dx, it.dy), it.blur) }
+        val size = node.type.size
+        val box = Rect(0f, 0f, layout.size.width.toFloat(), layout.size.height.toFloat())
+        val guard = node.guard?.takeIf { !node.onBody }
+        guarded(guard, inkOf(node.fill, t), box.inflate(size * 0.25f))?.let { g ->
+            if (guard?.style == Guard.Style.Plate) {
+                val a = (alpha * g.second).coerceIn(0f, 1f)
+                val r = box.inflate(size * PLATE_Y)
+                drawRoundRect(g.first, Offset(r.left - size * (PLATE_X - PLATE_Y), r.top), Size(r.width + size * (PLATE_X - PLATE_Y) * 2f, r.height), androidx.compose.ui.geometry.CornerRadius(size * guard.radius), alpha = a)
+            } else {
+                halo(layout, Offset.Zero, size, g, alpha)
+            }
+        }
         drawText(layout, brush = fillBrush(node.fill, t, Size(layout.size.width.toFloat(), layout.size.height.toFloat())), alpha = alpha, shadow = shadow)
     }
 
@@ -460,6 +512,9 @@ class MotionRenderer(
             val k = if (node.fit == Fit.Cover) maxOf(box.width / iw, box.height / ih) else minOf(box.width / iw, box.height / ih)
             val dw = iw * k
             val dh = ih * k
+            // Footage that fills the frame is what text over it is read against.
+            val screen = current.mapBounds(Rect(Offset.Zero, box))
+            if (screen.width >= frame.width * FOOTAGE_COVER && screen.height >= frame.height * FOOTAGE_COVER) backdrop.footage(image, current, box, node.fit)
             drawImage(
                 image,
                 dstOffset = androidx.compose.ui.unit.IntOffset(((box.width - dw) / 2).toInt(), ((box.height - dh) / 2).toInt()),
@@ -515,7 +570,43 @@ class MotionRenderer(
     }
 
     private inline fun DrawScope.withM(m: M3, block: DrawScope.() -> Unit) {
-        if (m.isIdentity) block() else withTransform({ transform(m.toCompose()) }, block)
+        if (m.isIdentity) return block()
+        val outer = current
+        current = outer * m
+        withTransform({ transform(m.toCompose()) }, block)
+        current = outer
+    }
+
+    // ---------------------------------------------------------------- contrast
+
+    /** A guard tone and its strength for ink [ink] over the footage behind [local] (node space); null when none is needed. */
+    private fun guarded(guard: Guard?, ink: Color, local: Rect): Pair<Color, Float>? {
+        guard ?: return null
+        val tone = backdrop.tone(current.mapBounds(local)) ?: return null
+        return Contrast.guard(ink, tone, guard).takeIf { it.second > MIN_GUARD }
+    }
+
+    /** The colour a fill reads as (gradients: their average), for contrast decisions. */
+    private fun inkOf(fill: Fill, t: Float): Color = when (fill) {
+        is Fill.Solid -> fill.color.at(t)
+        is Fill.Linear -> fill.colors.average()
+        is Fill.Radial -> fill.colors.average()
+    }
+
+    private fun List<Color>.average() = Color(sumOf { it.red.toDouble() }.toFloat() / size, sumOf { it.green.toDouble() }.toFloat() / size, sumOf { it.blue.toDouble() }.toFloat() / size)
+
+    /** A soft glyph halo in the guard tone, under the fill: the glyph's immediate surround is always the guard. */
+    private fun DrawScope.halo(layout: androidx.compose.ui.text.TextLayoutResult, origin: Offset, size: Float, halo: Pair<Color, Float>, alpha: Float) {
+        val (c, s) = halo
+        val a = (alpha * s).coerceIn(0f, 1f)
+        if (a <= 0.002f) return
+        drawText(
+            layout, color = c, topLeft = origin, alpha = a,
+            shadow = androidx.compose.ui.graphics.Shadow(c.copy(alpha = a), Offset.Zero, size * HALO_SOFT),
+            drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(
+                size * HALO_WIDTH, join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            ),
+        )
     }
 
     private inline fun DrawScope.layer(bounds: Rect, alpha: Float, blend: BlendMode, block: DrawScope.() -> Unit) {
@@ -554,6 +645,15 @@ class MotionRenderer(
 
     private companion object {
         const val MOTION_THRESHOLD_PX = 1.5f
+        /** Footage this much of the frame (each side) is the backdrop text is read against. */
+        const val FOOTAGE_COVER = 0.8f
+        /** Below this strength a guard is not drawn at all. */
+        const val MIN_GUARD = 0.01f
+        /** Halo stroke width and softness, and plate padding, as fractions of the font size. */
+        const val HALO_WIDTH = 0.16f
+        const val HALO_SOFT = 0.1f
+        const val PLATE_X = 0.32f
+        const val PLATE_Y = 0.14f
         const val MAX_BLUR_SAMPLES = 28
         const val BLOCK_AIR = 0.06f
         const val SEAM = 0.75f

@@ -35,7 +35,10 @@ class BriefJudge : Judge {
         val captions = c.score.captions
         when {
             brief.captions == "word" && (!captions.show || captions.maxWords > WORD_CAPTIONS) ->
-                f += Bench.finding(0f, Severity.Major, "word-by-word captions asked; captions show ${if (captions.show) "${captions.maxWords} words" else "nothing"}", "captions of at most $WORD_CAPTIONS words")
+                f += Bench.finding(
+                    0f, Severity.Major, "word-by-word captions asked; captions show ${if (captions.show) "${captions.maxWords} words" else "nothing"}",
+                    "captions of at most $WORD_CAPTIONS words",
+                )
             brief.captions == "none" && captions.show -> f += Bench.finding(0f, Severity.Major, "the brief asks for no captions", "hide the captions")
         }
         keyword(c)?.let { k ->

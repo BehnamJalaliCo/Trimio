@@ -168,6 +168,8 @@ class Compiler(
             holdStages(beats)
             val captionBeats = if (score.captions.show && words.isNotEmpty()) captions(this, beats) else emptyList()
             val built = (beats + captionBeats).associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }
+            // Text over footage keeps the look's contrast floor whatever the picture does behind it.
+            for ((b, out) in built) if (b.cue.overMedia) out.nodes.forEach { guard(it, look.guard) }
 
             val transitions = mutableListOf<Node>()
             val transitionSfx = mutableListOf<Sfx>()
@@ -421,6 +423,16 @@ class Compiler(
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** Gives every piece of text in [node] that is not on a body of its own the look's [Guard]. */
+    private fun guard(node: Node, g: io.trimio.engine.motion.Guard) {
+        when (node) {
+            is Group -> node.children.forEach { guard(it, g) }
+            is io.trimio.engine.motion.TextNode -> if (!node.onBody) node.guard = g
+            is io.trimio.engine.motion.CounterNode -> if (!node.onBody) node.guard = g
+            else -> Unit
+        }
+    }
 
     /** Whether a caption word earns the line's one highlight. */
     private fun stands(prosody: Float, picked: Boolean, number: NumberWords.Found?) =

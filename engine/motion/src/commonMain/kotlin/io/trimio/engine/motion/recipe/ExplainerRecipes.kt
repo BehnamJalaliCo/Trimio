@@ -135,14 +135,14 @@ object ExplainerRecipes {
                         ),
                         name = "chip-dot-$i",
                     )
-                    nodes += TextNode(
+                    nodes += Craft.onBody(TextNode(
                         items[i], fitted[i].type, Fill.Solid(ink), rtl = false,
                         transform = Transform(
                             x = (cx + (if (cue.rtl) -1f else 1f) * h * 0.18f).anim, y = y.anim,
                             scale = pop.scale, opacity = pop.opacity,
                         ),
                         name = "chip-label-$i",
-                    )
+                    ))
                 }
             }
             return Built(listOf(group(cue, nodes, name)), sfx = times.map { Sfx(it + Craft.LEAD, SfxKind.Pop, 0.55f) })
@@ -189,10 +189,10 @@ object ExplainerRecipes {
             }
             val lineX = left + w * 0.07f
             val typed = TextAnimator(TextUnit.Char, UnitState(opacity = 0f), at = at + 0.3f, duration = 0.01f, stagger = typing / command.length.coerceAtLeast(1), ease = Easing.Hold)
-            nodes += TextNode(
+            nodes += Craft.onBody(TextNode(
                 "$ $command", cf.type, Color(0xFFF2EDE4).fill(), rtl = false, animators = listOf(typed),
                 transform = Transform(x = (lineX + cf.width / 2f).anim, y = (top + bar + h * 0.24f).anim, opacity = enter.opacity), name = "term-cmd",
-            )
+            ))
             nodes += ShapeNode(
                 ShapeSpec.Rect((cf.type.size * 0.5f).anim, (cf.type.size * 0.95f).anim), fill = look.accent.fill(),
                 transform = Transform(
@@ -202,11 +202,11 @@ object ExplainerRecipes {
                 ),
                 end = doneAt, name = "term-cursor",
             )
-            nodes += TextNode(
+            nodes += Craft.onBody(TextNode(
                 "✓ $result", rf.type, look.positive.fill(), rtl = false,
                 animators = listOf(TextAnimator(TextUnit.All, UnitState(dx = -0.4f, opacity = 0f), at = doneAt, duration = 0.4f, ease = Easing.ExpoOut)),
                 transform = Transform(x = (lineX + rf.width / 2f).anim, y = (top + bar + h * 0.55f).anim, opacity = enter.opacity), name = "term-result",
-            )
+            ))
             return Built(
                 listOf(group(cue, nodes, name)),
                 sfx = listOf(Sfx(at, SfxKind.Swish, 0.5f), Sfx(at + 0.35f, SfxKind.Tick, 0.4f), Sfx(doneAt, SfxKind.Pop, 0.7f)),
@@ -418,13 +418,13 @@ object ExplainerRecipes {
             val typeAt = at + 0.45f
             val typing = (keyword.length * 0.12f).coerceIn(0.2f, 0.9f)
             val textX = if (cue.rtl) startX - h * 0.55f - kf.width / 2f else startX + h * 0.55f + kf.width / 2f
-            nodes += TextNode(
+            nodes += Craft.onBody(TextNode(
                 keyword, kf.type, Color(0xFF111111).fill(), rtl = cue.rtl,
                 animators = listOf(
                     TextAnimator(TextUnit.Char, UnitState(opacity = 0f, scale = 1.4f), at = typeAt, duration = 0.12f, stagger = typing / keyword.length.coerceAtLeast(1), ease = Easing.ExpoOut),
                 ),
                 transform = Transform(x = textX.anim, y = enter.y, opacity = enter.opacity, scale = enter.scale), name = "comment-keyword",
-            )
+            ))
             val sendAt = typeAt + typing + 0.25f
             val send = ColorAnim.tween(Color(0xFFDADADA), look.hot, sendAt, sendAt + 0.2f)
             nodes += ShapeNode(

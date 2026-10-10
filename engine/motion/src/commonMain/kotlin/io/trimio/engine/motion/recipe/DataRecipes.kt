@@ -43,6 +43,8 @@ object DataRecipes {
 
     /** Visible from just before the beat; the whole device lifts, softens and fades out by [Cue.out]. */
     private fun group(cue: Cue, children: List<Node>, name: String): Group {
+        // Over footage every device here carries its own body (disc, panel, ticket, stamp, pill).
+        if (cue.overMedia) children.forEach { Craft.onBody(it) }
         val exitAt = cue.out - EXIT
         return Group(
             children,

@@ -132,12 +132,10 @@ class TypographyJudge(
         val width = c.compiled.composition.width.toFloat()
         val layers = layers(c)
         // Headlines too small over the speaker get the whole frame (as the eyes' critic does).
-        for ((l, _) in small(layers, width).filter { it.first.kind == HEADLINE && it.first.overFootage }) {
-            val k = Bench.sceneAt(score, c.words, l.t)
-            val scene = score.scenes.getOrNull(k) ?: continue
-            if (k == 0 || scene.bg != null || scene.beats.any { it.recipe == Bench.COMMENT }) continue
-            score = score.copy(scenes = score.scenes.mapIndexed { i, s -> if (i == k) s.copy(bg = "grid", transition = s.transition ?: "zoom") else s })
-        }
+        val scenes = small(layers, width).filter { it.first.kind == HEADLINE && it.first.overFootage }.map { Bench.sceneAt(score, c.words, it.first.t) }.toSet()
+        // Never the opening scene (the speaker introduces the piece) nor the ask's (it is the last screen).
+        val staged = scenes.filter { k -> k > 0 && score.scenes.getOrNull(k)?.let { s -> s.bg == null && s.beats.none { it.recipe == Bench.COMMENT } } == true }
+        score = score.copy(scenes = score.scenes.mapIndexed { i, s -> if (i in staged) s.copy(bg = "grid", transition = s.transition ?: "zoom") else s })
         if (layers.any { it.kind == CAPTION && tooManyLines(c, it) } && score.captions.maxWords > 2) {
             score = score.copy(captions = score.captions.copy(maxWords = score.captions.maxWords - 1))
         }

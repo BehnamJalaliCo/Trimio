@@ -112,7 +112,11 @@ data class Shadow(val color: Color, val dx: Float = 0f, val dy: Float = 8f, val 
  * ratio) against the brightest (for light ink) or darkest (for dark ink) part of it, adds the
  * look's guard in the tone opposite the ink: a soft glyph [Style.Halo] or a stepped [Style.Plate].
  */
-data class Guard(val style: Style, val light: Color, val dark: Color, val floor: Float = 4.5f) {
+data class Guard(
+    val style: Style, val light: Color, val dark: Color, val floor: Float = 4.5f,
+    /** Plate corner radius as a fraction of the font size (0 for Swiss-sharp looks). */
+    val radius: Float = 0.2f,
+) {
     enum class Style { Halo, Plate }
 }
 

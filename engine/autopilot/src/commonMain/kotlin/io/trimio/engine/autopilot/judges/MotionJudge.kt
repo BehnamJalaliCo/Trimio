@@ -31,7 +31,9 @@ class MotionJudge(
             val sev = if (held >= need * MAJOR_SHARE) Severity.Minor else Severity.Major
             Bench.finding(g.at, sev, "${g.recipe} holds ${Bench.r1(held)}s of the ${Bench.r1(need)}s it needs", "hold it to ${Bench.r1(need)}s")
         }.capped(MAX_SHORT)
-        f += crossing(graphics).map { (a, b) -> Bench.finding(b.at, Severity.Minor, "${b.recipe} enters over ${a.recipe}'s exit in the ${b.zone} band", "move it to the other band or wait for the exit") }.capped()
+        f += crossing(graphics).map { (a, b) ->
+            Bench.finding(b.at, Severity.Minor, "${b.recipe} enters over ${a.recipe}'s exit in the ${b.zone} band", "move it to the other band or wait for the exit")
+        }.capped()
         f += repeats(c, graphics).map { (a, b) -> Bench.finding(b.at, Severity.Minor, "${b.recipe} twice back to back (${Bench.r1(a.at)}s, ${Bench.r1(b.at)}s)", "vary the second treatment") }.capped()
         f += variety(graphics)
         return Verdict.of(this, f)

@@ -45,7 +45,10 @@ class CtaJudge(
         val keyword = spokenKeyword(c)
         when {
             comment.text.isBlank() -> f += Bench.finding(comment.at, Severity.Major, "the comment field has no keyword", "type the keyword the speaker said")
-            said(c).none { it == norm(comment.text) } -> f += Bench.finding(comment.at, Severity.Major, "«${comment.text}» is not the word the speaker said${keyword?.let { " («$it»)" }.orEmpty()}", "type the spoken keyword")
+            said(c).none { it == norm(comment.text) } -> {
+                val heard = keyword?.let { " («$it»)" }.orEmpty()
+                f += Bench.finding(comment.at, Severity.Major, "«${comment.text}» is not the word the speaker said$heard", "type the spoken keyword")
+            }
         }
         if (dmWord(c.words, comment.at) != null && graphics.none { it.recipe == Bench.STAMP && it.at >= comment.at - 0.1f }) {
             f += Bench.finding(comment.at, Severity.Major, "the speaker sends viewers to their DMs; the second step is not shown", "a stamp of the DM step under the field")
@@ -62,7 +65,8 @@ class CtaJudge(
         val i = askWord(c) ?: return null
         val from = Bench.start(c.words, c.lines.firstOrNull { i in it.range }?.first ?: i) - 0.2f
         val shown = graphics.any { it.recipe in ASK_SHOWS && it.at >= from && it.out >= c.duration - endTolerance }
-        return if (shown) null else Bench.finding(Bench.start(c.words, i), Severity.Major, "the speaker asks («${c.words[i].text}») but nothing on screen says so", "the ask's words on the last screen")
+        val what = "the speaker asks («${c.words[i].text}») but nothing on screen says so"
+        return if (shown) null else Bench.finding(Bench.start(c.words, i), Severity.Major, what, "the ask's words on the last screen")
     }
 
     /** The last word of the second half that asks for something (comment, follow, save, link, DM). */
@@ -98,17 +102,7 @@ class CtaJudge(
         val keyword = spokenKeyword(c)
         if (comment == null) return keyword?.let { ask(c, it) } ?: stampAsk(c)
         val at = Bench.locate(score, c.words, comment) ?: return null
-        // Up too briefly: the field lands as the ask's line begins instead of on the keyword.
-        val line = score.scenes[at.first].beats[at.second].at?.let { i -> c.lines.firstOrNull { i in it.range } }
-        val early = line?.first?.takeIf { comment.out - comment.at < minShow && Bench.start(c.words, it) < comment.at - 0.2f }
-        val start = early?.let { Bench.start(c.words, it) } ?: comment.at
-        if (early != null) score = score.copy(scenes = score.scenes.mapIndexed { k, sc -> if (k == at.first && k > 0 && (sc.from ?: 0) > early) sc.copy(from = early) else sc })
-        score = Bench.mapBeat(score, at) { b ->
-            b.copy(
-                at = early ?: b.at, time = if (early != null) null else b.time, hold = maxOf(b.hold ?: 0f, c.duration - start + 1f),
-                text = if (keyword != null && norm(b.text.orEmpty()) !in said(c)) keyword else b.text,
-            )
-        }
+        score = hold(c, score, at, comment, keyword)
         // The ask's scene runs to the end: scenes after it fold into it, and rivals landing after it go.
         val k = at.first
         val after = score.scenes.drop(k + 1).flatMap { it.beats }
@@ -123,6 +117,23 @@ class CtaJudge(
             score = Bench.addBeat(score, minOf(k, score.scenes.lastIndex), BeatScore(recipe = Bench.STAMP, at = i, text = text, hold = STAMP_HOLD, energy = 0.8f, place = "lower"))
         }
         return score.takeIf { it != c.score }
+    }
+
+    /**
+     * The field held to the end, typing the spoken keyword; when it would be up too briefly it
+     * lands as the ask's line begins instead of on the keyword (its scene starting with it).
+     */
+    private fun hold(c: Jury.Context, score: Score, at: Pair<Int, Int>, comment: Compiler.Placed, keyword: String?): Score {
+        val line = score.scenes[at.first].beats[at.second].at?.let { i -> c.lines.firstOrNull { i in it.range } }
+        val early = line?.first?.takeIf { comment.out - comment.at < minShow && Bench.start(c.words, it) < comment.at - 0.2f }
+        val start = early?.let { Bench.start(c.words, it) } ?: comment.at
+        val moved = if (early == null) score else score.copy(scenes = score.scenes.mapIndexed { k, sc -> if (k == at.first && k > 0 && (sc.from ?: 0) > early) sc.copy(from = early) else sc })
+        return Bench.mapBeat(moved, at) { b ->
+            b.copy(
+                at = early ?: b.at, time = if (early != null) null else b.time, hold = maxOf(b.hold ?: 0f, c.duration - start + 1f),
+                text = if (keyword != null && norm(b.text.orEmpty()) !in said(c)) keyword else b.text,
+            )
+        }
     }
 
     /**

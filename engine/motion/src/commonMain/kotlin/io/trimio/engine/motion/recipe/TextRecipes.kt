@@ -113,6 +113,20 @@ internal object Craft {
         )
     }
 
+    /**
+     * Marks the text in [node] as sitting on the recipe's own body (a card, bubble, pill or
+     * ticket): its contrast is designed there, so the footage guard leaves it alone.
+     */
+    fun <T : Node> onBody(node: T): T {
+        when (node) {
+            is TextNode -> node.onBody = true
+            is io.trimio.engine.motion.CounterNode -> node.onBody = true
+            is Group -> node.children.forEach { onBody(it) }
+            else -> Unit
+        }
+        return node
+    }
+
     fun flash(at: Float, color: Color, peak: Float): Node =
         EffectNode(Effect.Flash(color, io.trimio.engine.motion.anim(0f, at - 0.001f) { by(peak, 0.001f, Easing.Hold); by(0f, 0.16f, Easing.ExpoOut) }), start = at - 0.01f, end = at + 0.2f)
 }

@@ -107,7 +107,7 @@ object BrandRecipes {
             } else {
                 val letters = mark.monogram
                 val f = fit.fit(letters, look.number.copy(weight = 900), s * 0.4f, s * 0.78f, s * 0.6f, maxLines = 1)
-                nodes += TextNode(letters, f.type, glyphColor.fill(), rtl = false, transform = at(op = shown * Anim.tween(0f, 1f, t0 + 0.2f, t0 + 0.45f)), name = "logo-monogram")
+                nodes += Craft.onBody(TextNode(letters, f.type, glyphColor.fill(), rtl = false, transform = at(op = shown * Anim.tween(0f, 1f, t0 + 0.2f, t0 + 0.45f)), name = "logo-monogram"))
             }
             // A ring bursts from the hero as the mark completes.
             nodes += ShapeNode(

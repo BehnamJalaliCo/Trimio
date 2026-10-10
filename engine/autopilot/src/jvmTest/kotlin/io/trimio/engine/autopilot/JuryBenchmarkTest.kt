@@ -59,13 +59,7 @@ class JuryBenchmarkTest {
         val panel = raw.panel!!
         println("RAW  ${panel.summary()}")
         panel.findings().forEach(::println)
-        // DIAG
-        raw.report.filter { it.startsWith("jury") || it.startsWith("cold open") || it.startsWith("sound") }.forEach { println("R $it") }
-        val cp = io.trimio.engine.motion.score.CutPoints(voice)
-        raw.edit.played.forEach { s ->
-            println("seg ${s.sourceStart}–${s.sourceEnd} out ${s.outStart}: in ${cp.db(s.sourceStart, s.sourceStart + 0.02f) - cp.speechDb} out ${cp.db(s.sourceEnd - 0.02f, s.sourceEnd) - cp.speechDb}")
-        }
-        raw.compiled.beats.forEach { b -> println("B ${b.recipe} ${b.zone} ${b.at}-${b.out} [${b.left},${b.top},${b.right},${b.bottom}] ${b.overFootage} ${b.text}") }
+        raw.report.filter { it.startsWith("cold open") || it.startsWith("sound") }.forEach(::println)
 
         // Through the loop: what the app would deliver.
         val looped = runBlocking { Autopilot(text, brands, VisualLibrary.Empty).produce(request) }

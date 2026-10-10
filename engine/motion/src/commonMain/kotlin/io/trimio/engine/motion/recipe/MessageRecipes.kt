@@ -305,6 +305,8 @@ object MessageRecipes {
 
         /** The whole card lifts and fades out together at the end of its cue. */
         private fun group(cue: Cue, children: List<Node>, card: Card): Group {
+            // Everything in the thread sits on the card.
+            children.forEach { Craft.onBody(it) }
             val exitAt = cue.out - EXIT
             // A slow handheld float once the card has settled, so a long hold never sits dead.
             val float = Anim.Noise(cue.seed, FLOAT_RATE, anim(0f, cue.at + 0.6f) { by(card.size * 0.12f, 1.5f, Easing.SineInOut) })
