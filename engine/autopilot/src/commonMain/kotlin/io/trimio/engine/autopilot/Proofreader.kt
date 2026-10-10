@@ -21,7 +21,8 @@ object Proofreader {
     private val SEPARATORS = Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+")
 
     fun fromBrief(words: List<String>, brief: String): Map<Int, String> {
-        val vocabulary = brief.split(SEPARATORS)
+        // «سرمایهٔ» in the brief is «سرمایه» with an ezafe: the same word, never a reason to add the mark.
+        val vocabulary = brief.split(SEPARATORS).map(::withoutEzafe)
             .flatMap { t -> listOf(t) + t.split('‌') }.filter { it.length >= 2 }.toSet()
         val byKey = vocabulary.groupBy { key(it) }
         // Words the creator quoted («کد») are deliberate spellings: a one-vowel slip still matches.
@@ -47,6 +48,9 @@ object Proofreader {
         fun partner(i: Int) = if (fixes[i] == "") i - 1 else (i + 1).takeIf { fixes[it] == "" }
         return fixes.filterKeys { i -> i !in fixed && partner(i)?.let { it in fixed } != true }
     }
+
+    /** «ۀ» and «هٔ» (the written ezafe) as a plain «ه». */
+    private fun withoutEzafe(w: String) = w.replace("\u0654", "").replace('\u06C0', 'ه')
 
     private fun briefMatch(core: String, byKey: Map<String, List<String>>, vocabulary: Set<String>, quoted: List<String>): String? {
         val k = key(core)
@@ -89,7 +93,9 @@ object Proofreader {
                 cost[i][j] == cost[i - 1][j - 1] + sub -> {
                     // A spelling fix, or the same letters with half-spaces put right.
                     val halfSpace = sub == 0 && a[i - 1].trimEnd { !it.isLetterOrDigit() } != b[j - 1].trimEnd { !it.isLetterOrDigit() }
-                    if (sub == 1 || halfSpace) out[first + i - 1] = b[j - 1].trimEnd { !it.isLetterOrDigit() } + trailing(a[i - 1])
+                    // A word already respelled as several («چهل و») is left whole: one aligned token would drop the rest.
+                    val single = a[i - 1].trim().none { it.isWhitespace() }
+                    if ((sub == 1 || halfSpace) && single) out[first + i - 1] = b[j - 1].trimEnd { !it.isLetterOrDigit() } + trailing(a[i - 1])
                     i--; j--
                 }
                 cost[i][j] == cost[i - 1][j] + 2 -> i--
@@ -165,8 +171,11 @@ object Proofreader {
 }
 
 /**
- * [withFixes] for spelling: a word fixed to "" was joined into the word before it («سی سد» → «سیصد»), so
- * the two become one word spanning both timings — no empty word ever reaches lines or captions.
+ * [withFixes] for spelling, keeping every word a single word:
+ * - a word fixed to "" was joined into the word before it («سی سد» → «سیصد»): the two become one word
+ *   spanning both timings, so no empty word reaches lines or captions;
+ * - a fix of several words («چلا» → «چهل و», «ساتم» → «ساعت هم») becomes that many words, sharing the
+ *   heard word's time by letter count, so no word ever contains a space.
  */
 fun Transcript.withSpelling(fixes: Map<Int, String>): Transcript {
     if (fixes.isEmpty()) return this
@@ -177,8 +186,22 @@ fun Transcript.withSpelling(fixes: Map<Int, String>): Transcript {
         if (text.isEmpty() && prev != null) {
             out[out.lastIndex] = prev.copy(range = TimeRange(prev.range.startMs, maxOf(prev.range.endMs, w.range.endMs)), emphasis = maxOf(prev.emphasis, w.emphasis))
         } else {
-            out += w.copy(text = text.ifEmpty { w.text })
+            out += w.split(text.ifEmpty { w.text })
         }
     }
     return Transcript(language, out)
+}
+
+/** [text] as one word per space-separated part, each taking a share of this word's time by its length. */
+private fun Word.split(text: String): List<Word> {
+    val parts = text.split(' ').filter { it.isNotEmpty() }
+    if (parts.size <= 1) return listOf(copy(text = text.trim()))
+    val letters = parts.sumOf { it.length }.toDouble()
+    var start = range.startMs
+    var used = 0
+    return parts.mapIndexed { k, part ->
+        used += part.length
+        val end = if (k == parts.lastIndex) range.endMs else range.startMs + (range.durationMs * used / letters).toLong()
+        copy(text = part, range = TimeRange(start, end)).also { start = end }
+    }
 }

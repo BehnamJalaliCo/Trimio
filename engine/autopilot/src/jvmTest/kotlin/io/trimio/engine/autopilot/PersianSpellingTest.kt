@@ -29,14 +29,14 @@ class PersianSpellingTest {
         val fixes = spelling.correct(heard)
         val expected = mapOf(
             "دایرک" to "دایرکت", "سررافی" to "صرافی", "سبتنام" to "ثبت‌نام", "پنجا" to "پنجاه", "بازید" to "بازدید", "چلا" to "چهل و",
-            "ساتم" to "ساعتم", "سی" to "سیصد", "سد" to "", "میتونید" to "می‌تونید", "همه" to "همه‌تون", "تون" to "",
+            "ساتم" to "ساعت هم", "سی" to "سیصد", "سد" to "", "میتونید" to "می‌تونید", "همه" to "همه‌تون", "تون" to "",
         )
         for ((i, fix) in fixes) {
             val core = heard[i].trimEnd('،', '.')
             assertEquals(expected[core], fix.trimEnd('،', '.'), "«${heard[i]}» was changed to «$fix»")
         }
         val text = heard.indices.mapNotNull { i -> (fixes[i] ?: heard[i]).takeIf { it.isNotEmpty() } }.joinToString(" ")
-        for (right in listOf("دایرکت می‌گه", "فلان صرافی بود،", "می‌رفتیم ثبت‌نام می‌کردیم", "پنجاه هزار بازدید", "چهل و هشت ساعتم", "سیصد و پنجاه تتر", "که می‌تونید همه‌تون")) {
+        for (right in listOf("دایرکت می‌گه", "فلان صرافی بود،", "می‌رفتیم ثبت‌نام می‌کردیم", "پنجاه هزار بازدید", "چهل و هشت ساعت هم", "سیصد و پنجاه تتر", "که می‌تونید همه‌تون")) {
             assertTrue(right in text, "missing «$right» in $text")
         }
         // Each listed slip, every time it occurs (سبتنام and سی سد twice).
@@ -89,6 +89,37 @@ class PersianSpellingTest {
         val fixed = transcript.withSpelling(Proofreader.fromLexicon(texts, brief = ""))
         assertEquals(listOf("سیصد", "و", "پنجاه", "تتر."), fixed.words.map { it.text })
         assertEquals(TimeRange(0, 700), fixed.words[0].range)
+    }
+
+    @Test
+    fun severalWordFixesBecomeSeveralWords() = runBlocking {
+        val texts = listOf("و", "چلا", "هشت", "ساتم", "بیشتر", "نمونده.", "ساعت")
+        val transcript = Transcript(Language.Persian, texts.mapIndexed { k, w -> Word(w, TimeRange(k * 500L, k * 500L + 400), language = Language.Persian) })
+        val fixes = Proofreader.fromLexicon(texts, brief = "")
+        assertEquals(mapOf(1 to "چهل و", 3 to "ساعت هم"), fixes)
+        val fixed = transcript.withSpelling(fixes)
+        assertEquals(listOf("و", "چهل", "و", "هشت", "ساعت", "هم", "بیشتر", "نمونده.", "ساعت"), fixed.words.map { it.text })
+        assertTrue(fixed.words.none { w -> w.text.any { it.isWhitespace() } || w.text.isEmpty() })
+        // «چلا» (500–900 ms) shared by letters: «چهل» 3/4, «و» 1/4; the words stay in order and inside the heard word.
+        assertEquals(TimeRange(500, 800), fixed.words[1].range)
+        assertEquals(TimeRange(800, 900), fixed.words[2].range)
+        assertEquals(TimeRange(1500, 1900), TimeRange(fixed.words[4].range.startMs, fixed.words[5].range.endMs))
+        // «ساعتم» stays «ساعتم» where no number counts it.
+        assertEquals("ساعتم", spelling.correct(listOf("این", "ساتم", "ساعت"))[1])
+    }
+
+    @Test
+    fun alignLeavesSeveralWordFixesWhole() {
+        // The director's «چهل هشت» must not shrink «چهل و» to «چهل».
+        assertTrue(Proofreader.align(listOf("چهل و", "هشت"), 0, "چهل هشت").isEmpty())
+    }
+
+    @Test
+    fun briefEzafeIsTheSameWord() {
+        assertTrue(Proofreader.fromBrief(listOf("سرمایه", "اولیه"), "۳۵۰ تتر سرمایهٔ اولیه").isEmpty())
+        assertTrue(Proofreader.fromBrief(listOf("خانه"), "خانۀ ما").isEmpty())
+        // A real slip still takes the brief's word, without the ezafe mark.
+        assertEquals(mapOf(0 to "سرمایه"), Proofreader.fromBrief(listOf("سرمایح"), "سرمایهٔ اولیه"))
     }
 
     @Test

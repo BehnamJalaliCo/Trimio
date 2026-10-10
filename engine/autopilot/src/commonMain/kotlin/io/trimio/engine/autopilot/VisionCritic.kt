@@ -1,5 +1,6 @@
 package io.trimio.engine.autopilot
 
+import io.trimio.core.model.text.Numerals
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.llm.ChatMessage
 import io.trimio.engine.llm.ChatRole
@@ -100,10 +101,13 @@ class VisionCritic(private val model: LanguageModel, private val maxFrames: Int 
         return if (area <= 0f) 0f else w * h / area
     }
 
-    /** The eyes read at least half of the graphic's letters (sound-alike letters count as read). */
+    /**
+     * The eyes read at least half of the graphic's letters (sound-alike letters count as read).
+     * Digits count in either script: the eyes often read «۳۵۰» as "350".
+     */
     private fun legible(intended: String, read: String): Boolean {
-        val want = Proofreader.key(intended)
-        val got = Proofreader.key(read)
+        val want = Proofreader.key(Numerals.toLatin(intended))
+        val got = Proofreader.key(Numerals.toLatin(read))
         if (want.isEmpty()) return true
         val common = want.toSet().count { c -> c in got }
         return common * 2 >= want.toSet().size

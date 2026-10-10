@@ -15,7 +15,8 @@ import kotlin.math.min
  * touched, because only context can tell «پوست» from «پست» — that is the director's job ([Proofreader.align]).
  *
  * Words elsewhere in the transcript or in the brief count as evidence ("document cache"): «دایرک» becomes
- * «دایرکت» because the speaker says «دایرکت» later, and «ساتم» becomes «ساعتم» because «ساعت» was heard.
+ * «دایرکت» because the speaker says «دایرکت» later, and «هشت ساتم» becomes «هشت ساعت هم» because «ساعت»
+ * was heard (and after a number the «م» is «هم»).
  */
 class PersianSpelling(private val counts: Map<String, Int>) {
 
@@ -27,8 +28,9 @@ class PersianSpelling(private val counts: Map<String, Int>) {
 
     /**
      * Word index → corrected spelling (trailing punctuation kept; timings never change). Two words that
-     * are one compound («سی سد» → «سیصد») map the first index to the whole word and the second to "".
-     * [context] adds known-good words (the brief) to the evidence.
+     * are one compound («سی سد» → «سیصد») map the first index to the whole word and the second to ""; a
+     * fix may also be several words («چلا» → «چهل و»). Apply with [withSpelling], which keeps every word one
+     * word. [context] adds known-good words (the brief) to the evidence.
      */
     fun correct(words: List<String>, context: Collection<String> = emptyList()): Map<Int, String> {
         val parts = words.map(::split)
@@ -49,7 +51,8 @@ class PersianSpelling(private val counts: Map<String, Int>) {
             if (persian(w.core) && !w.voweled) {
                 // A word heard twice the same way is taken as meant (a name, a brand) unless a sound-alike fixes it.
                 val soundOnly = (heard[w.core] ?: 0) > 1 && count(w.core) == 0
-                val fixed = number(w.core, next?.core) ?: halfSpace(w.core) ?: fix(w.core, doc, soundOnly)
+                val prev = parts.getOrNull(i - 1)?.core
+                val fixed = number(w.core, next?.core) ?: halfSpace(w.core) ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) }
                 if (fixed != null) out[i] = w.head + fixed + w.tail
             }
             i++
@@ -183,6 +186,16 @@ class PersianSpelling(private val counts: Map<String, Int>) {
         return full.takeIf { it != core && (next in UNITS || next in SCALES || next == "و") }
     }
 
+    /**
+     * After a number a respelled «…م» is «… هم»: «هشت ساتم» was «هشت ساعت هم» (eight hours too), not
+     * «ساعتم» (my hour). The list has no word pairs to weigh the two, but a counted noun takes «هم».
+     */
+    private fun counted(fixed: String, prev: String?): String {
+        val stem = fixed.dropLast(1)
+        val afterNumber = prev != null && (prev in NUMBER_WORDS || prev.all { it.isDigit() })
+        return if (afterNumber && fixed.endsWith('م') && count(stem) >= KNOWN) "$stem هم" else fixed
+    }
+
     /** A known stem with a colloquial clitic («کلیپت», «کمپینو», «دایرکتتو») or a verb prefix is a word, not a slip. */
     private fun decomposes(w: String): Boolean {
         if (ZWNJ in w) return w.split(ZWNJ).all { count(it) > 0 || it in CLITICS || it in VERB_PREFIXES }
@@ -271,6 +284,10 @@ class PersianSpelling(private val counts: Map<String, Int>) {
             "شصت" to "شصت", "هفتاد" to "هفتاد", "هشتاد" to "هشتاد", "نود" to "نود",
         )
         private val UNITS = setOf("یک", "یه", "دو", "سه", "چهار", "پنج", "شش", "شیش", "هفت", "هشت", "نه")
+        private val NUMBER_WORDS = UNITS + TENS.values + setOf(
+            "ده", "یازده", "دوازده", "سیزده", "چهارده", "پانزده", "پونزده", "شانزده", "شونزده", "هفده", "هجده", "هیجده", "نوزده",
+            "صد", "دویست", "سیصد", "چهارصد", "پانصد", "پونصد", "ششصد", "هفتصد", "هشتصد", "نهصد", "هزار", "میلیون", "میلیارد",
+        )
         private val SCALES = setOf("صد", "هزار", "میلیون", "میلیارد", "تومن", "تومان", "دلار", "درصد", "سال")
 
         private val SOUND_CLASS: Map<Char, Char> = buildMap {
