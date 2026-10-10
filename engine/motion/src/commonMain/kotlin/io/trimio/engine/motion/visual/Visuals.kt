@@ -29,6 +29,9 @@ data class VectorLayer(val d: String, val paint: Paint, val opacity: Float, val 
 
 /** A flattened vector icon from the visual vocabulary. */
 data class VectorIcon(val name: String, val set: String, val width: Float, val height: Float, val layers: List<VectorLayer>, val keywords: List<String>) {
+    /** "set:name", unique across the vocabulary. */
+    val id: String get() = "$set:$name"
+
     /** Colourful icons carry their own palette; others take the look's ink. */
     val colourful: Boolean get() = layers.any { it.paint !is Paint.Current }
 }
@@ -49,7 +52,12 @@ class VisualLibrary private constructor(private val icons: List<VectorIcon>) {
 
     val size: Int get() = icons.size
 
-    fun named(set: String, name: String): VectorIcon? = icons.firstOrNull { it.set == set && it.name == name }
+    private val byId: Map<String, VectorIcon> = icons.associateBy { it.id }
+
+    fun named(set: String, name: String): VectorIcon? = byId["$set:$name"]
+
+    /** This vocabulary plus [more] (pictures found online for this piece). */
+    fun withIcons(more: List<VectorIcon>): VisualLibrary = if (more.isEmpty()) this else VisualLibrary(icons + more.filter { it.id !in byId })
 
     /**
      * Best icon for [query]. Exact name and keyword hits win; otherwise words are matched one by
@@ -60,6 +68,8 @@ class VisualLibrary private constructor(private val icons: List<VectorIcon>) {
         search(query, prefer, colourful).firstOrNull()
 
     fun search(query: String, prefer: List<String> = DEFAULT_ORDER, colourful: Boolean? = null, limit: Int = 5): List<VectorIcon> {
+        // An exact pick ("fluent:automobile"), as the director's candidate choice returns it.
+        byId[query.trim()]?.let { return listOf(it) }
         val q = key(query)
         if (q.isEmpty()) return emptyList()
         canonical[q]?.let { (set, name) -> named(set, name)?.let { if (colourful == null || it.colourful == colourful) return listOf(it) } }

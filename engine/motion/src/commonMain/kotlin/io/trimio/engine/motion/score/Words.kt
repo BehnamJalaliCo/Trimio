@@ -3,7 +3,7 @@ package io.trimio.engine.motion.score
 import io.trimio.core.model.transcript.Word
 
 /** Reading the transcript the way an editor does: what carries meaning, how to chunk captions. */
-internal object Words {
+object Words {
 
     /** Function words: never a highlight, never a headline's anchor, however loudly said. */
     private val function = setOf(
