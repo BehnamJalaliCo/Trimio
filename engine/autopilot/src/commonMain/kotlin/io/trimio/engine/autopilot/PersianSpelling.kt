@@ -136,7 +136,8 @@ class PersianSpelling(
         val second = ranked.getOrNull(1)?.first ?: Double.NEGATIVE_INFINITY
         if (best.first - second < ln(MARGIN)) return null
         // A rare but listed word gives way only to a word a hundred (or, if it parses, a thousand) times as common.
-        val ratio = if (decomposable) RATIO_PARSED else RATIO
+        // Heard elsewhere in the talk («تورم … طورم»), a hundred times is enough even for a word that parses.
+        val ratio = if (decomposable && !inDoc(best.second, doc, core)) RATIO_PARSED else RATIO
         return best.second.takeIf { own == 0 || count(it) >= ratio * own }
     }
 
@@ -164,7 +165,8 @@ class PersianSpelling(
         }
         return cost.mapNotNull { (w, c) ->
             val seen = inDoc(w, doc, core)
-            if (!allowed(c, core.length, seen, listed) || count(w) < (if (seen) KNOWN_IN_DOC else KNOWN)) return@mapNotNull null
+            val enough = if (seen || c == SOUND) KNOWN_IN_DOC else KNOWN
+            if (!allowed(c, core.length, seen, listed) || count(w) < enough) return@mapNotNull null
             val penalty = (c / 10.0 - if (seen) 1.0 else 0.0) * ln(SLIP)
             ln(count(w).toDouble()) - penalty to w
         }.sortedByDescending { it.first }
@@ -181,7 +183,9 @@ class PersianSpelling(
         cost == SOUND -> true
         length < MIN_EDIT_LENGTH -> false
         cost == WEAK || cost == DOUBLE -> true
-        cost != INSERT && cost != SUBSTITUTE -> false
+        // A last «د» heard «ت» («شاگرت»), «ژ» heard «ج» («پاساج»): a five-letter word is long enough.
+        cost == SUBSTITUTE -> length >= LONG_WORD - 1
+        cost != INSERT -> false
         else -> length >= LONG_WORD || listed && length >= LONG_WORD - 1
     }
 
@@ -349,12 +353,14 @@ class PersianSpelling(
         /** One letter per sound class (the ones [soundKey] maps to). */
         private const val ALPHABET = "ابپتجچخدرزژسشعفقکگلمنوهی"
         private const val WEAK_LETTERS = "عه"
-        private val NEAR: Map<Char, List<Char>> = mapOf('د' to listOf('ه'), 'ه' to listOf('د'), 'ب' to listOf('و'), 'و' to listOf('ب'))
+        private val NEAR: Map<Char, List<Char>> = mapOf(
+            'د' to listOf('ه', 'ت'), 'ه' to listOf('د'), 'ت' to listOf('د'), 'ب' to listOf('و'), 'و' to listOf('ب'), 'ج' to listOf('ژ'), 'ژ' to listOf('ج'),
+        )
 
         private val VERB_PREFIXES = listOf("نمی", "می")
         private val STEM_PREFIXES = listOf("نمی", "می", "ب", "ن")
         internal val CLITICS = listOf(
-            "تان", "شان", "مان", "یت", "یش", "یم", "و", "رو", "ت", "تو", "ش", "شو", "م", "مو", "مون", "تون", "شون", "ه", "ی",
+            "تان", "ا", "شان", "مان", "یت", "یش", "یم", "و", "رو", "ت", "تو", "ش", "شو", "م", "مو", "مون", "تون", "شون", "ه", "ی",
             "ام", "ات", "اش", "ای", "یه", "ها", "های", "هاش", "هات", "هام", "هاتون", "هاشون", "هامون", "ست",
         )
         private val TENS = mapOf(
@@ -404,6 +410,7 @@ class PersianSpelling(
         /** Words that measure a number said before them. */
         private val MEASURES = setOf(
             "ساعت", "دقیقه", "ثانیه", "روز", "هفته", "ماه", "سال", "نفر", "متر", "کیلو", "گرم", "درصد", "تومن", "تومان", "دلار", "واحد", "برابر",
+            "تتر", "تا", "بار", "عدد", "درصدش", "درصده", "درصدی", "ست",
         )
 
         private val SCALES = setOf("صد", "هزار", "میلیون", "میلیارد", "تومن", "تومان", "دلار", "درصد", "سال")

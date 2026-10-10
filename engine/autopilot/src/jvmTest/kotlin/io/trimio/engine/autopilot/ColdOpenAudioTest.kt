@@ -82,7 +82,8 @@ class ColdOpenAudioTest {
         val cues = listOf(Sfx(r - 0.36f, SfxKind.Rewind, 1f), Sfx(r, SfxKind.Hit, 0.5f))
         val mastered = Soundtrack(RATE).master(voice, edit, emptyList(), seconds, MusicMood.entries.first(), musicSeed = 1, cues = cues)
         Media.writeWav(mastered.audio, file)
-        println("wrote $file (restart at ${f(r)} s, body from ${f(edit.bodyStart)} s)")
+        val peak = io.trimio.engine.autopilot.judges.SoundJudge.truePeakDb(mastered.audio.samples)
+        println("wrote $file (restart at ${f(r)} s, body from ${f(edit.bodyStart)} s; ${"%.2f".format(mastered.lufs)} LUFS, true peak ${"%.2f".format(peak)} dBTP)")
     }
 
     private fun f(v: Float) = "%.3f".format(v)

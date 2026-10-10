@@ -23,17 +23,21 @@ internal class PersianJoins(private val lex: PersianSpelling) {
      */
     fun halfSpace(w: String): String? {
         if (ZWNJ in w) return null
-        return verb(w) ?: suffixed(w) ?: afterHe(w) ?: determined(w)
+        return verb(w) ?: suffixed(w) ?: afterHe(w) ?: determined(w) ?: variant(w)
     }
+
+    /** «پسانداز» → «پس‌انداز», «چایخوری» → «چای‌خوری»: the list writes these letters with a half-space, often enough. */
+    private fun variant(w: String): String? = lex.sounding(w).filter { ZWNJ in it && it.replace(ZWNJ_S, "") == w }
+        .maxByOrNull { count(it) }?.takeIf { count(it) >= PLACE && count(it) * VARIANT_RATIO >= count(w) }
 
     private fun verb(w: String): String? {
         val prefix = VERB_PREFIXES.firstOrNull { w.startsWith(it) && w.length - it.length >= 2 } ?: return null
         val rest = w.substring(prefix.length)
         val zw = prefix + ZWNJ + rest
         val listed = count(zw) > 0 || (count(w) == 0 && count(rest) >= KNOWN_STEM)
-        // «میدیم» is a verb («بدیم» is common); «میدان», «میزان», «میوه» are not.
-        val subjunctive = count("ب$rest")
-        val conjugated = rest.length >= 2 && subjunctive >= KNOWN && count(w) < VERB_SHARE * subjunctive
+        // «میدیم» is a verb (the list knows «نمیدیم»); «میدان», «میدون», «میوه» are not (no «نمیدان»).
+        val other = if (prefix == "می") "نمی" else "می"
+        val conjugated = rest.length >= 3 && count(other + rest) + count(other + ZWNJ + rest) >= KNOWN_STEM
         return zw.takeIf { listed || conjugated }
     }
 
@@ -43,7 +47,7 @@ internal class PersianJoins(private val lex: PersianSpelling) {
         val zw = stem + ZWNJ + suffix
         // «تنها» stays: the list almost never writes «تن‌ها»; a known stem with an unknown ending takes the half-space.
         val listed = count(zw) > 0 && count(zw) * PLURAL_RATIO >= count(w)
-        val unknown = count(w) == 0 && count(stem) >= KNOWN && (suffix in PLURALS || stem.endsWith('ه'))
+        val unknown = count(w) == 0 && count(stem) >= KNOWN_STEM && (suffix in PLURALS || stem.endsWith('ه'))
         val afterHe = suffix in PLURALS && stem.endsWith('ه') && count(stem) >= KNOWN
         return zw.takeIf { listed || unknown || afterHe }
     }
@@ -51,7 +55,8 @@ internal class PersianJoins(private val lex: PersianSpelling) {
     private fun afterHe(w: String): String? = HE_CLITICS.firstNotNullOfOrNull { c ->
         val stem = w.dropLast(c.length)
         val zw = stem + ZWNJ + c
-        zw.takeIf { w.endsWith(c) && stem.endsWith('ه') && stem.length >= 2 && count(stem) >= KNOWN && count(w) * PLURAL_RATIO <= maxOf(count(zw), count(stem)) }
+        val rare = count(w) == 0 || count(zw) * PLURAL_RATIO >= count(w)
+        zw.takeIf { w.endsWith(c) && stem.endsWith('ه') && stem.length >= 3 && count(stem) >= KNOWN && rare }
     }
 
     private fun determined(w: String): String? = DETERMINERS.firstNotNullOfOrNull { d ->
@@ -68,16 +73,17 @@ internal class PersianJoins(private val lex: PersianSpelling) {
 
     /**
      * «کهدیگه» → «که دیگه», «ازدست» → «از دست», «همهچیذم» → «همه چیزم»: a short common word run into the
-     * next. Split when chance alone puts the two words side by side twice as often as the list has the
-     * run-together word, the second half a word or one sound-alike from one; the likeliest split wins.
+     * next. A rare or unknown word splits when chance alone puts the two words side by side twice as often
+     * as the list has the run-together word («درجا», «تومن» stay), the second half a word or one sound-alike
+     * from one; the likeliest split wins.
      */
     fun unmerge(core: String): String? {
-        if (core.length < MIN_MERGED || ZWNJ in core || lex.decomposes(core)) return null
+        if (core.length < MIN_MERGED || ZWNJ in core || count(core) >= KNOWN || lex.decomposes(core)) return null
         return (2..core.length - 2).mapNotNull { k ->
             val head = core.substring(0, k)
             val rest = core.substring(k)
             val right = if (count(rest) >= KNOWN) rest else lex.sounding(rest).filter { count(it) >= KNOWN }.maxByOrNull { count(it) }
-            val likely = right != null && count(head).toDouble() * count(right) / lex.total >= MERGE_ODDS * (count(core) + 1)
+            val likely = right != null && count(head).toDouble() * count(right) / lex.total >= MERGE_ODDS * count(core)
             right?.takeIf { head.length <= MAX_HEAD && count(head) >= MERGE_HEAD && likely }
                 ?.let { ln(count(head).toDouble()) + ln(count(it).toDouble()) to "$head $it" }
         }.maxByOrNull { it.first }?.second
@@ -183,11 +189,11 @@ internal class PersianJoins(private val lex: PersianSpelling) {
         private const val PLACE = 50
         private const val RARE = 50.0
         private const val RARE_NOUN = 5000
-        private const val FUNCTION = 200_000.0
+        private const val FUNCTION = 1_000_000.0
         private const val PREFIXED_STEM = 5000
         private const val PLURAL_RATIO = 50
         private const val DETERMINER_RATIO = 100
-        private const val VERB_SHARE = 2
+        private const val VARIANT_RATIO = 12
         private const val JOIN_RATIO = 1000.0
         private const val COMPOUND_ODDS = 100.0
         private const val COMPOUND_SHARE = 0.3
@@ -202,7 +208,7 @@ internal class PersianJoins(private val lex: PersianSpelling) {
         private val HE_CLITICS = listOf("هاتون", "هاشون", "هامون", "مون", "تون", "شون", "اش", "ات", "ام", "ای", "ست", "م", "ت", "ش")
         private val DETERMINERS = listOf("همین", "همون", "هیچ")
         private val BOUND = setOf(
-            "ها", "های", "هایی", "هاتون", "هاشون", "هامون", "هاش", "هات", "هام", "تر", "ترین", "تون", "شون", "مون", "ای", "ست", "اش", "ام",
+            "ها", "های", "هایی", "هاتون", "هاشون", "هامون", "هاش", "هات", "هام", "تر", "ترین", "تون", "شون", "مون", "ای", "اش", "ام",
         )
         private val LETTER_CLITICS = setOf("م", "ت", "ش", "ی")
         private val SPLIT_PREFIXES = setOf("نا", "بی", "هم")
@@ -215,6 +221,7 @@ internal class PersianJoins(private val lex: PersianSpelling) {
                 if (pre.isNotEmpty() || end.isNotEmpty()) put(pre + "زار" + end, pre + "ذار" + end)
             }
             put("تعین", "تعیین")
+            put("بیتکوین", "بیت‌کوین")
         }
     }
 }

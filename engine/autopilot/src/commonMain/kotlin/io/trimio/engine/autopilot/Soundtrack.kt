@@ -35,7 +35,8 @@ class Soundtrack(private val rate: Int = 48_000) {
         val musicUnderDb: Float = -20f,
         val musicGapDb: Float = -12f,
         val targetLufs: Double = -14.0,
-        val ceilingDb: Float = -1.2f,
+        /** True-peak ceiling, dBTP (4× oversampled, as a DAC reconstructs it). */
+        val ceilingDb: Float = -1.0f,
     )
 
     fun master(
@@ -55,18 +56,29 @@ class Soundtrack(private val rate: Int = 48_000) {
         highPass(mix, HPF_HZ)
         compress(mix)
         val voicePeak = mix.maxOfOrNull { abs(it) } ?: 0f
-        if (music != null) addMusic(mix, music, musicSeed, words, n, levels, voiceRms(mix, words), enter = edit.preludeLength)
+        if (music != null) addMusic(mix, music, musicSeed, words, n, levels, voiceRms(mix, words), enter = edit.preludeLength, fade = maxOf(FADE_OUT_S, edit.outro?.length ?: 0f))
         addCues(mix, cues, voicePeak)
-        // Gain to target, limit, and again: limiting peaks lowers loudness a little each pass.
-        repeat(LOUDNESS_PASSES) {
-            val measured = LoudnessMeter.measure(PcmAudio(mix, rate)).integratedLufs
-            val gain = if (measured.isFinite()) 10.0.pow((levels.targetLufs - measured) / 20.0).toFloat().coerceIn(1f / MAX_GAIN, MAX_GAIN) else 1f
-            for (i in mix.indices) mix[i] *= gain
-            limit(mix, 10f.pow(levels.ceilingDb / 20f))
-        }
-        val out = PcmAudio(mix, rate)
+        val out = PcmAudio(loudnessAndPeak(mix, levels), rate)
         val m = LoudnessMeter.measure(out)
         return Result(out, m.integratedLufs, m.samplePeakDb)
+    }
+
+    /**
+     * The mix to the target loudness under the true-peak ceiling. Each pass limits the unlimited
+     * mix at the current gain and measures the result, so the gain accounts for what the limiter
+     * takes away (and the limiter never works on its own output).
+     */
+    private fun loudnessAndPeak(mix: FloatArray, levels: Levels): FloatArray {
+        val limiter = TruePeakLimiter(rate, levels.ceilingDb)
+        var gain = 1f
+        var out = mix
+        for (pass in 1..LOUDNESS_PASSES) {
+            out = FloatArray(mix.size) { mix[it] * gain }.also { limiter.limit(it) }
+            val measured = LoudnessMeter.measure(PcmAudio(out, rate)).integratedLufs
+            if (!measured.isFinite() || abs(measured - levels.targetLufs) < LUFS_TOLERANCE) break
+            gain = (gain * 10.0.pow((levels.targetLufs - measured) / 20.0).toFloat()).coerceIn(1f / MAX_GAIN, MAX_GAIN)
+        }
+        return out
     }
 
     /**
@@ -147,11 +159,12 @@ class Soundtrack(private val rate: Int = 48_000) {
     }
 
     /**
-     * Music ducked under words (40 ms attack, 400 ms release), out over the last 0.8 s. With a cold
-     * open it [enter]s on the restart: the flash-forward plays dry, and the bed lands with the
-     * rewind's hit (on its own grid, so beats snapped to it stay on it).
+     * Music ducked under words (40 ms attack, 400 ms release), out over the last [fade] seconds
+     * (0.8 s; an end hold's whole length: the bed carries the held frame, then lets go). With a
+     * cold open it [enter]s on the restart: the flash-forward plays dry, and the bed lands with
+     * the rewind's hit (on its own grid, so beats snapped to it stay on it).
      */
-    private fun addMusic(mix: FloatArray, mood: MusicMood, seed: Int, words: List<Word>, n: Int, levels: Levels, voiceRms: Float, enter: Float) {
+    private fun addMusic(mix: FloatArray, mood: MusicMood, seed: Int, words: List<Word>, n: Int, levels: Levels, voiceRms: Float, enter: Float, fade: Float) {
         val bed = ProceduralMusic(rate).render(mood, seed).audio.samples
         if (bed.isEmpty()) return
         val bedRms = sqrt(bed.sumOf { (it * it).toDouble() } / bed.size).toFloat().coerceAtLeast(1e-4f)
@@ -166,7 +179,7 @@ class Soundtrack(private val rate: Int = 48_000) {
             val target = if (spoken[i]) under else gap
             val c = if (target < gain) attack else release
             gain = target + (gain - target) * c
-            val tail = ((n - i) / (rate * 0.8f)).coerceIn(0f, 1f)
+            val tail = sin(((n - i) / (rate * fade)).coerceIn(0f, 1f) * HALF_PI)
             val head = ((i - enter * rate) / (rate * 0.03f)).coerceIn(0f, 1f)
             mix[i] += bed[i % bed.size] * gain * tail * head
         }
@@ -183,34 +196,15 @@ class Soundtrack(private val rate: Int = 48_000) {
         }
     }
 
-    /** Look-ahead peak limiter: 5 ms look-ahead, 80 ms release, never above [ceiling]. */
-    private fun limit(x: FloatArray, ceiling: Float) {
-        val look = rate / 200
-        val rel = exp(-1.0 / (rate * 0.08)).toFloat()
-        val need = FloatArray(x.size) { i -> val v = abs(x[i]); if (v > ceiling) ceiling / v else 1f }
-        // Running minimum over the look-ahead window, so gain is down before the peak arrives.
-        val ahead = FloatArray(x.size)
-        val dq = ArrayDeque<Int>()
-        for (i in x.indices.reversed()) {
-            while (dq.isNotEmpty() && dq.first() > i + look) dq.removeFirst()
-            while (dq.isNotEmpty() && need[dq.last()] >= need[i]) dq.removeLast()
-            dq.addLast(i)
-            ahead[i] = need[dq.first()]
-        }
-        var g = 1f
-        for (i in x.indices) {
-            g = if (ahead[i] < g) ahead[i] else rel * g + (1 - rel) * ahead[i]
-            x[i] = (x[i] * g).coerceIn(-ceiling, ceiling)
-        }
-    }
-
     private fun db(v: Float) = 10f.pow(v / 20f)
 
     private companion object {
         const val HPF_HZ = 90f
         const val RATIO = 2.5f
         const val MAX_GAIN = 16f
-        const val LOUDNESS_PASSES = 3
+        const val LOUDNESS_PASSES = 5
+        const val LUFS_TOLERANCE = 0.05
+        const val FADE_OUT_S = 0.8f
         const val HALF_PI = 1.5707964f
         /** Pieces closer than this on the output clock are one join. */
         const val JOIN_S = 0.002f
@@ -220,5 +214,93 @@ class Soundtrack(private val rate: Int = 48_000) {
             SfxKind.Riser to ("riser" to 0.2f), SfxKind.Tick to ("tick" to 0.18f), SfxKind.Shimmer to ("shimmer" to 0.22f),
             SfxKind.Rewind to ("rewind" to 0.26f),
         )
+    }
+}
+
+/**
+ * A look-ahead true-peak limiter. Peaks are detected 4× oversampled (Hann-windowed sinc, the way a
+ * DAC reconstructs between samples, as BS.1770 meters do), so the ceiling holds in dBTP, not only
+ * on samples. The gain needed is held across a [LOOK_S] look-ahead and smoothed by a moving
+ * average of the same length — a ramp that is fully down by the peak, never a step — then
+ * recovers with a [RELEASE_S] release. No clipping: a pass that still finds an overshoot (a
+ * reconstruction of the new, gentler waveform) runs again.
+ */
+internal class TruePeakLimiter(private val rate: Int, ceilingDbtp: Float) {
+    private val ceiling = 10f.pow((ceilingDbtp - MARGIN_DB) / 20f)
+    private val look = (rate * LOOK_S).roundToInt().coerceAtLeast(1)
+    private val release = exp(-1.0 / (rate * RELEASE_S)).toFloat()
+
+    fun limit(x: FloatArray) {
+        repeat(PASSES) { if (!pass(x)) return }
+    }
+
+    /** One limiting pass; false when nothing was over. */
+    private fun pass(x: FloatArray): Boolean {
+        // An overshoot between two samples is both samples' to bring down.
+        val gaps = FloatArray(x.size) { between(x, it) }
+        val need = FloatArray(x.size) { 1f }
+        var over = false
+        for (i in x.indices) {
+            val p = maxOf(abs(x[i]), gaps[i], if (i > 0) gaps[i - 1] else 0f)
+            if (p > ceiling) { need[i] = ceiling / p; over = true }
+        }
+        if (!over) return false
+        // The gain each sample must be under: the minimum need across the look-ahead...
+        val held = FloatArray(x.size)
+        val dq = ArrayDeque<Int>()
+        for (i in x.indices.reversed()) {
+            while (dq.isNotEmpty() && dq.first() > i + look) dq.removeFirst()
+            while (dq.isNotEmpty() && need[dq.last()] >= need[i]) dq.removeLast()
+            dq.addLast(i)
+            held[i] = need[dq.first()]
+        }
+        // ...released slowly (never above the held need)...
+        var r = 1f
+        for (i in held.indices) {
+            r = if (held[i] < r) held[i] else held[i] + (r - held[i]) * release
+            held[i] = r
+        }
+        // ...and averaged over the look-ahead: every sample in a peak's window is at most its need.
+        var sum = 0.0
+        for (i in x.indices) {
+            sum += held[i]
+            if (i > look) sum -= held[i - look - 1]
+            x[i] *= (sum / (minOf(i, look) + 1)).toFloat()
+        }
+        return true
+    }
+
+    /** The highest point of the band-limited reconstruction between samples [i] and [i] + 1. */
+    private fun between(x: FloatArray, i: Int): Float {
+        if (i < TAPS - 1 || i + TAPS >= x.size || maxOf(abs(x[i]), abs(x[i + 1])) < ceiling * DETECT) return 0f
+        var best = 0f
+        for (c in KERNEL) {
+            var sum = 0f
+            for (j in c.indices) sum += x[i - TAPS + 1 + j] * c[j]
+            best = maxOf(best, abs(sum))
+        }
+        return best
+    }
+
+    private companion object {
+        const val LOOK_S = 0.0015f
+        const val RELEASE_S = 0.08f
+        const val MARGIN_DB = 0.05f
+        const val PASSES = 3
+        /** Only near the ceiling can a reconstruction exceed it (overshoots stay under 6 dB). */
+        const val DETECT = 0.5f
+        const val TAPS = 8
+        const val OVERSAMPLE = 4
+
+        /** Interpolation taps for the points 1/4, 2/4 and 3/4 of the way to the next sample. */
+        val KERNEL: List<FloatArray> = (1 until OVERSAMPLE).map { k ->
+            val frac = k.toFloat() / OVERSAMPLE
+            FloatArray(2 * TAPS) { idx ->
+                val d = (idx - TAPS + 1) - frac
+                val w = 0.5f + 0.5f * cos(PI.toFloat() * d / TAPS)
+                val sinc = if (abs(d) < 1e-6f) 1f else sin(PI.toFloat() * d) / (PI.toFloat() * d)
+                sinc * w
+            }
+        }
     }
 }

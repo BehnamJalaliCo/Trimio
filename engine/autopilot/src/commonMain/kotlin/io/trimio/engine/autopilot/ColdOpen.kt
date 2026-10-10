@@ -56,8 +56,9 @@ data class ColdOpen(
                 ?: strongest(words, lines) ?: return null
             val line = lines[k]
             if (!asked(prompt) && !Rng(seed).fork(SALT).chance(CHANCE)) return null
-            val span = payoff(words, line)?.let { q -> span(words, q) }?.takeIf { seconds(words, it.first, it.last) >= MIN_S } ?: return null
-            return if (voice == null) onTheWords(words, k, span) else onTheVoice(words, k, span, CutPoints(voice))
+            val q = payoff(words, line) ?: return null
+            val span = span(words, q).takeIf { seconds(words, it.first, it.last) >= MIN_S } ?: return null
+            return if (voice == null) onTheWords(words, k, span) else onTheVoice(words, k, span, q.last, line, CutPoints(voice))
         }
 
         /** A breath either side of the recognised edges, but never into the neighbouring words. */
@@ -67,10 +68,24 @@ data class ColdOpen(
             return ColdOpen(a.coerceAtLeast(0f)..b, k, span)
         }
 
-        /** Every edge on the waveform: the opening's ends, its inner pauses, the body's restart. */
-        private fun onTheVoice(words: List<Word>, k: Int, span: IntRange, voice: CutPoints): ColdOpen {
-            val first = voice.cutIn(start(words, span.first), words.getOrNull(span.first - 1)?.let { end(words, span.first - 1) })
-            val last = voice.cutOut(end(words, span.last), words.getOrNull(span.last + 1)?.let { start(words, span.last + 1) })
+        /**
+         * Every edge on the waveform: the opening's ends, its inner pauses, the body's restart.
+         * A clean cut beats a complete phrase: the opening runs to the phrase's end only when the
+         * voice is quiet there ([CLEAN_DB] under the speaker); words run together («اولیه‌برای»)
+         * pull it back to the last clean boundary inside the phrase («… سرمایه»), and with none,
+         * to the cleanest. Its start likewise: the figure's first word when it begins in quiet,
+         * else a word or two earlier in the line that does.
+         */
+        private fun onTheVoice(words: List<Word>, k: Int, phrase: IntRange, figureEnd: Int, line: Lines.Line, voice: CutPoints): ColdOpen {
+            fun outAfter(i: Int) = voice.cutOut(end(words, i), words.getOrNull(i + 1)?.let { start(words, i + 1) })
+            fun inBefore(i: Int) = voice.cutIn(start(words, i), words.getOrNull(i - 1)?.let { end(words, i - 1) })
+            val ends = (phrase.last downTo figureEnd).filter { e -> e == figureEnd || Words.isContent(words[e].text) }
+                .filter { e -> seconds(words, phrase.first, e) >= MIN_S }.ifEmpty { listOf(phrase.last) }
+            val (lastWord, last) = cleanest(ends.asSequence().map { it to outAfter(it) })
+            val starts = (phrase.first downTo maxOf(line.first, phrase.first - LEAD_WORDS))
+                .filter { s -> s == phrase.first || (Words.isContent(words[s].text) && seconds(words, s, lastWord) <= MAX_S) }
+            val (firstWord, first) = cleanest(starts.asSequence().map { it to inBefore(it) })
+            val span = firstWord..lastWord
             val pieces = mutableListOf<ClosedFloatingPointRange<Float>>()
             var from = first.at
             // A pause inside the payoff shrinks to the body's breath, cut in its quiet on both sides.
@@ -84,6 +99,16 @@ data class ColdOpen(
             pieces += from..last.at
             val restart = words.firstOrNull()?.let { voice.cutIn(start(words, 0)).at }
             return ColdOpen(first.at..last.at, k, span, pieces, restart, first to last)
+        }
+
+        /** The first candidate whose cut is clean (in preference order), else the cleanest of them. */
+        private fun cleanest(candidates: Sequence<Pair<Int, CutPoints.Cut>>): Pair<Int, CutPoints.Cut> {
+            val seen = mutableListOf<Pair<Int, CutPoints.Cut>>()
+            for (c in candidates) {
+                if (c.second.relative <= -CLEAN_DB) return c
+                seen += c
+            }
+            return seen.minBy { it.second.relative }
         }
 
         private fun start(words: List<Word>, i: Int) = words[i].range.startMs / 1000f
@@ -152,6 +177,10 @@ data class ColdOpen(
         private const val PAUSE_S = 0.25f
         private const val BREATH_S = 0.12f
         private const val MIN_REMOVED_S = 0.06f
+        /** An edge cut this far under the speaker's level is clean enough to end (or start) the opening on. */
+        private const val CLEAN_DB = 20f
+        /** How many words before the figure the opening may start, for a clean in-cut. */
+        private const val LEAD_WORDS = 2
         private val ASKED = listOf("ثانیه اول", "ثانیه ی اول", "ثانیهی اول", "اول ویدیو", "اول ویدئو", "کلد اوپن", "first second", "cold open", "open with")
     }
 }

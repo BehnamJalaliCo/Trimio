@@ -314,14 +314,27 @@ class Compiler(
                 MediaNode(
                     input.footage, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = seg.sourceStart, grade = gradeOf(look),
                     transform = if (cold) place(zoom + pull, smear) else place(zoom),
-                    start = seg.outStart, end = if (i == segments.lastIndex) Float.POSITIVE_INFINITY else seg.outEnd, name = "footage-$i",
+                    start = seg.outStart, end = if (i == segments.lastIndex) heldFrom ?: Float.POSITIVE_INFINITY else seg.outEnd, name = "footage-$i",
                 )
-            } + listOfNotNull(restart?.let { r -> settle(r, segments.getOrNull(opening), ::place, zoom) }) + listOf(
+            } + listOfNotNull(restart?.let { r -> settle(r, segments.getOrNull(opening), ::place, zoom) }, held(place(zoom))) + listOf(
                 EffectNode(Effect.Scrim(fromBottom = true, coverage = 0.4f, opacity = 0.5f.anim)),
                 EffectNode(Effect.Scrim(fromBottom = false, coverage = 0.36f, opacity = 0.42f.anim)),
             )
         } else {
             listOf(EffectNode(Effect.Aurora(look.aurora)))
+        }
+
+        /** Output time an end hold freezes the picture (the source has run out), or null. */
+        private val heldFrom: Float? = input.edit?.let { e -> e.outro?.takeIf { it.running < it.length }?.let { e.bodyEnd + it.running } }
+
+        /** An end hold's frozen last frame of the source, to the end. */
+        private fun held(place: Transform): Node? {
+            val from = heldFrom ?: return null
+            val frame = (input.edit?.outro?.heldFrame ?: return null) - 1f / input.fps
+            return MediaNode(
+                input.footage ?: return null, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = frame.coerceAtLeast(0f), speed = 0f,
+                grade = gradeOf(look), transform = place, start = from, name = "footage-hold",
+            )
         }
 
         /**
@@ -400,7 +413,10 @@ class Compiler(
         for ((i, line) in lines.withIndex()) {
             val at = line.first().range.startMs / 1000f
             val next = lines.getOrNull(i + 1)?.first()?.range?.startMs?.div(1000f) ?: Float.MAX_VALUE
-            val end = minOf(line.last().range.endMs / 1000f + 0.35f, next - 0.03f)
+            val natural = minOf(line.last().range.endMs / 1000f + 0.35f, next - 0.03f)
+            // A caption ends at the cut to a full-frame stage: it never runs on under the stage's graphic.
+            val stage = session.sceneStarts.indices.firstOrNull { k -> session.sceneStarts[k] in (at + MIN_CAPTION)..natural && !session.overFootage(session.scenes[k]) }
+            val end = stage?.let { session.sceneStarts[it] - 0.02f } ?: natural
             val headline = beats.any { b -> b.recipe.kind == Recipe.Kind.Text && overlap(b.cue.at, b.out, at, end) > (end - at) * 0.35f }
             // A graphic leaving the zone is still on screen through its exit: give it that time.
             if (headline || layout.busy(zone, at - EXIT_TAIL, end)) { skipped++; continue }
@@ -648,6 +664,8 @@ class Compiler(
         private const val SNAP_WINDOW = 0.1f
         private const val MIN_SFX_GAP = 0.12f
         private const val CAPTION_ID_BASE = 100_000
+        /** A caption cut short by a stage still shows this long (a shorter one is not clamped). */
+        private const val MIN_CAPTION = 0.3f
         private const val PULSE_STRESS = 0.72f
         private const val PULSE_GAP = 2f
         /** A scene starting this close to a cold open's restart takes the restart as its transition. */

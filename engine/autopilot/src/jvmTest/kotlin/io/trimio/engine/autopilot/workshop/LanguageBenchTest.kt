@@ -37,6 +37,7 @@ class LanguageBenchTest {
             words += truth.size
             out.appendLine("${s.id}: ${diff.size}/${truth.size}")
             diff.forEach { out.appendLine("    $it") }
+            if (System.getenv("WORKSHOP_HEARD") == "true") out.appendLine("  heard: ${s.words.joinToString(" ") { it.text }}")
         }
         out.appendLine("total: $errors/$words")
         File(Workshop.out, "language.txt").apply { parentFile.mkdirs() }.writeText(out.toString())

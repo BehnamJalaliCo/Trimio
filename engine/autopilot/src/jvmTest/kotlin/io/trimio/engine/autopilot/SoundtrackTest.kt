@@ -2,6 +2,7 @@ package io.trimio.engine.autopilot
 
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.engine.assets.MusicMood
+import io.trimio.engine.autopilot.judges.SoundJudge
 import io.trimio.engine.motion.score.EditPlan
 import kotlin.math.abs
 import kotlin.math.log10
@@ -63,6 +64,42 @@ class SoundtrackTest {
         val out = soundtrack.master(silent, edit, emptyList(), edit.duration, MusicMood.entries.first(), musicSeed = 1, cues = emptyList()).audio.samples
         assertTrue((0 until (0.99f * rate).toInt()).all { abs(out[it]) < 1e-5f }, "the flash-forward plays dry")
         assertTrue(db(out, 1.2f, 2.2f) > -40f, "the bed is in after the restart")
+    }
+
+    @Test
+    fun theMasterHoldsTheTruePeakCeilingAtTargetLoudness() {
+        // A hot, bright voice with hard edges (a square-ish wave near Nyquist overshoots between samples) and a bed.
+        val voice = SyntheticVoice(8f).word(0.2f, 7.8f, amp = 0.9f, hz = 220f).pcm()
+        for (i in voice.samples.indices step 7) voice.samples[i] = if ((i / 7) % 2 == 0) 0.95f else -0.95f
+        val edit = EditPlan.identity(8f)
+        val out = soundtrack.master(voice, edit, emptyList(), 8f, MusicMood.entries.first(), musicSeed = 2, cues = emptyList())
+        val truePeak = SoundJudge.truePeakDb(out.audio.samples)
+        assertTrue(truePeak <= -1.0, "true peak $truePeak dBTP")
+        assertTrue(abs(out.lufs + 14.0) < 0.5, "loudness ${out.lufs} LUFS")
+    }
+
+    @Test
+    fun theLimiterRampsInsteadOfStepping() {
+        // A burst 12 dB over the ceiling: the gain ramps down over the look-ahead, no sample-to-sample jump.
+        fun swell(i: Int) = ((minOf(i - 20_000, 22_000 - i) / 48f).coerceIn(0f, 1f)).let { 0.2f + 3.3f * it * it * (3f - 2f * it) }
+        val x = FloatArray(rate) { i -> swell(i) * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * 440f * i / rate) }
+        TruePeakLimiter(rate, -1f).limit(x)
+        assertTrue(SoundJudge.truePeakDb(x) <= -1.0, "true peak ${SoundJudge.truePeakDb(x)}")
+        assertTrue(SyntheticVoice.worstJump(x, rate, listOf(20_000f / rate, 22_000f / rate), window = 0.005f) < 1.6f, "a step at the burst's edges")
+    }
+
+    @Test
+    fun anEndHoldCarriesMusicWithoutVoice() {
+        val tone = SyntheticVoice(4f).word(0f, 4f).pcm()
+        val edit = EditPlan(listOf(EditPlan.Segment(0.5f, 2.5f, 0f))).withOutro(2f, sourceDuration = 4f)
+        val spliced = soundtrack.splice(tone, edit, (edit.duration * rate).toInt())
+        assertTrue((((edit.bodyEnd + 0.001f) * rate).toInt() until spliced.size).all { abs(spliced[it]) < 1e-6f }, "voice in the end hold")
+        val silent = PcmAudio(FloatArray(4 * rate), rate)
+        val out = soundtrack.master(silent, edit, emptyList(), edit.duration, MusicMood.entries.first(), musicSeed = 1, cues = emptyList()).audio.samples
+        val carried = db(out, edit.bodyEnd, edit.bodyEnd + 0.5f)
+        val end = db(out, edit.duration - 0.1f, edit.duration)
+        assertTrue(carried > db(out, 0.5f, 1.5f) - 3f, "the bed carries into the hold: $carried")
+        assertTrue(end < carried - 15f, "and fades out by the end: $end")
     }
 
     private fun db(x: FloatArray, a: Float, b: Float): Float {

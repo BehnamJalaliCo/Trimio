@@ -16,6 +16,8 @@ class EditPlan(
      * mapping — the body's words keep one place each — and the body's segments start after them.
      */
     val opening: List<Segment> = emptyList(),
+    /** A held tail after the last word (picture and music, no voice): room for a late ask's end card. */
+    val outro: Outro? = null,
 ) {
 
     /**
@@ -30,7 +32,20 @@ class EditPlan(
         val outEnd: Float get() = outStart + length
     }
 
-    val duration: Float get() = segments.lastOrNull()?.outEnd ?: 0f
+    /**
+     * The end hold: [length] seconds after the body's last frame. The footage runs on from where
+     * the cut ended ([sourceStart]) for [running] seconds — as long as the source has picture —
+     * then holds its last frame. The voice never plays here; the music carries and fades.
+     */
+    data class Outro(val length: Float, val sourceStart: Float, val running: Float) {
+        /** The source time of the frame held once the footage runs out. */
+        val heldFrame: Float get() = sourceStart + running
+    }
+
+    /** Output time the body (and every word) ends: where an [outro] starts. */
+    val bodyEnd: Float get() = segments.lastOrNull()?.outEnd ?: 0f
+
+    val duration: Float get() = bodyEnd + (outro?.length ?: 0f)
 
     /** Output time of a source time; inside a removed gap it lands on the cut. */
     fun toOutput(source: Float): Float {
@@ -38,7 +53,7 @@ class EditPlan(
             if (source < s.sourceStart) return s.outStart
             if (source < s.sourceEnd) return s.outStart + (source - s.sourceStart)
         }
-        return duration
+        return bodyEnd
     }
 
     /** The transcript on the output clock (cut points become shared word boundaries). */
@@ -106,10 +121,26 @@ class EditPlan(
         val body = segments.mapIndexed { i, s ->
             if (i == 0) s.copy(sourceStart = from, outStart = s.outStart + shift) else s.copy(outStart = s.outStart + shift + grown)
         }
-        return EditPlan(body, pieces)
+        return EditPlan(body, pieces, outro)
+    }
+
+    /**
+     * The same cut held [seconds] (up to [MAX_OUTRO]) past its last frame, for an ask said too
+     * late for its card to be read. The footage runs on while the source ([sourceDuration]
+     * seconds) has more, then freezes on its last frame; no voice plays in the hold.
+     */
+    fun withOutro(seconds: Float, sourceDuration: Float): EditPlan {
+        val last = segments.lastOrNull() ?: return this
+        val length = seconds.coerceIn(0f, MAX_OUTRO)
+        if (length <= 0f) return EditPlan(segments, opening)
+        val running = (sourceDuration - last.sourceEnd).coerceIn(0f, length)
+        return EditPlan(segments, opening, Outro(length, last.sourceEnd, running))
     }
 
     companion object {
+        /** The longest end hold: past it a frozen frame reads as a mistake. */
+        const val MAX_OUTRO = 2.5f
+
         /**
          * Recognisers stretch a word across the pause before or after it. Words are clipped to
          * detected speech: a word starting in (or spanning) a silence starts when speech resumes,

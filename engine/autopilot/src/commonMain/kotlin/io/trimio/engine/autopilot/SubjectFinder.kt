@@ -236,13 +236,12 @@ internal class HeadReader(private val scene: FaceScene, k: Int, private val mode
             rows.min[y] = minOf(rows.min[y], x); rows.max[y] = maxOf(rows.max[y], x); rows.count[y]++
         }
         val top = rows.count.indexOfFirst { it > 0 }
-        val bottom = rows.count.indexOfLast { it > 0 }
-        val chin = chin(rows, top, bottom)
+        val chin = chin(rows, top, rows.count.indexOfLast { it > 0 })
         val face = Face(rows, top, chin)
         if (face.width < 3 || chin - top < 3) return null
-        val score = score(face, rows)
-        val box = head(face)
-        return Head(box, score)
+        // A beard below a chin the skin stops at belongs to the face's shape as much as to the head.
+        val bottom = beard(face, maxOf(face.height, (face.width * 1.15f).roundToInt()))
+        return Head(head(face, bottom), score(face, rows, bottom))
     }
 
     /** The face part of a blob that may run on into the neck: where the width drops to a neck and stops narrowing. */
@@ -266,10 +265,11 @@ internal class HeadReader(private val scene: FaceScene, k: Int, private val mode
     }
 
     /** How face-like: size, shape, holes, motion, framing and shoulders below. */
-    private fun score(face: Face, rows: Rows): Float {
+    private fun score(face: Face, rows: Rows, bottom: Int): Float {
         val frac = face.width * face.height / (w * h).toFloat()
-        val size = ramp(frac, 0.002f, 0.006f) * (1f - ramp(frac, 0.18f, 0.3f))
-        val aspect = face.height / face.width.toFloat()
+        // Tiny blobs are noise; small ones (a neck, a hand) count less than a talking head's face.
+        val size = ramp(frac, 0.0015f, 0.004f) * (0.5f + 0.5f * ramp(frac, 0.004f, 0.025f)) * (1f - ramp(frac, 0.18f, 0.3f))
+        val aspect = (bottom - face.top + 1) / face.width.toFloat()
         val shapeA = ramp(aspect, 0.4f, 0.75f) * (1f - ramp(aspect, 1.7f, 2.4f))
         var count = 0
         var holes = 0
@@ -283,7 +283,8 @@ internal class HeadReader(private val scene: FaceScene, k: Int, private val mode
         val holeScore = (holes / (count + holes).toFloat() / 0.03f).coerceIn(0f, 1f)
         val px = (face.left + face.right + 1) / 2f / w
         val py = (face.top + face.chin + 1) / 2f / h
-        val position = exp(-((px - 0.5f) / 0.32f).let { it * it }) * (if (py < 0.65f) 1f else exp(-((py - 0.65f) / 0.15f).let { it * it }))
+        // Vertical video: the face sits around the upper third, rarely low.
+        val position = exp(-((px - 0.5f) / 0.32f).let { it * it }) * (if (py < 0.42f) 1f else exp(-((py - 0.42f) / 0.2f).let { it * it }))
         return size * (0.3f * shapeA * shapeF + 0.15f * holeScore + 0.15f * motion(face) + 0.2f * position + 0.2f * shoulders(face))
     }
 
@@ -319,7 +320,7 @@ internal class HeadReader(private val scene: FaceScene, k: Int, private val mode
     }
 
     /** The face grown to the head: hair above and at the sides, a beard below, padded; as fractions of the frame. */
-    private fun head(face: Face): FloatArray {
+    private fun head(face: Face, bottom: Int): FloatArray {
         val faceH = maxOf(face.height, (face.width * 1.15f).roundToInt())
         val reach = (faceH * HAIR_REACH).roundToInt()
         val spread = (face.width * 0.15f).roundToInt()
@@ -330,7 +331,6 @@ internal class HeadReader(private val scene: FaceScene, k: Int, private val mode
         }
         val left = side(face, top, -1)
         val right = side(face, top, 1)
-        val bottom = beard(face, faceH)
         val padX = (right - left + 1) * PAD
         val padY = (bottom - top + 1) * PAD
         return floatArrayOf(
