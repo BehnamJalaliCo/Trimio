@@ -75,7 +75,7 @@ class Autopilot(
         onStage("listen", 0f)
         val heard = SpeechAnalysis.of(request.voice, request.transcript)
         // Words the creator spelled in the brief win over sound-alike recognitions.
-        val spelled = Proofreader.fromBrief(heard.transcript.words.map { it.text }, request.prompt)
+        val spelled = Proofreader.fromBrief(heard.transcript.words.map { it.text }, request.prompt, PersianSpelling.load())
         spelled.forEach { (i, w) -> report += "spelling (brief): ${heard.transcript.words[i].text} → $w" }
         val lexical = Proofreader.fromLexicon(heard.transcript.words.map { it.text }, request.prompt, spelled)
             .onEach { (i, w) -> report += "spelling (lexicon): ${heard.transcript.words[i].text} → ${w.ifEmpty { "(joined)" }}" }

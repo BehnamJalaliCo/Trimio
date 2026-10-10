@@ -72,11 +72,7 @@ object Enumerations {
     }
 
     /** How many comma-separated parts [from]..[to] has (a part too long to be an item is not kept by [split]). */
-    private fun parts(texts: List<String>, from: Int, to: Int): Int {
-        val commas = (from..to).count { texts[it].last() in ",،;؛" && it < to }
-        val joins = split(texts, from, to, keepLong = true).size
-        return maxOf(commas + 1, joins)
-    }
+    private fun parts(texts: List<String>, from: Int, to: Int): Int = split(texts, from, to, keepLong = true).size
 
     /** Items at commas, and at «و»/"and" between short ones («نمک و فلفل و زردچوبه»), never inside a number («نود و هفت»). */
     private fun split(texts: List<String>, from: Int, to: Int, keepLong: Boolean = false): List<IntRange> {

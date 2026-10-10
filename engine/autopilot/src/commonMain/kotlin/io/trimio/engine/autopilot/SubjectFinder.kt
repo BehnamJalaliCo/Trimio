@@ -122,34 +122,37 @@ internal class SkinModel private constructor(
             val h = scene.h
             val hist = FloatArray(BINS * BINS)
             val picked = ArrayList<Int>()
+            val weights = ArrayList<Float>()
             for ((k, f) in scene.frames.withIndex()) for (y in (h * 0.06f).toInt() until (h * 0.66f).toInt()) for (x in (w * 0.12f).toInt() until (w * 0.88f).toInt()) {
                 val i = y * w + x
                 if (!f.skinGate(i) || (excludeBackground && scene.background[k][i] <= BACKGROUND)) continue
                 val dx = (x - w * 0.5f) / (w * 0.28f)
                 val dy = (y - h * 0.36f) / (h * 0.2f)
                 // Dark hair and beards share skin's hue; the face is the lit part.
-                val lit = ((f.luma[i] - 25f) / 75f).coerceIn(0.05f, 1f)
-                hist[bin(f.rn[i]) * BINS + bin(f.gn[i])] += exp(-(dx * dx + dy * dy)) * lit
+                val weight = exp(-(dx * dx + dy * dy)) * ((f.luma[i] - 25f) / 75f).coerceIn(0.05f, 1f)
+                hist[bin(f.rn[i]) * BINS + bin(f.gn[i])] += weight
                 picked += k * w * h + i
+                weights += weight
             }
             if (picked.size < scene.frames.size * w * h / MIN_SHARE) return null
             val peak = peak(hist)
             val pr = (peak / BINS + 0.5f) * BIN
             val pg = (peak % BINS + 0.5f) * BIN
-            val near = picked.filter { j -> val f = scene.frames[j / (w * h)]; val i = j % (w * h); abs(f.rn[i] - pr) < 0.03f && abs(f.gn[i] - pg) < 0.02f }
+            fun frame(j: Int) = scene.frames[j / (w * h)]
+            val near = picked.indices.filter { n -> val f = frame(picked[n]); val i = picked[n] % (w * h); abs(f.rn[i] - pr) < 0.03f && abs(f.gn[i] - pg) < 0.02f }
             if (near.size < MIN_NEAR) return null
-            fun values(of: (FacePixels, Int) -> Float) = near.map { j -> of(scene.frames[j / (w * h)], j % (w * h)) }.sorted()
-            val rs = values { f, i -> f.rn[i] }
-            val gs = values { f, i -> f.gn[i] }
-            val ys = values { f, i -> f.luma[i] }
+            // The face's brightness: the weighted median, so a large dark beard of the same hue does not set it.
+            val byLuma = near.sortedBy { n -> frame(picked[n]).luma[picked[n] % (w * h)] }
+            val half = byLuma.sumOf { weights[it].toDouble() } / 2
+            var acc = 0.0
+            val mid = byLuma.first { acc += weights[it]; acc >= half }
+            val luma = frame(picked[mid]).luma[picked[mid] % (w * h)]
+            val face = near.map { picked[it] }.filter { j -> frame(j).luma[j % (w * h)] in luma * LOW..luma * HIGH }
+            val rs = face.map { j -> frame(j).rn[j % (w * h)] }.sorted()
+            val gs = face.map { j -> frame(j).gn[j % (w * h)] }.sorted()
             val r = rs[rs.size / 2]
             val g = gs[gs.size / 2]
-            return SkinModel(
-                r, g,
-                (3f * mad(rs, r)).coerceIn(0.022f, 0.06f),
-                (3f * mad(gs, g)).coerceIn(0.016f, 0.04f),
-                ys[ys.size / 2], excludeBackground,
-            )
+            return SkinModel(r, g, (3f * mad(rs, r)).coerceIn(0.022f, 0.06f), (3f * mad(gs, g)).coerceIn(0.016f, 0.04f), luma, excludeBackground)
         }
 
         private fun bin(v: Float) = (v / BIN).toInt().coerceIn(0, BINS - 1)

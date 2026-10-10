@@ -2,6 +2,7 @@ package io.trimio.engine.autopilot.workshop
 
 import io.trimio.core.model.text.Numerals
 import io.trimio.core.model.transcript.Transcript
+import io.trimio.engine.autopilot.PersianSpelling
 import io.trimio.engine.autopilot.Proofreader
 import io.trimio.engine.autopilot.withSpelling
 import io.trimio.engine.motion.score.NumberWords
@@ -45,7 +46,7 @@ class LanguageBenchTest {
     /** The caption words the viewer reads, in order. */
     private suspend fun captions(s: Scenario): List<String> {
         val heard = s.words.map { it.text }
-        val brief = Proofreader.fromBrief(heard, s.prompt)
+        val brief = Proofreader.fromBrief(heard, s.prompt, PersianSpelling.load())
         val lexical = Proofreader.fromLexicon(heard, s.prompt, brief)
         val spelled = Transcript(s.spoken, s.words).withSpelling(brief + lexical)
         return spelled.words.filterNot { Words.isFiller(it.text) }.map { it.text }.flatMap(::tokens)

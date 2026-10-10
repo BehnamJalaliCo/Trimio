@@ -624,7 +624,8 @@ class MotionRenderer(
             layout, color = c, topLeft = origin, alpha = a,
             shadow = androidx.compose.ui.graphics.Shadow(c.copy(alpha = a), Offset.Zero, size * HALO_SOFT),
             drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(
-                size * HALO_WIDTH, join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                // Thin where little is needed, fuller where the picture fights the ink.
+                maxOf(size * (HALO_WIDTH + HALO_GROW * s), HALO_MIN_PX), join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = androidx.compose.ui.graphics.StrokeCap.Round,
             ),
         )
     }
@@ -671,7 +672,9 @@ class MotionRenderer(
         const val MIN_GUARD = 0.01f
         /** Halo stroke width and softness, and plate padding, as fractions of the font size. */
         const val HALO_WIDTH = 0.1f
-        const val HALO_SOFT = 0.22f
+        const val HALO_GROW = 0.08f
+        const val HALO_MIN_PX = 5f
+        const val HALO_SOFT = 0.2f
         const val PLATE_X = 0.32f
         const val PLATE_Y = 0.14f
         const val PLATE_RISE = 2.5f

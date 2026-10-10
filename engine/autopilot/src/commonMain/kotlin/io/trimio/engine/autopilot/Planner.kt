@@ -121,6 +121,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** Lines showing a graphic the brief asked for. */
         val requested = mutableSetOf<Int>()
 
+        /** Titles already on screen (normalised). */
+        val shownTitles = mutableSetOf<String>()
+
         /** The hook's words (normalised): never slammed again later. */
         val hookKeys = mutableSetOf<String>()
 
@@ -573,8 +576,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         private fun headline(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
             val title = read.title.ifBlank { Phrases.title(words, line, hookKeys) }.ifBlank { return null }
-            // The hook's words are not said twice on screen.
-            if (textKey(title) in hookKeys) return null
+            // The hook's words, or a title already shown, are not said twice on screen.
+            if (textKey(title) in hookKeys || !shownTitles.add(textKey(title))) return null
             val quoted = locate(title, line) != null
             return BeatScore(
                 recipe = textRecipe(e), text = title, at = if (quoted) null else line.first, energy = e, mark = mark,
