@@ -139,8 +139,12 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
     val motion = io.trimio.core.designsystem.theme.Trimio.motion
     val rtl = language.isRtl
 
+    // Screens that act on being left (the editor renders its changes as the next version) answer back first.
+    val leaving = remember { mutableMapOf<Route, () -> Boolean>() }
+
     fun go(route: Route) = backStack.add(route)
-    fun back() { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) }
+    fun pop() { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) }
+    fun back() { if (backStack.lastOrNull()?.let { leaving[it] }?.invoke() != true) pop() }
     fun replaceTop(route: Route) { backStack[backStack.lastIndex] = route }
 
     /**
@@ -219,12 +223,13 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     route,
                     onBack = ::back,
                     onExport = { id -> go(Route.Export(id)) },
-                    // The next version replaces the result the editor was opened from.
-                    onProduce = { request, projectId, version ->
+                    // The next version (the director's, or the editor's changes rendered) replaces the result the editor was opened from.
+                    onProduce = { request, projectId, version, retouch ->
                         val result = backStack.getOrNull(backStack.lastIndex - 1) as? Route.Result
-                        if (result != null) back()
-                        replaceTop(Route.Produce(request, result?.styleName, version, projectId))
+                        if (result != null) pop()
+                        replaceTop(Route.Produce(request, result?.styleName, version, projectId, retouch))
                     },
+                    onLeaving = { handler -> if (handler != null) leaving[route] = handler else leaving.remove(route) },
                 )
             }
             entry<Route.Export> { route -> ExportEntry(route, onBack = ::back) }

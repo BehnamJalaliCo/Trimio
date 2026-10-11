@@ -8,6 +8,7 @@ import io.trimio.core.model.transcript.Word
 import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.asr.SpeechRecognizer
 import io.trimio.engine.autopilot.Jury
+import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.export.Delivery
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -18,6 +19,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -85,6 +87,39 @@ class ExportsTest {
         val wide = assertNotNull(edit.production.relaid("16:9", 30))
         assertEquals(1920 to 1080, wide.composition.width to wide.composition.height)
         assertEquals(edit.production.compiled.beats.size, wide.beats.size)
+    }
+
+    @Test
+    fun anEditedEditIsLaidOutAgainForAnotherFrameWithItsChanges() = runBlocking {
+        // The creator cut a word and turned the director's first graphic off in the editor.
+        val k = edit.base.score.scenes.indexOfFirst { it.beats.isNotEmpty() }
+        assertTrue(k >= 0, "the director placed a graphic")
+        val off = edit.base.score.scenes[k].beats.first()
+        val cut = words.indexOf("مهم")
+        val o = EditOverrides().with(EditChange.Delete(cut, cut, true)).with(EditChange.Element(Retouch.key(k, 0), false))
+        val touched = Productions(platform).touch(edit, o)
+        assertTrue(touched.production.source != null, "an edited edit keeps what lays it out again")
+
+        val wide = assertNotNull(touched.production.relaid("16:9", 30), "the edited edit is laid out for 16:9")
+        assertEquals(1920 to 1080, wide.composition.width to wide.composition.height)
+        val directorWide = assertNotNull(edit.production.relaid("16:9", 30))
+        val captioned = touched.production.score.captions.recipe
+        fun captions(o: Compiler.Output) = o.beats.filter { it.recipe == captioned }.joinToString(" ") { it.text }
+        fun graphics(o: Compiler.Output) = o.beats.filter { it.recipe != captioned }.map { it.recipe + "|" + it.text }.sorted()
+        assertTrue("مهم" in captions(directorWide), "the director's edit says the word")
+        assertFalse("مهم" in captions(wide), "the cut word stays cut in 16:9: ${captions(wide)}")
+        assertEquals(graphics(touched.production.compiled), graphics(wide), "the same graphics in either frame")
+        assertEquals(graphics(directorWide).count { it.startsWith(off.recipe + "|") } - 1, graphics(wide).count { it.startsWith(off.recipe + "|") }, "the graphic stays off in 16:9")
+        assertEquals(touched.production.compiled.composition.duration, wide.composition.duration, "the cut is the edited one")
+        assertTrue(wide.composition.duration < edit.production.compiled.composition.duration, "shorter by the cut word")
+
+        // And the file: 16:9 at its size, as long as the edited cut.
+        val spec = ExportSpec("16:9", 720, 30)
+        val file = File(exports.video(touched, spec, File(dir, "edited-wide.mp4").path))
+        val probe = probe(file, "v:0", "width,height")
+        assertEquals(spec.size.first.toString(), probe["width"])
+        assertEquals(spec.size.second.toString(), probe["height"])
+        assertTrue(kotlin.math.abs(probeDuration(file) - touched.production.compiled.composition.duration) < 0.2f, "the edited length")
     }
 
     @Test

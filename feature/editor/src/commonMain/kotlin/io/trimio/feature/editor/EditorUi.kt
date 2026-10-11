@@ -33,6 +33,8 @@ data class EditorUi(
     val cut: CutTool = CutTool(),
     /** A line from the gates about the creator's own changes (spelling kept as written). */
     val warning: String? = null,
+    /** The edit differs from the version it was opened as: leaving renders the changes as the next version. */
+    val unsaved: Boolean = false,
 ) {
     companion object {
         const val BARS = 66

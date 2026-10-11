@@ -108,6 +108,8 @@ data class BuildResult(
     val saved: Boolean = false,
     /** A revision or variation is being made from this edit. */
     val working: Boolean = false,
+    /** This version carries the creator's own changes from the editor. */
+    val edited: Boolean = false,
 )
 
 /** An honest failure: what went wrong, at which stage, and what the creator can do. */

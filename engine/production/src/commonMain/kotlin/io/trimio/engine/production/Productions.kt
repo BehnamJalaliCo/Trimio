@@ -1,10 +1,12 @@
 package io.trimio.engine.production
 
+import androidx.compose.ui.graphics.ImageBitmap
 import io.trimio.core.model.text.Language
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Collaborator
+import io.trimio.engine.autopilot.Delivery
 import io.trimio.engine.autopilot.FrameGrabber
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.Knowledge
@@ -39,7 +41,9 @@ import kotlinx.coroutines.withContext
 /**
  * The [AutoEditor]: prepare (voice, frames, the speaker's head, attachments), transcribe, direct
  * with the [Autopilot] (previewing every compiled edit as it forms), render. Words and the reading
- * are checkpointed as they finish, so a restarted run skips whisper and the model.
+ * are checkpointed as they finish, so a restarted run skips whisper and the model; a finished
+ * run keeps the director's whole decision ([Delivery]), so its edit opens again after the app
+ * restarts ([reopen]) without either.
  *
  * [jury] overrides the device's budget (tests); by default [Juries.forDevice] reads the device
  * when each run starts, so a hot phone gets a lighter jury.
@@ -87,7 +91,9 @@ class Productions(
         val forward = launch { state.first { s -> send(s); s.finished } }
         try {
             val touched = touch(edit, overrides)
-            state.update { it.copy(panel = touched.production.panel?.let(PanelSummary::of), report = touched.production.report) }
+            // The new version's poster: a frame of the edit as the creator left it.
+            val poster = still(touched)
+            state.update { it.copy(panel = touched.production.panel?.let(PanelSummary::of), report = touched.production.report, previews = listOfNotNull(poster)) }
             val out = platform.export(touched.production, touched.request, touched.assets, touched.output) { done, total ->
                 state.update { it.copy(step = "render $done/$total", progress = done / total.coerceAtLeast(1).toFloat()) }
             }
@@ -101,6 +107,48 @@ class Productions(
         forward.join()
     }.conflate()
 
+    override suspend fun reopen(request: ProductionRequest, overrides: EditOverrides): Opened = withContext(Dispatchers.Default) {
+        val saved = checkpoints.load(request.key)
+        val kept = saved?.delivery?.takeIf { it.version == Delivery.VERSION } ?: return@withContext Opened.NotKept
+        // The creator's own files are read again: a video, recording or attachment that is gone is said so.
+        val media = readable {
+            val voice = platform.audio(request.media, VOICE_RATE)
+            check(voice.samples.isNotEmpty()) { "no sound in ${request.media}" }
+            voice to request.assets.mapIndexed { i, a -> platform.asset(a.source, "asset-$i", a.caption) }
+        } ?: return@withContext Opened.SourceMissing
+        val (voice, assets) = media
+        val e = engines()
+        val autopilot = Autopilot(e.text, e.brands, visuals, jury = jury ?: Juries.forDevice(platform.device()))
+        val production = autopilot.restore(kept, voice, assets)
+        val director = Edit(request, production, request.output ?: platform.outputFor(request), saved.transcript, assets = assets)
+        Opened.Ready(if (overrides.isEmpty) director else touch(director, overrides))
+    }
+
+    override suspend fun kept(request: ProductionRequest): Boolean =
+        withContext(Dispatchers.Default) { checkpoints.load(request.key)?.delivery?.version == Delivery.VERSION }
+
+    /** [block]'s result, or null when the platform could not read the creator's media. */
+    private suspend fun <T> readable(block: suspend () -> T): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
+        null
+    }
+
+    /** A frame of [edit] for its poster (null when it cannot be drawn). */
+    private suspend fun still(edit: Edit): ImageBitmap? = readable {
+        val e = engines()
+        val output = edit.production.compiled
+        val c = output.composition
+        val media = platform.media(edit.request, edit.assets, FPS, c.width, c.height)
+        try {
+            e.previewer.frame(output, media, Previewer.time(0, c.duration), Previewer.WIDTH)
+        } finally {
+            (media as? AutoCloseable)?.close()
+        }
+    }
+
     override fun playback(edit: Edit): EditPlayback = EditPlayback(
         engines = { engines().let { it.measurer to it.fonts } },
         shaders = platform.previewShaders,
@@ -113,9 +161,9 @@ class Productions(
     private fun directorOutput(edit: Edit): String =
         if (edit.overrides.isEmpty) edit.output else edit.output.replace(RETOUCHED, ".mp4")
 
-    /** The file an edit with [overrides] renders to: one per state, so a render already made is this exact edit. */
+    /** The file an edit with [overrides] renders to: one per state (in every process), so a render already made is this exact edit. */
     private fun retouchedOutput(director: String, overrides: EditOverrides): String =
-        director.removeSuffix(".mp4") + "-e" + (overrides.hashCode().toLong() and 0xFFFFFFFFL).toString(16).padStart(8, '0') + ".mp4"
+        director.removeSuffix(".mp4") + "-e" + overrides.fingerprint + ".mp4"
 
     private fun run(request: ProductionRequest, previous: Edit?, taste: Taste, feedback: String? = null): Flow<ProductionState> = channelFlow {
         val state = MutableStateFlow(ProductionState(request.key))
@@ -192,6 +240,8 @@ class Productions(
             job?.ensureActive()
             r.at(Stage.Render, done / total.coerceAtLeast(1).toFloat(), "render $done/$total")
         }
+        // The finished edit is kept whole: it opens again after a restart (editor, exports) without whisper or the model.
+        checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, production.delivery()))
         r.state.update {
             it.copy(
                 status = ProductionStatus.Done, stage = Stage.Done, step = "done", progress = 1f, output = out,

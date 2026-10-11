@@ -42,6 +42,7 @@ import io.trimio.core.designsystem.component.TrimioIcon
 import io.trimio.core.designsystem.icon.TrimioIcons
 import io.trimio.core.designsystem.signature.FootagePlaceholder
 import io.trimio.core.designsystem.signature.Hairline
+import io.trimio.core.designsystem.signature.LiveDot
 import io.trimio.core.designsystem.signature.MicroLabel
 import io.trimio.core.designsystem.signature.Sig
 import io.trimio.core.designsystem.signature.SigAdaptive
@@ -84,7 +85,8 @@ fun ExportScreen(ui: ExportUi, actions: ExportActions) {
     SigScreen {
         SigAdaptive { width ->
             when {
-                ui.missing -> Missing(actions)
+                ui.missing != null -> Missing(ui.missing, actions)
+                ui.opening -> Opening(actions)
                 width.wide -> Row(Modifier.fillMaxSize().padding(horizontal = SigSpace.xl), horizontalArrangement = Arrangement.spacedBy(SigSpace.xxl)) {
                     Column(Modifier.weight(0.8f).fillMaxHeight()) {
                         SigTopRow("EXPORT", actions.onBack, backLabel = tr("بازگشت", "Back"))
@@ -345,19 +347,24 @@ private fun Failed(job: ExportJob) {
     }
 }
 
-/** The edit is no longer held (the app restarted since it was made). */
+/** The edit does not open: its source is gone, nothing was kept of it, or this platform has no engine. */
 @Composable
-private fun Missing(actions: ExportActions) {
+private fun Missing(why: NotOpen, actions: ExportActions) {
     Column(Modifier.fillMaxSize()) {
         SigTopRow("EXPORT", actions.onBack, backLabel = tr("بازگشت", "Back"))
-        SigStateBlock(
-            TrimioIcons.Film, tr("این ویدیو باز نیست", "This edit is not open"),
-            tr(
-                "خروجی از ویدیوی آماده ساخته می‌شود. ویدیو را از خانه باز کن یا یک نسخهٔ تازه بساز؛ فایل قبلی در گالری می‌ماند.",
-                "Exports are made from a finished edit. Open it from home or make a new version; the earlier file stays in your gallery.",
-            ),
-            Modifier.gutter().padding(top = 28.dp),
-        )
+        SigStateBlock(TrimioIcons.Film, why.title, why.body, Modifier.gutter().padding(top = 28.dp))
+    }
+}
+
+/** The edit being made again from what its run kept (the voice read, the sound mastered): a moment. */
+@Composable
+private fun Opening(actions: ExportActions) {
+    Column(Modifier.fillMaxSize()) {
+        SigTopRow("EXPORT", actions.onBack, backLabel = tr("بازگشت", "Back"))
+        Row(Modifier.gutter().padding(top = 28.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            LiveDot()
+            Text(tr("ادیت را آماده می‌کنم…", "Getting the edit ready…"), style = Sig.type.body, color = Sig.colors.muted)
+        }
     }
 }
 

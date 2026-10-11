@@ -7,7 +7,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +42,7 @@ import io.trimio.feature.stream.ResultActions
 import io.trimio.feature.stream.ResultScreen
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 import kotlin.time.TimeSource
 
@@ -64,7 +67,7 @@ object ProductionUi {
     /** A style language id, or an earlier gallery pack id ("brutalism"), as the engine's style id. */
     fun styleId(id: String): String? = ProductionStyles.all.firstOrNull { it.id == id || it.pack == id }?.id
 
-    /** A stored project's finished edit, as the result screen shows it (null until it has a file). */
+    /** A stored project's finished edit (its current version), as the result screen shows it (null until it has a file). */
     fun result(project: Project, poster: ImageBitmap?, persian: Boolean, saved: Boolean): BuildResult? {
         val record = project.production ?: return null
         if (project.outputUri == null) return null
@@ -83,6 +86,7 @@ object ProductionUi {
             poster = poster,
             version = record.version,
             saved = saved,
+            edited = record.overrides != null,
         )
     }
 
@@ -109,12 +113,13 @@ object ProductionUi {
         )
     }
 
-    fun result(s: ProductionState, seconds: Int, version: Int, styleName: String?, saved: Boolean): BuildResult? {
+    fun result(s: ProductionState, seconds: Int, version: Int, styleName: String?, saved: Boolean, persian: Boolean): BuildResult? {
         val edit = s.edit ?: return null
         val compiled = edit.production.compiled
         return BuildResult(
             title = edit.request.prompt.take(TITLE_LENGTH),
-            styleName = styleName,
+            // The creator's own style (the editor) names the version.
+            styleName = edit.overrides.style?.let { styleName(it, persian) } ?: styleName,
             durationMs = (compiled.composition.duration * MS).toLong(),
             buildSeconds = seconds,
             onDevice = edit.request.director !is io.trimio.engine.production.DirectorChoice.Cloud,
@@ -127,6 +132,7 @@ object ProductionUi {
             poster = s.previews.lastOrNull(),
             version = version,
             saved = saved,
+            edited = !edit.overrides.isEmpty,
         )
     }
 
@@ -169,7 +175,15 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
     var current by remember(route) { mutableStateOf(BuildStage.Listen) }
     val key = project?.production?.key ?: route.request.key
     val s = active?.takeIf { it.key == key }
-    val retry: () -> Unit = { if (project != null) productions.retry(project) else runner.start(route.request) }
+    val scope = rememberCoroutineScope()
+    val retry: () -> Unit = {
+        when {
+            // The editor's changes are rendered again (they are kept as the project's draft until done).
+            route.retouch && project != null -> scope.launch { productions.retouchAgain(project) }
+            project != null -> productions.retry(project)
+            else -> runner.start(route.request)
+        }
+    }
     LaunchedEffect(route) {
         if (runner.active.value?.key != key && project?.status != ProjectStatus.Failed) retry()
     }
@@ -243,7 +257,7 @@ internal fun ResultEntry(
     // The live edit when it is this project's current version (or there is no project).
     val live = active?.takeIf { s -> s.edit != null && project?.production?.key.let { it == null || it == s.key } }
     val edit = live?.edit
-    val result = live?.let { ProductionUi.result(it, route.buildSeconds, route.version, route.styleName, saved) }?.let { r -> project?.let { r.copy(title = it.title) } ?: r }
+    val result = live?.let { ProductionUi.result(it, route.buildSeconds, route.version, route.styleName, saved, persian) }?.let { r -> project?.let { r.copy(title = it.title) } ?: r }
         ?: project?.let { ProductionUi.result(it, posters[it.id], persian, saved) }
     val output = edit?.output ?: project?.outputUri
     if (result == null || output == null) {
@@ -252,7 +266,13 @@ internal fun ResultEntry(
     }
     LaunchedEffect(project?.id) { project?.let { productions.markSeen(it.id) } }
     val edits = koinInject<ProducedEdits>()
-    val exportId = (project?.id ?: edit?.request?.key)?.takeIf { edits.find(it) != null }
+    // The editor and the export open the edit held in memory, or make it again from what its run kept (after a restart).
+    val editId = project?.id ?: edit?.request?.key
+    val record = project?.production
+    val openable by produceState(editId != null && edits.find(editId) != null, editId, record?.key, record?.overrides, project?.status, edit) {
+        value = editId != null && edits.openable(editId)
+    }
+    val exportId = editId?.takeIf { openable }
     var saving by remember { mutableStateOf(false) }
     LaunchedEffect(saving) {
         if (saving) {
@@ -278,8 +298,8 @@ internal fun ResultEntry(
             onShare = { sharer?.share(output, result.title) },
             // Other frames, sizes and rates, captions and the pro package: while the edit itself is held.
             onExport = exportId?.let { id -> { onExport(id) } },
-            // The editor works on the held edit when the director's workbench came with it.
-            onEdit = exportId?.takeIf { edits.find(it)?.editable == true }?.let { id -> { onEdit(id) } },
+            // The editor works on the edit when the director's workbench came with it (a kept edit always has it).
+            onEdit = exportId?.takeIf { edits.find(it)?.editable != false }?.let { id -> { onEdit(id) } },
         ),
     )
 }

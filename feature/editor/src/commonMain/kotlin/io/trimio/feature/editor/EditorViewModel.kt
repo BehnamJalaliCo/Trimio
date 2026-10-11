@@ -13,8 +13,8 @@ import io.trimio.engine.production.EditHistory
 import io.trimio.engine.production.EditOverrides
 import io.trimio.engine.production.EditPlayback
 import io.trimio.engine.production.ElementKind
+import io.trimio.engine.production.Opened
 import io.trimio.engine.production.ProducedEdits
-import io.trimio.engine.production.RecentEdits
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,24 +30,28 @@ import kotlin.math.abs
 import kotlin.time.TimeSource
 
 /**
- * The editor over one produced edit ([ProducedEdits] finds it by the id the screen was opened
- * with). Every tool action becomes a typed [EditChange] in an [EditHistory]; the engine applies
+ * The editor over one produced edit ([ProducedEdits] opens it by the id the screen was opened
+ * with: held in memory, or made again from what its run kept). Every tool action becomes a typed
+ * [EditChange] in an [EditHistory] that starts at the version's own changes; the engine applies
  * the overrides to the director's cut ([AutoEditor.touch]): the picture first (milliseconds),
  * then the mixed sound and the jury's verdict. The player draws the edit as it is now, frame by
  * frame, with the export's renderer ([EditPlayback]), and plays its mix.
+ *
+ * Changes not yet rendered are kept in [drafts] as they are made; leaving with changes ([leave])
+ * hands them over to be rendered as the project's next version.
  */
 class EditorViewModel(
     private val id: String,
     private val edits: ProducedEdits,
     private val editor: AutoEditor,
+    private val drafts: EditDrafts? = null,
 ) : ViewModel() {
 
     /** What the screen shows: the editor, or why the edit cannot be opened. */
     sealed interface State {
         data object Opening : State
 
-        /** [changeable] false: this platform cannot change edits (no engine). */
-        data class Unavailable(val changeable: Boolean) : State
+        data class Unavailable(val why: NotOpen) : State
 
         data class Open(val ui: EditorUi) : State
     }
@@ -62,6 +66,10 @@ class EditorViewModel(
 
     private var original: Edit? = null
     private var current: Edit? = null
+
+    /** The changes the opened version was made with: leaving with anything else renders a new version. */
+    private var committed = EditOverrides()
+    private var keeping: Job? = null
     private var facts: EditFacts? = null
     private var history = EditHistory()
     private var playback: EditPlayback? = null
@@ -93,18 +101,23 @@ class EditorViewModel(
     }
 
     private suspend fun open() {
-        val edit = edits.find(id)
-        if (edit == null || !edit.editable) {
-            _state.value = State.Unavailable(changeable = edit == null)
+        val opened = edits.open(id)
+        val edit = (opened as? Opened.Ready)?.edit?.takeIf { it.editable } ?: run {
+            // An edit made without the director's workbench cannot be changed: as on a platform without the engine.
+            _state.value = State.Unavailable(if (opened is Opened.Ready) NotOpen.Unsupported else NotOpen.of(opened))
             return
         }
         original = edit
         current = edit
+        committed = edit.overrides
+        // Undo goes back as far as the version as it was made.
         history = EditHistory(edit.overrides)
         playback = runCatching { editor.playback(edit) }.getOrNull()
         facts = withContext(Dispatchers.Default) { EditFacts.of(edit) }
         publish()
         viewModelScope.launch { frames() }
+        // Changes left unsaved last time are back, one undo away from the version.
+        drafts?.draft(id)?.takeIf { it != committed }?.let { render(history.restore(it)) }
     }
 
     // ------------------------------------------------------------------ the session
@@ -207,6 +220,7 @@ class EditorViewModel(
     /** The edit with [overrides]: the picture now, the sound when it is mixed. */
     private fun render(overrides: EditOverrides) {
         val base = original ?: return
+        keep(overrides)
         picture?.cancel()
         mix?.cancel()
         working = true
@@ -339,19 +353,50 @@ class EditorViewModel(
         }
     }
 
+    // ------------------------------------------------------------------ keeping
+
+    /** Keeps the changes as the draft a moment after the last one (a slider drag is one write). */
+    private fun keep(overrides: EditOverrides) {
+        val d = drafts ?: return
+        keeping?.cancel()
+        keeping = viewModelScope.launch {
+            delay(DRAFT_MS)
+            d.keep(id, overrides.takeIf { it != committed })
+        }
+    }
+
+    /** Whether the edit differs from the version it was opened as. */
+    val unsaved: Boolean get() = original != null && history.current != committed
+
+    /**
+     * Leaving the editor: the changes to render as the next version, or null when there are none
+     * (the draft is settled either way: kept until the render is done, or forgotten).
+     */
+    fun leave(): EditOverrides? {
+        if (original == null) return null
+        keeping?.cancel()
+        val changes = history.current.takeIf { it != committed }
+        drafts?.keep(id, changes)
+        return changes
+    }
+
+    /** The edit the editor was opened with (the next version is rendered from it). */
+    fun opened(): Edit? = original
+
     // ------------------------------------------------------------------ export
 
     /**
-     * The edit as it stands, mixed, kept where the export finds it (by this screen's id); null
-     * while it cannot be (nothing open). The export screen renders it.
+     * The edit as it stands, mixed, and the id the export finds it by: the version itself when
+     * nothing changed, else the changes held under a draft id of their own (the version stays as
+     * it is until the editor renders them). Null while nothing is open.
      */
     suspend fun publishForExport(): String? {
         val base = original ?: return null
         mix?.join()
         val overrides = history.current
+        if (overrides == committed) return id
         val ready = current?.takeIf { it.overrides == overrides && it.mixed } ?: editor.touch(base, overrides)
-        (edits as? RecentEdits)?.remember(ready)
-        return id
+        return (DRAFT + id).also { edits.hold(it, ready) }
     }
 
     /** The edit as it stands (for a rewrite through the director). */
@@ -369,7 +414,7 @@ class EditorViewModel(
             base.copy(
                 tool = tool, folded = folded, position = position, playing = playing,
                 canUndo = history.canUndo, canRedo = history.canRedo, working = working, mixing = mixing,
-                elements = base.elements.copy(adding = adding),
+                elements = base.elements.copy(adding = adding), unsaved = unsaved,
             ),
         )
     }
@@ -379,16 +424,19 @@ class EditorViewModel(
         playback = null
     }
 
-    private companion object {
-        const val SUGGESTIONS = 2
-        const val DEFAULT_WIDTH = 540
-        const val MIN_WIDTH = 270
-        const val MAX_WIDTH = 720
-        const val WIDTH_STEP = 40
-        const val FRAME_MS = 8L
-        const val MIX_DEBOUNCE_MS = 350L
-        const val MS = 1000f
-        const val END_EPS = 0.04f
-        const val PUBLISH_STEP = 0.1f
+    companion object {
+        /** The id prefix the editor's unsaved changes are held under for the export screen. */
+        const val DRAFT = "draft-"
+        private const val DRAFT_MS = 600L
+        private const val SUGGESTIONS = 2
+        private const val DEFAULT_WIDTH = 540
+        private const val MIN_WIDTH = 270
+        private const val MAX_WIDTH = 720
+        private const val WIDTH_STEP = 40
+        private const val FRAME_MS = 8L
+        private const val MIX_DEBOUNCE_MS = 350L
+        private const val MS = 1000f
+        private const val END_EPS = 0.04f
+        private const val PUBLISH_STEP = 0.1f
     }
 }

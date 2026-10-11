@@ -9,6 +9,7 @@ import io.trimio.core.model.input.Resolution
 import io.trimio.engine.motion.style.StyleBook
 import io.trimio.engine.production.Edit
 import io.trimio.engine.production.EditExports
+import io.trimio.engine.production.Opened
 import io.trimio.engine.production.ProducedEdits
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -24,10 +25,11 @@ import kotlin.time.TimeSource
 data class ExportArgs(val id: String, val persian: Boolean = true, val desktop: Boolean = false)
 
 /**
- * Exports of one finished edit, found by the id the screen was opened with ([ProducedEdits]): the
- * video again at a destination's frame, a size and a rate (laid out anew by the motion engine and
- * rendered by the platform's encoder), saved to the gallery or shared; the captions as SRT; and
- * the package for professional editors. The choices are remembered in settings.
+ * Exports of one finished edit, opened by the id the screen was opened with ([ProducedEdits]:
+ * held in memory, or made again from what its run kept after the app restarted): the video again
+ * at a destination's frame, a size and a rate (laid out anew by the motion engine and rendered by
+ * the platform's encoder), saved to the gallery or shared; the captions as SRT; and the package
+ * for professional editors. The choices are remembered in settings.
  */
 class ExportViewModel(
     private val args: ExportArgs,
@@ -37,19 +39,29 @@ class ExportViewModel(
     private val saver: GallerySaver? = null,
     private val sharer: Sharer? = null,
 ) : ViewModel() {
-    private val edit: Edit? = edits.find(args.id)?.takeIf { engine != null }
-    private val _state = MutableStateFlow(initial())
+    private var edit: Edit? = edits.find(args.id)?.takeIf { engine != null }
+    private val _state = MutableStateFlow(edit?.let(::opened) ?: ExportUi(opening = true, desktop = args.desktop))
     val state: StateFlow<ExportUi> = _state.asStateFlow()
     private var running: Job? = null
 
     init {
-        withEdit { e, exports -> viewModelScope.launch { exports.poster(e)?.let { p -> _state.update { it.copy(poster = p) } } } }
+        viewModelScope.launch {
+            if (edit == null) {
+                val result = if (engine == null) Opened.Unsupported else edits.open(args.id)
+                if (result !is Opened.Ready) {
+                    _state.value = ExportUi(missing = NotOpen.of(result), desktop = args.desktop)
+                    return@launch
+                }
+                edit = result.edit
+                _state.value = opened(result.edit)
+            }
+            withEdit { e, exports -> exports.poster(e)?.let { p -> _state.update { it.copy(poster = p) } } }
+        }
     }
 
-    private fun initial(): ExportUi {
+    private fun opened(e: Edit): ExportUi {
         val s = settings.settings.value
-        val e = edit ?: return ExportUi(missing = true, desktop = args.desktop)
-        val exports = engine ?: return ExportUi(missing = true, desktop = args.desktop)
+        val exports = engine ?: return ExportUi(missing = NotOpen.Unsupported, desktop = args.desktop)
         val p = e.production
         val style = StyleBook.of(p.score.look)
         return ExportUi(

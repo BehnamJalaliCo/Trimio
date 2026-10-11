@@ -15,9 +15,13 @@ import io.trimio.core.model.input.MediaInfo
 import io.trimio.core.model.input.MediaUri
 import io.trimio.core.model.input.VideoFormat
 import io.trimio.core.pipeline.DirectorBackend
+import io.trimio.feature.editor.EditDrafts
 import io.trimio.engine.production.Checkpoints
 import io.trimio.engine.production.DirectorChoice
 import io.trimio.engine.production.Edit
+import io.trimio.engine.production.EditOverrides
+import io.trimio.engine.production.Opened
+import io.trimio.engine.production.ProducedEdits
 import io.trimio.engine.production.ProductionRequest
 import io.trimio.engine.production.ProductionRunner
 import io.trimio.engine.production.ProductionState
@@ -49,7 +53,11 @@ import kotlin.time.TimeSource
  * the editor's renders are new versions of the same project; every version's file is kept until the
  * project is deleted, which removes them all.
  *
+ * A version the editor made keeps the creator's changes with it ([ProductionRecord.overrides]);
+ * changes not yet rendered are kept as the project's draft ([EditDrafts]), so nothing is lost.
+ *
  * [folder] is where posters go (`projects/<id>/`); null keeps them in memory only (web previews).
+ * [edits] opens a project's current edit (a failed render of the editor's changes is retried on it).
  */
 class ProductionProjects(
     private val repository: ProjectRepository,
@@ -57,7 +65,8 @@ class ProductionProjects(
     private val checkpoints: Checkpoints,
     private val scope: CoroutineScope,
     private val folder: Path?,
-) {
+    private val edits: ProducedEdits? = null,
+) : EditDrafts {
     private val lock = Mutex()
     private var started = false
     private var lastKey: String? = null
@@ -136,17 +145,55 @@ class ProductionProjects(
             live != null -> live.request.copy(seed = live.request.seed + 1).also { runner.vary(live) }
             else -> {
                 val base = saved.copy(seed = saved.seed + 1, prompt = feedback?.let { saved.prompt.trim() + "\n" + it.trim() } ?: saved.prompt)
-                record.keys.firstNotNullOfOrNull(checkpoints::load)?.let { checkpoints.save(base.key, it) }
+                // The words and the reading carry over (the finished edit itself does not: the new run makes its own).
+                record.keys.firstNotNullOfOrNull(checkpoints::load)?.let { checkpoints.save(base.key, it.copy(delivery = null)) }
                 base.also(runner::start)
             }
         }
         persist(
             project.copy(
                 status = ProjectStatus.Building, error = null, updatedAt = Clock.now(),
-                production = record.copy(request = encode(request), key = request.key, keys = (record.keys + request.key).distinct(), progress = 0f),
+                // Unsaved editor changes belong to the version they were made on: a new direction starts clean.
+                production = record.copy(request = encode(request), key = request.key, keys = (record.keys + request.key).distinct(), progress = 0f, draft = null),
             ),
         )
         return request
+    }
+
+    /**
+     * The editor's changes rendered as the project's next version: [edit] (any edit of the
+     * project's current run) with [overrides], drawn by the runner ([ProductionRunner.retouch]).
+     * The changes are kept as the draft until the render is done, then with the version.
+     */
+    fun retouch(project: Project, edit: Edit, overrides: EditOverrides): ProductionRequest? {
+        val record = project.production ?: return null
+        if (edit.request.key != record.key) return null
+        runner.retouch(edit, overrides)
+        persist(project.copy(status = ProjectStatus.Building, error = null, updatedAt = Clock.now(), production = record.copy(progress = 0f, draft = EditOverrides.encode(overrides))))
+        return edit.request
+    }
+
+    /** The render of the project's unsaved changes again (it failed or was stopped); false when there is nothing to render. */
+    suspend fun retouchAgain(project: Project): Boolean {
+        val overrides = draft(project.id) ?: return false
+        val edit = (edits?.open(project.id) as? Opened.Ready)?.edit ?: return false
+        return retouch(repository.get(project.id) ?: project, edit, overrides) != null
+    }
+
+    override fun draft(id: String): EditOverrides? {
+        val record = repository.get(id)?.production ?: return null
+        return EditOverrides.decode(record.draft)?.takeIf { it != (EditOverrides.decode(record.overrides) ?: EditOverrides()) }
+    }
+
+    override fun keep(id: String, overrides: EditOverrides?) {
+        scope.launch {
+            lock.withLock {
+                val p = repository.get(id) ?: return@withLock
+                val record = p.production ?: return@withLock
+                val text = overrides?.takeIf { it != (EditOverrides.decode(record.overrides) ?: EditOverrides()) }?.let(EditOverrides::encode)
+                if (text != record.draft) repository.save(p.copy(production = record.copy(draft = text)))
+            }
+        }
     }
 
     /** The creator opened the finished edit: it is no longer marked as new. */
@@ -238,6 +285,8 @@ class ProductionProjects(
         val posterPath = poster?.let { savePoster(project.id, s.key, it) }
         if (poster != null) _posters.update { it + (project.id to poster) }
         val seconds = runStarted.remove(s.key)?.elapsedNow()?.inWholeSeconds?.toInt() ?: record.buildSeconds
+        // The version keeps the creator's own changes (the editor's render); a new direction has none.
+        val overrides = edit?.overrides?.takeUnless { it.isEmpty }
         repository.save(
             project.copy(
                 status = ProjectStatus.Ready, updatedAt = Clock.now(), outputUri = output, error = null,
@@ -245,7 +294,10 @@ class ProductionProjects(
                     // Earlier versions' files stay (the editor and export may still open them) until the project is deleted.
                     files = (record.files + listOfNotNull(output, posterPath)).distinct(),
                     progress = 1f, poster = posterPath ?: record.poster,
-                    styleId = edit?.request?.style ?: edit?.production?.score?.look ?: record.styleId,
+                    styleId = overrides?.style ?: edit?.request?.style ?: edit?.production?.score?.look ?: record.styleId,
+                    overrides = overrides?.let(EditOverrides::encode),
+                    // The draft is now this version, or (a new direction) belonged to the one before.
+                    draft = null,
                     durationMs = compiled?.let { (it.composition.duration * MS).toLong() } ?: record.durationMs,
                     buildSeconds = seconds,
                     version = if (project.outputUri == null) 1 else record.version + 1,

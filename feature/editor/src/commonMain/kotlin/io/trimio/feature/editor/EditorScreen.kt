@@ -219,26 +219,16 @@ private fun FoldedTransport(ui: EditorUi, actions: EditorActions, modifier: Modi
     }
 }
 
-/** The edit cannot be opened (no longer held, or made where it cannot be changed): say so and go back. */
+/** The edit cannot be opened (its source is gone, nothing was kept of it, or this platform cannot change it): say so and go back. */
 @Composable
-fun EditorUnavailable(onBack: () -> Unit, changeable: Boolean) {
+fun EditorUnavailable(onBack: () -> Unit, why: NotOpen) {
     Box(Modifier.fillMaxSize().background(SigNoir.canvas).windowInsetsPadding(WindowInsets.safeDrawing)) {
         Column(Modifier.align(Alignment.Center).padding(32.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(SigNoir.action.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                 TrimioIcon(EditorIcons.Cut, null, tint = SigNoir.action, size = 22.dp)
             }
-            Text(
-                if (changeable) tr("این ادیت دیگر باز نیست.", "This edit is no longer open.") else tr("این ادیت را نمی‌شود تغییر داد.", "This edit can't be changed."),
-                style = Sig.type.title, color = Ink,
-            )
-            Text(
-                if (changeable) {
-                    tr("ادیت‌ها تا وقتی برنامه باز است نگه داشته می‌شوند. از نتیجه دوباره بساز یا نسخهٔ تازه بگیر.", "Edits are kept while the app is open. Make it again from the result.")
-                } else {
-                    tr("روی این دستگاه ادیت خودکار انجام نمی‌شود؛ ویرایش روی اندروید و ویندوز است.", "Automatic edits don't run here; editing is on Android and Windows.")
-                },
-                style = Sig.type.body.copy(fontSize = 13.sp), color = InkSoft,
-            )
+            Text(why.title, style = Sig.type.title, color = Ink)
+            Text(why.body, style = Sig.type.body.copy(fontSize = 13.sp), color = InkSoft)
             Box(Modifier.padding(top = 8.dp).clip(RoundedCornerShape(16.dp)).background(SigNoir.action).clickable(role = Role.Button, onClick = onBack).padding(horizontal = 22.dp, vertical = 14.dp)) {
                 Text(tr("بازگشت", "Back"), style = Sig.type.button, color = SigNoir.onAction)
             }

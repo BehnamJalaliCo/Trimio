@@ -76,8 +76,10 @@ data class ExportUi(
     val job: ExportJob? = null,
     /** Saving goes to the Videos folder rather than a gallery. */
     val desktop: Boolean = false,
-    /** The edit is no longer held (the app restarted since it was made). */
-    val missing: Boolean = false,
+    /** The edit is being opened (made again from what its run kept, after the app restarted). */
+    val opening: Boolean = false,
+    /** Why the edit cannot be opened; null while it is (or is being) opened. */
+    val missing: NotOpen? = null,
     /** The pace of this device's encoder: seconds per frame at 1080p (measured once an export ran). */
     val secondsPerFrame: Float = DEFAULT_SECONDS_PER_FRAME,
 ) {

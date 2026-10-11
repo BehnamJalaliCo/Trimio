@@ -14,8 +14,17 @@ sealed interface Route {
     data class Editor(val projectId: String) : Route
     data class Export(val projectId: String) : Route
 
-    /** The automatic engine at work on [request] for project [projectId] (live build view, then its failure or result). */
-    data class Produce(val request: ProductionRequest, val styleName: String? = null, val version: Int = 1, val projectId: String? = null) : Route
+    /**
+     * The automatic engine at work on [request] for project [projectId] (live build view, then its
+     * failure or result). [retouch]: the editor's changes being rendered as the next version.
+     */
+    data class Produce(
+        val request: ProductionRequest,
+        val styleName: String? = null,
+        val version: Int = 1,
+        val projectId: String? = null,
+        val retouch: Boolean = false,
+    ) : Route
 
     /**
      * The finished edit of project [projectId]: the run that just finished, or the saved one when

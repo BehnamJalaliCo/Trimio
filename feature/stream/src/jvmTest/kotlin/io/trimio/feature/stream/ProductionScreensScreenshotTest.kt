@@ -78,6 +78,10 @@ class ProductionScreensScreenshotTest {
         shoot("result-fa-desktop", paper = true, width = 1280, height = 800, density = 1.5f) { ResultScreen(result, ResultActions()) }
         // With the edit held: the editor and the export screen are offered too.
         shoot("result-editor-fa-noir", paper = false, height = 1320) { ResultScreen(result, ResultActions(onExport = {}, onEdit = {})) }
+        // A version the creator changed in the editor and rendered: named as theirs, editing continues from it.
+        shoot("result-edited-fa-noir", paper = false, height = 1320) {
+            ResultScreen(result.copy(version = 3, edited = true, styleName = "پاپ"), ResultActions(onExport = {}, onEdit = {}))
+        }
     }
 
     @Test

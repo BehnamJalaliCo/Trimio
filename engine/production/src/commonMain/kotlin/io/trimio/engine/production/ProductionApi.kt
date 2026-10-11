@@ -18,7 +18,8 @@ import kotlinx.serialization.Serializable
  *  - [ProductionState]    what a run reports: stage, 0–1 progress, preview frames, the jury's panel, the file;
  *  - [AutoEditor]         cold flows: produce, vary (a new seed), revise (the creator's feedback); and the
  *                         editor's: touch (the creator's [EditOverrides] applied, fast), retouch (their final
- *                         render) and playback (frames and sound of an edit);
+ *                         render), playback (frames and sound of an edit) and reopen (a finished edit made
+ *                         again from what its run kept, after the app restarted);
  *  - [ProductionRunner]   the app-wide single active run, observed by screens and the Android foreground service;
  *  - [ProducedEdits]      finished edits by id, for the editor and the export.
  *
@@ -218,6 +219,16 @@ interface AutoEditor {
 
     /** Frames and sound of [edit] for the editor's player; null where the platform cannot draw them. */
     fun playback(edit: Edit): EditPlayback? = null
+
+    /**
+     * [request]'s finished edit made again from what its run kept ([Checkpoints.Saved.delivery]):
+     * no recognition, no director, the same edit as delivered; with the creator's [overrides]
+     * applied ([touch]) when there are any. Seconds: the voice is read and the sound mastered again.
+     */
+    suspend fun reopen(request: ProductionRequest, overrides: EditOverrides = EditOverrides()): Opened = Opened.Unsupported
+
+    /** Whether [reopen] has what it needs for [request] (its run kept the delivered edit); reads no media. */
+    suspend fun kept(request: ProductionRequest): Boolean = false
 }
 
 /**

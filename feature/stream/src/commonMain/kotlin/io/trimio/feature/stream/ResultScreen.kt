@@ -113,7 +113,11 @@ private fun ResultTop(result: BuildResult, onClose: () -> Unit, modifier: Modifi
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             SigChip(
-                if (result.version > 1) localizedNumber(tr("نسخهٔ ${result.version} آماده شد", "Version ${result.version} ready")) else tr("آماده شد", "Ready"),
+                when {
+                    result.edited -> localizedNumber(tr("نسخهٔ ${result.version} با ویرایش تو آماده شد", "Version ${result.version} with your edits is ready"))
+                    result.version > 1 -> localizedNumber(tr("نسخهٔ ${result.version} آماده شد", "Version ${result.version} ready"))
+                    else -> tr("آماده شد", "Ready")
+                },
                 container = c.emphasisSoft, content = c.emphasisSoftContent,
                 leading = { TrimioIcon(TrimioIcons.Check, null, tint = c.emphasisSoftContent, size = 13.dp) },
             )
@@ -155,7 +159,10 @@ private fun Body(result: BuildResult, actions: ResultActions) {
         val edit = actions.onEdit
         if (edit != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SigSecondaryButton(tr("باز کردن در ادیتور", "Open in editor"), edit, Modifier.weight(1.5f).height(50.dp), icon = TrimioIcons.Edit)
+                SigSecondaryButton(
+                    if (result.edited) tr("ادامهٔ ویرایش", "Keep editing") else tr("باز کردن در ادیتور", "Open in editor"),
+                    edit, Modifier.weight(1.5f).height(50.dp), icon = TrimioIcons.Edit,
+                )
                 SigSecondaryButton(tr("نسخهٔ دیگر", "Another version"), actions.onVariation, Modifier.weight(1f).height(50.dp), icon = TrimioIcons.Sparkle)
             }
         } else {

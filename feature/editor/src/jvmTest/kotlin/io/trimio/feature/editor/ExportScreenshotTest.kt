@@ -35,7 +35,8 @@ class ExportScreenshotTest {
             ExportScreen(ui.copy(job = ExportJob(ExportKind.Video, progress = 1f, files = listOf("/x/سیگنال-reels-1080x1920-30.mp4"))), ExportActions())
         }
         shoot("export-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { ExportScreen(ui.copy(desktop = true), ExportActions()) }
-        shoot("export-fa-missing", paper = false) { ExportScreen(ExportUi(missing = true), ExportActions()) }
+        shoot("export-fa-missing", paper = false) { ExportScreen(ExportUi(missing = NotOpen.SourceMissing), ExportActions()) }
+        shoot("export-fa-opening", paper = false) { ExportScreen(ExportUi(opening = true), ExportActions()) }
     }
 
     @Test

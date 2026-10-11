@@ -34,6 +34,7 @@ import io.trimio.engine.production.ProductionRunner
 import io.trimio.engine.production.RecentEdits
 import io.trimio.engine.styles.StylePackRepository
 import io.trimio.feature.create.CreateViewModel
+import io.trimio.feature.editor.EditDrafts
 import io.trimio.feature.editor.EditorViewModel
 import io.trimio.feature.editor.ExportArgs
 import io.trimio.feature.editor.ExportViewModel
@@ -42,6 +43,7 @@ import io.trimio.feature.settings.SettingsViewModel
 import io.trimio.feature.studio.StudioViewModel
 import io.trimio.shared.navigation.HomeFeed
 import io.trimio.shared.navigation.ProductionProjects
+import io.trimio.shared.navigation.ProjectEdits
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -119,14 +121,14 @@ val appModule: Module = module {
     // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
     single { AppProductionRunner(get(), get(AppScope), get()) }
     single<ProductionRunner> { get<AppProductionRunner>() }
-    // Finished edits by run key or project id (exports, the editor); started with the app so no edit is missed.
-    single<ProducedEdits>(createdAtStart = true) {
-        val projects = get<ProjectRepository>()
-        RecentEdits(get(), get(AppScope), alias = { id -> projects.get(id)?.production?.key })
-    }
+    // The edits this process finished; started with the app so no edit is missed.
+    single(createdAtStart = true) { RecentEdits(get(), get(AppScope)) }
+    // Finished edits by project id, run key or draft id (exports, the editor): held, or made again from what their run kept.
+    single<ProducedEdits> { ProjectEdits(get(), get(), get()) }
 
-    // Every production is a project on home: saved as it starts, followed to its file (or its failure).
-    single { ProductionProjects(get(), get(), get(), get(AppScope), get<AppPaths>().projects) }
+    // Every production is a project on home: saved as it starts, followed to its file (or its failure), versions and drafts kept.
+    single { ProductionProjects(get(), get(), get(), get(AppScope), get<AppPaths>().projects, get()) }
+    single<EditDrafts> { get<ProductionProjects>() }
 
     viewModel { (system: Language) ->
         val device = get<DeviceInfo>()
@@ -141,7 +143,7 @@ val appModule: Module = module {
         val attachments = getOrNull<io.trimio.feature.create.AttachmentPicker>() ?: io.trimio.shared.navigation.mediaAttachments(get())
         CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), args.styleId, get(), attachments, args.prompt)
     }
-    viewModel { (projectId: String) -> EditorViewModel(projectId, get(), get()) }
+    viewModel { (projectId: String) -> EditorViewModel(projectId, get(), get(), get()) }
     // Exports need the platform's encoder; platforms without the production engine (web previews) have none.
     viewModel { (args: ExportArgs) -> ExportViewModel(args, get(), getOrNull<ProductionPlatform>()?.let(::EditExports), get(), getOrNull(), getOrNull()) }
     viewModel { SettingsViewModel(get(), get(), get(), get(), getOrNull(), get(), get()) }

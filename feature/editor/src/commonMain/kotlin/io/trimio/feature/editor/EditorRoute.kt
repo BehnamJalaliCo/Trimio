@@ -31,7 +31,7 @@ fun EditorRoute(
     val scope = rememberCoroutineScope()
     when (val s = state) {
         EditorViewModel.State.Opening -> Box(Modifier.fillMaxSize().background(SigNoir.canvas)) { LiveDot(Modifier.align(Alignment.Center)) }
-        is EditorViewModel.State.Unavailable -> EditorUnavailable(onBack, s.changeable)
+        is EditorViewModel.State.Unavailable -> EditorUnavailable(onBack, s.why)
         is EditorViewModel.State.Open -> EditorScreen(
             s.ui,
             EditorActions(

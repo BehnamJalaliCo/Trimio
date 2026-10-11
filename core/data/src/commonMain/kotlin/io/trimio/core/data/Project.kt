@@ -78,6 +78,13 @@ data class ProductionRecord(
     val findings: List<String> = emptyList(),
     /** The creator has opened the finished edit (a fresh one is marked on the home list). */
     val seen: Boolean = false,
+    /**
+     * The creator's own changes (the editor) in the current version, as the engine serialises
+     * them (io.trimio.engine.production.EditOverrides); null while the version is the director's.
+     */
+    val overrides: String? = null,
+    /** Changes made in the editor and not yet rendered into a version (kept so leaving the app loses nothing). */
+    val draft: String? = null,
 )
 
 @Serializable

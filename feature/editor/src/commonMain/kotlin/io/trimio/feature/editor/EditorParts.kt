@@ -80,11 +80,18 @@ internal fun Figure(text: String, modifier: Modifier = Modifier, color: Color = 
     Text("⁦$text⁩", modifier, style = figureStyle(size, weight), color = color, maxLines = 1)
 }
 
-/** The top bar: back at the reading start; undo (and redo when there is one) and the ember export at the end. */
+/**
+ * The top bar: back at the reading start (a check once something changed: leaving saves the
+ * changes as the next version); undo (and redo when there is one) and the ember export at the end.
+ */
 @Composable
 internal fun EditorTopBar(ui: EditorUi, actions: EditorActions, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().height(58.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        SigRoundButton(TrimioIcons.Back, tr("بازگشت", "Back"), actions.onBack)
+        if (ui.unsaved) {
+            SigRoundButton(TrimioIcons.Check, tr("ذخیره و بازگشت", "Save and go back"), actions.onBack)
+        } else {
+            SigRoundButton(TrimioIcons.Back, tr("بازگشت", "Back"), actions.onBack)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (ui.canRedo) SigRoundButton(EditorIcons.Redo, tr("انجام دوباره", "Redo"), actions.onRedo)
             SigRoundButton(EditorIcons.Undo, tr("واگرد", "Undo"), { if (ui.canUndo) actions.onUndo() }, Modifier.alpha(if (ui.canUndo) 1f else DIMMED))

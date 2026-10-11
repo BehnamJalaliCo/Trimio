@@ -1,6 +1,7 @@
 package io.trimio.engine.production
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * The creator's own changes to a finished edit (the editor), on top of the director's cut. Every
@@ -50,8 +51,43 @@ data class EditOverrides(
     /** This state with [change] applied. */
     fun with(change: EditChange): EditOverrides = change.applyTo(this)
 
+    /**
+     * Eight hex digits naming this exact state, the same in every process and whatever order the
+     * changes were made in (the file an edit renders to is named by it).
+     */
+    val fingerprint: String
+        get() {
+            val canonical = copy(
+                emphasis = emphasis.entries.sortedBy { it.key }.associate { it.toPair() },
+                hits = hits.sorted().toSet(),
+                deleted = deleted.sorted().toSet(),
+                elements = elements.entries.sortedBy { it.key }.associate { it.toPair() },
+            )
+            var h = FNV_OFFSET
+            for (c in json.encodeToString(serializer(), canonical)) {
+                h = (h xor c.code.toLong()) * FNV_PRIME and MASK
+            }
+            return h.toString(HEX).padStart(HEX_DIGITS, '0')
+        }
+
     companion object {
         const val NO_MUSIC = "none"
+
+        private val json = Json { encodeDefaults = false }
+
+        /** The creator's changes as kept with a project (JSON; unknown fields of later versions are skipped). */
+        fun encode(o: EditOverrides): String = json.encodeToString(serializer(), o)
+
+        /** [encode]'s text back; null for a blank or unreadable one (nothing changed, then). */
+        fun decode(text: String?): EditOverrides? =
+            text?.takeIf { it.isNotBlank() }?.let { runCatching { lenient.decodeFromString(serializer(), it) }.getOrNull() }
+
+        private val lenient = Json { ignoreUnknownKeys = true }
+        private const val FNV_OFFSET = 0x811C9DC5L
+        private const val FNV_PRIME = 0x01000193L
+        private const val MASK = 0xFFFFFFFFL
+        private const val HEX = 16
+        private const val HEX_DIGITS = 8
     }
 }
 
@@ -204,6 +240,17 @@ class EditHistory(initial: EditOverrides = EditOverrides(), private val limit: I
         future.addLast(current)
         current = previous
         lastGroup = null
+        return current
+    }
+
+    /** Goes to [state] as one step (the creator's unsaved changes brought back): undo returns to where it was. */
+    fun restore(state: EditOverrides): EditOverrides {
+        if (state == current) return current
+        past.addLast(current)
+        if (past.size > limit) past.removeFirst()
+        future.clear()
+        lastGroup = null
+        current = state
         return current
     }
 
