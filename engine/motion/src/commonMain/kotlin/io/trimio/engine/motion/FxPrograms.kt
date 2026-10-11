@@ -62,7 +62,7 @@ internal class FxPrograms {
         val small = Size(w.toFloat(), h.toFloat())
         val program = of(e.family)
         CanvasDrawScope().draw(scope, scope.layoutDirection, Canvas(image), small) {
-            if (program != null) {
+            if (program != null && program.drawsOn(drawContext.canvas)) {
                 program.stageUniforms(e, t, small)
                 drawRect(program.brush(), size = small)
             } else {
@@ -150,7 +150,7 @@ internal fun DrawScope.shaderGlass(e: Effect.Glass, t: Float, alpha: Float, size
         program.uniform("uFrost", e.frost)
         program.uniform("uPanel", e.x / k, e.y / k, e.width / k, e.height / k)
         program.uniform("uRadius", e.radius / k)
-        drawRect(program.brush(), topLeft = Offset(e.x / k - 2f, e.y / k - 2f), size = Size(e.width / k + 4f, e.height / k + 4f))
+        if (program.drawsOn(drawContext.canvas)) drawRect(program.brush(), topLeft = Offset(e.x / k - 2f, e.y / k - 2f), size = Size(e.width / k + 4f, e.height / k + 4f))
     }
     val clip = Path().apply { addRoundRect(RoundRect(e.x, e.y, e.x + e.width, e.y + e.height, CornerRadius(e.radius))) }
     clipPath(clip) {
@@ -164,7 +164,7 @@ internal fun DrawScope.shaderGlass(e: Effect.Glass, t: Float, alpha: Float, size
 /** A filtered group's off-screen [content] drawn through its distortion (or the CPU fallback). */
 internal fun DrawScope.drawFiltered(content: ImageBitmap, filter: Filter, t: Float, alpha: Float, size: Size, fx: FxPrograms) {
     val amount = filter.amount.at(t)
-    val program = fx.of(filter.family)
+    val program = fx.of(filter.family)?.takeIf { it.drawsOn(drawContext.canvas) }
     if (program == null) return filterFallback(content, filter.family, amount, t, alpha)
     program.child("content", ImageShader(content, TileMode.Clamp, TileMode.Clamp))
     if (filter.family == ShaderFamily.Halation) {

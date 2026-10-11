@@ -2,6 +2,8 @@ package io.trimio.engine.motion
 
 import android.graphics.RuntimeShader
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
 
@@ -20,4 +22,6 @@ internal actual class RuntimeFx actual constructor(source: String) {
     actual fun child(name: String, shader: Shader) = this.shader.setInputShader(name, shader)
 
     actual fun brush(): Brush = brush
+
+    actual fun drawsOn(canvas: Canvas): Boolean = canvas.nativeCanvas.isHardwareAccelerated
 }

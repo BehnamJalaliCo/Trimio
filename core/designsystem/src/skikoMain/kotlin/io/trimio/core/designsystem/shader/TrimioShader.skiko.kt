@@ -18,4 +18,6 @@ actual class TrimioShader actual constructor(source: String) {
 
     // Skia shaders are immutable snapshots of the uniforms, so build one per draw.
     actual fun brush(): Brush = ShaderBrush(builder.makeShader().asComposeShader())
+
+    actual fun drawsOn(canvas: androidx.compose.ui.graphics.Canvas): Boolean = true
 }

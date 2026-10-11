@@ -39,7 +39,7 @@ fun AuroraBackground(
             shader.uniform("cA", colors.auroraA)
             shader.uniform("cB", colors.auroraB)
             shader.uniform("cC", colors.auroraC)
-            drawRect(shader.brush())
+            if (shader.drawsOn(drawContext.canvas)) drawRect(shader.brush())
         },
         content = content,
     )

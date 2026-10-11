@@ -1,6 +1,7 @@
 package io.trimio.engine.motion
 
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.asComposeShader
@@ -22,4 +23,6 @@ internal actual class RuntimeFx actual constructor(source: String) {
     actual fun child(name: String, shader: Shader) = builder.child(name, shader.skiaShader)
 
     actual fun brush(): Brush = ShaderBrush(builder.makeShader().asComposeShader())
+
+    actual fun drawsOn(canvas: Canvas): Boolean = true
 }

@@ -110,7 +110,7 @@ fun LiquidProgressOrb(
                     shader.uniform("cDeep", colors.primary.darken(0.45f))
                     shader.uniform("cSurface", colors.accentCyan)
                     shader.uniform("cGlow", colors.accentMagenta)
-                    drawRect(shader.brush())
+                    if (shader.drawsOn(drawContext.canvas)) drawRect(shader.brush())
                 },
         )
 

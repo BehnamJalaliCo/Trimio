@@ -19,6 +19,6 @@ fun Modifier.filmGrain(amount: Float = 0.025f): Modifier {
         shader.uniform("iResolution", size.width, size.height)
         shader.uniform("iTime", if (animate) time.value else 0f)
         shader.uniform("iAmount", amount)
-        drawRect(shader.brush())
+        if (shader.drawsOn(drawContext.canvas)) drawRect(shader.brush())
     }
 }

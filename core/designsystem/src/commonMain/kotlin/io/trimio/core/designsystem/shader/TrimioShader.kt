@@ -22,6 +22,9 @@ expect class TrimioShader(source: String) {
 
     /** A brush reflecting the current uniforms. Call after setting uniforms, inside the draw phase. */
     fun brush(): Brush
+
+    /** Whether [canvas] can draw this shader (Android draws runtime shaders only on GPU canvases, not into bitmaps). */
+    fun drawsOn(canvas: androidx.compose.ui.graphics.Canvas): Boolean
 }
 
 fun TrimioShader.uniform(name: String, color: Color) = uniform(name, color.red, color.green, color.blue)
