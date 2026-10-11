@@ -118,7 +118,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val styling = StyleChoices(style, taste)
         val look = style.id
         val paced = styling.paced
-        val music = chooseMusic()
+        val music = chooseMusic(style)
         val mark = markRng.weighted(style.captions.marks.toList())
         val usedRecipes = mutableListOf<String>()
         val usedTransitions = mutableListOf<String>()
@@ -754,9 +754,13 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         private fun outOfTakeover(): List<Pair<String, Float>> = styling.outOf(listOf("whip" to 1f, "zoom" to 0.5f, "cut" to 0.6f))
 
-        private fun chooseMusic(): MusicMood? {
+        private fun chooseMusic(style: io.trimio.engine.motion.style.StyleLanguage): MusicMood? {
             if (!taste.music || u.brief.music == "none") return null
             MusicMood.fromId(u.brief.music)?.let { return it }
+            // The style's own sound comes first: its moods, in its order of preference.
+            io.trimio.engine.assets.SoundPresets.forTag(style.sound)?.moods?.takeIf { it.isNotEmpty() }?.let { moods ->
+                return lookRng.weighted(moods.mapIndexed { i, m -> m to 1f / (i + 1) })
+            }
             val options = when (mood) {
                 "energetic", "urgent" -> listOf(MusicMood.Energetic to 1f, MusicMood.Uplifting to 0.6f)
                 "calm" -> listOf(MusicMood.Chill to 1f, MusicMood.Cinematic to 0.4f)

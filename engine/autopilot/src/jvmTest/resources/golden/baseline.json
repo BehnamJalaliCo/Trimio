@@ -134,7 +134,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.68
+                "words": 9.72
             }
         },
         "en-news-ai~finance-terminal/1": {
@@ -151,7 +151,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.68
+                "words": 9.72
             }
         },
         "en-news-ai~news-broadcast/1": {
@@ -168,7 +168,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.68
+                "words": 9.72
             }
         },
         "en-news-ai~podcast-studio/1": {
@@ -712,7 +712,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.86
+                "words": 9.87
             }
         },
         "fa-launch-serum~beauty-soft/1": {
@@ -729,7 +729,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.86
+                "words": 9.87
             }
         },
         "fa-launch-serum~luxury-gold/1": {
@@ -1290,7 +1290,24 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.37
+                "words": 9.36
+            }
+        },
+        "fa-travel-yazd~travel-film/1": {
+            "min": 10.0,
+            "mean": 10.0,
+            "judges": {
+                "hook": 10.0,
+                "rhythm": 10.0,
+                "motion": 10.0,
+                "typography": 10.0,
+                "spelling": 10.0,
+                "layout": 10.0,
+                "sound": 10.0,
+                "music": 10.0,
+                "brief": 10.0,
+                "cta": 10.0,
+                "words": 9.35
             }
         },
         "fa-tutorial-english/1": {
