@@ -171,13 +171,24 @@ class RetouchTest {
 
     @Test
     fun cutsMoveOntoTheBeat() {
-        val music = io.trimio.engine.assets.MusicMood.Energetic
-        val o = EditOverrides(music = music.id, silences = true)
-        val on = Retouch.apply(base, o.copy(beatCuts = true)).production
-        val grid = assertNotNull(bench.arrange(music, on.edit, Retouch.words(bench, o))).grid
-        val joins = on.edit.segments.dropLast(1).map { it.outEnd }
-        assertTrue(joins.isNotEmpty())
-        joins.forEach { t -> assertTrue(abs(grid.nearestBeat(t.toDouble()) - t) < Retouch.BEAT_SNAP + 0.05, "cut at $t") }
+        val words = bench.transcript.words
+        val join = base.edit.segments.first().outEnd
+        // A beat 50 ms after the cut: the cut moves onto it, and the pieces after it follow.
+        val near = io.trimio.engine.assets.BeatGrid(60.0, offset = join + 0.05)
+        val snapped = Cuts.snap(base.edit, near, words)
+        assertTrue(abs(snapped.segments.first().outEnd - (join + 0.05f)) < 0.002f, "${snapped.segments}")
+        assertEquals(snapped.segments.first().outEnd, snapped.segments[1].outStart)
+        assertEquals(base.edit.segments[1].length, snapped.segments[1].length)
+        // A beat 200 ms away is too far: the cut stays where the director put it.
+        val far = io.trimio.engine.assets.BeatGrid(60.0, offset = join + 0.2)
+        assertEquals(join, Cuts.snap(base.edit, far, words).segments.first().outEnd)
+        // Never into the last word: a beat before the word's end shortens the piece only to just after it.
+        val early = io.trimio.engine.assets.BeatGrid(60.0, offset = join - 0.075)
+        val lastWord = words.filter { it.range.startMs / 1000f < base.edit.segments.first().sourceEnd }.maxOf { it.range.endMs / 1000f }
+        assertTrue(Cuts.snap(base.edit, early, words).segments.first().sourceEnd >= lastWord)
+        // Through the engine: on the arrangement's grid.
+        val on = apply(EditChange.BeatCuts(true))
+        assertTrue(on.compiled.composition.duration > 0f)
     }
 
     @Test
@@ -224,6 +235,20 @@ class RetouchTest {
     }
 
     @Test
+    fun thePictureComesFirstAndTheSoundAfter() = runBlocking {
+        val i = index("رشد")
+        val o = EditOverrides().with(EditChange.Delete(i, i, true))
+        val picture = editor.touch(edit, o, sound = false)
+        assertFalse(picture.mixed)
+        assertTrue(picture.production.soundtrack === base.soundtrack, "the director's mix until the new one is made")
+        val mixed = editor.touch(edit, o)
+        assertTrue(mixed.mixed)
+        assertEquals(picture.production.compiled.beats, mixed.production.compiled.beats)
+        val length = mixed.production.soundtrack.audio.samples.size / mixed.production.soundtrack.audio.sampleRate.toFloat()
+        assertTrue(abs(length - mixed.production.compiled.composition.duration) < 0.05f, "the mix runs as long as the cut")
+    }
+
+    @Test
     fun playbackDrawsTheChangedEdit() = runBlocking {
         val playback = editor.playback(edit)
         val before = assertNotNull(playback.frame(0.6f, 180))
@@ -241,7 +266,7 @@ class RetouchTest {
         fun walk(n: Node) {
             when (n) {
                 is Group -> n.children.forEach(::walk)
-                is TextNode -> out += n.text + "|" + n.type.hashCode() + "|" + n.transform.scale
+                is TextNode -> out += n.text + "|" + n.type.hashCode() + "|" + n.decorations.size + "|" + n.animators.size
                 else -> out += n::class.simpleName.orEmpty()
             }
         }

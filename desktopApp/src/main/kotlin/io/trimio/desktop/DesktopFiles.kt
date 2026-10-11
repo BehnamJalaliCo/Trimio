@@ -2,6 +2,8 @@ package io.trimio.desktop
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import io.trimio.core.data.Connectivity
+import io.trimio.core.data.GallerySaver
 import io.trimio.core.data.MediaKind
 import io.trimio.core.data.MediaPicker
 import io.trimio.core.data.Sharer
@@ -115,6 +117,13 @@ class DesktopSharer(private val output: File, private val os: DesktopOs = Deskto
         reveal(dir)
     }
 
+    /** Files already written (an export, a project package): shown in their folder. */
+    override fun sharePaths(paths: List<String>, title: String) {
+        val files = paths.map(::File)
+        val folder = files.map { it.absoluteFile.parentFile }.distinct().singleOrNull()
+        reveal(if (files.size == 1) files.first() else folder ?: output)
+    }
+
     fun reveal(file: File) {
         val command = when (os) {
             DesktopOs.Windows -> if (file.isFile) listOf("explorer", "/select,", file.absolutePath) else listOf("explorer", file.absolutePath)
@@ -125,4 +134,38 @@ class DesktopSharer(private val output: File, private val os: DesktopOs = Deskto
     }
 
     private fun safeName(name: String) = name.replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "Trimio" }
+}
+
+/**
+ * "Save" on desktop: the video is copied into the Videos\Trimio folder under its title (it may
+ * already render there under a run key) and shown in its folder.
+ */
+class DesktopGallerySaver(private val output: File, private val sharer: DesktopSharer) : GallerySaver {
+    override suspend fun save(path: String, title: String): Boolean = withContext(Dispatchers.IO) {
+        val source = File(path)
+        output.mkdirs()
+        val base = title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Trimio" }.take(NAME)
+        val target = generateSequence(0) { it + 1 }.map { n -> File(output, if (n == 0) "$base.mp4" else "$base ($n).mp4") }.first { !it.exists() }
+        val saved = runCatching { source.copyTo(target) }.isSuccess
+        if (saved) sharer.reveal(target)
+        saved
+    }
+
+    private companion object {
+        const val NAME = 80
+    }
+}
+
+/** Online when a well-known HTTPS host answers within a moment (a cloud director needs it). */
+class DesktopConnectivity(private val hosts: List<String> = listOf("api.anthropic.com", "1.1.1.1")) : Connectivity {
+    override suspend fun online(): Boolean = withContext(Dispatchers.IO) {
+        hosts.any { host ->
+            runCatching { java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, HTTPS), TIMEOUT_MS) } }.isSuccess
+        }
+    }
+
+    private companion object {
+        const val HTTPS = 443
+        const val TIMEOUT_MS = 1500
+    }
 }

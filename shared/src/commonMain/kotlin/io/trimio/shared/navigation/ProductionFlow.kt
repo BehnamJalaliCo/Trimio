@@ -18,6 +18,7 @@ import io.trimio.core.data.Sharer
 import io.trimio.core.designsystem.theme.Trimio
 import io.trimio.core.model.text.Language
 import io.trimio.engine.production.AttachedMedia
+import io.trimio.engine.production.ProducedEdits
 import io.trimio.engine.production.ProductionRequest
 import io.trimio.engine.production.ProductionRunner
 import io.trimio.engine.production.ProductionState
@@ -219,7 +220,12 @@ private fun stoppedAs(error: String?): ProductionStatus =
  * poster and numbers). Feedback and variations start the project's next version on the runner.
  */
 @Composable
-internal fun ResultEntry(route: Route.Result, onProduce: (request: ProductionRequest, projectId: String?, version: Int) -> Unit, onClose: () -> Unit) {
+internal fun ResultEntry(
+    route: Route.Result,
+    onProduce: (request: ProductionRequest, projectId: String?, version: Int) -> Unit,
+    onClose: () -> Unit,
+    onExport: (id: String) -> Unit = {},
+) {
     val runner = koinInject<ProductionRunner>()
     val productions = koinInject<ProductionProjects>()
     val stored by koinInject<ProjectRepository>().projects.collectAsStateWithLifecycle()
@@ -242,6 +248,8 @@ internal fun ResultEntry(route: Route.Result, onProduce: (request: ProductionReq
         return
     }
     LaunchedEffect(project?.id) { project?.let { productions.markSeen(it.id) } }
+    val edits = koinInject<ProducedEdits>()
+    val exportId = (project?.id ?: edit?.request?.key)?.takeIf { edits.find(it) != null }
     var saving by remember { mutableStateOf(false) }
     LaunchedEffect(saving) {
         if (saving) {
@@ -265,6 +273,8 @@ internal fun ResultEntry(route: Route.Result, onProduce: (request: ProductionReq
             onVariation = { next(null) },
             onSave = { saving = true },
             onShare = { sharer?.share(output, result.title) },
+            // Other frames, sizes and rates, captions and the pro package: while the edit itself is held.
+            onExport = exportId?.let { id -> { onExport(id) } },
         ),
     )
 }

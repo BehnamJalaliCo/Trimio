@@ -23,6 +23,8 @@ import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
 import org.jetbrains.skia.Surface
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
@@ -201,7 +203,9 @@ class MotionExporter(
         val total = last - first
         val workers = delivery.workers.coerceAtMost(maxOf(1, total / MIN_FRAMES_PER_WORKER))
         val ext = if (graphics) "mov" else "mp4"
-        val parts = (0 until workers).map { File(file.absoluteFile.parentFile, ".${file.name}.part$it.$ext") }
+        // Work files have plain names: ffmpeg's arguments may not survive a non-UTF-8 locale; only Java renames to the real name.
+        val stem = ".trimio-" + Integer.toHexString(file.absolutePath.hashCode()) + "-" + System.nanoTime()
+        val parts = (0 until workers).map { File(file.absoluteFile.parentFile, "$stem.part$it.$ext") }
         val done = AtomicInteger()
         val errors = mutableListOf<Throwable>()
         val threads = parts.mapIndexed { k, part ->
@@ -213,8 +217,14 @@ class MotionExporter(
         }
         threads.forEach { it.join() }
         errors.firstOrNull()?.let { parts.forEach(File::delete); throw it }
-        join(parts, audio, file)
-        parts.forEach(File::delete)
+        val joined = File(file.absoluteFile.parentFile, "$stem.$ext")
+        try {
+            join(parts, audio, joined)
+            Files.move(joined.toPath(), file.absoluteFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            parts.forEach(File::delete)
+            joined.delete()
+        }
     }
 
     private fun encode(part: File, a: Int, b: Int, graphics: Boolean, onFrame: () -> Unit) {

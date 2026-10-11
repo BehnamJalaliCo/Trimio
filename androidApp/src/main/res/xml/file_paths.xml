@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="interchange" path="interchange/" />
+    <!-- Finished videos and exports (video, captions, project packages), shared with other apps. -->
+    <files-path name="renders" path="renders/" />
 </paths>

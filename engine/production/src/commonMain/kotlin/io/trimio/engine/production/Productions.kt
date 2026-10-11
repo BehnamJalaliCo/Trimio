@@ -74,11 +74,11 @@ class Productions(
 
     override fun revise(edit: Edit, feedback: String): Flow<ProductionState> = run(edit.request.copy(seed = edit.request.seed + 1), edit, edit.taste, feedback)
 
-    override suspend fun touch(edit: Edit, overrides: EditOverrides): Edit = withContext(Dispatchers.Default) {
+    override suspend fun touch(edit: Edit, overrides: EditOverrides, sound: Boolean): Edit = withContext(Dispatchers.Default) {
         val director = directorOutput(edit)
         if (overrides.isEmpty) return@withContext Edit(edit.request, edit.base, director, edit.transcript, edit.taste, edit.base, overrides, edit.assets)
-        val result = Retouch.apply(edit.base, overrides)
-        Edit(edit.request, result.production, retouchedOutput(director, overrides), edit.transcript, edit.taste, edit.base, overrides, edit.assets, result.warnings)
+        val result = Retouch.apply(edit.base, overrides, sound)
+        Edit(edit.request, result.production, retouchedOutput(director, overrides), edit.transcript, edit.taste, edit.base, overrides, edit.assets, result.warnings, result.mixed)
     }
 
     override fun retouch(edit: Edit, overrides: EditOverrides): Flow<ProductionState> = channelFlow {

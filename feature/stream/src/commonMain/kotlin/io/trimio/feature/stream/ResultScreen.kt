@@ -240,10 +240,27 @@ private fun Actions(result: BuildResult, actions: ResultActions, modifier: Modif
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         SigButton(
             if (result.saved) tr("در گالری ذخیره شد", "Saved to gallery") else tr("ذخیره در گالری", "Save to gallery"),
-            actions.onSave, Modifier.weight(2f), trailing = if (result.saved) TrimioIcons.Check else TrimioIcons.Download, enabled = !result.saved,
+            actions.onSave, Modifier.weight(if (actions.onExport != null) 1.4f else 2f), trailing = if (result.saved) TrimioIcons.Check else TrimioIcons.Download, enabled = !result.saved,
         )
-        SigSecondaryButton(tr("اشتراک", "Share"), actions.onShare, Modifier.weight(1f), icon = TrimioIcons.Share)
+        val export = actions.onExport
+        if (export != null) {
+            SigSecondaryButton(tr("خروجی", "Export"), export, Modifier.weight(1f), icon = TrimioIcons.Export)
+            ShareSquare(actions.onShare)
+        } else {
+            SigSecondaryButton(tr("اشتراک", "Share"), actions.onShare, Modifier.weight(1f), icon = TrimioIcons.Share)
+        }
     }
+}
+
+/** Share as a square beside the export action, when three actions share the row. */
+@Composable
+private fun ShareSquare(onShare: () -> Unit) {
+    val c = Sig.colors
+    val shape = RoundedCornerShape(SigSpace.radiusMd)
+    Box(
+        Modifier.size(SigSpace.controlHeight).clip(shape).background(c.surface).border(1.dp, c.lineStrong, shape).clickable(role = Role.Button, onClick = onShare),
+        contentAlignment = Alignment.Center,
+    ) { TrimioIcon(TrimioIcons.Share, tr("اشتراک", "Share"), tint = c.ink, size = 20.dp) }
 }
 
 @Composable

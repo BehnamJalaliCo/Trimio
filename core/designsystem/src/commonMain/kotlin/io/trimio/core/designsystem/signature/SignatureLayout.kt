@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -25,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -261,4 +266,23 @@ fun FootagePlaceholder(modifier: Modifier = Modifier) {
 @Composable
 fun LiveDot(modifier: Modifier = Modifier, size: Dp = 6.dp) {
     Box(modifier.size(size).clip(CircleShape).background(Sig.colors.live))
+}
+
+/**
+ * The boards' switch: a quiet track with a muted knob at the reading start when off; ember with a
+ * white knob at the end when on. The knob slides with the motion scheme.
+ */
+@Composable
+fun SigToggle(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier, label: String? = null) {
+    val c = Sig.colors
+    val shift by androidx.compose.animation.core.animateDpAsState(if (checked) 18.dp else 0.dp, io.trimio.core.designsystem.theme.Trimio.motion.spatial(), label = "toggle")
+    Box(
+        modifier.size(46.dp, 28.dp).clip(CircleShape).background(if (checked) c.action else c.ink.copy(alpha = 0.14f))
+            .toggleable(checked, role = Role.Switch, onValueChange = onChange)
+            .semantics { label?.let { contentDescription = it } }
+            .padding(3.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(Modifier.offset(x = shift).size(22.dp).clip(CircleShape).background(if (checked) Color.White else c.muted))
+    }
 }

@@ -16,8 +16,11 @@ import kotlinx.serialization.Serializable
  *
  *  - [ProductionRequest]  what the creator gives: media, prompt, glossary, attachments, style, seed, director;
  *  - [ProductionState]    what a run reports: stage, 0–1 progress, preview frames, the jury's panel, the file;
- *  - [AutoEditor]         cold flows: produce, vary (a new seed), revise (the creator's feedback);
- *  - [ProductionRunner]   the app-wide single active run, observed by screens and the Android foreground service.
+ *  - [AutoEditor]         cold flows: produce, vary (a new seed), revise (the creator's feedback); and the
+ *                         editor's: touch (the creator's [EditOverrides] applied, fast), retouch (their final
+ *                         render) and playback (frames and sound of an edit);
+ *  - [ProductionRunner]   the app-wide single active run, observed by screens and the Android foreground service;
+ *  - [ProducedEdits]      finished edits by id, for the editor and the export.
  *
  * Cancelling: cancel the collector of an [AutoEditor] flow, or call [ProductionRunner.cancel].
  */
@@ -148,6 +151,8 @@ class Edit(
     val assets: List<UserAsset> = emptyList(),
     /** What the spelling gate warned about in the creator's own text (kept as written). */
     val warnings: List<String> = emptyList(),
+    /** False while only the picture follows the editor's changes: the sound and the panel are the earlier edit's. */
+    val mixed: Boolean = true,
 ) {
     /** Whether the editor can change this edit (it kept the director's workbench). */
     val editable: Boolean get() = Retouch.editable(base)
@@ -201,10 +206,11 @@ interface AutoEditor {
 
     /**
      * [edit]'s director's cut with the creator's [overrides] applied ([Retouch]): compiled, gated,
-     * mastered and judged, not rendered — fast enough to follow every change in the editor. The
-     * result's [Edit.output] names the file it renders to ([retouch]).
+     * mastered and judged, not rendered. Without [sound] only the picture is made (milliseconds,
+     * to follow every change at once; [Edit.mixed] is false), the mix and the jury follow with a
+     * second call. The result's [Edit.output] names the file it renders to ([retouch]).
      */
-    suspend fun touch(edit: Edit, overrides: EditOverrides): Edit = throw UnsupportedOperationException("this engine cannot change an edit")
+    suspend fun touch(edit: Edit, overrides: EditOverrides, sound: Boolean = true): Edit = throw UnsupportedOperationException("this engine cannot change an edit")
 
     /** The final render of [edit] with [overrides]: Render stage progress, then Done with the file. */
     fun retouch(edit: Edit, overrides: EditOverrides): Flow<ProductionState> =

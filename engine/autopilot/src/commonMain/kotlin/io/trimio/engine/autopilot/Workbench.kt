@@ -4,6 +4,7 @@ import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.assets.MusicArrangement
 import io.trimio.engine.assets.MusicMood
+import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.Score
@@ -60,9 +61,10 @@ class Workbench internal constructor(
     /**
      * [score] spelled, compiled and through the critic's passes (each revision recompiled), as a
      * draft goes. [own] are the creator's words: they count as heard, so nothing of theirs is
-     * changed, and each one the lexicon does not know becomes a warning instead.
+     * changed, and each one the lexicon does not know becomes a warning instead. Beats [refused]
+     * (the creator turned them off) are not put back by the critic.
      */
-    fun gate(score: Score, words: Transcript, edit: EditPlan, own: Collection<String> = emptyList()): Gated {
+    fun gate(score: Score, words: Transcript, edit: EditPlan, own: Collection<String> = emptyList(), refused: (BeatScore) -> Boolean = { false }): Gated {
         val notes = mutableListOf<String>()
         val heard = transcript.words.map { it.text }
         val said = heard.map(::core).toSet()
@@ -73,7 +75,9 @@ class Workbench internal constructor(
         repeat(CRITIC_PASSES) {
             val review = Critic().review(current, compiled, output, lines, understanding.cta)
             review.issues.forEach { notes += "critic: ${it.kind} at ${it.at}s — ${it.detail}" }
-            val revised = review.revised ?: return@repeat
+            // What the creator turned off stays off: the critic does not put it back (the jury still says so).
+            val revised = review.revised?.let { r -> r.copy(scenes = r.scenes.map { sc -> sc.copy(beats = sc.beats.filterNot(refused)) }) }
+                ?.takeIf { it != current } ?: return@repeat
             current = revised
             compiled = compiler.compile(input(current, words, edit))
         }

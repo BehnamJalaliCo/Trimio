@@ -6,6 +6,7 @@ import io.trimio.core.api.MemoryPackStore
 import io.trimio.core.api.RemoteRepository
 import io.trimio.core.api.RemoteService
 import io.trimio.core.data.Billing
+import io.trimio.core.data.Connectivity
 import io.trimio.core.data.DeviceInfo
 import io.trimio.core.data.Entitlements
 import io.trimio.core.data.FileProjectStore
@@ -15,6 +16,7 @@ import io.trimio.core.data.MediaKind
 import io.trimio.core.data.MemoryProjectStore
 import io.trimio.core.data.ProjectRepository
 import io.trimio.core.data.SettingsRepository
+import io.trimio.core.model.text.Language
 import io.trimio.core.pipeline.PipelineOrchestrator
 import io.trimio.engine.assets.AssetLibrary
 import io.trimio.engine.llm.CloudModels
@@ -25,15 +27,21 @@ import io.trimio.engine.models.ModelStore
 import io.trimio.engine.production.AppProductionRunner
 import io.trimio.engine.production.AutoEditor
 import io.trimio.engine.production.Checkpoints
+import io.trimio.engine.production.EditExports
+import io.trimio.engine.production.ProducedEdits
+import io.trimio.engine.production.ProductionPlatform
 import io.trimio.engine.production.ProductionRunner
+import io.trimio.engine.production.RecentEdits
 import io.trimio.engine.styles.StylePackRepository
 import io.trimio.feature.create.CreateViewModel
 import io.trimio.feature.editor.EditorViewModel
+import io.trimio.feature.editor.ExportArgs
 import io.trimio.feature.editor.ExportViewModel
 import io.trimio.feature.gallery.GalleryViewModel
 import io.trimio.feature.settings.SettingsViewModel
-import io.trimio.feature.stream.BuildStreamViewModel
 import io.trimio.feature.studio.StudioViewModel
+import io.trimio.shared.navigation.HomeFeed
+import io.trimio.shared.navigation.ProductionProjects
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,7 +67,7 @@ data class AppPaths(
 /**
  * Builds the two legacy pipelines (engine/director + engine/render) with each platform's engines.
  * Superseded by the automatic engine ([AutoEditor] / [ProductionRunner], phase 7.1); kept only for
- * [JobRunner] while the create, stream and editor screens still run on it.
+ * [JobRunner] while the editor and export screens of earlier projects still run on it.
  */
 interface PipelineFactory {
     /** All nine stages: probe, clean, recognise, align, analyse, direct, match assets, render, publish. */
@@ -81,7 +89,7 @@ fun interface DownloadHooks {
 
 val AppScope = named("app-scope")
 
-data class CreateArgs(val uri: String, val kind: MediaKind, val styleId: String?)
+data class CreateArgs(val uri: String, val kind: MediaKind, val styleId: String?, val prompt: String? = null)
 
 /**
  * The dependency graph shared by every platform. A platform module must provide: [AppPaths],
@@ -111,16 +119,31 @@ val appModule: Module = module {
     // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
     single { AppProductionRunner(get(), get(AppScope), get()) }
     single<ProductionRunner> { get<AppProductionRunner>() }
+    // Finished edits by run key or project id (exports, the editor); started with the app so no edit is missed.
+    single<ProducedEdits>(createdAtStart = true) {
+        val projects = get<ProjectRepository>()
+        RecentEdits(get(), get(AppScope), alias = { id -> projects.get(id)?.production?.key })
+    }
 
-    viewModel { StudioViewModel(get(), get()) }
+    // Every production is a project on home: saved as it starts, followed to its file (or its failure).
+    single { ProductionProjects(get(), get(), get(), get(AppScope), get<AppPaths>().projects) }
+
+    viewModel { (system: Language) ->
+        val device = get<DeviceInfo>()
+        StudioViewModel(
+            HomeFeed.projects(get(), get(), get(), get(), system),
+            HomeFeed.readiness(get(), get(), get(), getOrNull<Connectivity>(), device.previewOnly),
+            get(),
+        )
+    }
     viewModel { (args: CreateArgs) ->
         // A platform's own attachment chooser (desktop) wins over the system media chooser.
         val attachments = getOrNull<io.trimio.feature.create.AttachmentPicker>() ?: io.trimio.shared.navigation.mediaAttachments(get())
-        CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), get(), get(), args.styleId, get(), attachments)
+        CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), args.styleId, get(), attachments, args.prompt)
     }
-    viewModel { (projectId: String) -> BuildStreamViewModel(get(), get(), projectId) }
     viewModel { (projectId: String) -> EditorViewModel(projectId, get(), get()) }
-    viewModel { (projectId: String) -> ExportViewModel(projectId, get(), get(), get(), get()) }
+    // Exports need the platform's encoder; platforms without the production engine (web previews) have none.
+    viewModel { (args: ExportArgs) -> ExportViewModel(args, get(), getOrNull<ProductionPlatform>()?.let(::EditExports), get(), getOrNull(), getOrNull()) }
     viewModel { SettingsViewModel(get(), get(), get(), get(), getOrNull(), get(), get()) }
     viewModel { GalleryViewModel(get()) }
 }

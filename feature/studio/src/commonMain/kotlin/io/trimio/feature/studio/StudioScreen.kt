@@ -147,7 +147,7 @@ private fun PhoneHome(state: HomeState, actions: HomeActions, e: Entrance, modif
             item(key = "gallery") { GalleryRow(actions.onGallery, Modifier.gutter().padding(top = 18.dp)) }
         }
         BottomScrim()
-        Composer(actions.onCompose, e, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 28.dp))
+        Composer(actions.onCompose, e, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = boardBottom(28.dp)))
     }
 }
 
@@ -168,7 +168,7 @@ private fun WideHome(state: HomeState, actions: HomeActions, e: Entrance) {
             Box(Modifier.weight(1.05f).fillMaxHeight()) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = COMPOSER_CLEARANCE)) { listSection(state, actions, e, first = true) }
                 BottomScrim()
-                Composer(actions.onCompose, e, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 28.dp))
+                Composer(actions.onCompose, e, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = boardBottom(28.dp)))
             }
         }
     }
@@ -307,11 +307,12 @@ private fun EntryTile(
     val c = Sig.colors
     Column(modifier.clickable(role = Role.Button, onClick = onClick).padding(start = startPadding, end = endPadding, top = 14.dp, bottom = 14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TrimioIcon(icon, null, tint = c.ink)
+            TrimioIcon(icon, null, tint = c.ink, size = 22.dp)
             MicroLabel(letter)
         }
-        Text(title, style = Sig.type.title, color = c.ink, modifier = Modifier.padding(top = 16.dp))
-        Text(hint, style = Sig.type.meta.copy(fontSize = 11.5.sp), color = c.muted, maxLines = 1)
+        // Line boxes as in the board (CSS): the title's 27.5 and the hint's single line.
+        DisplayText(title, style = Sig.type.title, color = c.ink, modifier = Modifier.padding(top = 16.dp))
+        DisplayText(hint, style = Sig.type.meta.copy(fontSize = 11.5.sp, lineHeight = 17.sp), color = c.muted)
     }
 }
 

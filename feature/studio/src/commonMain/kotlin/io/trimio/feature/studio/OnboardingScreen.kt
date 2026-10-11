@@ -7,14 +7,19 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,12 +47,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.trimio.core.designsystem.component.TrimioIcon
@@ -63,7 +70,7 @@ import io.trimio.core.designsystem.signature.SigChip
 import io.trimio.core.designsystem.signature.SigGlass
 import io.trimio.core.designsystem.signature.SigNoir
 import io.trimio.core.designsystem.signature.SigScreen
-import io.trimio.core.designsystem.signature.SigSecondaryButton
+import io.trimio.core.designsystem.signature.SigSpace
 import io.trimio.core.designsystem.signature.SigSegmented
 import io.trimio.core.designsystem.signature.gutter
 import io.trimio.core.designsystem.theme.Trimio
@@ -138,21 +145,34 @@ fun OnboardingScreen(
     }
 }
 
+/** The board's top row: the page counter at the reading start, a quiet text action at the end. */
 @Composable
 private fun TopRow(counter: String, action: String?, onAction: () -> Unit, onMedia: Boolean = false) {
     val c = Sig.colors
-    Row(Modifier.fillMaxWidth().height(50.dp).gutter().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(TOP_ROW).gutter().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         MicroLabel(counter, color = if (onMedia) c.onMedia else c.muted)
         if (action != null) {
             Text(
                 action,
-                Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 6.dp, vertical = 6.dp),
-                style = Sig.type.bodyStrong,
+                Modifier.touchArea(12.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 6.dp, vertical = 12.dp),
+                style = Sig.type.bodyStrong.copy(lineHeight = 20.sp),
                 color = if (onMedia) c.onMedia.copy(alpha = 0.8f) else c.muted,
             )
         }
     }
 }
+
+/** Lays out as its content without [extra] above and below, while the touch target keeps them. */
+internal fun Modifier.touchArea(extra: Dp): Modifier = layout { measurable, constraints ->
+    val e = extra.roundToPx()
+    val p = measurable.measure(if (constraints.hasBoundedHeight) constraints.copy(maxHeight = constraints.maxHeight + 2 * e) else constraints)
+    layout(p.width, (p.height - 2 * e).coerceAtLeast(0)) { p.place(0, -e) }
+}
+
+/** Bottom space as the board draws it (from the screen's edge), less what the system bar already takes. */
+@Composable
+internal fun boardBottom(target: Dp, min: Dp = 10.dp): Dp =
+    (target - WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).coerceAtLeast(min)
 
 /** The first screen's footage, full bleed under the status bar, fading into the canvas. */
 @Composable
@@ -171,10 +191,10 @@ private fun WelcomeFootage() {
 }
 
 @Composable
-private fun Welcome(counter: String, language: Language?, onLanguage: (Language?) -> Unit, onSkip: () -> Unit, onNext: () -> Unit) {
+private fun ColumnScope.Welcome(counter: String, language: Language?, onLanguage: (Language?) -> Unit, onSkip: () -> Unit, onNext: () -> Unit) {
     val c = Sig.colors
     TopRow(counter, tr("رد کردن", "Skip"), onSkip, onMedia = true)
-    Kinetic(Modifier.padding(start = 28.dp, top = 50.dp))
+    Kinetic(Modifier.padding(start = 28.dp, top = 100.dp - TOP_ROW))
     Spacer(Modifier.weight(1f))
     Column(Modifier.gutter()) {
         DisplayText(
@@ -206,6 +226,7 @@ private fun Welcome(counter: String, language: Language?, onLanguage: (Language?
             modifier = Modifier.padding(top = 8.dp),
         )
     }
+    Spacer(Modifier.height(45.dp))
     BottomAction(tr("شروع", "Start"), onNext, trailing = TrimioIcons.ChevronForward)
 }
 
@@ -225,7 +246,7 @@ private fun Kinetic(modifier: Modifier) {
 }
 
 @Composable
-private fun Models(
+private fun ColumnScope.Models(
     counter: String,
     defaults: List<ModelSpec>,
     states: Map<String, ModelState>,
@@ -272,9 +293,11 @@ private fun Models(
                 val title = params?.let { localizedNumber(tr("کارگردان ($it میلیارد پارامتر)", "Director ($it billion parameters)")) } ?: tr("کارگردان", "Director")
                 ModelRow(TrimioIcons.Sparkle, title, tr("طراحی صحنه، تأکید، صدا", "Scenes, emphasis, sound"), director, states)
             }
-            if (stronger.isNotEmpty()) {
+            // Only directors larger than the default one are "stronger".
+            val bigger = stronger.filter { s -> (paramsOf(s)?.toFloatOrNull() ?: 0f) > (director.firstOrNull { it.kind == ModelKind.Language }?.let(::paramsOf)?.toFloatOrNull() ?: 0f) }
+            if (bigger.isNotEmpty()) {
                 Hairline()
-                StrongerRow(stronger)
+                StrongerRow(bigger)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -429,7 +452,7 @@ private fun StrongerRow(stronger: List<ModelSpec>) {
 }
 
 @Composable
-private fun Privacy(counter: String, onConnectCloud: () -> Unit, onFinish: () -> Unit) {
+private fun ColumnScope.Privacy(counter: String, onConnectCloud: () -> Unit, onFinish: () -> Unit) {
     val c = Sig.colors
     TopRow(counter, null, {})
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -457,7 +480,7 @@ private fun Privacy(counter: String, onConnectCloud: () -> Unit, onFinish: () ->
 private fun Promise(index: Int, title: String, hint: String) {
     val c = Sig.colors
     Column {
-        Row(Modifier.fillMaxWidth().heightIn(min = 66.dp).padding(top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 66.dp).padding(top = 14.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("⁦0$index⁩", style = Sig.type.index.copy(fontSize = 22.sp, lineHeight = 26.sp), color = c.muted, modifier = Modifier.width(36.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, style = Sig.type.bodyStrong.copy(fontSize = 15.sp), color = c.ink)
@@ -484,7 +507,15 @@ private fun CloudCard(onConnectCloud: () -> Unit, modifier: Modifier) {
                     )
                 }
             }
-            SigSecondaryButton(tr("افزودن کلید", "Add a key"), onConnectCloud, Modifier.fillMaxWidth().padding(top = 12.dp).height(44.dp), icon = TrimioIcons.Key)
+            val shape = RoundedCornerShape(SigSpace.radiusMd)
+            Row(
+                Modifier.padding(top = 12.dp).fillMaxWidth().height(44.dp).clip(shape).border(1.dp, c.lineStrong, shape).clickable(role = Role.Button, onClick = onConnectCloud),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TrimioIcon(TrimioIcons.Key, null, tint = c.ink, size = 18.dp)
+                Text(tr("افزودن کلید", "Add a key"), style = Sig.type.button.copy(fontSize = 13.5.sp, fontWeight = FontWeight(700)), color = c.ink)
+            }
         }
     }
 }
@@ -492,7 +523,7 @@ private fun CloudCard(onConnectCloud: () -> Unit, modifier: Modifier) {
 /** The page's ember action at the foot, with an optional note under it. */
 @Composable
 private fun BottomAction(text: String, onClick: () -> Unit, trailing: ImageVector? = null, note: String? = null) {
-    Column(Modifier.fillMaxWidth().gutter().padding(top = 12.dp, bottom = if (note == null) 26.dp else 12.dp)) {
+    Column(Modifier.fillMaxWidth().gutter().padding(top = 12.dp, bottom = boardBottom(34.dp))) {
         SigButton(text, onClick, Modifier.fillMaxWidth(), trailing = trailing)
         note?.let {
             Text(it, style = Sig.type.meta.copy(fontSize = 11.5.sp), color = Sig.colors.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
@@ -517,6 +548,7 @@ private const val MS = 1000L
 private const val HIGH_RAM = 12
 private const val ULTRA_RAM = 16
 private const val FOOTAGE_SHARE = 0.56f
+private val TOP_ROW = 29.dp
 const val PAGE_WELCOME = 0
 const val PAGE_MODELS = 1
 const val PAGE_PRIVACY = 2

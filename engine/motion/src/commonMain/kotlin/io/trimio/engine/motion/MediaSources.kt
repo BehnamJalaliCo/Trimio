@@ -19,3 +19,13 @@ class MediaSources(private val sources: List<MediaSource>) : MediaSource, AutoCl
 class StillMedia(private val id: String, private val image: ImageBitmap) : MediaSource {
     override fun frame(source: String, time: Float): ImageBitmap? = image.takeIf { source == id }
 }
+
+/**
+ * Footage left out: every id answers with a clear frame, so what would draw over the picture is
+ * all that is drawn (the graphics layer handed to another editor, which cuts the footage itself).
+ */
+object ClearMedia : MediaSource {
+    private val clear by lazy { ImageBitmap(2, 2) }
+
+    override fun frame(source: String, time: Float): ImageBitmap = clear
+}

@@ -10,6 +10,7 @@ import io.trimio.engine.autopilot.Media
 import io.trimio.engine.autopilot.UserAsset
 import io.trimio.engine.llm.RgbImage
 import io.trimio.core.model.tools.MediaTools
+import io.trimio.engine.motion.ClearMedia
 import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.MediaSource
 import io.trimio.engine.motion.MediaSources
@@ -97,7 +98,7 @@ class JvmProductionPlatform(
         val w = (c.width * scale).roundToInt()
         val h = (c.height * scale).roundToInt()
         // The creator's pictures are graphics; the footage is what the other editor cuts underneath.
-        MotionExporter(c, { MediaSources(assets.map { UserMediaFiles.source(it.id, File(it.source), c.fps, w, h) }) }, delivery, scale).exportGraphics(file, onFrame)
+        MotionExporter(c, { MediaSources(assets.map { UserMediaFiles.source(it.id, File(it.source), c.fps, w, h) } + ClearMedia) }, delivery, scale).exportGraphics(file, onFrame)
         file.path
     }
 

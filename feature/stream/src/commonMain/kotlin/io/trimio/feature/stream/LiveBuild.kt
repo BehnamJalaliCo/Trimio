@@ -132,4 +132,6 @@ data class ResultActions(
     val onVariation: () -> Unit = {},
     val onSave: () -> Unit = {},
     val onShare: () -> Unit = {},
+    /** The export screen (other frames, sizes and rates, captions, the pro package); null hides it. */
+    val onExport: (() -> Unit)? = null,
 )

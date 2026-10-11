@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
@@ -12,7 +13,10 @@ import androidx.compose.ui.text.font.FontFamily
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.trimio.core.data.Billing
+import io.trimio.core.data.Connectivity
+import io.trimio.core.data.GallerySaver
 import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.StorageInfo
 import io.trimio.core.data.DeviceProfile
 import io.trimio.core.data.ThermalMonitor
 import io.trimio.core.data.MediaKind
@@ -40,6 +44,7 @@ import io.trimio.engine.production.AppProductionRunner
 import io.trimio.engine.production.AutoEditor
 import io.trimio.engine.production.Checkpoints
 import io.trimio.engine.production.LocalDirectors
+import io.trimio.engine.production.ProductionPlatform
 import io.trimio.engine.production.ProductionService
 import io.trimio.engine.production.Productions
 import io.trimio.engine.render.AndroidVideoExporter
@@ -79,7 +84,14 @@ fun androidPlatformModule(
     single { ActivityMediaPicker() }
     single<MediaPicker> { get<ActivityMediaPicker>() }
     single<Sharer> { AndroidSharer(app) }
-    single { DeviceInfo(ramGb = ramGb(app), platform = "Android ${android.os.Build.VERSION.RELEASE}", appVersion = appVersion, versionCode = versionCode, storeUrl = storeUrl) }
+    single {
+        DeviceInfo(
+            ramGb = ramGb(app), platform = "Android ${android.os.Build.VERSION.RELEASE}", appVersion = appVersion, versionCode = versionCode, storeUrl = storeUrl,
+            cores = Runtime.getRuntime().availableProcessors(),
+        )
+    }
+    // Models live in no-backup storage, on the same volume as the app's files.
+    single<StorageInfo> { StorageInfo { runCatching { android.os.StatFs(app.noBackupFilesDir.path).availableBytes }.getOrNull() } }
     single<MediaProbe> { AndroidMediaProbe(app) }
     single<ThermalMonitor> { AndroidThermalMonitor(app) }
     single { io.trimio.core.data.CrashLog(Path(File(app.filesDir, "crashes").absolutePath)) }
@@ -89,7 +101,7 @@ fun androidPlatformModule(
     single { DownloadHooks { active -> if (active) onDownloadsStarted() } }
     // The automatic engine (phase 7.1): whisper.cpp, the installed director, MediaCodec export.
     single { Checkpoints(Path(File(app.filesDir, "productions").absolutePath)) }
-    single<AutoEditor> {
+    single<ProductionPlatform> {
         val settings = get<SettingsRepository>()
         val models = get<ModelManager>()
         val store = ModelStore(get<AppPaths>().models, get())
@@ -99,12 +111,14 @@ fun androidPlatformModule(
             store, device, models.catalog, preferred = { settings.settings.value.localModelId }, cloud = { get<CloudModels>().firstAvailable() },
         )
         val recognizer = directors().recognizer { settings.settings.value.speechModelId }
-        Productions(
-            AndroidProductionPlatform(app, { recognizer }, { choice -> directors().director(choice) }, device.tier),
-            get(), WebKnowledge(get()),
-            threads = { get<DeviceProfile>().threadsFor(get<ThermalMonitor>().level.value) },
-        )
+        AndroidProductionPlatform(app, { recognizer }, { choice -> directors().director(choice) }, device.tier)
     }
+    single<AutoEditor> {
+        Productions(get(), get(), WebKnowledge(get()), threads = { get<DeviceProfile>().threadsFor(get<ThermalMonitor>().level.value) })
+    }
+    // Exports and results go to Movies/Trimio; the network check is what a cloud run needs.
+    single<GallerySaver> { AndroidGallerySaver(app) }
+    single<Connectivity> { AndroidConnectivity(app) }
     // The foreground service finds the runner here when the system restarts it after killing the process.
     ProductionService.runner = { org.koin.core.context.GlobalContext.get().get<AppProductionRunner>() }
     // Legacy pipelines for JobRunner (the screens not yet moved to the production runner).
@@ -187,7 +201,7 @@ private class AndroidSharer(private val context: Context) : Sharer {
     override fun share(uri: String, title: String) {
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "video/mp4"
-            putExtra(Intent.EXTRA_STREAM, Uri.parse(uri))
+            putExtra(Intent.EXTRA_STREAM, uriOf(uri))
             putExtra(Intent.EXTRA_TITLE, title)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
@@ -196,10 +210,11 @@ private class AndroidSharer(private val context: Context) : Sharer {
 
     override fun shareFiles(files: Map<String, String>, title: String) {
         val dir = File(context.cacheDir, "interchange").apply { mkdirs() }
-        val uris = ArrayList<Uri>(files.map { (name, content) ->
-            val file = File(dir, name).apply { writeText(content) }
-            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-        })
+        sharePaths(files.map { (name, content) -> File(dir, name).apply { writeText(content) }.path }, title)
+    }
+
+    override fun sharePaths(paths: List<String>, title: String) {
+        val uris = ArrayList(paths.map(::uriOf))
         val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
             type = "*/*"
             putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
@@ -207,5 +222,46 @@ private class AndroidSharer(private val context: Context) : Sharer {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    /** A content:// URI as is; a file in app storage through the app's FileProvider (other apps cannot read paths). */
+    private fun uriOf(uri: String): Uri =
+        if (uri.startsWith("/")) androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", File(uri)) else Uri.parse(uri)
+}
+
+/**
+ * Copies a finished MP4 into Movies/Trimio through MediaStore (no storage permission on Android
+ * 10+); the entry stays pending, invisible to other apps, until the copy completes. The app's own
+ * file stays (the result and export screens still play and share it).
+ */
+private class AndroidGallerySaver(private val context: Context) : GallerySaver {
+    override suspend fun save(path: String, title: String): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val name = title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifEmpty { "Trimio" }.take(NAME) + ".mp4"
+        val values = android.content.ContentValues().apply {
+            put(MediaStore.Video.Media.DISPLAY_NAME, name)
+            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            put(MediaStore.Video.Media.RELATIVE_PATH, "${android.os.Environment.DIRECTORY_MOVIES}/Trimio")
+            put(MediaStore.Video.Media.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values) ?: return@withContext false
+        runCatching {
+            resolver.openOutputStream(uri)!!.use { out -> File(path).inputStream().use { it.copyTo(out) } }
+            resolver.update(uri, android.content.ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+        }.onFailure { resolver.delete(uri, null, null) }.isSuccess
+    }
+
+    private companion object {
+        const val NAME = 80
+    }
+}
+
+/** Online when the active network has validated internet (Wi-Fi with a login page does not count). */
+private class AndroidConnectivity(private val context: Context) : Connectivity {
+    override suspend fun online(): Boolean {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return true
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 }

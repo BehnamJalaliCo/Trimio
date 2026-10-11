@@ -2,9 +2,11 @@ package io.trimio.android
 
 import android.Manifest
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,8 +32,15 @@ class MainActivity : ComponentActivity() {
         get<io.trimio.engine.models.ModelManager>().applyAllUpdates()
     }
 
+    /** Transparent bars with icons that read on the app's canvas: light on noir, dark on paper. */
+    private fun systemBars(dark: Boolean) {
+        val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        // Noir is the default look: light bar icons until the settings say otherwise.
+        systemBars(dark = true)
         super.onCreate(savedInstanceState)
         get<ActivityMediaPicker>().attach(this)
         (get<Billing>() as? ActivityBilling)?.attach(this)
@@ -42,6 +51,6 @@ class MainActivity : ComponentActivity() {
         // Reflects the per-app language chosen in system settings (Android 13+, see locales_config.xml).
         val language = uiLanguageFor(Locale.getDefault().toLanguageTag())
         val animationsOff = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-        setContent { TrimioApp(language, TrimioPreferences(reduceMotion = animationsOff)) }
+        setContent { TrimioApp(language, TrimioPreferences(reduceMotion = animationsOff), onSystemBars = ::systemBars) }
     }
 }

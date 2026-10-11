@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +59,7 @@ import io.trimio.core.designsystem.signature.SigSecondaryButton
 import io.trimio.core.designsystem.signature.gutter
 import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
+import kotlinx.coroutines.launch
 
 /**
  * One project in the indexed list: its number, poster, name, what it is and when, and its state
@@ -69,13 +71,15 @@ import io.trimio.core.designsystem.theme.tr
 internal fun ProjectRow(index: Int, project: HomeProject, now: Long, last: Boolean, actions: HomeActions, modifier: Modifier = Modifier) {
     val c = Sig.colors
     val swipe = rememberSwipeToDismissBoxState()
+    val scope = rememberCoroutineScope()
     SwipeToDismissBox(
         swipe,
         backgroundContent = { DeleteUnderlay() },
         modifier = modifier,
+        // The swipe only asks; the row comes back while the dialog decides.
         onDismiss = {
             actions.onDelete(project.id)
-            swipe.reset()
+            scope.launch { swipe.reset() }
         },
     ) {
         Column(
@@ -114,7 +118,8 @@ private fun DeleteUnderlay() {
 @Composable
 private fun meta(p: HomeProject, now: Long): String {
     val parts = when (p.status) {
-        ProjectStatus.Building -> listOfNotNull(tr("فقط صدا", "Audio only").takeIf { p.audioOnly }, p.styleName, tr("در حال ساخت", "being made"))
+        // The style names the edit; without one, a voice project says so.
+        ProjectStatus.Building -> listOfNotNull(p.styleName ?: tr("فقط صدا", "Audio only").takeIf { p.audioOnly }, tr("در حال ساخت", "being made"))
         ProjectStatus.Failed -> listOfNotNull(p.styleName, if (p.interrupted) tr("متوقف شد", "stopped") else tr("ساخته نشد", "not made"), whenLine(p.updatedAt, now))
         else -> listOfNotNull(p.styleName, p.durationMs.takeIf { it > 0 }?.let { clockLine(it) }, whenLine(p.updatedAt, now))
     }

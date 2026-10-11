@@ -39,13 +39,22 @@ object Retouch {
     /** A beat without an energy of its own moves at this (the compiler's middle). */
     const val DEFAULT_ENERGY = 0.6f
 
-    /** The edit with the overrides applied, and what the gates said about it. */
-    class Result(val production: Autopilot.Production, val warnings: List<String>, val notes: List<String>)
+    /**
+     * The edit with the overrides applied, and what the gates said about it. [mixed] is false when
+     * only the picture was made ([apply] with `sound = false`): the soundtrack and the panel are
+     * still the director's then.
+     */
+    class Result(val production: Autopilot.Production, val warnings: List<String>, val notes: List<String>, val mixed: Boolean = true)
 
     /** True when [base] can be changed in the editor (it kept its [Workbench]). */
     fun editable(base: Autopilot.Production): Boolean = base.bench != null
 
-    fun apply(base: Autopilot.Production, o: EditOverrides): Result {
+    /**
+     * [base] with [o] applied. The picture (words, cut, score, gates, compile) takes milliseconds;
+     * the [sound] (mastering the mix, the jury hearing it) takes seconds on a long edit, so the
+     * editor shows the picture first and asks for the sound after.
+     */
+    fun apply(base: Autopilot.Production, o: EditOverrides, sound: Boolean = true): Result {
         if (o.isEmpty) return Result(base, emptyList(), emptyList())
         val bench = base.bench ?: error("this edit was made without its workbench and cannot be changed")
         val words = words(bench, o)
@@ -58,18 +67,18 @@ object Retouch {
         }
         val planned = score(base, bench, o, words)
         val score = if (mood == null) planned.copy(bpm = null, beatOffset = 0f) else bench.gridded(planned, arrangement)
-        val gated = bench.gate(score, words, edit, own = o.texts.map { it.text })
+        val gated = bench.gate(score, words, edit, own = o.texts.map { it.text }, refused = refused(base, o))
         val compiled = gated.compiled.copy(sfx = cues(gated.compiled.sfx, o, words, edit))
-        val levels = o.musicDb?.let { db -> bench.levels.copy(musicUnderDb = db, musicGapDb = db + GAP_LIFT_DB) } ?: bench.levels
-        val sound = bench.master(compiled, edit, words, mood, arrangement, levels)
-        val final = gated.copy(compiled = compiled)
-        val panel = bench.judge(final, edit, words, mood, arrangement, sound, levels)
         val notes = listOf("editor: ${summary(o)}") + gated.notes + gated.warnings.map { "spelling (creator): «$it» is not in the lexicon (kept)" }
-        val production = base.copy(
-            compiled = compiled, score = gated.score, plan = base.plan.copy(music = mood), soundtrack = sound, edit = edit,
-            report = base.report + notes, panel = panel ?: base.panel, source = Autopilot.Compiled(bench.compiler, gated.input),
+        val picture = base.copy(
+            compiled = compiled, score = gated.score, plan = base.plan.copy(music = mood), edit = edit,
+            report = base.report + notes, source = Autopilot.Compiled(bench.compiler, gated.input),
         )
-        return Result(production, gated.warnings, gated.notes)
+        if (!sound) return Result(picture, gated.warnings, gated.notes, mixed = false)
+        val levels = o.musicDb?.let { db -> bench.levels.copy(musicUnderDb = db, musicGapDb = db + GAP_LIFT_DB) } ?: bench.levels
+        val mix = bench.master(compiled, edit, words, mood, arrangement, levels)
+        val panel = bench.judge(gated.copy(compiled = compiled), edit, words, mood, arrangement, mix, levels)
+        return Result(picture.copy(soundtrack = mix, panel = panel ?: base.panel), gated.warnings, gated.notes)
     }
 
     // ------------------------------------------------------------------ words
@@ -105,6 +114,13 @@ object Retouch {
         null -> base.plan.music
         EditOverrides.NO_MUSIC -> null
         else -> MusicMood.fromId(id) ?: base.plan.music
+    }
+
+    /** The director's beats the creator turned off, by what they show (the critic may offer the same one again). */
+    private fun refused(base: Autopilot.Production, o: EditOverrides): (BeatScore) -> Boolean {
+        val off = base.score.scenes.flatMapIndexed { k, s -> s.beats.filterIndexed { j, _ -> o.elements[key(k, j)] == false } }
+        if (off.isEmpty()) return { false }
+        return { b -> off.any { it.recipe == b.recipe && it.text == b.text && it.at == b.at && it.value == b.value } }
     }
 
     /** The edit's cues without the accents' effects when they are off, and the creator's hits on their words. */

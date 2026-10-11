@@ -3,9 +3,12 @@ package io.trimio.desktop
 import androidx.compose.ui.text.font.FontFamily
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.trimio.core.data.Connectivity
 import io.trimio.core.data.CrashLog
 import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.StorageInfo
 import io.trimio.core.data.DeviceProfile
+import io.trimio.core.data.GallerySaver
 import io.trimio.core.data.MediaPicker
 import io.trimio.core.data.SettingsRepository
 import io.trimio.core.data.Sharer
@@ -72,8 +75,12 @@ fun desktopPlatformModule(
     single<SecretStore> { FileSecretStore(dirs.secretsFile) }
     single<MediaPicker> { picker }
     single<AttachmentPicker> { picker }
-    single<Sharer> { DesktopSharer(dirs.output, os) }
-    single { DeviceInfo(ramGb = hardware.ramGb, platform = platformName(os), appVersion = appVersion) }
+    single { DesktopSharer(dirs.output, os) }
+    single<Sharer> { get<DesktopSharer>() }
+    single<GallerySaver> { DesktopGallerySaver(dirs.output, get()) }
+    single<Connectivity> { DesktopConnectivity() }
+    single { DeviceInfo(ramGb = hardware.ramGb, platform = platformName(os), appVersion = appVersion, cores = hardware.cores) }
+    single<StorageInfo> { StorageInfo { runCatching { dirs.models.apply { mkdirs() }.usableSpace }.getOrNull()?.takeIf { it > 0 } } }
     single<ThermalMonitor> { ThermalMonitor.None }
     single { DeviceProfile.of(hardware.ramGb, hardware.cores) }
     single { CrashLog(Path(dirs.crashes.absolutePath)) }

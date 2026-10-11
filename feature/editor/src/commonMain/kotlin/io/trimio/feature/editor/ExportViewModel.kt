@@ -32,23 +32,24 @@ data class ExportArgs(val id: String, val persian: Boolean = true, val desktop: 
 class ExportViewModel(
     private val args: ExportArgs,
     edits: ProducedEdits,
-    private val exports: EditExports,
+    private val engine: EditExports?,
     private val settings: SettingsRepository,
     private val saver: GallerySaver? = null,
     private val sharer: Sharer? = null,
 ) : ViewModel() {
-    private val edit: Edit? = edits.find(args.id)
+    private val edit: Edit? = edits.find(args.id)?.takeIf { engine != null }
     private val _state = MutableStateFlow(initial())
     val state: StateFlow<ExportUi> = _state.asStateFlow()
     private var running: Job? = null
 
     init {
-        edit?.let { e -> viewModelScope.launch { exports.poster(e)?.let { p -> _state.update { it.copy(poster = p) } } } }
+        withEdit { e, exports -> viewModelScope.launch { exports.poster(e)?.let { p -> _state.update { it.copy(poster = p) } } } }
     }
 
     private fun initial(): ExportUi {
         val s = settings.settings.value
         val e = edit ?: return ExportUi(missing = true, desktop = args.desktop)
+        val exports = engine ?: return ExportUi(missing = true, desktop = args.desktop)
         val p = e.production
         val style = StyleBook.of(p.score.look)
         return ExportUi(
@@ -82,14 +83,13 @@ class ExportViewModel(
     private fun choose(change: (ExportUi) -> ExportUi) = _state.update { s -> if (s.busy) s else change(s).copy(job = null) }
 
     /** Renders the video at the chosen frame, size and rate. */
-    fun export() {
-        val e = edit ?: return
+    fun export() = withEdit { e, exports ->
         val ui = _state.value
         val spec = ui.spec
         val (w, h) = spec.size
         val out = Path(exports.folder(e), "${fileName(ui)}-${ui.destination.name.lowercase()}-${w}x$h-${spec.fps}.mp4").toString()
         val frames = (ui.durationMs / MS * spec.fps).toInt().coerceAtLeast(1)
-        run(ExportKind.Video) { progress ->
+        launchJob(ExportKind.Video) { progress ->
             val clock = TimeSource.Monotonic.markNow()
             val file = exports.video(e, spec, out) { p ->
                 val elapsed = clock.elapsedNow().inWholeMilliseconds / MS
@@ -104,21 +104,19 @@ class ExportViewModel(
     }
 
     /** The package for Premiere, Final Cut and DaVinci, then hands it on. */
-    fun exportProject() {
-        val e = edit ?: return
+    fun exportProject() = withEdit { e, exports ->
         val ui = _state.value
         val name = fileName(ui)
         val folder = Path(exports.folder(e), "$name-${ui.destination.name.lowercase()}-project").toString()
-        run(ExportKind.Project) { progress ->
+        launchJob(ExportKind.Project) { progress ->
             exports.project(e, ui.spec, folder, name) { p -> progress(p, null) }.files.also { sharer?.sharePaths(it, ui.title) }
         }
     }
 
     /** Captions only, as SubRip, handed on at once. */
-    fun exportCaptions() {
-        val e = edit ?: return
+    fun exportCaptions() = withEdit { e, exports ->
         val ui = _state.value
-        run(ExportKind.Captions) { _ ->
+        launchJob(ExportKind.Captions) { _ ->
             listOf(exports.srtFile(e, Path(exports.folder(e), "${fileName(ui)}.srt").toString())).also { sharer?.sharePaths(it, ui.title) }
         }
     }
@@ -144,7 +142,7 @@ class ExportViewModel(
         if (job.kind == ExportKind.Video) sharer?.share(job.files.first(), _state.value.title) else sharer?.sharePaths(job.files, _state.value.title)
     }
 
-    private fun run(kind: ExportKind, work: suspend (progress: (Float, Int?) -> Unit) -> List<String>) {
+    private fun launchJob(kind: ExportKind, work: suspend (progress: (Float, Int?) -> Unit) -> List<String>) {
         if (_state.value.busy) return
         _state.update { it.copy(job = ExportJob(kind)) }
         running = viewModelScope.launch {
@@ -158,6 +156,13 @@ class ExportViewModel(
                 _state.update { s -> s.copy(job = s.job?.copy(error = t.message ?: t::class.simpleName ?: "error")) }
             }
         }
+    }
+
+    /** Runs [block] with the edit and the exporter, when both are there. */
+    private inline fun withEdit(block: (Edit, EditExports) -> Unit) {
+        val e = edit ?: return
+        val x = engine ?: return
+        block(e, x)
     }
 
     private fun title(e: Edit): String =

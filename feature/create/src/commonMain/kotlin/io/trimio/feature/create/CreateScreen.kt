@@ -90,17 +90,13 @@ import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 import io.trimio.core.model.input.MediaInfo
 
-/**
- * [onProduce] hands the brief to the automatic engine (the production runner); without it the
- * legacy pipeline builds a project and [onCreated] receives its id.
- */
+/** [onProduce] hands the brief to the automatic engine (the production runner), which makes the project. */
 @Composable
 fun CreateRoute(
     viewModel: CreateViewModel,
     onBack: () -> Unit,
-    onCreated: (String) -> Unit,
+    onProduce: (CreateState) -> Unit,
     onPickMedia: (MediaKind) -> Unit = {},
-    onProduce: ((CreateState) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     CreateScreen(
@@ -109,7 +105,7 @@ fun CreateRoute(
             onBack = onBack, onPickMedia = onPickMedia, onPrompt = viewModel::setPrompt, onExpert = viewModel::setExpert,
             onAddTerm = viewModel::addTerm, onRemoveTerm = viewModel::removeTerm, onAttach = viewModel::attach, onDetach = viewModel::detach,
             onCaption = viewModel::setCaption, onStyle = viewModel::setStyle,
-            onCreate = { if (onProduce != null) { if (state.canCreate) onProduce(state) } else viewModel.create(onCreated) },
+            onCreate = { if (state.canCreate) onProduce(state) },
         ),
     )
 }
