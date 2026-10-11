@@ -46,12 +46,6 @@ import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 
 /**
- * What the offline sheet says about the director on this device: its tier ("4B") when one is
- * installed (null: the rules direct, no model), and about how long it takes to design this video.
- */
-data class OfflineDirector(val tier: String?, val seconds: Int)
-
-/**
  * Board 4, last phone: the cloud director was chosen but there is no internet. The director on the
  * device is ready and does the same work offline; or the build waits and starts in the cloud once
  * the connection is back. A bottom sheet on phones, a centred card on wide windows.

@@ -69,6 +69,12 @@ import io.trimio.engine.models.ModelState
 /** The on-device director as the settings row reads it: its tier and where it stands. */
 data class DirectorLine(val tier: String, val state: ModelState, val installed: Boolean)
 
+/**
+ * What the offline sheet says about the director on this device: its tier ("4B") when one is
+ * installed (null: the rules direct, no model), and about how long it takes to design this video.
+ */
+data class OfflineDirector(val tier: String?, val seconds: Int)
+
 /** Everything the settings screen shows. */
 data class SettingsUi(
     val settings: AppSettings,
@@ -336,7 +342,10 @@ private fun MoreSections(ui: SettingsUi, actions: SettingsActions) {
     val c = Sig.colors
     val s = ui.settings
     Section(tr("خروجی", "Export"), "05") {
-        Text(tr("کیفیت و نرخ فریم پیش‌فرض صفحهٔ خروجی", "The export screen's default quality and frame rate"), style = Sig.type.meta.copy(fontSize = 11.5.sp), color = c.muted, modifier = Modifier.padding(top = 4.dp))
+        Text(
+            tr("کیفیت و نرخ فریم پیش‌فرض صفحهٔ خروجی", "The export screen's default quality and frame rate"),
+            style = Sig.type.meta.copy(fontSize = 11.5.sp), color = c.muted, modifier = Modifier.padding(top = 4.dp),
+        )
         SigSegmented(
             Resolution.entries, s.exportResolution,
             label = { if (it == Resolution.Uhd4k) "4K" else if (it == Resolution.Qhd) "2K" else "${it.shortEdge}p" },

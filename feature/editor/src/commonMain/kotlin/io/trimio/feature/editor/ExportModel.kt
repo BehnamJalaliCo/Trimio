@@ -140,3 +140,17 @@ object ExportEstimate {
     private const val HIGH_RATE = 50
     private const val FILM_RATE = 25
 }
+
+/** What the export screen can ask for. */
+data class ExportActions(
+    val onBack: () -> Unit = {},
+    val onDestination: (ExportDestination) -> Unit = {},
+    val onQuality: (ExportQuality) -> Unit = {},
+    val onFps: (Int) -> Unit = {},
+    val onExport: () -> Unit = {},
+    val onProject: () -> Unit = {},
+    val onCaptions: () -> Unit = {},
+    val onCancel: () -> Unit = {},
+    val onSave: () -> Unit = {},
+    val onShare: () -> Unit = {},
+)

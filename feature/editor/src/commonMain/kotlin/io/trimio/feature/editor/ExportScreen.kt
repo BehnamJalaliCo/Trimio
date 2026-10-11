@@ -60,20 +60,6 @@ import io.trimio.core.designsystem.theme.Trimio
 import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 
-/** What the export screen can ask for. */
-data class ExportActions(
-    val onBack: () -> Unit = {},
-    val onDestination: (ExportDestination) -> Unit = {},
-    val onQuality: (ExportQuality) -> Unit = {},
-    val onFps: (Int) -> Unit = {},
-    val onExport: () -> Unit = {},
-    val onProject: () -> Unit = {},
-    val onCaptions: () -> Unit = {},
-    val onCancel: () -> Unit = {},
-    val onSave: () -> Unit = {},
-    val onShare: () -> Unit = {},
-)
-
 @Composable
 fun ExportRoute(viewModel: ExportViewModel, onBack: () -> Unit) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
@@ -262,7 +248,7 @@ private fun Bottom(ui: ExportUi, actions: ExportActions, modifier: Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         when {
             job == null -> Unit
-            job.error != null -> Failed(job, actions)
+            job.error != null -> Failed(job)
             job.running -> Running(ui, job, actions)
             job.kind == ExportKind.Video -> Done(ui, job, actions)
             else -> FilesReady(job, actions)
@@ -348,7 +334,7 @@ private fun FilesReady(job: ExportJob, actions: ExportActions) {
 }
 
 @Composable
-private fun Failed(job: ExportJob, actions: ExportActions) {
+private fun Failed(job: ExportJob) {
     val c = Sig.colors
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

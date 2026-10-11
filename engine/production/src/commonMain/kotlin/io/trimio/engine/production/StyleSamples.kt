@@ -36,7 +36,12 @@ class StyleSamples(measurer: TextMeasurer, fonts: MotionFonts, private val brand
         val score = Score(
             look = s.id, background = s.background, lens = s.lens, auto = false, captions = CaptionScore(show = false),
             scenes = listOf(
-                SceneScore(time = 0f, bg = stage, camera = "push-in", beats = listOf(BeatScore(entrance, time = HEADLINE_AT, hold = HEADLINE_HOLD, text = word, emphasis = listOf(word), place = "center", energy = s.motion.energy.coerceIn(0f, 1f)))),
+                SceneScore(
+                    time = 0f, bg = stage, camera = "push-in",
+                    beats = listOf(
+                        BeatScore(entrance, time = HEADLINE_AT, hold = HEADLINE_HOLD, text = word, emphasis = listOf(word), place = "center", energy = s.motion.energy.coerceIn(0f, 1f)),
+                    ),
+                ),
                 SceneScore(
                     time = SECOND_AT, bg = stage, transition = then,
                     beats = listOf(
