@@ -213,14 +213,11 @@ internal fun ResultEntry(route: Route.Result, onProduce: (ProductionRequest) -> 
     )
 }
 
-/**
- * Attachments through the system media chooser: clips today. Pictures and logos need an image
- * chooser the platforms do not offer yet ([MediaPicker] picks video or audio), so they return null.
- */
+/** Attachments through the system media chooser: clips as video, pictures and logos as images. */
 fun mediaAttachments(picker: io.trimio.core.data.MediaPicker) = io.trimio.feature.create.AttachmentPicker { kind ->
-    if (kind != io.trimio.feature.create.AttachmentKind.Clip) return@AttachmentPicker null
-    picker.pick(MediaKind.Video)?.let { uri ->
-        val name = uri.value.substringAfterLast('/').substringAfterLast("%2F").ifEmpty { "clip" }
+    val media = if (kind == io.trimio.feature.create.AttachmentKind.Clip) MediaKind.Video else MediaKind.Image
+    picker.pick(media)?.let { uri ->
+        val name = uri.value.substringAfterLast('/').substringAfterLast("%2F").ifEmpty { kind.name.lowercase() }
         io.trimio.feature.create.Attachment(id = uri.value, kind = kind, uri = uri.value, name = name)
     }
 }

@@ -3,7 +3,8 @@ package io.trimio.core.data
 import io.trimio.core.model.input.MediaUri
 
 /** What the user can bring in. */
-enum class MediaKind { Video, Audio }
+/** What to pick: the source video or voice, or a picture (an attachment beside the prompt). */
+enum class MediaKind { Video, Audio, Image }
 
 /** System media chooser (Android Photo Picker / document picker). Null when the user backs out. */
 fun interface MediaPicker {

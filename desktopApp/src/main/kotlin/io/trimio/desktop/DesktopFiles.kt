@@ -51,6 +51,7 @@ class DesktopFilePicker(private val owner: () -> Frame?) : MediaPicker, Attachme
         val (title, types) = when (kind) {
             MediaKind.Video -> "Choose a video" to MediaTypes.video
             MediaKind.Audio -> "Choose a voice recording" to MediaTypes.audio
+            MediaKind.Image -> "Choose a picture" to MediaTypes.logo
         }
         return choose(title, types)?.let { MediaUri(it.absolutePath) }
     }

@@ -170,6 +170,7 @@ class ActivityMediaPicker : MediaPicker {
         when (kind) {
             MediaKind.Video -> video?.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) ?: return null
             MediaKind.Audio -> audio?.launch(arrayOf("audio/*")) ?: return null
+            MediaKind.Image -> video?.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) ?: return null
         }
         return result.await()
     }
