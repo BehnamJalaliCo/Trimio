@@ -149,6 +149,12 @@ jobs:
           if (!(Test-Path build/mf-smoke.mp4)) { throw "h264_mf produced no file" }
 
       # --- Tests --------------------------------------------------------------------------------------
+      # The production tests make their own clips with libx264 from ffmpeg on the PATH: a full build for
+      # the tests only; the installers keep the bundled LGPL build above.
+      - name: ffmpeg for the tests
+        shell: pwsh
+        run: choco install ffmpeg -y --no-progress
+
       - name: JVM tests (desktop app, models, production engine) and the packaged DLLs
         run: >
           ./gradlew :desktopApp:test :engine:models:jvmTest :engine:production:jvmTest
@@ -157,11 +163,6 @@ jobs:
       # --- Installers ---------------------------------------------------------------------------------
       - name: Package MSI and EXE
         run: ./gradlew :desktopApp:packageMsi :desktopApp:packageExe "-Ptrimio.desktop.version=${{ inputs.version || '1.0.0' }}"
-        if: startsWith(github.ref, 'refs/tags/')
-
-      - name: Package MSI and EXE (manual run)
-        run: ./gradlew :desktopApp:packageMsi :desktopApp:packageExe
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Sign installers
         env:
