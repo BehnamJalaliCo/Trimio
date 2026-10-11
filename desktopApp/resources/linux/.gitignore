@@ -1,0 +1,3 @@
+# Optional local bundle for testing a packaged Linux build; never committed.
+ffmpeg/
+native/

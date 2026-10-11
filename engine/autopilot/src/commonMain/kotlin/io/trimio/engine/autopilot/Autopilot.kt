@@ -42,6 +42,8 @@ class Autopilot(
     private val grabber: FrameGrabber? = null,
     /** The panel of judges every edit must satisfy before delivery; null skips it (one critic-checked cut). */
     private val jury: Jury? = Jury.Default,
+    /** Every compiled edit as it forms (drafts, critic and jury revisions): the app previews them live. */
+    private val onCompiled: (Compiler.Output) -> Unit = {},
 ) {
     data class Request(
         /** Recognised words on the source clock. */
@@ -307,7 +309,7 @@ class Autopilot(
     }
 
     private fun compile(compiler: Compiler, score: Score, transcript: Transcript, edit: EditPlan, request: Request) =
-        compiler.compile(Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject))
+        compiler.compile(Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject)).also(onCompiled)
 
     private companion object {
         const val CRITIC_PASSES = 2

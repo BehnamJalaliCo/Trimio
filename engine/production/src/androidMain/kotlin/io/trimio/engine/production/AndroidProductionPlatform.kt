@@ -1,0 +1,175 @@
+package io.trimio.engine.production
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.media.MediaMetadataRetriever
+import android.os.BatteryManager
+import android.os.PowerManager
+import android.provider.OpenableColumns
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import io.trimio.core.model.audio.PcmAudio
+import io.trimio.core.model.input.MediaUri
+import io.trimio.engine.asr.SpeechRecognizer
+import io.trimio.engine.audio.Resampler
+import io.trimio.engine.autopilot.AndroidSubject
+import io.trimio.engine.autopilot.Autopilot
+import io.trimio.engine.autopilot.UserAsset
+import io.trimio.engine.llm.RgbImage
+import io.trimio.engine.media.AndroidAudioDecoder
+import io.trimio.engine.models.DeviceTier
+import io.trimio.engine.motion.MediaSource
+import io.trimio.engine.motion.MediaSources
+import io.trimio.engine.motion.StillMedia
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import kotlin.math.roundToInt
+
+/**
+ * Android: the voice through MediaExtractor/MediaCodec ([AndroidAudioDecoder]), small frames from
+ * [MediaMetadataRetriever] ([AndroidSubject]), footage decoded in order by MediaCodec
+ * ([AndroidFootage]), the export drawn onto the encoder's surface and muxed with the AAC mix
+ * ([AndroidMotionExporter]), whisper.cpp and llama.cpp through the NDK builds ([LocalDirectors]).
+ * Thermal status and battery set the jury's budget ([device]).
+ */
+class AndroidProductionPlatform(
+    private val context: Context,
+    private val recognizer: () -> SpeechRecognizer?,
+    private val directors: suspend (DirectorChoice) -> Director,
+    /** The phone's class by RAM ([io.trimio.engine.models.DeviceMemory.tier]). */
+    private val tier: DeviceTier,
+) : ProductionPlatform {
+    private val app = context.applicationContext
+
+    override suspend fun audio(media: String, rate: Int): PcmAudio {
+        val decoded = AndroidAudioDecoder(app).decodeMono(MediaUri(mediaUri(media).toString()))
+        return withContext(Dispatchers.Default) { Resampler().resample(decoded, rate) }
+    }
+
+    override suspend fun frames(media: String, count: Int, width: Int): List<RgbImage> =
+        withContext(Dispatchers.IO) { AndroidSubject.frames(app, mediaUri(media), count, width) }
+
+    override suspend fun asset(source: String, id: String, caption: String?): UserAsset = withContext(Dispatchers.IO) {
+        val uri = mediaUri(source)
+        val name = displayName(source)
+        if (isVideo(source)) {
+            val frames = AndroidSubject.frames(app, uri, count = CLIP_FRAMES, width = THUMB)
+            val seconds = MediaMetadataRetriever().run {
+                try {
+                    setDataSource(app, uri)
+                    extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toFloatOrNull()?.div(MS)
+                } finally {
+                    release()
+                }
+            }
+            UserAsset(id, UserAsset.Kind.Video, frames.firstOrNull() ?: RgbImage(1, 1, ByteArray(3)), frames = frames, duration = seconds, caption = caption, source = name)
+        } else {
+            val (rgb, alpha) = thumbnail(decode(source, THUMB))
+            UserAsset(id, UserAsset.Kind.Image, rgb, alpha, caption = caption, source = name)
+        }
+    }
+
+    override fun media(request: ProductionRequest, assets: List<UserAsset>, fps: Int, width: Int, height: Int): MediaSource {
+        val sources = request.assets.zip(assets).map { (attached, asset) ->
+            if (asset.kind == UserAsset.Kind.Video) AndroidFootage(app, attached.source, width, height, asset.id)
+            else StillMedia(asset.id, decode(attached.source, maxOf(width, height)).asImageBitmap())
+        }
+        val footage = if (request.kind == SourceKind.Video) listOf(AndroidFootage(app, request.media, width, height)) else emptyList()
+        return MediaSources(sources + footage)
+    }
+
+    override fun measurer() = TextMeasurer(createFontFamilyResolver(app), Density(1f), LayoutDirection.Ltr)
+
+    /** Previews draw into software bitmaps: runtime shaders need the hardware canvas the export uses. */
+    override val previewShaders: Boolean get() = false
+
+    override fun recognizer(): SpeechRecognizer? = recognizer.invoke()
+
+    override suspend fun director(choice: DirectorChoice): Director = directors(choice)
+
+    override fun device(): DeviceState {
+        val power = app.getSystemService(PowerManager::class.java)
+        val battery = app.getSystemService(BatteryManager::class.java)
+        val status = power?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE
+        val level = battery?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: FULL
+        return DeviceState(
+            tier = tier,
+            hot = status >= PowerManager.THERMAL_STATUS_SEVERE,
+            critical = status >= PowerManager.THERMAL_STATUS_CRITICAL,
+            lowBattery = battery?.isCharging == false && level in 0 until LOW_BATTERY,
+        )
+    }
+
+    override suspend fun export(
+        production: Autopilot.Production,
+        request: ProductionRequest,
+        assets: List<UserAsset>,
+        out: String,
+        onFrame: (Int, Int) -> Unit,
+    ): String {
+        val c = production.compiled.composition
+        val media = media(request, assets, c.fps, c.width, c.height)
+        return try {
+            AndroidMotionExporter(app).export(c, media, production.soundtrack.audio, File(out), onFrame).path
+        } finally {
+            (media as? AutoCloseable)?.close()
+        }
+    }
+
+    override fun outputFor(request: ProductionRequest): String = File(File(app.filesDir, "renders").apply { mkdirs() }, request.key + ".mp4").path
+
+    private fun isVideo(source: String): Boolean {
+        val type = runCatching { app.contentResolver.getType(mediaUri(source)) }.getOrNull()
+        return type?.startsWith("video/") ?: (source.substringAfterLast('.').lowercase() in VIDEO)
+    }
+
+    /** The picture at [source], at most [max] px on its long side, upright, in software memory. */
+    private fun decode(source: String, max: Int): Bitmap {
+        val decoder = ImageDecoder.createSource(app.contentResolver, mediaUri(source))
+        return ImageDecoder.decodeBitmap(decoder) { d, info, _ ->
+            val k = minOf(1f, max / maxOf(info.size.width, info.size.height).toFloat())
+            d.setTargetSize((info.size.width * k).roundToInt().coerceAtLeast(1), (info.size.height * k).roundToInt().coerceAtLeast(1))
+            d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        }
+    }
+
+    /** Packed RGB and its alpha (null when fully opaque), as the director's pixel cues read them. */
+    private fun thumbnail(bitmap: Bitmap): Pair<RgbImage, ByteArray?> {
+        val w = bitmap.width
+        val h = bitmap.height
+        val argb = IntArray(w * h).also { bitmap.getPixels(it, 0, w, 0, 0, w, h) }
+        val rgb = ByteArray(w * h * 3)
+        val alpha = ByteArray(w * h)
+        for (i in argb.indices) {
+            val c = argb[i]
+            rgb[i * 3] = (c shr 16).toByte()
+            rgb[i * 3 + 1] = (c shr 8).toByte()
+            rgb[i * 3 + 2] = c.toByte()
+            alpha[i] = (c ushr 24).toByte()
+        }
+        val clear = alpha.any { (it.toInt() and 0xFF) < OPAQUE }
+        return RgbImage(w, h, rgb) to alpha.takeIf { clear }
+    }
+
+    /** The file's name ("nike-logo.png"): a clue to what it is. The renderer opens the attachment's own URI ([media]). */
+    private fun displayName(source: String): String = runCatching {
+        app.contentResolver.query(mediaUri(source), arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull() ?: source.substringAfterLast('/')
+
+    private companion object {
+        const val THUMB = 256
+        const val CLIP_FRAMES = 3
+        const val MS = 1000f
+        const val OPAQUE = 250
+        const val FULL = 100
+        const val LOW_BATTERY = 20
+        val VIDEO = setOf("mp4", "mov", "m4v", "webm", "3gp", "mkv")
+    }
+}

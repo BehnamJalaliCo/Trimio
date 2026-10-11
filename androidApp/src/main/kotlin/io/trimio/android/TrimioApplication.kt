@@ -4,6 +4,8 @@ import android.app.Application
 import io.trimio.core.data.CrashLog
 import kotlinx.io.files.Path
 import io.trimio.core.data.JobRunner
+import io.trimio.engine.production.ProductionRunner
+import io.trimio.engine.production.ProductionService
 import io.trimio.shared.di.AppScope
 import io.trimio.shared.di.androidPlatformModule
 import io.trimio.shared.initTrimio
@@ -49,5 +51,9 @@ class TrimioApplication : Application() {
                 if (run != null) RenderService.start(this@TrimioApplication)
             }
         }
+        // Automatic productions run under their own foreground service (restarted and resumed after process death).
+        ProductionService.icon = R.drawable.ic_stat_trimio
+        ProductionService.opens = MainActivity::class.java
+        ProductionService.watch(this, koin.get<ProductionRunner>(), scope)
     }
 }

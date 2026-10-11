@@ -1,0 +1,3 @@
+# Filled by .github/workflows/desktop-windows.yml (never committed): the LGPL ffmpeg build and the native DLLs.
+ffmpeg/
+native/

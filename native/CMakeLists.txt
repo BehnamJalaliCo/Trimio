@@ -1,5 +1,6 @@
-# Native engines for Trimio. Built by :androidApp through the NDK (arm64-v8a) and by
-# :engine:asr:buildHostNative for desktop/JVM integration tests.
+# Native engines for Trimio. Built by :androidApp through the NDK (arm64-v8a), by
+# :engine:asr:buildHostNative for desktop/JVM integration tests, and by the Windows desktop
+# workflow with MSVC (.github/workflows/desktop-windows.yml, docs/DESKTOP.md).
 cmake_minimum_required(VERSION 3.22)
 project(trimio_native C CXX)
 
@@ -12,6 +13,8 @@ set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+# Windows: the C runtime is linked statically, so the DLLs need no Visual C++ redistributable.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(TRIMIO_WHISPER "Build the whisper.cpp speech engine" ON)
 option(TRIMIO_LLAMA "Build the llama.cpp language engine" ON)
@@ -26,7 +29,8 @@ function(trimio_jni_library target)
     else()
         target_include_directories(${target} PRIVATE ${JNI_INCLUDE_DIRS})
     endif()
-    if(NOT APPLE)
+    # GNU ld only; MSVC exports nothing but the JNIEXPORT (dllexport) entry points anyway.
+    if(NOT APPLE AND NOT MSVC)
         target_link_options(${target} PRIVATE "-Wl,--exclude-libs,ALL" "-Wl,--gc-sections")
     endif()
 endfunction()

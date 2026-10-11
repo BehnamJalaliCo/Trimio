@@ -26,10 +26,32 @@ fun interface LlamaCallback {
 
 /** JNI entry points of `libtrimio_llama` (native/llama/trimio_llama_jni.cpp). */
 internal object LlamaNative {
-    init {
+    // Initialised before [variant], which reads them while the object initialises.
+    private val FILES = listOf("libtrimio_llama.so", "libtrimio_llama.dylib", "trimio_llama.dll")
+    private val GPU_VARIANTS = setOf("vulkan", "cuda", "metal")
+    private const val ALL_LAYERS = 999
+
+    /**
+     * The build that loaded. `-Dtrimio.native.variants` lists subdirectories of `trimio.native.dir`
+     * best first (the desktop app: "vulkan,cpu"); a GPU build whose runtime is missing fails to
+     * load and the next is tried, the flat directory last (docs/DESKTOP.md).
+     */
+    val variant: String = load()
+
+    /** Layers offloaded to the GPU: all of them with a GPU build, unless `-Dtrimio.llama.gpuLayers` says otherwise. */
+    val gpuLayers: Int get() = System.getProperty("trimio.llama.gpuLayers")?.toIntOrNull() ?: if (variant in GPU_VARIANTS) ALL_LAYERS else 0
+
+    private fun load(): String {
         val dir = System.getProperty("trimio.native.dir")
-        val file = dir?.let { File(it, "libtrimio_llama.so").takeIf(File::isFile) ?: File(it, "libtrimio_llama.dylib").takeIf(File::isFile) }
-        if (file != null) System.load(file.absolutePath) else System.loadLibrary("trimio_llama")
+        val variants = System.getProperty("trimio.native.variants").orEmpty().split(',').map(String::trim).filter(String::isNotEmpty) + ""
+        var failure: Throwable? = null
+        for (variant in variants) {
+            val file = dir?.let { d -> FILES.map { File(File(d, variant), it) }.firstOrNull(File::isFile) } ?: continue
+            if (runCatching { System.load(file.absolutePath) }.onFailure { failure = it }.isSuccess) return variant
+        }
+        failure?.takeIf { dir != null }?.let { throw it }
+        System.loadLibrary("trimio_llama")
+        return ""
     }
 
     external fun init(modelPath: String, contextSize: Int, threads: Int, gpuLayers: Int): Long
@@ -123,7 +145,7 @@ class LlamaLanguageModel(
     private fun ensureLoaded(): Long {
         if (handle != 0L) return handle
         if (!File(modelPath).isFile) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Model not installed: $modelPath")
-        handle = LlamaNative.init(modelPath, contextSize, threads, gpuLayers = 0)
+        handle = LlamaNative.init(modelPath, contextSize, threads, LlamaNative.gpuLayers)
         if (handle == 0L) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Could not load $modelPath")
         return handle
     }

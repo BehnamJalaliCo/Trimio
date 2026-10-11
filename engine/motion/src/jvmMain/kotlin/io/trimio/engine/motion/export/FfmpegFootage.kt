@@ -2,6 +2,7 @@ package io.trimio.engine.motion.export
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import io.trimio.core.model.tools.MediaTools
 import io.trimio.engine.motion.MediaSource
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
@@ -57,7 +58,7 @@ class FfmpegFootage(
     private fun restart(target: Int) {
         stop()
         val p = ProcessBuilder(
-            "ffmpeg", "-loglevel", "error", "-ss", "%.3f".format(target / fps.toFloat()), "-i", file.absolutePath, "-an",
+            MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.3f".format(target / fps.toFloat()), "-i", file.absolutePath, "-an",
             "-vf", "fps=$fps,scale=$w:$h:flags=lanczos+accurate_rnd+full_chroma_int",
             "-f", "rawvideo", "-pix_fmt", "rgba", "-",
         ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
@@ -86,7 +87,7 @@ class FfmpegFootage(
         /** Display width and height of the first video stream (rotation applied). */
         fun probe(file: File): Pair<Int, Int> {
             val p = ProcessBuilder(
-                "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:stream_side_data=rotation",
+                MediaTools.ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:stream_side_data=rotation",
                 "-of", "default=nw=1", file.absolutePath,
             ).redirectErrorStream(true).start()
             val out = p.inputStream.bufferedReader().readText()

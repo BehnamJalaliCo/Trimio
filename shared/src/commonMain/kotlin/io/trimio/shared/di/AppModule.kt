@@ -22,6 +22,10 @@ import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.models.ModelCatalog
 import io.trimio.engine.models.ModelManager
 import io.trimio.engine.models.ModelStore
+import io.trimio.engine.production.AppProductionRunner
+import io.trimio.engine.production.AutoEditor
+import io.trimio.engine.production.Checkpoints
+import io.trimio.engine.production.ProductionRunner
 import io.trimio.engine.styles.StylePackRepository
 import io.trimio.feature.create.CreateViewModel
 import io.trimio.feature.editor.EditorViewModel
@@ -52,7 +56,11 @@ data class AppPaths(
     val remoteCache: Path? = null,
 )
 
-/** Builds the two pipelines with each platform's engines (see `platformModule`s). */
+/**
+ * Builds the two legacy pipelines (engine/director + engine/render) with each platform's engines.
+ * Superseded by the automatic engine ([AutoEditor] / [ProductionRunner], phase 7.1); kept only for
+ * [JobRunner] while the create, stream and editor screens still run on it.
+ */
 interface PipelineFactory {
     /** All nine stages: probe, clean, recognise, align, analyse, direct, match assets, render, publish. */
     fun build(): PipelineOrchestrator
@@ -77,8 +85,9 @@ data class CreateArgs(val uri: String, val kind: MediaKind, val styleId: String?
 
 /**
  * The dependency graph shared by every platform. A platform module must provide: [AppPaths],
- * SecretStore, MediaPicker, Sharer, DeviceInfo, MediaProbe, [HttpClient], [PipelineFactory] and
- * optionally [ClaudeFactory], [DownloadHooks] and a store [Billing].
+ * SecretStore, MediaPicker, Sharer, DeviceInfo, MediaProbe, [HttpClient], the production engine
+ * ([AutoEditor] and its [Checkpoints]), the legacy [PipelineFactory] and optionally
+ * [ClaudeFactory], [DownloadHooks] and a store [Billing].
  */
 val appModule: Module = module {
     single(AppScope) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
@@ -99,6 +108,9 @@ val appModule: Module = module {
         )
     }
     single { JobRunner(get(AppScope), get(), { get<PipelineFactory>().build() }, { get<PipelineFactory>().export() }) }
+    // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
+    single { AppProductionRunner(get(), get(AppScope), get()) }
+    single<ProductionRunner> { get<AppProductionRunner>() }
 
     viewModel { StudioViewModel(get(), get()) }
     viewModel { (args: CreateArgs) -> CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), get(), get(), args.styleId, get()) }

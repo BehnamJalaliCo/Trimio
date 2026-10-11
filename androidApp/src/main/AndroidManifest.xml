@@ -40,6 +40,10 @@
 
         <!-- Builds and exports continue with the screen off. -->
         <service
+            android:name="io.trimio.engine.production.ProductionService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProcessing|dataSync" />
+        <service
             android:name=".RenderService"
             android:exported="false"
             android:foregroundServiceType="mediaProcessing|dataSync" />

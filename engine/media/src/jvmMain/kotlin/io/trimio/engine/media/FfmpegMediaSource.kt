@@ -5,6 +5,7 @@ import io.trimio.core.model.input.AudioTrackInfo
 import io.trimio.core.model.input.MediaInfo
 import io.trimio.core.model.input.MediaUri
 import io.trimio.core.model.input.VideoFormat
+import io.trimio.core.model.tools.MediaTools
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -26,7 +27,7 @@ import java.nio.ByteOrder
 class FfmpegMediaSource : MediaProbe, AudioDecoder {
 
     override suspend fun probe(uri: MediaUri): MediaInfo = withContext(Dispatchers.IO) {
-        val out = run("ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path(uri)).decodeToString()
+        val out = run(MediaTools.ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path(uri)).decodeToString()
         val root = Json.parseToJsonElement(out).jsonObject
         val streams = root["streams"]?.jsonArray.orEmpty().map { it.jsonObject }
         val video = streams.firstOrNull { it.str("codec_type") == "video" }
@@ -46,7 +47,7 @@ class FfmpegMediaSource : MediaProbe, AudioDecoder {
 
     override suspend fun decodeMono(uri: MediaUri, onProgress: (Float) -> Unit): PcmAudio = withContext(Dispatchers.IO) {
         val rate = 48_000
-        val bytes = run("ffmpeg", "-v", "error", "-i", path(uri), "-vn", "-ac", "1", "-ar", "$rate", "-f", "f32le", "-")
+        val bytes = run(MediaTools.ffmpeg, "-v", "error", "-i", path(uri), "-vn", "-ac", "1", "-ar", "$rate", "-f", "f32le", "-")
         val floats = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
         val samples = FloatArray(floats.remaining()).also { floats.get(it) }
         onProgress(1f)

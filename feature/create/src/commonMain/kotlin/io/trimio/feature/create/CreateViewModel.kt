@@ -20,6 +20,7 @@ import io.trimio.engine.director.Brief
 import io.trimio.engine.director.BriefParser
 import io.trimio.engine.llm.CloudModels
 import io.trimio.engine.media.MediaProbe
+import io.trimio.engine.motion.style.StyleBook
 import io.trimio.engine.styles.StylePack
 import io.trimio.engine.styles.StylePackRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,8 +46,18 @@ data class CreateState(
     val creating: Boolean = false,
     /** The phone is throttling: builds will be slower and use fewer cores. */
     val hot: Boolean = false,
+    /** Expert mode: a full brief (hook, destination, emphasis, music) instead of one line. */
+    val expert: Boolean = false,
+    val attachments: List<Attachment> = emptyList(),
+    /** Exact spellings (sites, brands, technical terms) the director must use. */
+    val glossary: List<String> = emptyList(),
+    /** No media yet (opened without a file): the screen asks for a video or an audio. */
+    val hasMedia: Boolean = true,
 ) {
     val canCreate: Boolean get() = info != null && !creating
+
+    /** The text the engine reads: prompt, glossary and attachment captions together. */
+    val enginePrompt: String get() = EnginePrompt.compose(prompt, glossary, attachments)
 }
 
 class CreateViewModel(
@@ -60,13 +71,16 @@ class CreateViewModel(
     private val runner: JobRunner,
     initialStyle: String? = null,
     thermal: ThermalMonitor = ThermalMonitor.None,
+    private val attachmentPicker: AttachmentPicker = AttachmentPicker.None,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(CreateState(kind, director = settings.settings.value.director, styleId = initialStyle))
+    private val _state = MutableStateFlow(
+        CreateState(kind, probing = uri.isNotBlank(), director = settings.settings.value.director, styleId = initialStyle?.let(::languageOf), hasMedia = uri.isNotBlank()),
+    )
     val state: StateFlow<CreateState> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        if (uri.isNotBlank()) viewModelScope.launch {
             val info = runCatching { probe.probe(MediaUri(uri)) }
             _state.update { it.copy(probing = false, info = info.getOrNull(), probeError = info.exceptionOrNull()?.message) }
         }
@@ -85,6 +99,30 @@ class CreateViewModel(
     fun setDirector(backend: DirectorBackend) = _state.update { it.copy(director = backend) }
 
     fun setAspect(aspect: AspectRatio) = _state.update { it.copy(aspect = aspect) }
+
+    fun setExpert(expert: Boolean) = _state.update { it.copy(expert = expert) }
+
+    /** Adds what the user typed as a glossary chip; duplicates and blanks are ignored. */
+    fun addTerm(raw: String) {
+        val term = raw.trim()
+        if (term.isEmpty()) return
+        _state.update { s -> if (s.glossary.any { it.equals(term, ignoreCase = true) }) s else s.copy(glossary = s.glossary + term) }
+    }
+
+    fun removeTerm(term: String) = _state.update { s -> s.copy(glossary = s.glossary - term) }
+
+    fun attach(kind: AttachmentKind) {
+        viewModelScope.launch {
+            val picked = attachmentPicker.pick(kind) ?: return@launch
+            _state.update { s -> s.copy(attachments = s.attachments + picked) }
+        }
+    }
+
+    fun detach(id: String) = _state.update { s -> s.copy(attachments = s.attachments.filterNot { it.id == id }) }
+
+    fun setCaption(id: String, caption: String) = _state.update { s ->
+        s.copy(attachments = s.attachments.map { if (it.id == id) it.copy(caption = caption) else it })
+    }
 
     /**
      * "Improve prompt": turns a short wish into a complete brief the Director can follow, keeping
@@ -120,8 +158,9 @@ class CreateViewModel(
                 createdAt = now,
                 updatedAt = now,
                 input = input,
-                prompt = s.prompt.trim(),
-                styleId = s.styleId ?: s.brief.styleId,
+                prompt = s.enginePrompt,
+                // The build pipeline still reads picker packs; the style language names its pack.
+                styleId = s.styleId?.let { id -> StyleBook.all.firstOrNull { it.id == id }?.pack ?: id } ?: s.brief.styleId,
                 director = s.director,
             )
             projects.save(project)
@@ -129,6 +168,9 @@ class CreateViewModel(
             onCreated(project.id)
         }
     }
+
+    /** A gallery pack id ("brutalism") or a language id ("bold-brutalist") as the language id. */
+    private fun languageOf(id: String): String = StyleBook.all.firstOrNull { it.pack == id }?.id ?: id
 
     private fun titleFrom(prompt: String, kind: MediaKind): String {
         val words = prompt.trim().split(Regex("\\s+")).filter { it.isNotBlank() }

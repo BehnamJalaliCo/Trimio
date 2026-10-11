@@ -215,7 +215,8 @@ class AssetReader(private val eyes: LanguageModel? = null) {
                     val r = img.rgb[p * 3].toInt() and 0xFF
                     val g = img.rgb[p * 3 + 1].toInt() and 0xFF
                     val b = img.rgb[p * 3 + 2].toInt() and 0xFF
-                    bins.merge((r shr 4) shl 8 or ((g shr 4) shl 4) or (b shr 4), 1, Int::plus)
+                    val bin = (r shr 4) shl 8 or ((g shr 4) shl 4) or (b shr 4)
+                    bins[bin] = (bins[bin] ?: 0) + 1
                     luma += (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f
                     inked++
                 }

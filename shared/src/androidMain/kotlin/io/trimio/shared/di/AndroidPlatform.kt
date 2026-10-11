@@ -30,9 +30,18 @@ import io.trimio.engine.llm.local.LocalModels
 import io.trimio.engine.media.AndroidAudioDecoder
 import io.trimio.engine.media.AndroidMediaProbe
 import io.trimio.engine.media.MediaProbe
+import io.trimio.engine.models.DeviceMemory
 import io.trimio.engine.models.ModelKind
 import io.trimio.engine.models.ModelManager
 import io.trimio.engine.models.ModelStore
+import io.trimio.engine.autopilot.WebKnowledge
+import io.trimio.engine.production.AndroidProductionPlatform
+import io.trimio.engine.production.AppProductionRunner
+import io.trimio.engine.production.AutoEditor
+import io.trimio.engine.production.Checkpoints
+import io.trimio.engine.production.LocalDirectors
+import io.trimio.engine.production.ProductionService
+import io.trimio.engine.production.Productions
 import io.trimio.engine.render.AndroidVideoExporter
 import io.trimio.engine.render.ExportRequest
 import io.trimio.engine.render.MediaStorePublisher
@@ -78,6 +87,27 @@ fun androidPlatformModule(
     single { HttpClient(OkHttp) }
     single { ClaudeFactory { key, model -> ClaudeLanguageModel(key, model) } }
     single { DownloadHooks { active -> if (active) onDownloadsStarted() } }
+    // The automatic engine (phase 7.1): whisper.cpp, the installed director, MediaCodec export.
+    single { Checkpoints(Path(File(app.filesDir, "productions").absolutePath)) }
+    single<AutoEditor> {
+        val settings = get<SettingsRepository>()
+        val models = get<ModelManager>()
+        val store = ModelStore(get<AppPaths>().models, get())
+        val device = DeviceMemory.phone(get<DeviceInfo>().ramGb)
+        // Built per run: the catalogue and the user's picks may change between runs.
+        fun directors() = LocalDirectors(
+            store, device, models.catalog, preferred = { settings.settings.value.localModelId }, cloud = { get<CloudModels>().firstAvailable() },
+        )
+        val recognizer = directors().recognizer { settings.settings.value.speechModelId }
+        Productions(
+            AndroidProductionPlatform(app, { recognizer }, { choice -> directors().director(choice) }, device.tier),
+            get(), WebKnowledge(get()),
+            threads = { get<DeviceProfile>().threadsFor(get<ThermalMonitor>().level.value) },
+        )
+    }
+    // The foreground service finds the runner here when the system restarts it after killing the process.
+    ProductionService.runner = { org.koin.core.context.GlobalContext.get().get<AppProductionRunner>() }
+    // Legacy pipelines for JobRunner (the screens not yet moved to the production runner).
     single<PipelineFactory> {
         val settings = get<SettingsRepository>()
         val models = get<ModelManager>()

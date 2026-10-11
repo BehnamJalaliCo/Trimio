@@ -7,6 +7,7 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import io.trimio.core.model.tools.MediaTools
 import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.MediaSource
 import io.trimio.engine.motion.MotionFonts
@@ -40,9 +41,14 @@ data class Delivery(
     fun videoArgs(fps: Int): List<String> = listOf(
         // 16-bit RGB in, converted once to 8-bit 4:2:0 with the BT.709 matrix and dithering.
         "-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp,format=yuv420p",
-        "-c:v", "libx264", "-preset", preset, "-crf", "$crf", "-maxrate", "${maxrateMbps}M", "-bufsize", "${maxrateMbps * 2}M",
-        "-profile:v", "high", "-level:v", "4.2", "-g", "${fps * 2}", "-keyint_min", "$fps", "-sc_threshold", "0",
-        "-x264-params", "aq-mode=3:deblock=-1,-1",
+    ) + MediaTools.h264(
+        listOf(
+            "-c:v", "libx264", "-preset", preset, "-crf", "$crf", "-maxrate", "${maxrateMbps}M", "-bufsize", "${maxrateMbps * 2}M",
+            "-profile:v", "high", "-level:v", "4.2", "-g", "${fps * 2}", "-keyint_min", "$fps", "-sc_threshold", "0",
+            "-x264-params", "aq-mode=3:deblock=-1,-1",
+        ),
+        maxrateMbps, gop = fps * 2,
+    ) + listOf(
         "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
     )
 
@@ -136,7 +142,7 @@ class MotionExporter(
         val fps = composition.fps
         val frames = Frames(composition, media())
         val process = ProcessBuilder(
-            listOf("ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba64le", "-s", "${composition.width}x${composition.height}", "-r", "$fps", "-i", "-") +
+            listOf(MediaTools.ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba64le", "-s", "${composition.width}x${composition.height}", "-r", "$fps", "-i", "-") +
                 delivery.videoArgs(fps) + listOf("-threads", "2", "-an", part.absolutePath),
         ).redirectErrorStream(true).start()
         val stdin = process.outputStream.buffered(1 shl 22)
@@ -157,7 +163,7 @@ class MotionExporter(
         val list = File(file.absoluteFile.parentFile, ".${file.name}.parts.txt")
         list.writeText(parts.joinToString("\n") { "file '${it.absolutePath}'" })
         val cmd = buildList {
-            addAll(listOf("ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list.absolutePath))
+            addAll(listOf(MediaTools.ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list.absolutePath))
             if (audio != null) addAll(listOf("-i", audio.absolutePath))
             addAll(listOf("-map", "0:v"))
             if (audio != null) addAll(listOf("-map", "1:a", "-c:a", "aac", "-b:a", "${delivery.audioKbps}k", "-ar", "48000", "-shortest"))

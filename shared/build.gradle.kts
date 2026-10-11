@@ -33,6 +33,7 @@ kotlin {
             api(projects.engine.assets)
             api(projects.engine.render)
             api(projects.engine.styles)
+            api(projects.engine.production)
             api(libs.koin.core)
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.androidx.lifecycle.viewmodel.compose)

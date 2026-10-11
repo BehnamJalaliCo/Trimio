@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.text.Language
+import io.trimio.core.model.tools.MediaTools
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.asr.whisper.WhisperCppRecognizer
@@ -103,7 +104,7 @@ class Studio(
 /** ffmpeg-backed media helpers. */
 object Media {
     fun audio(file: File, rate: Int): PcmAudio {
-        val p = ProcessBuilder("ffmpeg", "-loglevel", "error", "-i", file.absolutePath, "-vn", "-ac", "1", "-ar", "$rate", "-f", "f32le", "-")
+        val p = ProcessBuilder(MediaTools.ffmpeg, "-loglevel", "error", "-i", file.absolutePath, "-vn", "-ac", "1", "-ar", "$rate", "-f", "f32le", "-")
             .redirectError(ProcessBuilder.Redirect.DISCARD).start()
         val bytes = p.inputStream.readBytes()
         p.waitFor()
@@ -125,7 +126,7 @@ object Media {
         return (1..count).mapNotNull { k ->
             val t = duration * k / (count + 1f)
             val p = ProcessBuilder(
-                "ffmpeg", "-loglevel", "error", "-ss", "%.2f".format(t), "-i", file.absolutePath, "-frames:v", "1",
+                MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.2f".format(t), "-i", file.absolutePath, "-frames:v", "1",
                 "-vf", "scale=$width:$h", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
             ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
             val bytes = p.inputStream.readBytes()
@@ -135,7 +136,7 @@ object Media {
     }
 
     fun duration(file: File): Float {
-        val p = ProcessBuilder("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file.absolutePath).start()
+        val p = ProcessBuilder(MediaTools.ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file.absolutePath).start()
         val out = p.inputStream.bufferedReader().readText().trim()
         p.waitFor()
         return out.toFloatOrNull() ?: 0f

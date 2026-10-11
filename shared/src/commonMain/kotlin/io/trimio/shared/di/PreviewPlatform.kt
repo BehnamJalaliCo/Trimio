@@ -22,6 +22,9 @@ import io.trimio.engine.render.SampleTimelines
 import io.trimio.engine.llm.MemorySecretStore
 import io.trimio.engine.llm.SecretStore
 import io.trimio.engine.media.MediaProbe
+import io.trimio.engine.production.AutoEditor
+import io.trimio.engine.production.Checkpoints
+import io.trimio.engine.production.SimulatedAutoEditor
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -47,6 +50,8 @@ fun previewPlatformModule(platform: String, picker: MediaPicker = MediaPicker { 
         }
     }
     single { HttpClient() }
+    single<AutoEditor> { SimulatedAutoEditor() }
+    single { Checkpoints.None }
     single<PipelineFactory> {
         object : PipelineFactory {
             override fun build() = PipelineOrchestrator(DemoPipeline.stages().map { if (it.id == StageId.Direction) SampleDirection(it) else it })

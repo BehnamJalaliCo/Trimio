@@ -8,6 +8,7 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import io.trimio.core.model.tools.MediaTools
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.EncodedImageFormat
@@ -49,13 +50,16 @@ class DesktopRenderer(val width: Int, val height: Int) {
 class FfmpegVideoWriter(output: File, width: Int, height: Int, fps: Int, audio: File? = null) : AutoCloseable {
     private val process: Process = ProcessBuilder(
         buildList {
-            addAll(listOf("ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", "${width}x$height", "-r", "$fps", "-i", "-"))
+            addAll(listOf(MediaTools.ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", "${width}x$height", "-r", "$fps", "-i", "-"))
             if (audio != null) addAll(listOf("-i", audio.absolutePath, "-c:a", "aac", "-b:a", "192k", "-shortest"))
             // BT.709 conversion and tags, closed 1 s GOPs, near-transparent quality (research P0).
             addAll(
                 listOf(
                     "-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p",
-                    "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-maxrate", "20M", "-bufsize", "40M", "-profile:v", "high", "-g", "$fps",
+                ) + MediaTools.h264(
+                    listOf("-c:v", "libx264", "-preset", "medium", "-crf", "16", "-maxrate", "20M", "-bufsize", "40M", "-profile:v", "high", "-g", "$fps"),
+                    maxrateMbps = 20, gop = fps,
+                ) + listOf(
                     "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv", "-movflags", "+faststart", output.absolutePath,
                 ),
             )
@@ -72,6 +76,6 @@ class FfmpegVideoWriter(output: File, width: Int, height: Int, fps: Int, audio: 
     }
 
     companion object {
-        fun isAvailable(): Boolean = runCatching { ProcessBuilder("ffmpeg", "-version").start().waitFor() == 0 }.getOrDefault(false)
+        fun isAvailable(): Boolean = runCatching { ProcessBuilder(MediaTools.ffmpeg, "-version").start().waitFor() == 0 }.getOrDefault(false)
     }
 }

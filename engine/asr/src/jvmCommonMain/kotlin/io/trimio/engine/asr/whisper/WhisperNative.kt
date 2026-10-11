@@ -32,16 +32,30 @@ internal object WhisperNative {
 /**
  * Loads bundled native libraries. Android finds them in the APK; desktop and tests point
  * `-Dtrimio.native.dir` at the host build output.
+ *
+ * The packaged desktop app ships variants side by side (`<dir>/vulkan`, `<dir>/cpu`) and lists
+ * them in `-Dtrimio.native.variants`, best first: a GPU build fails to load where its runtime
+ * (vulkan-1.dll) is missing, and the next variant is tried. The flat directory comes last.
  */
 object NativeLibraries {
-    private val loaded = mutableSetOf<String>()
+    private val loaded = mutableMapOf<String, String>()
 
+    /** Loads [name]; returns the variant that loaded ("" for the flat directory or the system path). */
     @Synchronized
-    fun load(name: String) {
-        if (name in loaded) return
+    fun load(name: String): String {
+        loaded[name]?.let { return it }
         val dir = System.getProperty("trimio.native.dir")
-        val file = dir?.let { d -> listOf("lib$name.so", "lib$name.dylib", "$name.dll").map { File(d, it) }.firstOrNull { it.isFile } }
-        if (file != null) System.load(file.absolutePath) else System.loadLibrary(name)
-        loaded += name
+        val variants = System.getProperty("trimio.native.variants").orEmpty().split(',').map(String::trim).filter(String::isNotEmpty) + ""
+        var failure: Throwable? = null
+        for (variant in variants) {
+            val file = dir?.let { d -> fileNames(name).map { File(File(d, variant), it) }.firstOrNull { it.isFile } } ?: continue
+            val ok = runCatching { System.load(file.absolutePath) }.onFailure { failure = it }.isSuccess
+            if (ok) return variant.also { loaded[name] = it }
+        }
+        failure?.takeIf { dir != null }?.let { throw it }
+        System.loadLibrary(name)
+        return "".also { loaded[name] = it }
     }
+
+    private fun fileNames(name: String) = listOf("lib$name.so", "lib$name.dylib", "$name.dll")
 }

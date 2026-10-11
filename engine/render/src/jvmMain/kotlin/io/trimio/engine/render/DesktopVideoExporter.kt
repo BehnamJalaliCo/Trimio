@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import io.trimio.core.model.input.InputSource
+import io.trimio.core.model.tools.MediaTools
 import io.trimio.engine.media.WavCodec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -86,7 +87,7 @@ class DesktopVideoExporter(private val fonts: androidx.compose.ui.text.font.Font
         private fun openNext(): DataInputStream? {
             val seg = segments.removeFirstOrNull() ?: return null
             val p = ProcessBuilder(
-                "ffmpeg", "-loglevel", "error", "-ss", "%.3f".format(seg.startMs / 1000.0), "-t", "%.3f".format(seg.durationMs / 1000.0),
+                MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.3f".format(seg.startMs / 1000.0), "-t", "%.3f".format(seg.durationMs / 1000.0),
                 "-i", path, "-an", "-vf", "scale=$w:$h:force_original_aspect_ratio=increase,crop=$w:$h,fps=${request.fps}",
                 "-f", "rawvideo", "-pix_fmt", "bgra", "-",
             ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
