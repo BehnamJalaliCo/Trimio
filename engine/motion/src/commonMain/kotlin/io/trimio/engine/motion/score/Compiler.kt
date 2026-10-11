@@ -10,6 +10,7 @@ import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.Easing
 import io.trimio.engine.motion.Effect
 import io.trimio.engine.motion.EffectNode
+import io.trimio.engine.motion.Filter
 import io.trimio.engine.motion.Fit
 import io.trimio.engine.motion.Grade
 import io.trimio.engine.motion.Group
@@ -186,11 +187,7 @@ class Compiler(
                 EffectNode(Effect.Vignette((look.vignette * texture).anim)),
                 EffectNode(Effect.Grain(look.grain * texture)).takeIf { look.grain > 0f },
             )
-            // The look's lens over everything; "glitch" and "ripple" cuts distort the whole frame around the cut.
-            val cuts = Stages.cuts(scenes.indices.mapNotNull { k -> entering(k)?.let { it to sceneStarts[k] } })
-            val root = cuts.fold(Group(base() + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root", filter = Stages.lens(look))) { inner, f ->
-                Group(listOf(inner), name = "cut-${f.family.id}", filter = f)
-            }
+            val root = Group(picture(base(), "footage") + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx)
             val placed = (beats + captionBeats).sortedBy { it.cue.at }.map {
@@ -280,22 +277,37 @@ class Compiler(
             }
         }
 
+        /**
+         * The look's lens and the distortion of "glitch" and "ripple" cuts. They bend the picture
+         * only (footage, stages): text is drawn over it sharp, since in Persian a softened dot is
+         * another letter.
+         */
+        private val pictureFilters: List<Filter> by lazy {
+            listOfNotNull(Stages.lens(look)) + Stages.cuts(scenes.indices.mapNotNull { k -> entering(k)?.let { it to sceneStarts[k] } })
+        }
+
+        /** Picture layers [nodes] inside the picture filters (nested, one off-screen each). */
+        private fun picture(nodes: List<Node>, name: String): List<Node> = if (nodes.isEmpty() || pictureFilters.isEmpty()) nodes else listOf(
+            pictureFilters.fold(Group(nodes, name = name)) { inner, f -> Group(listOf(inner), name = "$name-${f.family.id}", filter = f) },
+        )
+
         /** A scene: its background from the cut, its beats, and its transition moves. */
         private fun sceneGroup(k: Int, built: Map<Beat, Built>, transitions: MutableList<Node>, sfx: MutableList<Sfx>): Group {
             val scene = scenes[k]
             val s = sceneStarts[k]
             val e = sceneEnds[k]
-            val nodes = mutableListOf<Node>()
+            val bg = mutableListOf<Node>()
             // Backgrounds exist only from the cut: before it, the previous scene is still on screen.
             when (sceneBg(scene, input)) {
                 // Over footage a graphic scene needs its own stage; without footage the base already is one.
-                "aurora" -> if (input.footage != null) nodes += EffectNode(Stages.background(look, stage(look), k + 1), start = s)
+                "aurora" -> if (input.footage != null) bg += EffectNode(Stages.background(look, stage(look), k + 1), start = s)
                 "grid" -> {
-                    nodes += EffectNode(Stages.background(look, stage(look), k + 1), start = s)
-                    nodes += EffectNode(Effect.Grid(w / 9f, look.ink, 0.05f.anim), start = s)
+                    bg += EffectNode(Stages.background(look, stage(look), k + 1), start = s)
+                    bg += EffectNode(Effect.Grid(w / 9f, look.ink, 0.05f.anim), start = s)
                 }
-                "plain" -> nodes += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
+                "plain" -> bg += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
             }
+            val nodes = picture(bg, "stage-$k").toMutableList()
             built.filterKeys { it.scene == k }.values.forEach { nodes += it.nodes }
             val enter = entering(k)
             val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat(), look.settle)

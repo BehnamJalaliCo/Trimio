@@ -13,7 +13,7 @@ import io.trimio.engine.motion.ShaderFamily
  * Where the shader families meet the looks. A look names its stage ([Look.backdrop], which a
  * style's `background` sets: "glow", "leaks", "bokeh", "dust", "liquid", or a loose alias) and
  * its lens ([Look.lens]: "halation", "lens", "chromatic"); the compiler asks here for the stage,
- * the lens over the whole piece and the distortion of a "glitch" or "ripple" cut, and recipes
+ * the lens over the picture and the distortion of a "glitch" or "ripple" cut, and recipes
  * ask for the frosted glass behind their cards.
  */
 object Stages {
@@ -30,7 +30,7 @@ object Stages {
     /** A graphic scene's background: the look's shader stage, else the aurora in [colors]. */
     fun background(look: Look, colors: List<Color>, seed: Int): Effect = shader(look) ?: Effect.Aurora(colors, seed = seed)
 
-    /** The look's lens over the whole piece (film halation, a wide lens, a chromatic edge), or null. */
+    /** The look's lens over the picture (film halation, a wide lens, a chromatic edge), never over text; or null. */
     fun lens(look: Look): Filter? = ShaderFamily.named(look.lens)?.takeIf { it.filter }?.let { Filter(it, LENS_AMOUNT.let(Anim::Const)) }
 
     /**

@@ -103,6 +103,60 @@ class ShaderFxTest {
         }
     }
 
+    /** Grey levels 0..1 of a rendered frame (N32: B, G, R, A per pixel), as luminance-ish averages. */
+    private fun grey(img: org.jetbrains.skia.Image): FloatArray {
+        val bmp = org.jetbrains.skia.Bitmap().apply { allocN32Pixels(img.width, img.height) }
+        img.readPixels(bmp)
+        val px = bmp.readPixels()!!
+        return FloatArray(img.width * img.height) { i -> ((px[i * 4].toInt() and 0xFF) + (px[i * 4 + 1].toInt() and 0xFF) + (px[i * 4 + 2].toInt() and 0xFF)) / 765f }
+    }
+
+    /**
+     * Dots are letters in Persian: a dotted word («مخصوص پیج تتر») over footage under every filter
+     * keeps its glyph pixels exactly as in the unfiltered frame — the filters bend the picture,
+     * never the text drawn over it.
+     */
+    @Test
+    fun dottedPersianTextStaysSharpOverEveryFilter() {
+        val word = TextNode(
+            "مخصوص پیج تتر", Look.Noir.headline.at(120f), androidx.compose.ui.graphics.Color.White.fill(), maxWidth = 1000f,
+            transform = Transform(x = 540f.anim, y = 420f.anim), name = "word",
+        )
+        fun frame(filter: Filter?, text: Boolean): FloatArray {
+            val footage = MediaNode("speaker", 1080f, 1920f, transform = Transform(x = 540f.anim, y = 960f.anim))
+            val root = Group(listOf(Group(listOf(footage), filter = filter)) + listOfNotNull(word.takeIf { text }))
+            return MotionTestKit(Composition(1080, 1920, 30, 2f, Look.Noir.canvas, root, shutterAngle = 0f), MediaSource { _, _ -> room }).draw(1f).use(::grey)
+        }
+        val plain = frame(null, text = true)
+        val bare = frame(null, text = false)
+        // Glyph interiors: where the text changes the picture strongly, and so do its four neighbours
+        // (antialiased rims blend with the bent picture behind them and may differ).
+        val ink = BooleanArray(plain.size) { kotlin.math.abs(plain[it] - bare[it]) > 0.35f }
+        val glyph = plain.indices.filter { i -> i > 1080 && i < plain.size - 1080 && ink[i] && ink[i - 1] && ink[i + 1] && ink[i - 1080] && ink[i + 1080] }
+        assertTrue(glyph.size > 2000, "the word is on screen")
+        for (f in filters) {
+            val bent = frame(Filter(f, 1f.anim, progress = 0.4f.anim), text = true)
+            val off = glyph.count { kotlin.math.abs(bent[it] - plain[it]) > 0.02f }
+            assertTrue(off < glyph.size / 200, "${f.id}: $off of ${glyph.size} glyph pixels changed")
+        }
+    }
+
+    /** In compiled pieces no text, caption or number sits under a filter: lenses and cuts bend footage and stages only. */
+    @Test
+    fun compiledFiltersNeverCoverText() {
+        fun covered(n: Node, filtered: Boolean): List<String> = when (n) {
+            is Group -> n.children.flatMap { covered(it, filtered || n.filter != null) }
+            is TextNode, is CounterNode -> if (filtered) listOf(n.name) else emptyList()
+            else -> emptyList()
+        }
+        for (f in filters) {
+            val cut = f == ShaderFamily.Glitch || f == ShaderFamily.Ripple
+            val root = kit(footageScore(if (cut) null else f.id, if (cut) f.id else null), footage = true, duration = 4.2f).composition.root
+            assertTrue(covered(root, false).isEmpty(), "${f.id} covers ${covered(root, false)}")
+            assertTrue(root.children.any { it is Group && it.name.startsWith("footage") }, "${f.id} bends the footage")
+        }
+    }
+
     /** Milliseconds per 1080×1920 frame (mean of [n] after a warm-up). */
     private fun cost(k: MotionTestKit, from: Float, n: Int = 8): Double {
         k.draw(from).close()

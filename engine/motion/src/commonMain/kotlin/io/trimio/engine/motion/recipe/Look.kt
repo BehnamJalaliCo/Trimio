@@ -59,7 +59,7 @@ data class Look(
      * drifting aurora. Cards on a shader stage sit on frosted glass ([Stages.glass]).
      */
     val backdrop: String? = null,
-    /** A distortion over the whole piece ("halation" for film, "lens", "chromatic"), or null. */
+    /** A distortion of the picture (footage, stages; never text): "halation" for film, "lens", "chromatic"; or null. */
     val lens: String? = null,
     /** The footage grade; null keeps the compiler's grade for the original three looks. */
     val grade: Grade? = null,
