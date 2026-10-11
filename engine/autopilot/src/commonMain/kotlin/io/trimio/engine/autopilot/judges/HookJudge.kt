@@ -90,9 +90,17 @@ class HookJudge(
     override fun revise(c: Jury.Context, verdict: Verdict): Score? {
         val graphics = Bench.graphics(c)
         val missing = graphics.none { it.at <= hookBy } || verdict.findings.any { "empty stage" in it.what }
+        if (!missing && verdict.findings.any { "thumbnail" in it.what }) return earlier(c, graphics)
         if (!missing || c.score.scenes.isEmpty()) return null
         val text = phrase(c) ?: return null
         return Bench.addBeat(c.score, 0, BeatScore(recipe = "slam", text = text, time = HOOK_AT, hold = HOOK_HOLD, energy = 0.9f, place = "top"))
+    }
+
+    /** The hook is there, just late for the first frame: bring it forward to land on it. */
+    private fun earlier(c: Jury.Context, graphics: List<Compiler.Placed>): Score? {
+        val first = graphics.minByOrNull { it.at }
+        val at = first?.let { Bench.locate(c.score, c.words, it) } ?: return null
+        return Bench.mapBeat(c.score, at) { it.copy(time = HOOK_AT, at = null) }.takeIf { it != c.score }
     }
 
     /** The hook's words: the model's hook title when it is said, else the first line's most stressed phrase. */
