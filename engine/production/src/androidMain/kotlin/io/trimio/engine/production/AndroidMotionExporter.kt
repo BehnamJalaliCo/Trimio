@@ -227,16 +227,16 @@ class AndroidMotionExporter(private val context: Context) {
         }
     }
 
-    private companion object {
-        const val US = 1_000_000L
-        const val TIMEOUT_US = 10_000L
-        const val END_TIMEOUT_US = 100_000L
-        const val CHUNK = 4096
-        const val PCM_MAX = 32_767f
-        const val AUDIO_BITRATE = 192_000
+    companion object {
+        private const val US = 1_000_000L
+        private const val TIMEOUT_US = 10_000L
+        private const val END_TIMEOUT_US = 100_000L
+        private const val CHUNK = 4096
+        private const val PCM_MAX = 32_767f
+        private const val AUDIO_BITRATE = 192_000
 
         /** About 0.27 bits a pixel at 30 fps: 16 Mbps for 1080×1920, generous for graphics edges; up to 80 Mbps for 4K60. */
-        fun bitrate(w: Int, h: Int, fps: Int): Int = (w.toLong() * h * fps * 27 / 100).coerceIn(4_000_000L, 80_000_000L).toInt()
+        private fun bitrate(w: Int, h: Int, fps: Int): Int = (w.toLong() * h * fps * 27 / 100).coerceIn(4_000_000L, 80_000_000L).toInt()
 
         private fun even(v: Float): Int = ((v / 2f).roundToInt() * 2).coerceAtLeast(2)
 

@@ -104,7 +104,7 @@ internal fun Modifier.slideUp(e: Entrance, delay: Int, duration: Int): Modifier 
 
 /**
  * The display style at its board size, or smaller so the longest of [lines] fits in [width]
- * (English words run longer than Persian ones; large font scales too). Never wraps a hero line.
+ * (English words run longer than Persian ones; so does large system text). Never wraps a hero line.
  */
 @Composable
 internal fun fittedHero(lines: List<String>, style: TextStyle, width: Dp): TextStyle {

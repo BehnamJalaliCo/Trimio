@@ -119,7 +119,7 @@ class StudioScreenshotTest {
         shoot("home-projects-en-wide", Language.English, width = 1280, height = 800, density = 1.5f) { StudioScreen(home(projectsEn), HomeActions()) }
     }
 
-    /** Accessibility: the largest common font scale must not break the layout. */
+    /** Accessibility: the largest common system text size must not break the layout. */
     @Test
     fun homeLargeFont() = shoot("home-projects-fa-font160", fontScale = 1.6f) { StudioScreen(home(projectsFa), HomeActions()) }
 
