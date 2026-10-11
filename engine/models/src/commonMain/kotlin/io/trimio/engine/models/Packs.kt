@@ -5,7 +5,6 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readRemaining
-import kotlinx.coroutines.CancellationException
 import kotlinx.io.buffered
 import kotlinx.io.files.FileSystem
 import kotlinx.io.files.Path
@@ -59,6 +58,10 @@ class PackSignatureException(message: String) : Exception(message)
 /** The payload is not the signed one (size or hash), or its container is malformed; it was discarded. */
 class PackIntegrityException(message: String) : Exception(message)
 
+private fun untrusted(message: String): Nothing = throw PackSignatureException(message)
+
+private fun broken(message: String): Nothing = throw PackIntegrityException(message)
+
 /**
  * The pack container (`.tpk`): `TPK1`, a file count, then per file a UTF-8 path (u16 length), a
  * u64 size and the bytes. Deliberately tiny: no compression (audio and models are already
@@ -82,19 +85,19 @@ object PackArchive {
 
     fun read(data: ByteArray): Map<String, ByteArray> {
         var p = 0
-        fun need(n: Long) { if (n < 0 || p + n > data.size) throw PackIntegrityException("truncated pack") }
+        fun need(n: Long) { if (n < 0 || p + n > data.size) broken("truncated pack") }
         fun int(n: Int): Long { need(n.toLong()); var v = 0L; repeat(n) { v = (v shl 8) or (data[p++].toLong() and 0xff) }; return v }
         need(4)
-        if (!data.copyOfRange(0, 4).contentEquals(MAGIC)) throw PackIntegrityException("not a pack")
+        if (!data.copyOfRange(0, 4).contentEquals(MAGIC)) broken("not a pack")
         p = 4
         val count = int(4)
-        if (count > MAX_FILES) throw PackIntegrityException("too many files")
+        if (count > MAX_FILES) broken("too many files")
         val files = LinkedHashMap<String, ByteArray>()
         repeat(count.toInt()) {
             val len = int(2).toInt()
             need(len.toLong())
             val name = data.copyOfRange(p, p + len).decodeToString().also { p += len }
-            if (!safe(name)) throw PackIntegrityException("unsafe path $name")
+            if (!safe(name)) broken("unsafe path $name")
             val size = int(8)
             need(size)
             files[name] = data.copyOfRange(p, p + size.toInt()).also { p += size.toInt() }
@@ -140,20 +143,20 @@ class PackStore(
 
     /** Verifies [manifest] without touching the network or the disk. */
     fun verify(manifest: PackManifest) {
-        val key = keys[manifest.keyId] ?: throw PackSignatureException("${manifest.id}: unknown key ${manifest.keyId}")
-        val sig = hex(manifest.signature) ?: throw PackSignatureException("${manifest.id}: malformed signature")
-        if (!Ed25519.verify(key, manifest.signedBytes(), sig)) throw PackSignatureException("${manifest.id}: bad signature")
+        val key = keys[manifest.keyId] ?: untrusted("${manifest.id}: unknown key ${manifest.keyId}")
+        val sig = hex(manifest.signature) ?: untrusted("${manifest.id}: malformed signature")
+        if (!Ed25519.verify(key, manifest.signedBytes(), sig)) untrusted("${manifest.id}: bad signature")
     }
 
     /** Installs [manifest] (a no-op when it is already active); returns the active folder. */
     suspend fun install(manifest: PackManifest): Path {
         verify(manifest)
-        if (manifest.minApp > appBuild) throw PackSignatureException("${manifest.id}: needs app build ${manifest.minApp}")
-        if (!PackArchive.safe(manifest.id) || '/' in manifest.id) throw PackIntegrityException("bad pack id ${manifest.id}")
+        if (manifest.minApp > appBuild) untrusted("${manifest.id}: needs app build ${manifest.minApp}")
+        if (!PackArchive.safe(manifest.id) || '/' in manifest.id) broken("bad pack id ${manifest.id}")
         val current = state()[manifest.id]
         if (current != null) {
             if (current.manifest.version == manifest.version && current.manifest.sha256.equals(manifest.sha256, true)) return activeDir(manifest.id)!!
-            if (manifest.version <= current.manifest.version) throw PackSignatureException("${manifest.id}: v${manifest.version} is not newer than v${current.manifest.version}")
+            if (manifest.version <= current.manifest.version) untrusted("${manifest.id}: v${manifest.version} is not newer than v${current.manifest.version}")
         }
         val payload = fetch(manifest)
         val files = PackArchive.read(payload)
@@ -191,24 +194,26 @@ class PackStore(
     }
 
     private suspend fun fetch(m: PackManifest): ByteArray {
-        var last: Exception? = null
+        var last: Exception = PackIntegrityException("${m.id}: no URL")
         for (url in m.urls) {
             try {
                 val bytes = download(url, m.size)
-                if (bytes.size.toLong() != m.size) throw PackIntegrityException("${m.id}: size ${bytes.size}, signed ${m.size}")
-                if (!sha256Hex(bytes).equals(m.sha256, ignoreCase = true)) throw PackIntegrityException("${m.id}: checksum mismatch")
+                if (bytes.size.toLong() != m.size) broken("${m.id}: size ${bytes.size}, signed ${m.size}")
+                if (!sha256Hex(bytes).equals(m.sha256, ignoreCase = true)) broken("${m.id}: checksum mismatch")
                 return bytes
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            } catch (e: PackIntegrityException) {
+                last = e
+            } catch (e: IllegalStateException) {
+                last = e
+            } catch (e: kotlinx.io.IOException) {
                 last = e
             }
         }
-        throw last ?: PackIntegrityException("${m.id}: no URL")
+        throw last
     }
 
     private suspend fun download(url: String, size: Long): ByteArray = client.prepareGet(url).execute { response ->
-        if (!response.status.isSuccess()) throw IllegalStateException("HTTP ${response.status.value} from $url")
+        check(response.status.isSuccess()) { "HTTP ${response.status.value} from $url" }
         val channel = response.bodyAsChannel()
         val out = ArrayList<ByteArray>()
         var have = 0L
@@ -216,7 +221,7 @@ class PackStore(
             val chunk = channel.readRemaining(CHUNK).readByteArray()
             have += chunk.size
             // A server sending more than the signed size is cut off, not buffered.
-            if (have > size) throw PackIntegrityException("payload larger than signed ($size bytes)")
+            if (have > size) broken("payload larger than signed ($size bytes)")
             out += chunk
         }
         val all = ByteArray(have.toInt())

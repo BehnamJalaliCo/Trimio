@@ -213,9 +213,9 @@ class Soundtrack(private val rate: Int = 48_000) {
         val sfx = ProceduralSfx(rate)
         val scale = voicePeak.coerceIn(0.05f, 1f)
         val played = mutableListOf<Float>()
-        for ((i, cue) in cues.sortedBy { it.at }.withIndex()) {
-            if (played.count { cue.at - it < 2f } >= MAX_CUES_PER_2S) continue
-            played += cue.at
+        val sorted = cues.sortedBy { it.at }
+        val kept = sorted.withIndex().filter { (_, cue) -> (played.count { cue.at - it < 2f } < MAX_CUES_PER_2S).also { ok -> if (ok) played += cue.at } }
+        for ((i, cue) in kept) {
             val (base, g) = VOICES.getValue(cue.kind)
             val id = if (base in SfxPalette.CUES) "$base@${palette.id}" else base
             val pcm = sfx.generate(id, seed = i + 1) ?: sfx.generate(base, seed = i + 1) ?: continue

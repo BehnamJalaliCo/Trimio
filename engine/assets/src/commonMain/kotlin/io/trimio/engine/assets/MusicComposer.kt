@@ -96,10 +96,14 @@ class MusicComposer(private val rate: Int = 48_000) {
             val groovy = full || kind == SectionKind.Verse || kind == SectionKind.Build
             if (!groovy) return
             val v = 0.92f + rnd.nextFloat() * 0.08f
-            if (step in groove.kick && kind != SectionKind.Build) kick(at(t), v)
-            // The build keeps a four-on-the-floor pulse, then leaves the last beat before the drop empty.
-            if (kind == SectionKind.Build && step % 4 == 0 && groove.kick.isNotEmpty() && t < arr.drop.orEnd() - grid.period * 0.99) kick(at(t), v * 0.9f)
-            if (step in groove.snare && (full || groove.verseSnare) && kind != SectionKind.Build) clap(at(t), v)
+            if (kind == SectionKind.Build) {
+                // The build keeps a four-on-the-floor pulse, then leaves the last beat before the drop empty.
+                val pulse = step % 4 == 0 && groove.kick.isNotEmpty()
+                if (pulse && t < arr.drop.orEnd() - grid.period * 0.99) kick(at(t), v * 0.9f)
+            } else {
+                if (step in groove.kick) kick(at(t), v)
+                if (step in groove.snare && (full || groove.verseSnare)) clap(at(t), v)
+            }
             hats(kind, step, t)
             if (groove.toms && full && step in TOM_STEPS) tom(at(t), if (step == 0) 1f else 0.7f)
         }
