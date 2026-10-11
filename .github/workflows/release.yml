@@ -1,7 +1,7 @@
 name: Release
 
 # Every change pushed to a working branch becomes a new numbered version, 1.0.N, for Android and
-# Windows together, published as a GitHub release vN with:
+# Windows, published as a GitHub release vN (Android first, the Windows installers added after) with:
 #   trimio-<v>.apk               install directly on the phone (updates the installed app; models stay)
 #   trimio-<v>-play.aab          Google Play upload
 #   trimio-<v>-bazaar.aab/.apk   Cafe Bazaar upload
@@ -89,10 +89,9 @@ jobs:
       version: ${{ needs.version.outputs.name }}
     secrets: inherit
 
+  # Android ships as soon as it is built; the Windows installers join the same release when ready.
   publish:
-    needs: [version, android, windows]
-    # Android alone still ships if the Windows build fails; the release notes say so.
-    if: ${{ always() && needs.android.result == 'success' }}
+    needs: [version, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -100,22 +99,31 @@ jobs:
           name: trimio-android
           path: dist
 
-      - uses: actions/download-artifact@v4
-        if: ${{ needs.windows.result == 'success' }}
-        with:
-          name: trimio-windows-installers
-          path: dist
-
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.name }}
-          WINDOWS: ${{ needs.windows.result }}
         run: |
-          shopt -s nullglob
-          find dist -mindepth 2 -type f \( -name '*.msi' -o -name '*.exe' \) -exec mv {} dist/ \;
-          (cd dist && sha256sum *.apk *.aab *.msi *.exe > SHA256SUMS)
-          NOTES="Trimio $VERSION from ${GITHUB_SHA::7}. Installs over the previous version; downloaded models stay."
-          if [ "$WINDOWS" != "success" ]; then NOTES="$NOTES Windows installers are not in this version (build: $WINDOWS)."; fi
-          gh release create "v$VERSION" dist/*.apk dist/*.aab dist/*.msi dist/*.exe dist/SHA256SUMS \
+          (cd dist && sha256sum *.apk *.aab > SHA256SUMS)
+          NOTES="Trimio $VERSION from ${GITHUB_SHA::7}. Installs over the previous version; downloaded models stay. Windows installers are added when their build finishes."
+          gh release create "v$VERSION" dist/*.apk dist/*.aab dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Trimio $VERSION" --notes "$NOTES"
+
+  publish-windows:
+    needs: [version, windows, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: trimio-windows-installers
+          path: win
+
+      - name: Add the installers to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.name }}
+        run: |
+          find win -type f \( -name '*.msi' -o -name '*.exe' \) -exec mv {} . \;
+          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" -p SHA256SUMS
+          sha256sum *.msi *.exe >> SHA256SUMS
+          gh release upload "v$VERSION" *.msi *.exe SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
