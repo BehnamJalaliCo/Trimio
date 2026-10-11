@@ -56,6 +56,8 @@ class Autopilot(
         /** Reuse an earlier reading (regenerating a variation needs no new understanding). */
         val understanding: Understanding? = null,
         val fps: Int = 30,
+        /** Pictures and clips the creator attached beside the prompt, placed where they are talked about ([UserMedia]). */
+        val assets: List<UserAsset> = emptyList(),
     )
 
     data class Production(
@@ -98,10 +100,13 @@ class Autopilot(
         report += "understand: ${understanding.title} | ${understanding.domain}/${understanding.mood} | hook line ${understanding.hook?.line} | cta ${understanding.cta?.keyword}"
 
         onStage("research", 0.45f)
-        val brandLibrary = research(understanding, report)
+        val brandLibrary = research(understanding, report, Glossary.read(request.prompt).sites.map { it.substringBefore('.') })
+        // The creator's own media: what each one is (the eyes, or the rules), read once for every variation.
+        val persian = transcript.words.count { w -> w.text.any { it in '\u0600'..'\u06FF' } } * 2 > transcript.words.size
+        val readings = AssetReader(eyes).read(request.assets, request.prompt, persian) { report += it }
 
         onStage("plan", 0.55f)
-        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon)
+        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt))
         val first = draft(reading, request.seed, look = true, onStage) { report += it }
         // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
         val d = deliberate(reading, first, onStage, report)
@@ -141,6 +146,7 @@ class Autopilot(
         val understanding: Understanding,
         val brands: BrandLibrary,
         val lexicon: PersianSpelling,
+        val media: UserMedia,
     )
 
     /** One seed's edit, compiled and through the critics. */
@@ -153,6 +159,8 @@ class Autopilot(
         val output: List<Word>,
         val compiler: Compiler,
         val looks: List<VisionCritic.Look>,
+        /** The music composed to this edit; its grid is the score's. */
+        val music: io.trimio.engine.assets.MusicArrangement? = null,
     )
 
     /** Plans, pictures, compiles and critiques the edit of [seed]; the eyes look only when [look] (they are slow). */
@@ -165,14 +173,20 @@ class Autopilot(
         val edit = open?.applyTo(r.cut, COLD_OPEN_GAP) ?: r.cut
         open?.let { log("cold open: «${texts.slice(it.words).joinToString(" ")}» ${round1(it.length)}s") }
         val output = edit.remap(transcript).words
-        val plan = Planner(taste, request.prompt).plan(
+        val planned = Planner(taste, request.prompt).plan(
             output, r.lines, r.understanding, seed, footage = request.footage != null,
             opening = open?.let { Planner.Opening(edit.preludeLength, it.line, it.words) },
         )
-        plan.notes.forEach(log)
+        planned.notes.forEach(log)
+        // The cue is composed to this edit; the score takes its grid, so hits snap to the music's beats.
+        val music = MusicEdit.arrange(planned.music, edit, output, r.lines, r.understanding)
+        val plan = planned.copy(score = MusicEdit.gridded(planned.score, music))
+        music?.let { m -> log("music: ${m.mood.id} at ${round1(m.grid.bpm.toFloat())} bpm, ${m.sections.joinToString(" ") { "${it.kind.name.lowercase()}@${round1(it.from.toFloat())}" }}") }
+        // The creator's pictures and clips at their moments, the brief's sites and terms on screen.
+        val placed = r.media.apply(plan.score, output, r.lines, seed, log)
 
         onStage("pictures", 0.6f)
-        val picked = pictures(plan.score, output, r.lines, log)
+        val picked = pictures(placed, output, r.lines, log)
 
         onStage("compile", 0.75f)
         val compiler = Compiler(text, r.brands, picked.second)
@@ -199,7 +213,7 @@ class Autopilot(
                 log("eyes: edit revised from what was seen")
             }
         }
-        return Draft(seed, plan, score, compiled, edit, output, compiler, looks)
+        return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music)
     }
 
     /**
@@ -216,7 +230,10 @@ class Autopilot(
                 // A late ask's end hold: the edit runs on past the last word (picture and music) for its card.
                 val edit = fix.outro?.let { d.edit.withOutro(it, r.request.voice.samples.size / r.request.voice.sampleRate.toFloat()) } ?: d.edit
                 fix.outro?.let { report += "jury: an end hold of ${round1(it)}s for the call to action" }
-                d.copy(score = fix.score, edit = edit, compiled = compile(d.compiler, fix.score, r.transcript, edit, r.request))
+                // A longer edit is a new cue: its ending moves, and the grid with it.
+                val music = if (edit === d.edit) d.music else MusicEdit.arrange(d.plan.music, edit, d.output, r.lines, r.understanding)
+                val score = if (edit === d.edit) fix.score else MusicEdit.gridded(fix.score, music)
+                d.copy(score = score, edit = edit, music = music, compiled = compile(d.compiler, score, r.transcript, edit, r.request))
             },
             vary = { k -> draft(r, r.request.seed * VARIATION_STRIDE + k, look = false, onStage = { _, _ -> }) { report += "variation $k: $it" } },
             log = { report += it },
@@ -229,16 +246,16 @@ class Autopilot(
     /** What the judges read about [d]; [sound] once it is mastered. */
     private fun context(r: Reading, d: Draft, sound: Soundtrack.Result? = null, levels: Soundtrack.Levels = Soundtrack.Levels()) = Jury.Context(
         compiled = d.compiled, score = d.score, words = d.output, lines = r.lines, understanding = r.understanding, prompt = r.request.prompt,
-        music = d.plan.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.transcript), subject = r.request.subject,
+        music = d.plan.music, arrangement = d.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.transcript), subject = r.request.subject,
         footage = r.request.footage != null, sound = sound, levels = levels, looks = d.looks, lexicon = r.lexicon, measure = measure, voice = r.request.voice,
-        brand = { r.brands.find(it)?.isMonogram == false },
+        brand = { r.brands.find(it)?.isMonogram == false }, assets = r.request.assets.map { it.id },
     )
 
     private val measure = LineMeasure { s, type, maxWidth, rtl -> text.layout(s, type, maxWidth, TextAlign.Center, rtl).lines.size }
 
     private fun master(r: Reading, d: Draft, levels: Soundtrack.Levels): Soundtrack.Result = Soundtrack(r.request.voice.sampleRate).master(
         r.request.voice, d.edit, d.edit.preludeWords(r.transcript) + d.output, d.compiled.composition.duration, d.plan.music,
-        musicSeed = r.request.seed.toInt(), cues = d.compiled.sfx, levels = levels,
+        musicSeed = r.request.seed.toInt(), cues = d.compiled.sfx, levels = levels, arrangement = d.music,
     )
 
     private suspend fun understand(transcript: Transcript, prompt: String, lines: List<Lines.Line>, seed: Long, report: MutableList<String>): Understanding {
@@ -252,8 +269,8 @@ class Autopilot(
     }
 
     /** Marks for named brands the bundled pack lacks, looked up online. */
-    private suspend fun research(u: Understanding, report: MutableList<String>): BrandLibrary {
-        val wanted = (u.entities.filter { it.kind in BRAND_KINDS }.map { it.name } + u.lines.flatMap { it.items })
+    private suspend fun research(u: Understanding, report: MutableList<String>, sites: List<String> = emptyList()): BrandLibrary {
+        val wanted = (u.entities.filter { it.kind in BRAND_KINDS }.map { it.name } + u.lines.flatMap { it.items } + sites)
             .filter { n -> n.any { it in 'A'..'Z' || it in 'a'..'z' } }.distinctBy { BrandLibrary.key(it) }
         val found = wanted.filter { brands.find(it)?.isMonogram != false }.mapNotNull { name -> knowledge.brand(name)?.let { BrandLibrary.key(name) to it } }
         found.forEach { (k, e) -> report += "research: mark for ${e.t} ($k) from Simple Icons" }

@@ -28,10 +28,24 @@ class ProceduralSfx(private val rate: Int = 48_000) {
         Effect("cash", "صدای پول", "Cash register"),
         Effect("glitch", "گلیچ", "Glitch"),
         Effect("rewind", "برگشت", "Rewind"),
+        Effect("swell", "اوج معکوس", "Swell"),
+        Effect("notify", "اعلان", "Notification"),
     )
+
+    private val layered = LayeredSfx(rate)
+
+    /**
+     * [id] is a cue (`whoosh`) or a cue voiced by a style's palette (`whoosh@cinematic`, see
+     * [SfxPalette]): the layered transient + body + tail version.
+     */
 
     fun generate(id: String, seed: Int = 1): PcmAudio? {
         val s = Synth(rate)
+        if ('@' in id) {
+            val palette = SfxPalette.fromId(id.substringAfter('@')) ?: return null
+            val raw = layered.render(id.substringBefore('@'), palette, seed) ?: return null
+            return PcmAudio(Synth.normalize(fadeOut(raw, s)), rate)
+        }
         val samples = when (id) {
             "pop" -> pop(s)
             "click" -> click(s, seed)
@@ -46,6 +60,8 @@ class ProceduralSfx(private val rate: Int = 48_000) {
             "cash" -> cash(s, seed)
             "glitch" -> glitch(s, seed)
             "rewind" -> rewind(s, seed)
+            "swell" -> layered.render("swell", SfxPalette.Soft, seed)!!
+            "notify" -> layered.render("notify", SfxPalette.Luxe, seed)!!
             else -> return null
         }
         return PcmAudio(Synth.normalize(fadeOut(samples, s)), rate)

@@ -1,5 +1,6 @@
 package io.trimio.engine.autopilot.golden
 
+import io.trimio.engine.autopilot.workshop.StyleAxis
 import io.trimio.engine.autopilot.workshop.Workshop
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,14 +13,20 @@ import kotlin.test.assertTrue
  *
  * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' [-Pgolden.only=fa-crypto,en-] [-Pgolden.seeds=1,2]
  * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' -Pgolden.update=true   (stores the baseline)
+ *
+ * The style axis ([StyleAxis]: each of the 28 styles on two or three scenarios, `id~style/seed`)
+ * runs too; `-Pgolden.styles=false` skips it, `-Pgolden.styles=only` runs nothing else, and
+ * `-Pgolden.only` also takes style ids. A new run enters the archive only when unanimous.
  */
 class GoldenArchiveTest {
     @Test
     fun noJudgeScoresLowerThanTheArchive() {
         val seeds = System.getProperty("golden.seeds")?.split(',')?.map { it.trim().toLong() } ?: listOf(1L)
         val only = System.getProperty("golden.only")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
-        val scenarios = Workshop.scenarios().filter { s -> only == null || only.any { s.id.startsWith(it) } }
-        val runs = GoldenArchive.judge(scenarios, seeds)
+        val styles = System.getProperty("golden.styles") ?: "true"
+        val scenarios = Workshop.scenarios().filter { s -> styles != "only" && (only == null || only.any { s.id.startsWith(it) }) }
+        val axis = if (styles == "false") emptyList() else StyleAxis.runs(only).map { (s, style) -> s to style.id }
+        val runs = GoldenArchive.judge(scenarios, seeds) + GoldenArchive.judgeStyles(axis, seeds)
         val current = runs.associate { it.key to it.entry }
         val baseline = GoldenArchive.load()
         val table = GoldenArchive.table(runs, baseline)

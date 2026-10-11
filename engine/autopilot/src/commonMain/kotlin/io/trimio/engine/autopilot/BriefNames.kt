@@ -7,6 +7,10 @@ package io.trimio.engine.autopilot
  * spelling ("Cloud" → Claude, "Chat GPT" → ChatGPT, «نوبیتکس» → Nobitex, «گوگل کلندر» → Google
  * Calendar); a common word of the brief ("News", "make", "with", "charts") is never a target, so
  * "need", "made" and "watch" stay what was said.
+ *
+ * The brief's glossary is heard too: a site said aloud («نوبیتکس دات آی آر», "nobitex dot ir") is the
+ * domain as written (nobitex.ir), and an acronym spelled out letter by letter («آر اس آی», "R S I") is
+ * the acronym (RSI).
  */
 internal class BriefNames(brief: String, private val english: Map<String, Int>) {
 
@@ -15,10 +19,19 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
         (1..minOf(MAX_WORDS, run.size)).flatMap { k -> run.windowed(k) }
     }.distinct()
 
-    private val bySkeleton: Map<String, List<String>> = phrases.groupBy { p -> p.joinToString("") { latinSkeleton(it) } }
-        .mapValues { (_, ps) -> ps.first() }.filterKeys { it.isNotEmpty() }
+    private val bySkeleton: Map<String, List<String>> = phrases.flatMap { p -> skeletons(p).map { it to p } }
+        .groupBy({ it.first }, { it.second }).mapValues { (_, ps) -> ps.first() }.filterKeys { it.isNotEmpty() }
 
     private val single: List<String> = phrases.filter { it.size == 1 }.map { it.first() }
+
+    /** Sites the brief writes (nobitex.ir), by the consonants of the domain said aloud ("nobitex dot ir"). */
+    private val domains: Map<String, String> = single.filter { DOMAIN.matches(it) }
+        .flatMap { d -> listOf(spokenDomain(d), spokenDomain(d).replace(SOFT_G, "j")).map { latinSkeleton(it) to d } }.toMap()
+
+    /** Acronyms the brief writes (RSI, MACD), by their letters' names as a Persian speaker says them. */
+    private val acronyms: List<Pair<Regex, String>> = single.filter { ACRONYM.matches(it) }.map { a ->
+        Regex(a.toList().joinToString("", "^", "$") { c -> LETTER_NAMES[c]?.joinToString("|", "(?:", ")") ?: c.toString() }) to a
+    }
 
     /**
      * A Latin word heard for a single-word name: the same word in another case ("coach" → Coach), or a
@@ -28,6 +41,8 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
     fun respell(heard: String): String? {
         if (!latin(heard)) return null
         single.firstOrNull { it.equals(heard, ignoreCase = true) }?.let { return it.takeIf { n -> n != heard } }
+        // "R.S.I" for RSI: the same letters, dotted.
+        if ('.' in heard) single.firstOrNull { ACRONYM.matches(it) && it.equals(heard.replace(".", ""), ignoreCase = true) }?.let { return it }
         return single.firstOrNull { close(heard.lowercase(), it.lowercase()) }
     }
 
@@ -43,7 +58,26 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
         val a = words[0]
         val b = words.getOrNull(1)
         if (b != null && latin(a) && latin(b)) single.firstOrNull { it.equals(a + b, ignoreCase = true) }?.let { return it to 2 }
+        glossary(words)?.let { return it }
         return (words.size downTo 1).firstNotNullOfOrNull { k -> said(words.subList(0, k), persianCount)?.let { it to k } }
+    }
+
+    /**
+     * A site or an acronym of the brief said in pieces: "nobitex dot ir" (Latin words, one name) or
+     * «آر اس آی» / "R S I" (letter by letter), longest first. Persian domains go through [said].
+     */
+    private fun glossary(words: List<String>): Pair<String, Int>? {
+        if (domains.isEmpty() && acronyms.isEmpty()) return null
+        for (k in words.size downTo 1) {
+            val span = words.subList(0, k)
+            if (k >= 2 && span.all(::latin)) domains[span.joinToString("") { latinSkeleton(it) }]?.let { return it to k }
+            val spelled = span.joinToString("") { Proofreader.key(it) }
+            val letters = k >= 2 || span[0].any { it in '\u0600'..'\u06FF' }
+            if (letters && (span.all(::spoken) || span.all { latin(it) && it.length <= 2 })) {
+                acronyms.firstOrNull { (re, a) -> re.matches(spelled) || spelled == a.lowercase() }?.let { return it.second to k }
+            }
+        }
+        return null
     }
 
     /** The name [span] says in Persian, or null. */
@@ -89,7 +123,7 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
         val mixed = w.any { it.isDigit() } || inner
         val capital = letters.first().isUpperCase() && !sentenceStart
         val unknown = english.isNotEmpty() && w.lowercase() !in english && '-' !in w && w.length >= MIN_NAME
-        return mixed || capital || unknown
+        return mixed || capital || unknown || DOMAIN.matches(w)
     }
 
     private fun close(heard: String, name: String): Boolean {
@@ -111,6 +145,29 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
         private const val MIN_NAME = 3
         private const val MIN_HEARD = 4
         private const val MIN_EVERYDAY = 5
+
+        /** A domain as the brief writes it: nobitex.ir, digikala.com, app.example.io. */
+        val DOMAIN = Regex("(?i)[a-z0-9][a-z0-9-]*(\\.[a-z0-9-]+)*\\.(com|ir|io|net|org|app|ai|co|dev|me|shop|store|xyz|info|tv|gg|so|cc|ly|to|uk|de|fr|eu)")
+        private val ACRONYM = Regex("[A-Z][A-Z0-9]{1,5}")
+        private val SOFT_G = Regex("g(?=[eiy])")
+
+        /** The words a domain is said in: "nobitex.ir" → "nobitex dot ir". */
+        private fun spokenDomain(d: String) = d.lowercase().replace(".", " dot ")
+
+        /** A name's consonant keys: as written, with a soft g said «ج» («دیجی» for Digi), and a domain as said. */
+        private fun skeletons(p: List<String>): Set<String> {
+            val forms = listOf(p, p.map { it.lowercase().replace(SOFT_G, "j") }).flatMap { f -> listOf(f, f.map(::spokenDomain)) }
+            return forms.map { f -> f.joinToString("") { latinSkeleton(it) } }.toSet()
+        }
+
+        /** Letter names in [Proofreader.key] form (sound-alikes merged, «آ» as «ا»): R «آر», S «اس», I «آی». */
+        private val LETTER_NAMES: Map<Char, List<String>> = mapOf(
+            'A' to listOf("ای", "ایی"), 'B' to listOf("بی"), 'C' to listOf("سی"), 'D' to listOf("دی"), 'E' to listOf("ای", "ایی"),
+            'F' to listOf("اف"), 'G' to listOf("جی"), 'H' to listOf("اچ", "ایچ", "هیچ"), 'I' to listOf("ای"), 'J' to listOf("جی"),
+            'K' to listOf("کی"), 'L' to listOf("ال"), 'M' to listOf("ام"), 'N' to listOf("ان"), 'O' to listOf("او"), 'P' to listOf("پی"),
+            'Q' to listOf("کیو"), 'R' to listOf("ار"), 'S' to listOf("اس"), 'T' to listOf("تی"), 'U' to listOf("یو"), 'V' to listOf("وی"),
+            'W' to listOf("دبلیو", "دابلیو"), 'X' to listOf("ایکس", "اکس"), 'Y' to listOf("وای"), 'Z' to listOf("زد", "زی"),
+        )
 
         private fun latin(w: String) = w.isNotEmpty() && w.any { it.isLetterOrDigit() } &&
             w.all { it in 'a'..'z' || it in 'A'..'Z' || it.isDigit() || it in "'-.&+" }

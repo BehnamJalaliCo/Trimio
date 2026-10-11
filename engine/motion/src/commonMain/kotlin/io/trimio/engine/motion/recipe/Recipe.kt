@@ -63,6 +63,12 @@ data class Cue(
     val overMedia: Boolean = false,
     val rtl: Boolean = true,
     val seed: Int = 1,
+    /** The creator's own picture or clip, by media source id, and its width ÷ height. */
+    val media: String? = null,
+    val aspect: Float = 1f,
+    /** The frame, in px: a full-frame cut-in fills it whatever slot it was given. */
+    val frameWidth: Float = 0f,
+    val frameHeight: Float = 0f,
 ) {
     val duration: Float get() = out - at
     val words: List<String> get() = text.split(' ').filter { it.isNotEmpty() }
@@ -95,7 +101,7 @@ data class Built(
 
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
-    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all
+    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all + UiRecipes.all + MediaRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",
@@ -129,6 +135,15 @@ object Recipes {
         "coupon" to "voucher", "ticket" to "voucher", "gift-card" to "voucher", "giftcard" to "voucher", "gift" to "voucher",
         "chat" to "message", "dm" to "message", "direct" to "message", "message-thread" to "message", "sms" to "message",
         "testimonial-chat" to "message", "messages" to "message", "conversation" to "message", "chat-thread" to "message",
+        "address" to "url", "url-bar" to "url", "domain" to "url", "address-bar" to "url",
+        "broll" to "b-roll", "cutaway" to "b-roll", "cut-in" to "b-roll", "picture-in-picture" to "pip", "inset" to "pip",
+        "product-card" to "product", "packshot" to "product", "device" to "screenshot", "user-logo" to "logo-mark",
+        "app-screen" to "ui-feed", "feed" to "ui-feed", "app-feed" to "ui-feed", "scroll" to "ui-feed", "social-feed" to "ui-feed",
+        "code-editor" to "ui-code", "editor" to "ui-code", "ide" to "ui-code", "coding" to "ui-code",
+        "dashboard" to "ui-dashboard", "analytics" to "ui-dashboard", "admin" to "ui-dashboard", "report" to "ui-dashboard",
+        "notifications" to "ui-chat", "notification" to "ui-chat", "push" to "ui-chat", "alerts" to "ui-chat",
+        "browser" to "ui-browser", "website" to "ui-browser", "web-page" to "ui-browser", "landing" to "ui-browser", "landing-page" to "ui-browser", "site" to "ui-browser",
+        "icon-scene" to "ui-scene", "vector" to "ui-scene", "icons" to "ui-scene", "element" to "ui-scene",
         "reward" to "voucher", "bonus" to "voucher", "airdrop" to "voucher", "prize" to "voucher", "promo-code" to "voucher",
     )
 

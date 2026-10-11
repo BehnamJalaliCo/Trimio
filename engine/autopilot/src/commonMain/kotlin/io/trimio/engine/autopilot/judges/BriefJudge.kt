@@ -10,10 +10,11 @@ import io.trimio.engine.autopilot.Verdict
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Words
+import io.trimio.engine.motion.style.StyleBook
 
 /**
  * The client's representative: the edit does what the brief asked. The brief is read by keywords
- * ([RulesUnderstander.brief]): the look it names, its caption mode (word by word: at most three
+ * ([RulesUnderstander.brief]): the style it names (by name or style word, or a plain look word any fitting style answers), its caption mode (word by word: at most three
  * words a caption; none: no captions), the call-to-action keyword it quotes, and the elements it
  * asks for — a voucher card, a countdown, logos, a progress bar, stats, punch-ins, tightened
  * pauses — each required only when the speech holds what it needs (money given, time left, a
@@ -29,8 +30,8 @@ class BriefJudge : Judge {
     override fun score(c: Jury.Context): Verdict {
         val brief = RulesUnderstander.brief(c.prompt)
         val f = mutableListOf<Finding>()
-        if (brief.look != "auto" && c.score.look != brief.look) {
-            f += Bench.finding(0f, Severity.Major, "the brief asks for the ${brief.look} look, the edit is ${c.score.look}", "use ${brief.look}")
+        wantedStyle(c.prompt, brief.look, c.score.look)?.let { want ->
+            f += Bench.finding(0f, Severity.Major, "the brief asks for the $want style, the edit is ${c.score.look}", "use $want")
         }
         val captions = c.score.captions
         when {
@@ -45,6 +46,9 @@ class BriefJudge : Judge {
             val shown = Bench.graphics(c).any { it.recipe == Bench.COMMENT && norm(it.text) == norm(k) }
             if (!shown) f += Bench.finding(c.duration, Severity.Major, "the brief's keyword «$k» is not the call to action on screen", "the comment field types «$k»")
         }
+        // The creator's own pictures and clips are part of the brief: every one is shown.
+        val used = c.score.scenes.flatMap { sc -> sc.beats.mapNotNull { it.media } }.toSet()
+        c.assets.filter { it !in used }.forEach { id -> f += Bench.finding(0f, Severity.Major, "the creator's own $id is not in the edit", "place it where it is talked about") }
         val p = prompt(c.prompt)
         for (ask in ASKS) {
             if (ask.words.none { it in p } || !ask.supported(c) || ask.shown(c)) continue
@@ -56,13 +60,25 @@ class BriefJudge : Judge {
     override fun revise(c: Jury.Context, verdict: Verdict): Score? {
         val brief = RulesUnderstander.brief(c.prompt)
         var score = c.score
-        if (brief.look != "auto") score = score.copy(look = brief.look)
+        wantedStyle(c.prompt, brief.look, score.look)?.let { score = score.copy(look = it) }
         score = when (brief.captions) {
             "word" -> score.copy(captions = score.captions.copy(show = true, maxWords = minOf(score.captions.maxWords, WORD_CAPTIONS)))
             "none" -> score.copy(captions = score.captions.copy(show = false))
             else -> score
         }
         return score.takeIf { it != c.score }
+    }
+
+    /**
+     * The style the brief asks for when the edit's is not one it would accept: one it names by
+     * name or style word ([StyleBook.asked]), else one answering its plain look word ("dark" →
+     * noir, which any dark style answers). Null when the edit's style is fine.
+     */
+    private fun wantedStyle(prompt: String, tone: String, look: String): String? {
+        val asked = StyleBook.asked(prompt)
+        if (asked.isNotEmpty()) return asked.first().id.takeIf { asked.none { it.id == look } }
+        if (tone == "auto") return null
+        return tone.takeIf { StyleBook.of(look)?.answers(tone) != true && look != tone }
     }
 
     /** The keyword the brief asks viewers to send, when it names one that is said: «کلمهٔ تتر رو کامنت کن» → تتر. */
@@ -95,7 +111,7 @@ class BriefJudge : Judge {
             Ask("a progress bar", listOf("نوار", "progress", "ظرفیت"), { c -> senses(c).any { it.quota != null || it.filled != null } }, { c -> has(c, "progress", "meter") }),
             Ask("stats", listOf("آمار", "stats", "بازدید"), { c -> senses(c).any { it.social.size >= 2 } }, { c -> has(c, "stats", "counter", "bars") }),
             Ask("logos", listOf("لوگو", "logo"), { c -> c.understanding.entities.any { it.kind in BRANDS } }, { c ->
-                has(c, "logos") || c.score.scenes.any { s -> s.beats.any { b -> b.items.any { i -> i.any { it in 'A'..'Z' || it in 'a'..'z' } } } }
+                has(c, "logos", "logo-mark") || c.score.scenes.any { s -> s.beats.any { b -> b.items.any { i -> i.any { it in 'A'..'Z' || it in 'a'..'z' } } } }
             }),
             Ask("punch-ins", listOf("پانچ", "punch"), { c -> c.footage }, { c ->
                 c.score.scenes.count { it.camera == "push-in" || (it.beats.isEmpty() && it.bg == null) } >= 1

@@ -111,6 +111,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         val understanding: Understanding,
         val prompt: String,
         val music: MusicMood? = null,
+        /** The cue composed to the edit (sections, drop, ending, grid), when there is music. */
+        val arrangement: io.trimio.engine.assets.MusicArrangement? = null,
         val edit: EditPlan? = null,
         /** The transcript on the source clock: where cuts fall relative to words. */
         val source: List<Word> = emptyList(),
@@ -129,6 +131,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         val voice: PcmAudio? = null,
         /** Whether a Latin word is a brand the brand library has a mark for. */
         val brand: (String) -> Boolean = { false },
+        /** Media ids of the pictures and clips the creator attached: each must be in the edit. */
+        val assets: List<String> = emptyList(),
     ) {
         val duration: Float get() = compiled.composition.duration
 

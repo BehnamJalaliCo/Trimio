@@ -7,6 +7,7 @@ import io.trimio.engine.motion.score.EditPlan
 import kotlin.math.abs
 import kotlin.math.log10
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** The voice splice: no clicks and no level dips at joins, silence where the restart breathes, music on the restart. */
@@ -76,6 +77,21 @@ class SoundtrackTest {
         val truePeak = SoundJudge.truePeakDb(out.audio.samples)
         assertTrue(truePeak <= -1.0, "true peak $truePeak dBTP")
         assertTrue(abs(out.lufs + 14.0) < 0.5, "loudness ${out.lufs} LUFS")
+    }
+
+    @Test
+    fun aComposedCueMastersToTargetUnderTheCeilingAndDropsOnTheRestart() {
+        // A cold open, a voice with pauses, a cue with a drop on the restart and a breakdown, and a burst of cues.
+        val voice = SyntheticVoice(20f).word(0.3f, 1.2f).word(3f, 6f, amp = 0.8f).word(7f, 11f).word(12f, 19f, amp = 0.7f).pcm()
+        val edit = EditPlan.identity(20f).withColdOpen(listOf(12f..13.5f), gap = 0.25f)
+        val arr = io.trimio.engine.assets.Arranger.fit(MusicMood.Energetic, edit.preludeLength.toDouble(), edit.duration.toDouble(), drop = edit.preludeLength.toDouble(), breakdown = 15.0)
+        val cues = (0 until 8).map { io.trimio.engine.motion.recipe.Sfx(4f + it * 0.2f, io.trimio.engine.motion.recipe.SfxKind.entries[it % 9]) }
+        val out = soundtrack.master(voice, edit, emptyList(), edit.duration, MusicMood.Energetic, musicSeed = 3, cues = cues, arrangement = arr)
+        assertTrue(SoundJudge.truePeakDb(out.audio.samples) <= -1.0, "true peak ${SoundJudge.truePeakDb(out.audio.samples)} dBTP")
+        assertTrue(abs(out.lufs + 14.0) < 0.5, "loudness ${out.lufs} LUFS")
+        assertEquals(edit.preludeLength.toDouble(), arr.drop!!, 1e-9)
+        assertTrue(arr.grid.isDownbeat(arr.ending, 1e-6))
+        assertTrue(abs(out.audio.samples.last()) < 0.01f, "the cue has rung out by the last frame")
     }
 
     @Test

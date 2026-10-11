@@ -39,8 +39,15 @@ class Scenario internal constructor(
     val errors: List<String>,
     /** Length of the source, in seconds. */
     val seconds: Float,
+    attach: () -> List<SyntheticAssets.Attached> = { emptyList() },
     voiceTrack: () -> PcmAudio,
 ) {
+    /** Media the creator attached beside the brief (synthetic), with what renders them; built on first use. */
+    internal val attached: List<SyntheticAssets.Attached> by lazy { attach() }
+
+    /** The attached media as the autopilot receives them. */
+    val assets: List<io.trimio.engine.autopilot.UserAsset> get() = attached.map { it.asset }
+
     /** The voice, 48 kHz mono, synthesised on first use (syllable bursts, pauses, breaths, room tone). */
     val voice: PcmAudio by lazy { voiceTrack() }
 

@@ -22,6 +22,10 @@ data class Score(
     val look: String = "noir",
     /** Accent colour override ("#RRGGBB"): a palette variant of the look. */
     val accent: String? = null,
+    /** Shader stage family ("glow", "leaks", "bokeh", "dust", "liquid"; a style's background); null keeps the look's own. */
+    val background: String? = null,
+    /** A distortion over the whole piece ("halation", "lens", "chromatic"); null keeps the look's own. */
+    val lens: String? = null,
     /** Music tempo; hits snap to the beat grid when known. */
     val bpm: Float? = null,
     val beatOffset: Float = 0f,
@@ -103,4 +107,10 @@ data class BeatScore(
     val visual: String? = null,
     /** One picture per item, in English, aligned with [items]. */
     val visuals: List<String> = emptyList(),
+    /** A picture or clip the creator attached, by its media source id: drawn from their own file. */
+    val media: String? = null,
+    /** Width ÷ height of [media], so its card keeps the picture's own shape. */
+    val aspect: Float? = null,
+    /** A brand whose mark the beat shows beside it (a site's mark in its address bar). */
+    val brand: String? = null,
 )

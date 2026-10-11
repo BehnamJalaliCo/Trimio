@@ -29,6 +29,28 @@ object Icons {
         "rocket" to "M5 15c-1 1-2 4-2 6 2 0 5-1 6-2M9 15l-3-3c1-4 5-9 12-9 0 7-5 11-9 12zM14 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2z",
         "eye" to "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
         "spark" to "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18",
+        // Things of products and screens (the B-roll scenes compose these).
+        "calendar" to "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+        "phone" to "M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM11 18h2",
+        "browser" to "M3 5h18v14H3zM3 9h18M6 7h.01M8.5 7h.01",
+        "code" to "M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14",
+        "mail" to "M3 6h18v12H3zM3 7l9 6 9-6",
+        "cart" to "M3 4h2l2.4 11h10.6l2-8H6.2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM17 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z",
+        "user" to "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
+        "cloud" to "M7 18a5 5 0 0 1-.6-9.97A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z",
+        "search" to "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.5 15.5L21 21",
+        "sliders" to "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M14 4v4M8 10v4M16 16v4",
+        "wifi" to "M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01",
+        "card" to "M3 6h18v12H3zM3 10h18M7 15h4",
+        "chat" to "M4 5h16v11H9l-5 4V5z",
+        "pointer" to "M6 3l12 7-5.5 1.5L10 17 6 3z",
+        "image" to "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01",
+        "home" to "M4 11l8-7 8 7M6 9.5V20h12V9.5",
+        "send" to "M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z",
+        "shield" to "M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6l8-3z",
+        "gift" to "M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7c-1-3-5-4-5-1.5S12 7 12 7zM12 7c1-3 5-4 5-1.5S12 7 12 7z",
+        "download" to "M12 4v11M7 10l5 5 5-5M5 20h14",
+        "dashboard" to "M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",
     )
 
     private val aliases = mapOf(
@@ -40,6 +62,14 @@ object Icons {
         "bitcoin" to "coin", "btc" to "coin", "crypto" to "coin", "money" to "coin", "price" to "coin",
         "secure" to "lock", "time" to "clock", "love" to "heart", "launch" to "rocket", "moon" to "rocket", "watch" to "eye", "new" to "spark",
         "next" to "arrow-left", "previous" to "arrow-right",
+        "date" to "calendar", "schedule" to "calendar", "event" to "calendar", "deadline-date" to "calendar",
+        "mobile" to "phone", "app" to "phone", "smartphone" to "phone", "website" to "browser", "web" to "browser", "site" to "browser", "page" to "browser",
+        "coding" to "code", "developer" to "code", "email" to "mail", "inbox" to "mail", "shop" to "cart", "buy" to "cart", "store" to "cart",
+        "profile" to "user", "account" to "user", "person" to "user", "sync" to "cloud", "upload" to "cloud", "find" to "search",
+        "settings" to "sliders", "internet" to "wifi", "online" to "wifi", "payment" to "card", "pay" to "card", "credit-card" to "card",
+        "message" to "chat", "comment" to "chat", "dm" to "chat", "click" to "pointer", "tap" to "pointer", "cursor" to "pointer",
+        "photo" to "image", "picture" to "image", "security" to "shield", "safe" to "shield", "protect" to "shield",
+        "reward" to "gift", "bonus" to "gift", "voucher" to "gift", "install" to "download", "analytics" to "dashboard", "stats" to "dashboard",
     )
 
     const val VIEWPORT = 24f

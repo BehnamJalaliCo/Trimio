@@ -29,6 +29,7 @@ import io.trimio.engine.motion.recipe.Look
 import io.trimio.engine.motion.recipe.Recipe
 import io.trimio.engine.motion.recipe.Recipes
 import io.trimio.engine.motion.recipe.Sfx
+import io.trimio.engine.motion.recipe.Stages
 import io.trimio.engine.motion.recipe.SfxKind
 import io.trimio.engine.motion.recipe.TextRecipes
 import kotlin.math.abs
@@ -103,7 +104,9 @@ class Compiler(
     private inner class Session(val input: Input) {
         val score = input.score
         val notes = mutableListOf<String>()
-        val look = Look.named(score.look).withAccent(score.accent)
+        val look = Look.named(score.look).withAccent(score.accent).let { l ->
+            l.copy(backdrop = score.background ?: l.backdrop, lens = score.lens ?: l.lens)
+        }
         val w: Int
         val h: Int
         val transcript = input.transcript?.let { t -> input.edit?.remap(t) ?: t }
@@ -183,7 +186,11 @@ class Compiler(
                 EffectNode(Effect.Vignette((look.vignette * texture).anim)),
                 EffectNode(Effect.Grain(look.grain * texture)).takeIf { look.grain > 0f },
             )
-            val root = Group(base() + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
+            // The look's lens over everything; "glitch" and "ripple" cuts distort the whole frame around the cut.
+            val cuts = Stages.cuts(scenes.indices.mapNotNull { k -> entering(k)?.let { it to sceneStarts[k] } })
+            val root = cuts.fold(Group(base() + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root", filter = Stages.lens(look))) { inner, f ->
+                Group(listOf(inner), name = "cut-${f.family.id}", filter = f)
+            }
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx)
             val placed = (beats + captionBeats).sortedBy { it.cue.at }.map {
@@ -226,13 +233,15 @@ class Compiler(
             val zone = layout.place(wanted, at, out, minOut, id, locked = recipe.name == "lower-third", allowed = if (over) layout.footageZones else Layout.Zone.entries.toSet())
             val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over)
             val cue = Cue(
-                text = beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
+                // A style that sets Latin headlines in capitals does so here; captions stay as said.
+                text = if (recipe.kind == Recipe.Kind.Text) look.cased(beatText) else beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = (b.energy ?: defaultEnergy(recipe)).coerceIn(0f, 1f), emphasis = emphasisOf(beatText, b.emphasis, quoted, this.words),
                 wordTimes = spokenTimes(b.text, quoted, words, at),
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items, itemTimes = b.items.map { item -> locate(item.removePrefix(">"), norm, range)?.let { start(it.first) } },
                 rtl = rtlOf(beatText, b.label), seed = id * 7 + 3,
+                media = b.media, aspect = b.aspect ?: 1f, frameWidth = w.toFloat(), frameHeight = h.toFloat(),
             )
             return Beat(id, recipe, pictured(cue, b), zone, k, minOut)
         }
@@ -254,7 +263,7 @@ class Compiler(
 
         /** Brand marks and pictures from the visual vocabulary for what the beat names. */
         private fun pictured(cue: Cue, b: BeatScore) = cue.copy(
-            marks = b.items.map { brands.mark(it) },
+            marks = b.items.map { brands.mark(it) }.ifEmpty { listOfNotNull(b.brand?.let { brands.find(it) }) },
             visual = b.visual?.let { visuals.find(it) },
             itemVisuals = b.items.indices.map { i -> visuals.find(b.visuals.getOrNull(i) ?: b.items[i]) },
         )
@@ -280,16 +289,16 @@ class Compiler(
             // Backgrounds exist only from the cut: before it, the previous scene is still on screen.
             when (sceneBg(scene, input)) {
                 // Over footage a graphic scene needs its own stage; without footage the base already is one.
-                "aurora" -> if (input.footage != null) nodes += EffectNode(Effect.Aurora(stage(look), seed = k + 1), start = s)
+                "aurora" -> if (input.footage != null) nodes += EffectNode(Stages.background(look, stage(look), k + 1), start = s)
                 "grid" -> {
-                    nodes += EffectNode(Effect.Aurora(stage(look), seed = k + 1), start = s)
+                    nodes += EffectNode(Stages.background(look, stage(look), k + 1), start = s)
                     nodes += EffectNode(Effect.Grid(w / 9f, look.ink, 0.05f.anim), start = s)
                 }
                 "plain" -> nodes += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
             }
             built.filterKeys { it.scene == k }.values.forEach { nodes += it.nodes }
             val enter = entering(k)
-            val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat())
+            val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat(), look.settle)
             transitionOverlay(enter, s, look, transitions, sfx)
             val t = Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim + tx, y = (h / 2f).anim, scale = sc, opacity = op)
             return Group(nodes, transform = t, start = s - 0.6f, end = e + 0.3f, name = "scene-$k")
@@ -321,7 +330,7 @@ class Compiler(
                 EffectNode(Effect.Scrim(fromBottom = false, coverage = 0.36f, opacity = 0.42f.anim)),
             )
         } else {
-            listOf(EffectNode(Effect.Aurora(look.aurora)))
+            listOf(EffectNode(Stages.background(look, look.aurora, 1)))
         }
 
         /** Output time an end hold freezes the picture (the source has run out), or null. */
@@ -544,21 +553,21 @@ class Compiler(
         return listOf(look.canvas, mix(look.accent, if (dark) 0.2f else 0.35f), mix(look.hot, if (dark) 0.16f else 0.22f), mix(look.positive, if (dark) 0.1f else 0.15f))
     }
 
-    private fun gradeOf(look: Look) = when (look.name) {
+    private fun gradeOf(look: Look) = look.grade ?: when (look.name) {
         "paper" -> Grade(contrast = 1.04f.anim, saturation = 0.85f.anim)
         "lumen" -> Grade(contrast = 1.06f.anim, saturation = 0.95f.anim, temperature = (-0.4f).anim)
         else -> Grade(exposure = 0.04f.anim, contrast = 1.06f.anim, saturation = 1.0f.anim, temperature = 0.15f.anim)
     }
 
     /** Slide/scale/opacity of a scene group for its incoming and outgoing transitions. */
-    private fun sceneMotion(enter: String?, exit: String?, s: Float, e: Float, w: Float): Triple<Anim, Anim, Anim> {
+    private fun sceneMotion(enter: String?, exit: String?, s: Float, e: Float, w: Float, settle: Easing): Triple<Anim, Anim, Anim> {
         val xKeys = mutableListOf(Anim.Key(s - 1f, 0f, Easing.Hold))
         val scaleKeys = mutableListOf(Anim.Key(s - 1f, 1f, Easing.Hold))
         val opKeys = mutableListOf(Anim.Key(s - 1f, 1f, Easing.Hold))
         when (enter) {
-            "whip" -> { xKeys += Anim.Key(s, w * 1.1f, Easing.Hold); xKeys += Anim.Key(s + 0.24f, 0f, Easing.ExpoOut) }
+            "whip" -> { xKeys += Anim.Key(s, w * 1.1f, Easing.Hold); xKeys += Anim.Key(s + 0.24f, 0f, settle) }
             "zoom" -> {
-                scaleKeys += Anim.Key(s, 0.82f, Easing.Hold); scaleKeys += Anim.Key(s + 0.4f, 1f, Easing.ExpoOut)
+                scaleKeys += Anim.Key(s, 0.82f, Easing.Hold); scaleKeys += Anim.Key(s + 0.4f, 1f, settle)
                 opKeys += Anim.Key(s, 0f, Easing.Hold); opKeys += Anim.Key(s + 0.12f, 1f, Easing.Linear)
             }
         }
@@ -597,6 +606,8 @@ class Compiler(
                 overlays += EffectNode(Effect.Flash(Color.White, flash), start = s - 0.01f, end = s + 0.25f)
                 sfx += Sfx(s, SfxKind.Hit, 0.9f)
             }
+            "glitch" -> sfx += Sfx(s - 0.05f, SfxKind.Swish, 0.8f)
+            "ripple" -> sfx += Sfx(s - 0.2f, SfxKind.Shimmer, 0.7f)
             "leak" -> {
                 val strength = io.trimio.engine.motion.anim(0f, s - 0.35f) { by(0.85f, 0.35f, Easing.SineInOut); by(0f, 0.8f, Easing.SineInOut) }
                 overlays += EffectNode(Effect.LightLeak(look.hot, Anim.tween(0f, 1f, s - 0.35f, s + 0.8f, Easing.SineInOut), strength), start = s - 0.4f, end = s + 0.9f)

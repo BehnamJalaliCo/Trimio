@@ -38,7 +38,9 @@ internal class EnglishWords(private val c: Jury.Context) {
         if (!latin(w) || w.any { it.isDigit() }) return null
         val low = w.lowercase()
         val typed = brief[low]
-        val name = typed != null || low in said || c.brand(w)
+        // A site the brief writes (nobitex.ir) is its glossary, as written.
+        val site = io.trimio.engine.autopilot.BriefNames.DOMAIN.matches(w) && c.prompt.contains(w, ignoreCase = true)
+        val name = typed != null || low in said || c.brand(w) || site
         return when {
             !name && !known(low) && !acronym(w) -> "«$w» is not an English word or a name the piece knows" to (close(low)?.let { "write «$it»" } ?: "the word as said, or leave it out")
             // Only a name's casing is the brief's («iPhone»); an everyday word may open a sentence («And»).

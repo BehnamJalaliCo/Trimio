@@ -26,6 +26,8 @@ internal object Scenarios {
         val footage: Boolean = true,
         /** Chance a longer Persian word gets a sound-alike letter swap. */
         val noise: Float = 0.06f,
+        /** Media the creator attaches beside the brief. */
+        val assets: () -> List<SyntheticAssets.Attached> = { emptyList() },
     )
 
     val all: List<Scenario> by lazy { SPECS.map(::build) }
@@ -36,7 +38,7 @@ internal object Scenarios {
         val timeline = Performance.time(tokens, s.delivery, Dice(seed))
         val heard = Recogniser(seed xor 0x5EED, s.language, s.noise).hear(tokens, timeline)
         return Scenario(
-            s.id, s.language, s.domain, s.prompt.trimIndent().trim(), heard.words, heard.truth, s.ask, s.footage, heard.errors, timeline.lengthMs / 1000f,
+            s.id, s.language, s.domain, s.prompt.trimIndent().trim(), heard.words, heard.truth, s.ask, s.footage, heard.errors, timeline.lengthMs / 1000f, s.assets,
         ) { SyntheticVoice.render(timeline, s.delivery, seed) }
     }
 
@@ -230,6 +232,35 @@ internal object Scenarios {
                 "It was small stuff. Walk 10,000 steps. Sleep seven hours. Lift three times a week. Six months later, I'm down 12 kilos, and last Sunday I ran my first {10K.|10 K.} " +
                 "Under an hour. If you're where I was, just start. Maya's next group starts on March 1st, and she's only taking 30 people.",
             null, CALM_FEMALE,
+        ),
+        Spec(
+            "fa-launch-perfume-assets", "fa", "beauty",
+            "ریلز لانچ عطر جدید Velora، شیک و لوکس. عکس محصول رو وقتی گفتم عطر بذار، لوگو رو آخر ویدیو نشون بده.",
+            "سلام دخترا! ~اِم امروز یه خبر خیلی خاص براتون دارم. بعد از دو سال کار، بالاخره عطر جدید {Velora|ولورا} آماده شد. " +
+                "{رایحه‌ش|رایحش} ترکیب یاس و وانیل و چوب صندله، و تا دوازده ساعت روی پوست می‌مونه. " +
+                "شیشه‌ش رو هم با دست طراحی کردیم، هر کدوم شماره‌ی خودش رو داره. فقط پونصد تا شیشه ساختیم، " +
+                "و تا آخر هفته با بیست درصد تخفیف پیش‌فروش می‌شه. لینک خرید تو {بایوئه،|بایوعه،} زود باش که تموم می‌شه.",
+            Cta("link"), FEMALE,
+            assets = { listOf(SyntheticAssets.product("perfume", "velora-bottle.png"), SyntheticAssets.logo("velora-logo", "velora-logo.png")) },
+        ),
+        Spec(
+            "fa-glossary-rsi", "fa", "crypto",
+            "آموزش اندیکاتور RSI و واگرایی برای ترید. سایت nobitex.ir رو وقتی گفتم نشون بده. RSI یعنی شاخص قدرت نسبی، کوتاه توضیح بده.",
+            "سلام رفقا! امروز می‌خوام {RSI|آر اس آی} رو یادتون بدم، یکی از ساده‌ترین اندیکاتورهای ترید. {RSI|آر‌اس‌آی} یه عدد بین صفر تا صده. " +
+                "وقتی بالای هفتاد باشه یعنی بازار {اشباع|اشباه} خریده، زیر سی یعنی اشباع فروش. " +
+                "ولی نکته‌ی اصلی واگراییه: قیمت سقف جدید می‌زنه ولی RSI نه. این یعنی قدرت روند داره تموم می‌شه. " +
+                "من همه‌ی اینا رو روی چارت {nobitex.ir|نوبیتکس دات آی آر} تمرین می‌کنم، حساب دمو داره و رایگانه. اگه سؤالی داشتی کامنت بذار.",
+            Cta("comment"), MALE,
+        ),
+        Spec(
+            "en-tutorial-app-assets", "en", "finance",
+            "Tutorial for our budgeting app Pennywise. Show the screenshot when I say dashboard, and use the clip as b-roll when I talk about the coffee shop.",
+            "Hey, quick one. ~um If your money disappears every month, this is for you. Last year I tracked every coffee I bought, " +
+                "and the coffee shop alone cost me {nine hundred|900} dollars. So I built Pennywise. Open the app, and the first thing you see is the dashboard: " +
+                "every account, every bill, in one place. Set a budget for each category, and Pennywise warns you before you go over. " +
+                "My users save about two hundred dollars a month. Download it free, link in bio.",
+            Cta("link"), MALE,
+            assets = { listOf(SyntheticAssets.screenshot("app-screen", "pennywise-screenshot.png"), SyntheticAssets.clip("cafe-broll")) },
         ),
         Spec(
             "en-news-ai", "en", "ai", "News explainer, serious tone. Show the numbers with charts and counters, dark look, no music.",

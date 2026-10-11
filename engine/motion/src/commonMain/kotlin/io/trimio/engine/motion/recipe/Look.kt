@@ -2,12 +2,16 @@ package io.trimio.engine.motion.recipe
 
 import androidx.compose.ui.graphics.Color
 import io.trimio.core.brand.BrandFonts
+import io.trimio.engine.motion.Contrast
+import io.trimio.engine.motion.Easing
+import io.trimio.engine.motion.Grade
 import io.trimio.engine.motion.Guard
 import io.trimio.engine.motion.TypeSpec
 
 /**
  * The design language a piece is rendered in: palette, type voices and texture. Recipes never
- * hard-code a colour or a font; they ask the look. (Phase 6 grows this into the 28 styles.)
+ * hard-code a colour or a font; they ask the look. The 28 styles ([io.trimio.engine.motion.style.StyleBook])
+ * each carry one; [named] finds them by the score's `look`.
  */
 data class Look(
     val name: String,
@@ -49,20 +53,33 @@ data class Look(
      * paper plates where the picture is dark — it stays itself instead of inverting.
      */
     val guard: Guard = Guard(Guard.Style.Halo, light = Color(0xFFF2EDE4), dark = Color(0xFF0B0A09)),
+    /**
+     * The stage as a shader family ("glow", "leaks", "bokeh", "dust", "liquid"; see
+     * [io.trimio.engine.motion.ShaderFamily]) — what a style's `background` names. Null keeps the
+     * drifting aurora. Cards on a shader stage sit on frosted glass ([Stages.glass]).
+     */
+    val backdrop: String? = null,
+    /** A distortion over the whole piece ("halation" for film, "lens", "chromatic"), or null. */
+    val lens: String? = null,
+    /** The footage grade; null keeps the compiler's grade for the original three looks. */
+    val grade: Grade? = null,
+    /** The curve scene moves (whip, zoom) settle with: the style's easing family. */
+    val settle: Easing = Easing.ExpoOut,
+    /** Latin letters in headlines set in capitals (Persian has no case and is never touched). */
+    val caps: Boolean = false,
 ) {
     /**
      * The same look with another accent ("#D7FF3A"): emphasis blocks, numbers and rings follow it;
-     * text on the accent turns dark or light by its brightness.
+     * text on the accent is dark or light, whichever reads better on it ([textOn]).
      */
     fun withAccent(hex: String?): Look {
         val rgb = hex?.removePrefix("#")?.takeIf { it.length == 6 }?.toLongOrNull(16) ?: return this
         val c = Color(0xFF000000 or rgb)
-        val light = 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue > 0.45f
-        return copy(
-            accent = c, onAccent = if (light) Color(0xFF0B0A09) else Color(0xFFF7F4EE),
-            positive = if (positive == accent) c else positive,
-        )
+        return copy(accent = c, onAccent = textOn(c), positive = if (positive == accent) c else positive)
     }
+
+    /** Latin letters of a headline in capitals when the look sets them so. */
+    fun cased(text: String): String = if (caps) text.map { if (it in 'a'..'z') it.uppercaseChar() else it }.joinToString("") else text
 
     data class Voice(val role: BrandFonts.Role, val weight: Int, val lineHeight: Float = 1.1f, val tracking: Float = 0f) {
         fun at(size: Float, weight: Int = this.weight) = TypeSpec(role, weight, size, lineHeight, tracking)
@@ -156,6 +173,17 @@ data class Look(
             "lumen" to listOf("#9BE7FF", "#B7A6FF", "#7CFFC4", "#FFC6E0"),
         )
 
-        fun named(name: String?): Look = all.firstOrNull { it.name.equals(name?.trim(), ignoreCase = true) } ?: Noir
+        /** The look of the original three or of any of the 28 styles; noir when nothing matches. */
+        fun named(name: String?): Look =
+            all.firstOrNull { it.name.equals(name?.trim(), ignoreCase = true) } ?: io.trimio.engine.motion.style.StyleBook.of(name)?.look ?: Noir
+
+        private val DARK_TEXT = Color(0xFF0B0A09)
+        private val LIGHT_TEXT = Color(0xFFF7F4EE)
+
+        /** Near-black or bone text, whichever has more contrast on [c] (a bright red takes black, a deep one bone). */
+        fun textOn(c: Color): Color {
+            val l = Contrast.luminance(c)
+            return if (Contrast.ratio(l, Contrast.luminance(DARK_TEXT)) >= Contrast.ratio(l, Contrast.luminance(LIGHT_TEXT))) DARK_TEXT else LIGHT_TEXT
+        }
     }
 }

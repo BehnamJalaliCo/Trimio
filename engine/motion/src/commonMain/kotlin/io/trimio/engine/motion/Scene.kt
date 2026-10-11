@@ -146,7 +146,58 @@ class Group(
     mask: Mask? = null,
     blend: BlendMode = BlendMode.SrcOver,
     name: String = "group",
+    /** A distortion over everything the group draws (glitch, ripple, lens, film halation…), see [Filter]. */
+    val filter: Filter? = null,
 ) : Node(transform, start, end, mask, blend, name)
+
+/**
+ * A runtime-shader distortion of a group's pixels: the group renders off-screen and is drawn
+ * through [family] (a filter family). [amount] 0 leaves it untouched (and costs nothing);
+ * [progress] drives travelling distortions such as a ripple's ring.
+ */
+data class Filter(val family: ShaderFamily, val amount: Anim, val progress: Anim = Anim.Zero, val seed: Int = 1)
+
+/**
+ * The shader families: stage backgrounds (light, particles, waves) and distortions of what is
+ * already drawn. Written once in SkSL ([FxSources]); each has a CPU fallback for devices whose
+ * compiler rejects it. [id] is the name styles use (`StyleLanguage.background`, [named]).
+ */
+enum class ShaderFamily(val id: String, val filter: Boolean) {
+    /** Volumetric glow: a light above the frame with rays through haze. */
+    Glow("glow", false),
+    /** Warm anamorphic light leaks drifting in from the edges. */
+    Leaks("leaks", false),
+    /** Out-of-focus discs drifting up. */
+    Bokeh("bokeh", false),
+    /** Motes in a volumetric beam. */
+    Dust("dust", false),
+    /** A liquid, domain-warped colour gradient. */
+    Liquid("liquid", false),
+    Chromatic("chromatic", true),
+    Lens("lens", true),
+    Glitch("glitch", true),
+    Ripple("ripple", true),
+    /** Film halation: highlights bleed red. */
+    Halation("halation", true),
+    ;
+
+    companion object {
+        private val aliases = mapOf(
+            "light" to Glow, "volumetric" to Glow, "rays" to Glow, "god-rays" to Glow, "spotlight" to Glow,
+            "leak" to Leaks, "light-leak" to Leaks, "light-leaks" to Leaks, "film-leak" to Leaks,
+            "particles" to Dust, "motes" to Dust, "bokeh-lights" to Bokeh,
+            "waves" to Liquid, "wave" to Liquid, "gradient" to Liquid, "mesh" to Liquid, "fluid" to Liquid, "glass" to Liquid,
+            "rgb" to Chromatic, "aberration" to Chromatic, "chromatic-aberration" to Chromatic,
+            "barrel" to Lens, "distortion" to Lens, "film" to Halation, "halo" to Halation, "displace" to Ripple,
+        )
+
+        /** The family a style or a small model names (loose: "light-leak", "particles", "film"), or null. */
+        fun named(name: String?): ShaderFamily? {
+            val key = name?.trim()?.lowercase()?.replace(' ', '-')?.replace('_', '-') ?: return null
+            return entries.firstOrNull { it.id == key } ?: aliases[key]
+        }
+    }
+}
 
 /** Typeface choice by brand role; weight picks the variable instance or nearest static cut. */
 data class TypeSpec(
@@ -308,6 +359,25 @@ sealed interface Effect {
     data class Scrim(val fromBottom: Boolean, val coverage: Float, val opacity: Anim = 0.75f.anim) : Effect
     /** Repeating hairline grid (Swiss/data looks). */
     data class Grid(val step: Float, val color: Color, val opacity: Anim = Anim.One) : Effect
+
+    /**
+     * A stage background drawn by a runtime shader ([ShaderFamily], not a filter). [colors] are the
+     * canvas, accent, hot and ink colours; [overlay] draws it as light only (screened, black base),
+     * for leaks or dust over footage.
+     */
+    data class Shader(
+        val family: ShaderFamily, val colors: List<Color>, val amount: Anim = Anim.One, val seed: Int = 1, val overlay: Boolean = false,
+    ) : Effect
+
+    /**
+     * Frosted glass behind a card: the [stage] field re-drawn inside a rounded panel ([x], [y],
+     * [width], [height] in px, frame space), refracted at the rim and frosted. The stage is
+     * procedural, so the glass needs no read-back of the frame. Over footage there is no glass.
+     */
+    data class Glass(
+        val stage: Shader, val x: Float, val y: Float, val width: Float, val height: Float, val radius: Float,
+        val frost: Float = 1f, val opacity: Anim = Anim.One,
+    ) : Effect
 }
 
 class EffectNode(

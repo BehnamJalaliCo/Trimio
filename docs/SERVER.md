@@ -44,3 +44,30 @@ fully offline with the last good copy (or the built-in defaults).
 Everything is free until `RemoteConfig.flags.pro = true` **and** `proProductId` names a product
 that exists in the Play Console / Bazaar panel. Prices live only in the store consoles.
 Turning the flag off makes everything free again on the next start.
+
+## Downloadable packs (Ed25519) / بسته‌های دانلودی
+
+Style, sound, music and model packs update separately from the app (`engine/models/Packs.kt`).
+A pack is a `.tpk` container (`PackArchive`: relative paths only, no compression) described by a
+`PackManifest` in the index: `id`, `kind`, `version` (only ever increases), `size`, `sha256`,
+mirror `urls`, `minApp`, `license`, `keyId` and an Ed25519 `signature` over
+`trimio-pack/1\n<id>\n<kind>\n<version>\n<size>\n<sha256>\n<minApp>\n<license>`.
+
+The app (`PackStore`) verifies the signature against keys pinned in the build **before downloading**,
+checks size and SHA-256, unpacks into a staging folder, moves it into place atomically and only then
+switches; the previous release is kept for `rollback`. Older versions are refused (no replay).
+The APK keeps a small offline core (`PackCatalog.core`: procedural music and SFX, bundled styles);
+everything heavier is a pack.
+
+Key handling:
+
+- **No private key is ever in this repository.** Tests generate a throwaway keypair per run
+  (`PackStoreTest`).
+- Generate the release key offline on a trusted machine, e.g. `openssl genpkey -algorithm ed25519 -out pack-2026.pem`;
+  keep it in a hardware token or the CI secret store (`TRIMIO_PACK_SIGNING_KEY`), never on the catalogue server.
+- Publish only the raw 32-byte public key (`openssl pkey -in pack-2026.pem -pubout -outform DER | tail -c 32 | xxd -p -c 64`)
+  and pin it in the app build by key id. Rotation: ship the new key id in an app release first, then sign with it;
+  revoke the old id through `revokedPackKeys` (remote config can revoke, never add).
+- Sign in CI from the artefact's bytes: compute size and SHA-256, build the signed string, sign, upload the manifest
+  and payload. The server re-verifies with its copy of the public keys before serving.
+

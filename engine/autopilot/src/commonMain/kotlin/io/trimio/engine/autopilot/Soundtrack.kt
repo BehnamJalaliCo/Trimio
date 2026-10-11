@@ -2,9 +2,13 @@ package io.trimio.engine.autopilot
 
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.transcript.Word
+import io.trimio.engine.assets.Arranger
+import io.trimio.engine.assets.MusicArrangement
+import io.trimio.engine.assets.MusicComposer
 import io.trimio.engine.assets.MusicMood
-import io.trimio.engine.assets.ProceduralMusic
 import io.trimio.engine.assets.ProceduralSfx
+import io.trimio.engine.assets.SfxPalette
+import io.trimio.engine.assets.SoundPresets
 import io.trimio.engine.audio.LoudnessMeter
 import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.SfxKind
@@ -22,9 +26,11 @@ import kotlin.math.sqrt
 
 /**
  * The mastered soundtrack (research report, audio): the voice cut to the edit with short
- * equal-power crossfades, cleaned (high-pass) and levelled (gentle compression); music under it that
- * ducks 8 dB while words are spoken and breathes up in the gaps; the sound cues; then the whole
- * mix brought to -14 LUFS with peaks held under -1 dBTP.
+ * equal-power crossfades, cleaned (high-pass) and levelled (gentle compression); a cue composed to
+ * the edit ([MusicArrangement]: the drop on the payoff or the restart, a breakdown under the call to
+ * action, the final hit on a downbeat) that ducks 8 dB while words are spoken and breathes up in
+ * the gaps; the sound cues, voiced by the style's [SfxPalette] and staged under the voice; then the
+ * whole mix brought to -14 LUFS with peaks held under -1 dBTP.
  */
 class Soundtrack(private val rate: Int = 48_000) {
 
@@ -49,6 +55,10 @@ class Soundtrack(private val rate: Int = 48_000) {
         musicSeed: Int,
         cues: List<Sfx>,
         levels: Levels = Levels(),
+        /** The cue's arrangement; null: one fitted here (the drop on the restart, else the groove from the start). */
+        arrangement: MusicArrangement? = null,
+        /** How the cues sound; null: the palette that suits [music]. */
+        palette: SfxPalette? = null,
     ): Result {
         require(voice.sampleRate == rate) { "voice must be at $rate Hz" }
         val n = (duration * rate).toInt()
@@ -56,8 +66,13 @@ class Soundtrack(private val rate: Int = 48_000) {
         highPass(mix, HPF_HZ)
         compress(mix)
         val voicePeak = mix.maxOfOrNull { abs(it) } ?: 0f
-        if (music != null) addMusic(mix, music, musicSeed, words, n, levels, voiceRms(mix, words), enter = edit.preludeLength, fade = maxOf(FADE_OUT_S, edit.outro?.length ?: 0f))
-        addCues(mix, cues, voicePeak)
+        if (music != null) {
+            val arr = arrangement?.takeIf { it.mood == music } ?: Arranger.fit(
+                music, edit.preludeLength.toDouble(), duration.toDouble(), drop = edit.preludeLength.toDouble().takeIf { it > 0.0 },
+            )
+            addMusic(mix, arr, musicSeed, words, n, levels, voiceRms(mix, words), enter = edit.preludeLength, fade = maxOf(FADE_OUT_S, edit.outro?.length ?: 0f))
+        }
+        addCues(mix, cues, voicePeak, palette ?: SoundPresets.paletteFor(music), words)
         val out = PcmAudio(loudnessAndPeak(mix, levels), rate)
         val m = LoudnessMeter.measure(out)
         return Result(out, m.integratedLufs, m.samplePeakDb)
@@ -161,13 +176,17 @@ class Soundtrack(private val rate: Int = 48_000) {
     /**
      * Music ducked under words (40 ms attack, 400 ms release), out over the last [fade] seconds
      * (0.8 s; an end hold's whole length: the bed carries the held frame, then lets go). With a
-     * cold open it [enter]s on the restart: the flash-forward plays dry, and the bed lands with
-     * the rewind's hit (on its own grid, so beats snapped to it stay on it).
+     * cold open it [enter]s on the restart: the flash-forward plays dry, and the cue drops with
+     * the rewind's hit. The cue is composed on the output clock, so beats snapped to its grid stay
+     * on it. Its level is set from its body (start to final hit), so the quiet intro and breakdown
+     * stay quieter than the drop: the arrangement's dynamics survive the mix.
      */
-    private fun addMusic(mix: FloatArray, mood: MusicMood, seed: Int, words: List<Word>, n: Int, levels: Levels, voiceRms: Float, enter: Float, fade: Float) {
-        val bed = ProceduralMusic(rate).render(mood, seed).audio.samples
+    private fun addMusic(mix: FloatArray, arr: MusicArrangement, seed: Int, words: List<Word>, n: Int, levels: Levels, voiceRms: Float, enter: Float, fade: Float) {
+        val bed = MusicComposer(rate).compose(arr, seed).samples
         if (bed.isEmpty()) return
-        val bedRms = sqrt(bed.sumOf { (it * it).toDouble() } / bed.size).toFloat().coerceAtLeast(1e-4f)
+        val body = (arr.start * rate).toInt().coerceIn(0, bed.size - 1) until (arr.ending * rate).toInt().coerceIn(1, bed.size)
+        val bodyN = maxOf(1, body.last - body.first + 1)
+        val bedRms = sqrt(body.sumOf { (bed[it] * bed[it]).toDouble() } / bodyN).toFloat().coerceAtLeast(1e-4f)
         val spoken = BooleanArray(n)
         for (w in words) for (i in ((w.range.startMs - 60) * rate / 1000).toInt() until ((w.range.endMs + 120) * rate / 1000).toInt()) if (i in spoken.indices) spoken[i] = true
         val under = voiceRms / bedRms * db(levels.musicUnderDb)
@@ -181,18 +200,29 @@ class Soundtrack(private val rate: Int = 48_000) {
             gain = target + (gain - target) * c
             val tail = sin(((n - i) / (rate * fade)).coerceIn(0f, 1f) * HALF_PI)
             val head = ((i - enter * rate) / (rate * 0.03f)).coerceIn(0f, 1f)
-            mix[i] += bed[i % bed.size] * gain * tail * head
+            if (i < bed.size) mix[i] += bed[i] * gain * tail * head
         }
     }
 
-    private fun addCues(mix: FloatArray, cues: List<Sfx>, voicePeak: Float) {
+    /**
+     * The cues, gain-staged under the voice: each kind's level is relative to the voice's peak,
+     * a decoration that lands on a word comes down [UNDER_WORD_DB] (an accent — hit, boom, rewind —
+     * keeps its weight), and never more than [MAX_CUES_PER_2S] sound in any two seconds.
+     */
+    private fun addCues(mix: FloatArray, cues: List<Sfx>, voicePeak: Float, palette: SfxPalette, words: List<Word>) {
         val sfx = ProceduralSfx(rate)
         val scale = voicePeak.coerceIn(0.05f, 1f)
-        for ((i, cue) in cues.withIndex()) {
-            val (id, g) = VOICES.getValue(cue.kind)
-            val pcm = sfx.generate(id, seed = i + 1) ?: continue
+        val played = mutableListOf<Float>()
+        for ((i, cue) in cues.sortedBy { it.at }.withIndex()) {
+            if (played.count { cue.at - it < 2f } >= MAX_CUES_PER_2S) continue
+            played += cue.at
+            val (base, g) = VOICES.getValue(cue.kind)
+            val id = if (base in SfxPalette.CUES) "$base@${palette.id}" else base
+            val pcm = sfx.generate(id, seed = i + 1) ?: sfx.generate(base, seed = i + 1) ?: continue
+            val spoken = cue.kind !in ACCENTS && words.any { w -> cue.at * 1000 >= w.range.startMs && cue.at * 1000 < w.range.endMs }
+            val stage = g * cue.gain * scale * (if (spoken) db(UNDER_WORD_DB) else 1f)
             val start = (cue.at * rate).toInt()
-            for (j in pcm.samples.indices) if (start + j in mix.indices) mix[start + j] += pcm.samples[j] * g * cue.gain * scale
+            for (j in pcm.samples.indices) if (start + j in mix.indices) mix[start + j] += pcm.samples[j] * stage
         }
     }
 
@@ -208,6 +238,10 @@ class Soundtrack(private val rate: Int = 48_000) {
         const val HALF_PI = 1.5707964f
         /** Pieces closer than this on the output clock are one join. */
         const val JOIN_S = 0.002f
+        const val UNDER_WORD_DB = -3f
+        const val MAX_CUES_PER_2S = 4
+        val ACCENTS = setOf(SfxKind.Hit, SfxKind.Boom, SfxKind.Rewind)
+        /** Each kind's cue (voiced by the palette when it is one of [SfxPalette.CUES]) and its level against the voice's peak. */
         val VOICES = mapOf(
             SfxKind.Whoosh to ("whoosh" to 0.32f), SfxKind.Swish to ("swoosh" to 0.22f), SfxKind.Hit to ("impact" to 0.3f),
             SfxKind.Boom to ("impact" to 0.5f), SfxKind.Pop to ("pop" to 0.25f), SfxKind.Click to ("glitch" to 0.2f),

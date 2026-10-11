@@ -5,7 +5,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
@@ -57,6 +59,21 @@ class MotionRenderer(
 
     /** Node space → frame space for whatever is being drawn (the DrawScope's own transform, tracked). */
     private var current = M3.IDENTITY
+
+    /**
+     * Runtime shaders on (default) or off: off draws every shader family's CPU fallback, as a
+     * device without a shader compiler would (tests compare the two).
+     */
+    var runtimeShaders: Boolean
+        get() = soft.fx.enabled
+        set(value) { soft.fx.enabled = value }
+
+    /** Frame-sized off-screens for filtered groups, one per nesting depth. */
+    private val filterBuffers = ArrayList<ImageBitmap>()
+    private var filterDepth = 0
+
+    /** The filtered group being drawn into its off-screen (drawn plainly there). */
+    private var unfiltered: Group? = null
 
     fun block(node: TextNode): TextBlock = blocks.getOrPut(node) { text.layout(node.text, node.type, node.maxWidth, node.align, node.rtl) }
 
@@ -113,6 +130,8 @@ class MotionRenderer(
         val tr = node.transform
         val opacity = tr.opacity.at(t).coerceIn(0f, 1f)
         if (opacity <= 0.002f) return
+        val filter = (node as? Group)?.filter
+        if (filter != null && node !== unfiltered && filter.amount.at(t) > MIN_FILTER) return drawFilteredGroup(node, filter, t, motionBlur)
         val blur = tr.blur.at(t)
         val local = Rect(Offset.Zero, bounds(node, t))
         withM(matrixOf(node, t)) {
@@ -146,6 +165,28 @@ class MotionRenderer(
             }
             is VectorNode -> vectors.draw(this, node, t, alpha)
         }
+    }
+
+    /**
+     * A group with a [Filter]: drawn as usual into a frame-sized off-screen (in frame space, so
+     * the distortion is measured in frame pixels), then through the filter's shader.
+     */
+    private fun DrawScope.drawFilteredGroup(node: Group, filter: Filter, t: Float, motionBlur: Boolean) {
+        val outer = current
+        val inverse = outer.inverse() ?: return
+        if (filterBuffers.size <= filterDepth) filterBuffers += ImageBitmap(composition.width, composition.height)
+        val image = filterBuffers[filterDepth]
+        filterDepth++
+        val saved = unfiltered
+        unfiltered = node
+        CanvasDrawScope().draw(this, layoutDirection, Canvas(image), frame.size) {
+            drawRect(Color.Transparent, size = size, blendMode = BlendMode.Clear)
+            withTransform({ transform(outer.toCompose()) }) { drawNodeOnce(node, t, motionBlur) }
+        }
+        unfiltered = saved
+        filterDepth--
+        current = outer
+        withTransform({ transform(inverse.toCompose()) }) { drawFiltered(image, filter, t, 1f, frame.size, soft.fx) }
     }
 
     /** True when the node visibly moves within one shutter interval (worth motion blur). */
@@ -679,6 +720,8 @@ class MotionRenderer(
         const val PLATE_Y = 0.14f
         const val PLATE_RISE = 2.5f
         const val MAX_BLUR_SAMPLES = 28
+        /** A filter weaker than this is skipped (no off-screen at all). */
+        const val MIN_FILTER = 0.001f
         const val BLOCK_AIR = 0.06f
         const val SEAM = 0.75f
     }

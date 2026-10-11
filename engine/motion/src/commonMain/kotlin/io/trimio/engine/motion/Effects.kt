@@ -59,6 +59,8 @@ internal fun DrawScope.drawEffect(effect: Effect, t: Float, alpha: Float, size: 
                 topLeft = Offset(0f, top), size = Size(size.width, h),
             )
         }
+        is Effect.Shader -> shaderStage(effect, t, alpha, size, soft)
+        is Effect.Glass -> shaderGlass(effect, t, alpha, size, soft)
         is Effect.Grid -> {
             val a = effect.opacity.at(t) * alpha
             var x = 0f
@@ -87,14 +89,18 @@ private fun DrawScope.drawSoft(image: ImageBitmap, size: Size, alpha: Float) = d
  */
 internal class SoftFields {
     private val cache = HashMap<String, ImageBitmap>()
-    private var scratch: ImageBitmap? = null
+    private val scratch = HashMap<Long, ImageBitmap>()
     var grainTile: ImageBitmap? = null
 
-    fun draw(scope: DrawScope, size: Size, key: String?, block: DrawScope.(Size) -> Unit): ImageBitmap {
-        val w = (size.width / SCALE).toInt().coerceAtLeast(1)
-        val h = (size.height / SCALE).toInt().coerceAtLeast(1)
+    /** The renderer's runtime shaders (see [FxPrograms]). */
+    val fx = FxPrograms()
+
+    /** [scale]: how many times smaller than [size] the field renders. */
+    fun draw(scope: DrawScope, size: Size, key: String?, scale: Int = SCALE, block: DrawScope.(Size) -> Unit): ImageBitmap {
+        val w = (size.width / scale).toInt().coerceAtLeast(1)
+        val h = (size.height / scale).toInt().coerceAtLeast(1)
         key?.let { k -> cache["$k-$w-$h"]?.let { return it } }
-        val image = if (key == null) scratch?.takeIf { it.width == w && it.height == h } ?: ImageBitmap(w, h).also { scratch = it } else ImageBitmap(w, h)
+        val image = if (key == null) scratch.getOrPut(w.toLong() shl 32 or h.toLong()) { ImageBitmap(w, h) } else ImageBitmap(w, h)
         val small = Size(w.toFloat(), h.toFloat())
         CanvasDrawScope().draw(scope, scope.layoutDirection, Canvas(image), small) {
             drawRect(Color.Transparent, size = small, blendMode = BlendMode.Clear)

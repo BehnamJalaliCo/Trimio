@@ -58,19 +58,22 @@ object Workshop {
     fun scenario(id: String): Scenario = scenarios().first { it.id == id }
 
     /** The synthetic footage of [scenario] (one per call: it caches its last frame). */
-    fun footage(scenario: Scenario): io.trimio.engine.motion.MediaSource = SyntheticFootage(variant(scenario))
+    fun footage(scenario: Scenario): io.trimio.engine.motion.MediaSource =
+        io.trimio.engine.motion.MediaSources(scenario.attached.map { it.source } + SyntheticFootage(variant(scenario)))
 
     /**
      * Edits [scenario] with [seed], the way the app does: the recogniser's words, the voice and
      * the brief go through the whole [Autopilot] (listen, spell, understand, plan, pictures,
      * compile, critic, mastering). The speaker's face is found on the synthetic footage like
-     * Studio finds it on a real video.
+     * Studio finds it on a real video. [style] asks for one of the 28 styles in the brief ([StyleAxis]).
      */
-    fun run(scenario: Scenario, seed: Long, understanding: Understanding? = null): Autopilot.Production = runBlocking {
+    fun run(scenario: Scenario, seed: Long, understanding: Understanding? = null, style: String? = null): Autopilot.Production = runBlocking {
         val subject = if (scenario.footage) subject(scenario) else null
         val grabber = eyes?.let { FrameGrabber { output, times -> frames(output.composition, scenario).let { f -> times.map { Media.small(f.draw(it), LOOK_W, LOOK_H) } } } }
         Autopilot(text, brands, visuals, model, Knowledge.Offline, Taste(), eyes, grabber).produce(
-            Autopilot.Request(scenario.transcript, scenario.voice, scenario.prompt, seed, footage = if (scenario.footage) "main" else null, subject = subject, understanding = understanding),
+            Autopilot.Request(scenario.transcript, scenario.voice, StyleAxis.prompt(scenario, style), seed, footage = if (scenario.footage) "main" else null, subject = subject, understanding = understanding,
+                assets = scenario.assets,
+            ),
         )
     }
 
@@ -155,7 +158,7 @@ object Workshop {
     }
 
     private fun frames(c: io.trimio.engine.motion.Composition, scenario: Scenario) =
-        MotionExporter.Frames(c, if (scenario.footage) footage(scenario) else io.trimio.engine.motion.MediaSource.None)
+        MotionExporter.Frames(c, if (scenario.footage) footage(scenario) else io.trimio.engine.motion.MediaSources(scenario.attached.map { it.source }))
 
     private fun variant(s: Scenario) = s.id.fold(7) { h, ch -> h * 31 + ch.code }
 

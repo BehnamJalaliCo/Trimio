@@ -15,6 +15,8 @@ import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.export.Delivery
 import io.trimio.engine.motion.export.FfmpegFootage
 import io.trimio.engine.motion.export.MotionExporter
+import io.trimio.engine.motion.export.UserMediaFiles
+import io.trimio.engine.motion.MediaSources
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Subject
 import io.trimio.engine.motion.visual.VisualLibrary
@@ -40,33 +42,43 @@ class Studio(
     private val text = TextLayoutEngine(TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr), kotlinx.coroutines.runBlocking { MotionFonts.load() })
 
     /** Plans one edit of [video]. [transcript] skips recognition when given. */
-    suspend fun produce(video: File, prompt: String, seed: Long, transcript: Transcript, understanding: Understanding? = null, onStage: (String, Float) -> Unit = { _, _ -> }): Autopilot.Production {
+    suspend fun produce(
+        video: File, prompt: String, seed: Long, transcript: Transcript, understanding: Understanding? = null,
+        /** Pictures and clips the creator attached ([UserAsset.source] is the file); render with the same list. */
+        assets: List<UserAsset> = emptyList(),
+        onStage: (String, Float) -> Unit = { _, _ -> },
+    ): Autopilot.Production {
         val voice = Media.audio(video, RATE)
         // The head from the pixels; when the director can see, its own eyes check the box on a few frames.
         val frames = Media.frames(video)
         val found = SubjectFinder.locate(frames)
         val subject = eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
-        return Autopilot(text, brands, visuals, model, knowledge, taste, eyes, eyes?.let { grabber(video) }).produce(
-            Autopilot.Request(transcript, voice, prompt, seed, footage = "main", subject = subject, understanding = understanding),
+        return Autopilot(text, brands, visuals, model, knowledge, taste, eyes, eyes?.let { grabber(video, assets) }).produce(
+            Autopilot.Request(transcript, voice, prompt, seed, footage = "main", subject = subject, understanding = understanding, assets = assets),
             onStage,
         )
     }
 
     /** Small frames of a compiled edit (288×512 RGB) for the eyes. */
-    private fun grabber(video: File) = FrameGrabber { output, times ->
+    private fun grabber(video: File, assets: List<UserAsset>) = FrameGrabber { output, times ->
         val c = output.composition
-        FfmpegFootage(video, c.fps, c.width, c.height).use { footage ->
+        MediaSources(assets.map { UserMediaFiles.source(it.id, File(it.source), c.fps, c.width, c.height) } + FfmpegFootage(video, c.fps, c.width, c.height)).use { footage ->
             val frames = MotionExporter.Frames(c, footage)
             times.map { t -> Media.small(frames.draw(t), LOOK_W, LOOK_H) }
         }
     }
 
     /** Renders [production] of [video] to [out] at delivery quality. */
-    fun render(production: Autopilot.Production, video: File, out: File, delivery: Delivery = Delivery(), onFrame: (Int, Int) -> Unit = { _, _ -> }) {
+    fun render(
+        production: Autopilot.Production, video: File, out: File, delivery: Delivery = Delivery(),
+        assets: List<UserAsset> = emptyList(), onFrame: (Int, Int) -> Unit = { _, _ -> },
+    ) {
         val c = production.compiled.composition
         val wav = File(out.absoluteFile.parentFile, out.nameWithoutExtension + ".wav")
         Media.writeWav(production.soundtrack.audio, wav)
-        MotionExporter(c, { FfmpegFootage(video, c.fps, c.width, c.height) }, delivery).export(out, wav, onProgress = onFrame)
+        // The creator's media answer to their own ids before the footage.
+        fun media() = MediaSources(assets.map { UserMediaFiles.source(it.id, File(it.source), c.fps, c.width, c.height) } + FfmpegFootage(video, c.fps, c.width, c.height))
+        MotionExporter(c, { if (assets.isEmpty()) FfmpegFootage(video, c.fps, c.width, c.height) else media() }, delivery).export(out, wav, onProgress = onFrame)
         wav.delete()
     }
 
@@ -146,6 +158,43 @@ object Media {
         }
         return io.trimio.engine.llm.RgbImage(w, h, rgb)
     }
+
+    /**
+     * A file the creator attached, read for the director: a small thumbnail (and its transparency,
+     * the logo cue), and for a clip a few frames and its length. [UserAsset.source] is the file.
+     */
+    fun asset(file: File, id: String, kind: UserAsset.Kind? = null, caption: String? = null): UserAsset {
+        if (UserMediaFiles.isVideo(file)) {
+            val frames = frames(file, count = 3, width = THUMB)
+            return UserAsset(id, UserAsset.Kind.Video, frames.first(), frames = frames, duration = duration(file), caption = caption, source = file.absolutePath)
+        }
+        val image = org.jetbrains.skia.Image.makeFromEncoded(file.readBytes())
+        val (rgb, alpha) = thumbnail(image)
+        return UserAsset(id, kind ?: UserAsset.Kind.Image, rgb, alpha, caption = caption, source = file.absolutePath)
+    }
+
+    /** [image] scaled to at most [max] px on its long side: packed RGB and its alpha (null when fully opaque). */
+    fun thumbnail(image: org.jetbrains.skia.Image, max: Int = THUMB): Pair<io.trimio.engine.llm.RgbImage, ByteArray?> {
+        val k = minOf(1f, max / maxOf(image.width, image.height).toFloat())
+        val w = (image.width * k).roundToInt().coerceAtLeast(1)
+        val h = (image.height * k).roundToInt().coerceAtLeast(1)
+        val surface = org.jetbrains.skia.Surface.makeRaster(org.jetbrains.skia.ImageInfo.makeN32(w, h, org.jetbrains.skia.ColorAlphaType.UNPREMUL))
+        surface.canvas.drawImageRect(image, org.jetbrains.skia.Rect.makeWH(image.width.toFloat(), image.height.toFloat()), org.jetbrains.skia.Rect.makeWH(w.toFloat(), h.toFloat()))
+        val bitmap = org.jetbrains.skia.Bitmap().apply { allocPixels(org.jetbrains.skia.ImageInfo.makeN32(w, h, org.jetbrains.skia.ColorAlphaType.UNPREMUL)) }
+        surface.makeImageSnapshot().readPixels(bitmap)
+        val bgra = bitmap.readPixels()!!
+        val rgb = ByteArray(w * h * 3)
+        val alpha = ByteArray(w * h)
+        for (i in 0 until w * h) {
+            rgb[i * 3] = bgra[i * 4 + 2]; rgb[i * 3 + 1] = bgra[i * 4 + 1]; rgb[i * 3 + 2] = bgra[i * 4]
+            alpha[i] = bgra[i * 4 + 3]
+        }
+        val clear = alpha.any { (it.toInt() and 0xFF) < OPAQUE }
+        return io.trimio.engine.llm.RgbImage(w, h, rgb) to alpha.takeIf { clear }
+    }
+
+    private const val THUMB = 256
+    private const val OPAQUE = 250
 
     fun writeWav(audio: PcmAudio, file: File) {
         val n = audio.samples.size

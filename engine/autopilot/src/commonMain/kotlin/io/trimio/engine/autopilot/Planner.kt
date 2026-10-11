@@ -8,6 +8,7 @@ import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Words
+import io.trimio.engine.motion.style.StyleLanguage
 
 /**
  * Turns an [Understanding] into a [Score] the way a senior motion designer would cut it, with a
@@ -23,6 +24,11 @@ import io.trimio.engine.motion.score.Words
  *   a stats board, hours left a countdown, a quota that filled a progress bar;
  * - over the speaker no stretch goes without a visual event ([Rhythm]);
  * - the call to action is the clearest thing on the last screen.
+ *
+ * The style ([StyleLanguage]) is a language, not a template: the brief's style words pick it, or
+ * the domain, mood and seed pick among the fitting ones, and its weights then tilt the same
+ * choices (text entrances, transitions in and out, camera, marks, caption length, how much goes
+ * full-frame, stage backgrounds, accents) without touching the rules above.
  */
 class Planner(private val taste: Taste = Taste(), private val brief: String = "") {
 
@@ -108,9 +114,12 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 else -> picked
             }
         }
-        val look = chooseLook()
+        val style = StyleChoices.choose(brief, u, mood, taste, lookRng, notes)
+        val styling = StyleChoices(style, taste)
+        val look = style.id
+        val paced = styling.paced
         val music = chooseMusic()
-        val mark = markRng.weighted(markOptions(look))
+        val mark = markRng.weighted(style.captions.marks.toList())
         val usedRecipes = mutableListOf<String>()
         val usedTransitions = mutableListOf<String>()
         val shownLogos = mutableSetOf<String>()
@@ -139,7 +148,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val figures = Figures(texts, norm, rtl) { quote, line -> locate(quote, line) }
 
         /** The first seconds: the payoff first, or the cold open's figure. */
-        val hooks by lazy { Hooks(lines, texts, u, senses, figures, rtl, hookRng, recipeRng, taste, mark, usedRecipes, notes, ::spokenIn) }
+        val hooks by lazy { Hooks(lines, texts, u, senses, figures, rtl, hookRng, recipeRng, paced, mark, usedRecipes, notes, ::spokenIn) }
 
         /** The ask: the comment field with the keyword as said, the DM step, the field again at the end. */
         val ask = CallToAction(words, texts, norm, lines, u, brief, rtl) { quote, line -> locate(quote, line) }
@@ -159,15 +168,15 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             val captionWords = taste.captionWords ?: when (u.brief.captions) {
                 "word" -> captionRng.pick(listOf(2, 3, 3))
                 "phrase" -> captionRng.pick(listOf(4, 5))
-                else -> captionRng.pick(listOf(3, 3, 4))
+                else -> captionRng.pick(style.captions.words)
             }
             val showCaptions = taste.captions && u.brief.captions != "none"
-            val accent = paletteRng.pick(io.trimio.engine.motion.recipe.Look.accents[look] ?: listOf(null))
+            val accent = paletteRng.pick(style.accents)
             val score = Score(
                 look = look,
                 accent = accent,
                 bpm = music?.bpm?.toFloat(),
-                captions = CaptionScore(show = showCaptions, maxWords = captionWords),
+                captions = CaptionScore(show = showCaptions, maxWords = captionWords, place = style.captions.place),
                 scenes = scenes,
                 auto = false,
             )
@@ -225,7 +234,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** Over the speaker, no stretch without a visual event; no text treatment three times running. */
         private fun polish(scenes: MutableList<SceneScore>) {
             // A graphic a cut would leave on screen for less than a glance is dropped, not flashed.
-            val rhythm = Rhythm(words, lines, reads, u, taste, fillRng, energy, usedRecipes, usedVisuals, ask.keyword, ::locate)
+            val rhythm = Rhythm(words, lines, reads, u, paced, fillRng, energy, usedRecipes, usedVisuals, ask.keyword, ::locate)
             // A data graphic that cannot be read in full (a full-frame scene or the ask comes right after) is dropped.
             val least = { b: BeatScore -> if (b.recipe in PLAIN_DATA && b.time == null) DATA_HOLD else 0f }
             rhythm.prune(scenes, least)
@@ -295,8 +304,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             }
             return SceneScore(
                 from = line.first,
-                bg = if (takeover) (if (recipeRng.chance(0.5f) || read.show == "network") "grid" else "aurora") else null,
-                camera = if (takeover) null else camera(read),
+                bg = if (takeover) (if (read.show == "network") "grid" else recipeRng.weighted(style.rhythm.stages.toList())) else null,
+                camera = if (takeover) null else styling.camera(read.energy, showRng),
                 transition = transition,
                 beats = beats,
             )
@@ -454,10 +463,11 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             if (!footage) return lines.indices.toSet()
             val total = duration(0, lines.lastIndex)
             // The share of full-frame graphics varies by seed (a calmer or a busier cut of the same piece).
-            val budget = total * taste.takeover * takeoverRng.range(0.6f, 1.35f)
+            val budget = total * paced.takeover * takeoverRng.range(0.6f, 1.35f)
             // Not in the first seconds: the viewer first meets the speaker (and the hook).
             // A thread takes the full frame only when it is long (three bubbles or more).
-            val candidates = reads.indices.filter { k -> k > 0 && k < lines.lastIndex && reads[k].show in TAKEOVER_SHOWS && words[lines[k].first].range.startMs >= EARLIEST_TAKEOVER_MS &&
+            val candidates = reads.indices.filter { k ->
+                k > 0 && k < lines.lastIndex && (reads[k].show in TAKEOVER_SHOWS || uiOf(k) != null) && words[lines[k].first].range.startMs >= EARLIEST_TAKEOVER_MS &&
                 (threads[k]?.bubbles?.size ?: STAGED_THREAD) >= STAGED_THREAD &&
                 // The ask keeps the speaker on screen while it plays out (the DM step after the keyword).
                 reads[k - 1].show != "comment" &&
@@ -465,7 +475,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 reach(k - 1) < k }
                 // The piece's big figures first; the rest by weight, varied by seed.
                 .sortedByDescending { k ->
-                    TAKEOVER_SHOWS.getValue(reads[k].show) * takeoverRng.range(0.5f, 1.5f) + (if (reads[k].show in BIG_MOMENTS || k in requested) BIG_FIRST else 0f) + (if (k == payoffLine) 1f else 0f)
+                    val weight = (TAKEOVER_SHOWS[reads[k].show] ?: 0f) + (if (uiOf(k) != null) UI_TAKEOVER else 0f)
+                    weight * takeoverRng.range(0.5f, 1.5f) + (if (reads[k].show in BIG_MOMENTS || k in requested) BIG_FIRST else 0f) + (if (k == payoffLine) 1f else 0f)
                 }
             val chosen = mutableSetOf<Int>()
             var used = 0f
@@ -502,7 +513,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         // ------------------------------------------------------------ beats
 
         private fun beatsFor(k: Int, line: Lines.Line, read: LineRead, takeover: Boolean, hasHook: Boolean): List<BeatScore> {
-            val e = (read.energy * 0.6f + energy * 0.4f).coerceIn(0.2f, 1f)
+            val e = styling.lean(read.energy * 0.6f + energy * 0.4f).coerceIn(0.2f, 1f)
             val primary = echo(k, line, e) ?: primary(line, read, e, takeover)
             val out = mutableListOf<BeatScore>()
             // The hook owns the first seconds: line 0's own graphic waits unless it is the CTA.
@@ -533,7 +544,30 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             }
         }
 
-        private fun primary(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? = when (compact(read, takeover)) {
+        /** The interface B-roll ([UiBroll]) a line about an app, a site, code or a dashboard shows, if any. */
+        private val uiLines = HashMap<Int, String?>()
+
+        private fun uiOf(k: Int): String? = uiLines.getOrPut(k) {
+            reads.getOrNull(k)?.takeIf { it.show in UiBroll.TRADES }?.let { UiBroll.recipeFor(texts.subList(lines[k].first, lines[k].last + 1)) }
+        }
+
+        /** A full-frame interface for the line: what it shows comes from the line's title and items. */
+        private fun uiBeat(line: Lines.Line, read: LineRead, recipe: String): BeatScore {
+            val title = read.title.ifBlank { Phrases.title(words, line, hookKeys) }.takeIf { it.isNotBlank() && textKey(it) !in hookKeys }
+            return when (recipe) {
+                "ui-code" -> BeatScore(recipe = recipe, at = line.first, until = line.last, items = read.items.filter { it.isAscii() }.take(6), place = "center")
+                "ui-browser" -> BeatScore(recipe = recipe, at = line.first, until = line.last, text = title, label = u.entities.firstOrNull { '.' in it.name }?.name, place = "center")
+                "ui-dashboard" -> BeatScore(recipe = recipe, at = line.first, until = line.last, label = title, place = "center")
+                else -> BeatScore(recipe = recipe, at = line.first, until = line.last, items = listOfNotNull(title), place = "center")
+            }
+        }
+
+        private fun primary(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
+            if (takeover) uiOf(lines.indexOf(line))?.let { return uiBeat(line, read, it) }
+            return primaryShow(line, read, e, takeover)
+        }
+
+        private fun primaryShow(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? = when (compact(read, takeover)) {
             "counter" -> counter(line, read, e, takeover)
             "logos" -> logos(line, read)
             "terminal" -> terminal(line, read, takeover)
@@ -581,7 +615,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             if (titled) return BeatScore(recipe = textRecipe(0.5f), text = read.title, place = "top", energy = 0.55f, mark = mark, at = line.first)
             // A picture only where the line has no graphic of its own (two things at the top would fight).
             val room = !takeover && count == 0
-            return if (room && showRng.chance(PICTURE_CHANCE * taste.density)) pictureFor(line, read) else null
+            return if (room && showRng.chance(PICTURE_CHANCE * taste.density * style.rhythm.density)) pictureFor(line, read) else null
         }
 
         private fun headline(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
@@ -711,39 +745,25 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         // ------------------------------------------------------------ choices
 
+        /** A headline's entrance: the energy band's options as the style and the creator's taste weigh them. */
         private fun textRecipe(e: Float): String {
-            val options = when {
+            val band = when {
                 e >= 0.8f -> listOf("slam" to 1f, "stack" to 0.7f, "spread" to 0.5f, "glitch" to if (u.domain in TECH) 0.5f else 0f, "flip" to 0.4f)
                 e >= 0.5f -> listOf("mask-rise" to 1f, "flip" to 0.6f, "type-on" to if (u.domain in TECH) 0.6f else 0.25f, "slam" to 0.35f, "spread" to 0.35f)
                 else -> listOf("blur-in" to 1f, "mask-rise" to 0.8f, "type-on" to 0.3f)
             }
-            return recipeRng.weighted(options.map { (r, w) -> r to w * taste.recipe(r) * if (usedRecipes.lastOrNull() == r) 0.3f else 1f })
+            return recipeRng.weighted(styling.entrances(band, e).map { (r, w) -> r to w * taste.recipe(r) * if (usedRecipes.lastOrNull() == r) 0.3f else 1f })
         }
 
-        private fun camera(read: LineRead): String? = when {
-            read.energy >= 0.8f -> showRng.pick(listOf("push-in", null))
-            read.energy <= 0.35f -> showRng.pick(listOf("still", null))
-            else -> null
-        }
+        private fun intoTakeover(): List<Pair<String, Float>> = styling.into(
+            when (mood) {
+                "calm", "luxury", "inspiring" -> listOf("leak" to 1f, "zoom" to 0.8f, "whip" to 0.3f)
+                "serious" -> listOf("zoom" to 1f, "whip" to 0.5f, "leak" to 0.3f)
+                else -> listOf("whip" to 1f, "flash" to 0.7f, "zoom" to 0.6f, "leak" to 0.25f)
+            },
+        )
 
-        private fun intoTakeover(): List<Pair<String, Float>> = when (mood) {
-            "calm", "luxury", "inspiring" -> listOf("leak" to 1f, "zoom" to 0.8f, "whip" to 0.3f)
-            "serious" -> listOf("zoom" to 1f, "whip" to 0.5f, "leak" to 0.3f)
-            else -> listOf("whip" to 1f, "flash" to 0.7f, "zoom" to 0.6f, "leak" to 0.25f)
-        }.map { (t, w) -> t to w * taste.transition(t) }
-
-        private fun outOfTakeover(): List<Pair<String, Float>> = listOf("whip" to 1f, "zoom" to 0.5f, "cut" to 0.6f).map { (t, w) -> t to w * taste.transition(t) }
-
-        private fun chooseLook(): String {
-            u.brief.look.takeIf { it in LOOKS }?.let { return it }
-            val base = when (mood) {
-                "calm", "luxury", "inspiring" -> listOf("lumen" to 1f, "paper" to 0.45f, "noir" to 0.35f)
-                "serious" -> listOf("paper" to 1f, "noir" to 0.8f, "lumen" to 0.4f)
-                "playful" -> listOf("paper" to 1f, "noir" to 0.7f, "lumen" to 0.5f)
-                else -> listOf("noir" to 1f, "paper" to 0.45f, "lumen" to 0.35f)
-            }
-            return lookRng.weighted(base.map { (l, w) -> l to w * taste.look(l) })
-        }
+        private fun outOfTakeover(): List<Pair<String, Float>> = styling.outOf(listOf("whip" to 1f, "zoom" to 0.5f, "cut" to 0.6f))
 
         private fun chooseMusic(): MusicMood? {
             if (!taste.music || u.brief.music == "none") return null
@@ -757,12 +777,6 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 else -> listOf(MusicMood.Uplifting to 1f, MusicMood.Corporate to 0.6f, MusicMood.Energetic to 0.5f)
             }
             return lookRng.weighted(options)
-        }
-
-        private fun markOptions(look: String) = when (look) {
-            "lumen" -> listOf("ink" to 1f, "underline" to 0.6f, "block" to 0.3f)
-            "paper" -> listOf("block" to 1f, "underline" to 0.7f, "circle" to 0.5f)
-            else -> listOf("block" to 1f, "ink" to 0.5f, "underline" to 0.4f, "circle" to 0.3f)
         }
 
         // ------------------------------------------------------------ word helpers
@@ -797,7 +811,6 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
     }
 
     private companion object {
-        val LOOKS = setOf("noir", "paper", "lumen")
         val TECH = setOf("tech", "software", "ai", "crypto", "gaming")
 
         /**
@@ -853,6 +866,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val UPGRADABLE = setOf("headline", "counter", "none")
 
         const val MIN_TAKEOVER_S = 1.4f
+
+        /** How much a line naming an interface ([UiBroll]) leans toward a full-frame cut. */
+        const val UI_TAKEOVER = 0.5f
         const val EARLIEST_TAKEOVER_MS = 3500L
         const val MIN_NODES = 7
         const val PICTURE_CHANCE = 0.7f

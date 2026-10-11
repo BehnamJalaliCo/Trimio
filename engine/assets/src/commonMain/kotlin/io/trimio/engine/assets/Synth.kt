@@ -37,8 +37,7 @@ internal class Synth(val rate: Int) {
     }
 
     /** Phase-accumulating oscillator; frequency may change every sample. */
-    class Osc(private val rate: Int) {
-        private var phase = 0.0
+    class Osc(private val rate: Int, private var phase: Double = 0.0) {
         fun sine(freq: Float): Float {
             phase = (phase + freq / rate) % 1.0
             return sin(2 * PI * phase).toFloat()

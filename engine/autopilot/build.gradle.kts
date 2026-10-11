@@ -38,7 +38,7 @@ kotlin {
 
 // ./gradlew :engine:autopilot:jvmTest -Pauto.video=… -Pauto.prompt=… -Pauto.seeds=1,2,3 (see AutopilotProofTest)
 tasks.withType<Test>().configureEach {
-    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.llm.id", "auto.gold", "auto.transcript", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir", "workshop.stills", "workshop.only", "workshop.seeds", "workshop.out", "jury.benchmark", "golden.update", "golden.only", "golden.seeds").forEach { key ->
+    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.llm.id", "auto.gold", "auto.transcript", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir", "workshop.stills", "workshop.only", "workshop.seeds", "workshop.out", "jury.benchmark", "golden.update", "golden.only", "golden.seeds", "golden.styles", "styles.sheets", "styles.only").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
     // ColdOpenAudioTest: -Pcoldopen.wav=voice.wav -Pcoldopen.transcript=transcript.json [-Pcoldopen.out=dir]

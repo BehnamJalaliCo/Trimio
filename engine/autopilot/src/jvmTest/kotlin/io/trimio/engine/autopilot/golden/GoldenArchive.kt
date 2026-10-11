@@ -4,6 +4,7 @@ import io.trimio.core.model.text.Numerals
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.workshop.Scenario
+import io.trimio.engine.autopilot.workshop.StyleAxis
 import io.trimio.engine.autopilot.workshop.Workshop
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -55,16 +56,20 @@ object GoldenArchive {
     fun key(scenario: Scenario, seed: Long) = "${scenario.id}/$seed"
 
     /** Every scenario edited and judged with every seed. */
-    fun judge(scenarios: List<Scenario>, seeds: List<Long>): List<Run> = scenarios.flatMap { s ->
-        seeds.map { seed ->
-            val t0 = System.nanoTime()
-            val p = Workshop.run(s, seed)
-            val panel = requireNotNull(p.panel) { "${s.id}: the autopilot ran without a jury" }
-            val (accuracy, wrong) = accuracy(s, p)
-            val judges = panel.verdicts.associate { it.judge to round(it.score) } + listOfNotNull(accuracy?.let { ACCURACY to round(it) })
-            val findings = panel.findings().filterNot { " note " in it } + wrong.map { "  $ACCURACY: «$it» on screen is a recognition error" }
-            Run(key(s, seed), Entry(round(panel.min), round(panel.mean), judges), findings, wrong, (System.nanoTime() - t0) / 1e9)
-        }
+    fun judge(scenarios: List<Scenario>, seeds: List<Long>): List<Run> = scenarios.flatMap { s -> seeds.map { seed -> judgeOne(s, seed, null) } }
+
+    /** The style axis ([StyleAxis]): each style on its scenarios, keyed `id~style/seed`. */
+    fun judgeStyles(runs: List<Pair<Scenario, String>>, seeds: List<Long>): List<Run> = runs.flatMap { (s, style) -> seeds.map { seed -> judgeOne(s, seed, style) } }
+
+    private fun judgeOne(s: Scenario, seed: Long, style: String?): Run {
+        val t0 = System.nanoTime()
+        val p = Workshop.run(s, seed, style = style)
+        val panel = requireNotNull(p.panel) { "${s.id}: the autopilot ran without a jury" }
+        val (accuracy, wrong) = accuracy(s, p)
+        val judges = panel.verdicts.associate { it.judge to round(it.score) } + listOfNotNull(accuracy?.let { ACCURACY to round(it) })
+        val findings = listOf("  style ${p.score.look}") + panel.findings().filterNot { " note " in it } + wrong.map { "  $ACCURACY: «$it» on screen is a recognition error" }
+        val key = if (style == null) key(s, seed) else "${StyleAxis.key(s, style)}/$seed"
+        return Run(key, Entry(round(panel.min), round(panel.mean), judges), findings, wrong, (System.nanoTime() - t0) / 1e9)
     }
 
     /**
@@ -93,9 +98,17 @@ object GoldenArchive {
         drops + listOfNotNull("$k: average ${e.mean} under the floor $FLOOR".takeIf { e.mean < FLOOR - EPS })
     }
 
-    /** The baseline with [current] written over its runs (others kept), saved to [source]. */
+    /**
+     * The baseline with [current] written over its runs (others kept), saved to [source]. It only
+     * ratchets up: a run new to the archive enters when every judge gave it 10, an archived run is
+     * rewritten only when nothing in it dropped (a regression stays visible against the old scores).
+     */
     fun update(current: Map<String, Entry>): Baseline {
-        val merged = Baseline(runs = ((load()?.runs ?: emptyMap()) + current).toSortedMap())
+        val old = load()?.runs ?: emptyMap()
+        val admitted = current.filter { (k, e) ->
+            old[k]?.let { was -> compare(Baseline(runs = mapOf(k to was)), mapOf(k to e)).isEmpty() } ?: (e.min >= 10f - EPS)
+        }
+        val merged = Baseline(runs = (old + admitted).toSortedMap())
         source.apply { parentFile.mkdirs() }.writeText(json.encodeToString(Baseline.serializer(), merged) + "\n")
         return merged
     }
