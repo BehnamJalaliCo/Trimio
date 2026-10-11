@@ -3,8 +3,10 @@ package io.trimio.engine.production
 import io.trimio.engine.asr.whisper.InstalledWhisperRecognizer
 import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.llm.local.LocalModels
+import io.trimio.engine.models.DeviceFit
 import io.trimio.engine.models.DeviceMemory
 import io.trimio.engine.models.ModelCatalog
+import io.trimio.engine.models.ModelFit
 import io.trimio.engine.models.ModelKind
 import io.trimio.engine.models.ModelSpec
 import io.trimio.engine.models.ModelStore
@@ -36,9 +38,16 @@ class LocalDirectors(
         return Director(model, local.eyes(model))
     }
 
-    /** Whisper with the installed speech model: [preferredSpeech] when installed, else the largest that fits. */
+    /**
+     * Whisper with the installed speech model: [preferredSpeech] when installed, else the largest that fits.
+     * Fit is the real memory check the models screen shows ([DeviceFit]), not the coarse RAM tier.
+     */
     fun recognizer(preferredSpeech: () -> String? = { null }) = InstalledWhisperRecognizer {
-        val installed = catalog.filter { it.kind == ModelKind.Speech && store.isInstalled(it) && it.tier.minRamGb <= device.ramGb }
-        (installed.firstOrNull { it.id == preferredSpeech() } ?: installed.maxByOrNull { it.sizeBytes })?.let { store.pathOf(it).toString() }
+        val installed = catalog.filter { it.kind == ModelKind.Speech && store.isInstalled(it) }
+        (
+            installed.firstOrNull { it.id == preferredSpeech() }
+                ?: installed.filter { DeviceFit.of(it, device) <= ModelFit.Experimental }.maxByOrNull { it.sizeBytes }
+                ?: installed.minByOrNull { it.sizeBytes }
+            )?.let { store.pathOf(it).toString() }
     }
 }
