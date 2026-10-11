@@ -34,12 +34,35 @@ class DataTest {
     }
 
     @Test
+    fun projectsFromOlderVersionsLoadAndProductionsRoundTrip(): Unit = runBlocking {
+        val folder = Path(dir, "legacy")
+        kotlinx.io.files.SystemFileSystem.createDirectories(folder)
+        // A project file as the earlier pipeline wrote it: no production record, no new fields.
+        val old = """{"id":"old","title":"قدیمی","createdAt":5,"updatedAt":6,"input":{"type":"audio","uri":"content://a","durationMs":9000,""" +
+            """"canvas":{}},"prompt":"p","status":"Ready","outputUri":"content://media/1"}"""
+        java.io.File(folder.toString(), "old.json").writeText(old)
+        val repo = ProjectRepository(FileProjectStore(folder)).apply { load() }
+        val legacy = repo.get("old")!!
+        assertEquals(ProjectStatus.Ready, legacy.status)
+        assertEquals(null, legacy.production)
+
+        val record = ProductionRecord(
+            request = """{"media":"/v.mp4","prompt":"ریلز"}""", key = "k1", keys = listOf("k1"), progress = 1f, poster = "/p.jpg",
+            styleId = "noir", durationMs = 42_000, judges = listOf(JudgeVerdict("hook", 10f)), findings = listOf("ok"),
+        )
+        repo.save(legacy.copy(id = "new", production = record))
+        val again = ProjectRepository(FileProjectStore(folder)).apply { load() }
+        assertEquals(record, again.get("new")?.production)
+    }
+
+    @Test
     fun settingsPersist(): Unit = runBlocking {
         val file = Path(dir, "settings.json")
-        SettingsRepository(file).update { it.copy(onboardingDone = true, exportResolution = Resolution.Uhd4k) }
+        SettingsRepository(file).update { it.copy(onboardingDone = true, exportResolution = Resolution.Uhd4k, theme = ThemeMode.Light) }
         val again = SettingsRepository(file).apply { load() }
         assertTrue(again.settings.value.onboardingDone)
         assertEquals(Resolution.Uhd4k, again.settings.value.exportResolution)
+        assertEquals(ThemeMode.Light, again.settings.value.theme)
     }
 
     @Test

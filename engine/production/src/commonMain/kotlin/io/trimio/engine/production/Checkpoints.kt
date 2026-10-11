@@ -24,6 +24,12 @@ class Checkpoints(private val dir: Path?) {
 
     fun save(key: String, saved: Saved) = write(file(key), json.encodeToString(Saved.serializer(), saved))
 
+    /** Forgets a run's words and reading (the creator deleted the project). */
+    fun delete(key: String) {
+        val path = file(key) ?: return
+        runCatching { SystemFileSystem.delete(path, mustExist = false) }
+    }
+
     /** The run in progress, to restart after process death. */
     fun pending(): ProductionRequest? = read(dir?.let { Path(it, PENDING) }) { json.decodeFromString(ProductionRequest.serializer(), it) }
 

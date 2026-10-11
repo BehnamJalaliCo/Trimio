@@ -32,7 +32,13 @@ data class AppSettings(
     val haptics: Boolean = true,
     /** Consent to share crash reports (off by default). */
     val shareCrashReports: Boolean = false,
+    /** تیره / روشن / سیستم: the dark (noir) look by default. */
+    val theme: ThemeMode = ThemeMode.Dark,
 )
+
+/** The app's look: dark (noir), light (paper) or following the system. */
+@Serializable
+enum class ThemeMode { Dark, Light, System }
 
 /** Settings as observable state, persisted as one small JSON file. */
 class SettingsRepository(private val file: Path?, private val fs: FileSystem? = null) {

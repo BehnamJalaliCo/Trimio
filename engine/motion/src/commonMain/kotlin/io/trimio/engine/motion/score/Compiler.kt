@@ -425,7 +425,8 @@ class Compiler(
         // The cold open speaks too: its words get captions on the output clock before the body's.
         val prelude = input.transcript?.let { t -> input.edit?.preludeWords(t) }.orEmpty()
         // Hesitations («اِم», "um") are never shown; the words around them keep their own times.
-        fun said(words: List<Word>) = words.filterNot { Words.isFiller(it.text) }
+        // A blank word was cut or merged by the creator (the editor): it has nothing to show either.
+        fun said(words: List<Word>) = words.filterNot { it.text.isBlank() || Words.isFiller(it.text) }
         val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(said(prelude), score.captions.maxWords.coerceIn(1, 8))) +
             Words.captionLines(said(session.transcript!!.words), score.captions.maxWords.coerceIn(1, 8))
         val emphasisWords = beats.flatMap { b -> b.cue.emphasis.mapNotNull { b.cue.words.getOrNull(it) } }.map(NumberWords::normalize).toSet()

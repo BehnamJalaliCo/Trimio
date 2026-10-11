@@ -72,7 +72,31 @@ class Autopilot(
         val report: List<String>,
         /** The jury's verdict on the delivered edit (null when no jury sat). */
         val panel: Jury.Panel? = null,
-    )
+        /**
+         * What compiled the delivered edit (its compiler, with the marks and pictures it was given,
+         * and the input), so an export can lay it out again for another frame or frame rate.
+         */
+        val source: Compiled? = null,
+        /** What the creator's own changes (the editor) are applied with, without the director ([Workbench]). */
+        val bench: Workbench? = null,
+    ) {
+        /**
+         * This edit laid out for [format] ("9:16", "16:9", "1:1", "4:5") at [fps]: the same score,
+         * words, cuts and pictures ([score] and [edit] as they are now, the creator's changes
+         * included), placed again by the compiler for that frame. The edit itself when nothing
+         * changes; null when the frame changes and nothing can re-place it.
+         */
+        fun relaid(format: String, fps: Int): Compiler.Output? {
+            val c = compiled.composition
+            val same = score.format.trim() == format.trim()
+            if (same && c.fps == fps) return compiled
+            val s = source ?: return if (same) compiled.copy(composition = c.withFps(fps)) else null
+            return s.compiler.compile(s.input.copy(score = score.copy(format = format), edit = edit, fps = fps))
+        }
+    }
+
+    /** A compiler and the input it compiled the delivered edit from. */
+    class Compiled(val compiler: Compiler, val input: Compiler.Input)
 
     suspend fun produce(request: Request, onStage: (stage: String, progress: Float) -> Unit = { _, _ -> }): Production {
         val report = mutableListOf<String>()
@@ -136,8 +160,12 @@ class Autopilot(
             report += p.findings()
         }
         onStage("done", 1f)
-        return Production(d.compiled, d.score, d.plan, understanding, sound, d.edit, report, panel)
+        val source = Compiled(d.compiler, input(d.score, reading.transcript, d.edit, request))
+        return Production(d.compiled, d.score, d.plan, understanding, sound, d.edit, report, panel, source, bench(reading, d, analysis.pauses, levels))
     }
+
+    private fun bench(r: Reading, d: Draft, pauses: List<ClosedFloatingPointRange<Float>>, levels: Soundtrack.Levels) =
+        Workbench(r.transcript, r.lines, pauses, r.request, r.understanding, r.lexicon, d.compiler, jury, { r.brands.find(it)?.isMonogram == false }, measure, levels)
 
     /** What every variation of one request shares: the words, their lines and reading, the silence cut, the marks, the lexicon. */
     private class Reading(
@@ -309,7 +337,10 @@ class Autopilot(
     }
 
     private fun compile(compiler: Compiler, score: Score, transcript: Transcript, edit: EditPlan, request: Request) =
-        compiler.compile(Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject)).also(onCompiled)
+        compiler.compile(input(score, transcript, edit, request)).also(onCompiled)
+
+    private fun input(score: Score, transcript: Transcript, edit: EditPlan, request: Request) =
+        Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject)
 
     private companion object {
         const val CRITIC_PASSES = 2

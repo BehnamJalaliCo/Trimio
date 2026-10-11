@@ -2,19 +2,12 @@ package io.trimio.feature.create
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import io.trimio.core.data.Clock
-import io.trimio.core.data.JobRunner
 import io.trimio.core.data.MediaKind
-import io.trimio.core.data.Project
-import io.trimio.core.data.ProjectRepository
 import io.trimio.core.data.SettingsRepository
 import io.trimio.core.data.ThermalLevel
 import io.trimio.core.data.ThermalMonitor
 import io.trimio.core.model.input.AspectRatio
-import io.trimio.core.model.input.CanvasSpec
-import io.trimio.core.model.input.InputSource
 import io.trimio.core.model.input.MediaInfo
-import io.trimio.core.model.input.MediaUri
 import io.trimio.core.pipeline.DirectorBackend
 import io.trimio.engine.director.Brief
 import io.trimio.engine.director.BriefParser
@@ -28,7 +21,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 data class CreateState(
     val kind: MediaKind,
@@ -66,16 +58,19 @@ class CreateViewModel(
     private val probe: MediaProbe,
     private val styles: StylePackRepository,
     private val cloud: CloudModels,
-    private val settings: SettingsRepository,
-    private val projects: ProjectRepository,
-    private val runner: JobRunner,
+    settings: SettingsRepository,
     initialStyle: String? = null,
     thermal: ThermalMonitor = ThermalMonitor.None,
     private val attachmentPicker: AttachmentPicker = AttachmentPicker.None,
+    /** Words to start the brief with (an idea from home, or the composer's wish). */
+    initialPrompt: String? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
-        CreateState(kind, probing = uri.isNotBlank(), director = settings.settings.value.director, styleId = initialStyle?.let(::languageOf), hasMedia = uri.isNotBlank()),
+        CreateState(
+            kind, probing = uri.isNotBlank(), director = settings.settings.value.director, styleId = initialStyle?.let(::languageOf), hasMedia = uri.isNotBlank(),
+            prompt = initialPrompt.orEmpty(), brief = BriefParser.parse(initialPrompt.orEmpty()),
+        ),
     )
     val state: StateFlow<CreateState> = _state.asStateFlow()
 
@@ -142,41 +137,6 @@ class CreateViewModel(
         setPrompt(if (current.isEmpty()) joined else "$current${if (persian) "؛ " else "; "}$joined")
     }
 
-    fun create(onCreated: (String) -> Unit) {
-        val s = _state.value
-        val info = s.info ?: return
-        _state.update { it.copy(creating = true) }
-        viewModelScope.launch {
-            val input = when {
-                s.kind == MediaKind.Video && info.video != null -> InputSource.Video(MediaUri(uri), info.durationMs, info.video!!)
-                else -> InputSource.AudioOnly(MediaUri(uri), info.durationMs, CanvasSpec(s.aspect, settings.settings.value.exportResolution))
-            }
-            val now = Clock.now()
-            val project = Project(
-                id = "p" + now.toString(36) + Random.nextInt(1_000, 9_999),
-                title = titleFrom(s.prompt, s.kind),
-                createdAt = now,
-                updatedAt = now,
-                input = input,
-                prompt = s.enginePrompt,
-                // The build pipeline still reads picker packs; the style language names its pack.
-                styleId = s.styleId?.let { id -> StyleBook.all.firstOrNull { it.id == id }?.pack ?: id } ?: s.brief.styleId,
-                director = s.director,
-            )
-            projects.save(project)
-            runner.build(project)
-            onCreated(project.id)
-        }
-    }
-
     /** A gallery pack id ("brutalism") or a language id ("bold-brutalist") as the language id. */
     private fun languageOf(id: String): String = StyleBook.all.firstOrNull { it.pack == id }?.id ?: id
-
-    private fun titleFrom(prompt: String, kind: MediaKind): String {
-        val words = prompt.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-        return when {
-            words.isEmpty() -> if (kind == MediaKind.Video) "ویدیوی جدید" else "صدای جدید"
-            else -> words.take(5).joinToString(" ") + if (words.size > 5) "…" else ""
-        }
-    }
 }

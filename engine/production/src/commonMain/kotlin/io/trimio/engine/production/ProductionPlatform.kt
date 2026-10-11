@@ -9,6 +9,7 @@ import io.trimio.engine.autopilot.UserAsset
 import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.llm.RgbImage
 import io.trimio.engine.models.DeviceTier
+import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.MediaSource
 
 /**
@@ -44,6 +45,9 @@ interface ProductionPlatform {
      */
     val previewShaders: Boolean get() = true
 
+    /** Sound out for the editor's player ([EditPlayback]); null plays it silent on a wall clock. */
+    fun speaker(): Speaker? = null
+
     /** Speech to words (whisper.cpp); null when no speech model is installed. */
     fun recognizer(): SpeechRecognizer?
 
@@ -60,11 +64,59 @@ interface ProductionPlatform {
         assets: List<UserAsset>,
         out: String,
         onFrame: (Int, Int) -> Unit,
+    ): String = render(production.compiled.composition, production.soundtrack.audio, request, assets, out, 1f, onFrame)
+
+    /**
+     * Renders [composition] (an edit as delivered, or laid out again for another frame or rate)
+     * with [sound] to the MP4 at [out], [scale] times the composition's size (2 for 4K from the
+     * 1080-wide layout); [onFrame] gets (done, total).
+     */
+    suspend fun render(
+        composition: Composition,
+        sound: PcmAudio,
+        request: ProductionRequest,
+        assets: List<UserAsset>,
+        out: String,
+        scale: Float,
+        onFrame: (Int, Int) -> Unit,
     ): String
+
+    /**
+     * The motion graphics alone over transparency (the footage left out) for another editor's
+     * timeline, at [out]; null where the platform has no codec with alpha (phones).
+     */
+    suspend fun renderGraphics(
+        composition: Composition,
+        request: ProductionRequest,
+        assets: List<UserAsset>,
+        out: String,
+        scale: Float,
+        onFrame: (Int, Int) -> Unit,
+    ): String? = null
+
+    /** Whether this device's encoder takes [width]×[height] at [fps] (phones top out below some 4K rates). */
+    fun canEncode(width: Int, height: Int, fps: Int): Boolean = true
+
+    /** The facts another editor needs to relink the creator's file: its name, size and length; null when unknown. */
+    suspend fun probe(media: String): SourceFacts? = null
 
     /** Where a request without [ProductionRequest.output] renders to. */
     fun outputFor(request: ProductionRequest): String
 }
+
+/** The creator's source file as another editor sees it. */
+data class SourceFacts(
+    /** The file's name ("talk.mp4"), for relinking. */
+    val name: String,
+    /** A file:// URL where the platform has one (desktop); null for content the editor relinks by name. */
+    val url: String?,
+    val durationSeconds: Float,
+    /** Display size, rotation applied; 0 when the file has no picture. */
+    val width: Int,
+    val height: Int,
+    /** The source's own frame rate, rounded (0 when unknown). */
+    val fps: Int = 0,
+)
 
 /** Who directs and who looks at frames (the director itself when it can see). */
 data class Director(val model: LanguageModel?, val eyes: LanguageModel? = model?.takeIf { it.canSee }) {

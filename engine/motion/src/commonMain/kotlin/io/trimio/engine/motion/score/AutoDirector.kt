@@ -6,9 +6,10 @@ import io.trimio.core.model.transcript.Word
  * Direction the compiler adds on its own when a scene arrives empty — the floor under the smallest
  * model. It reads the transcript like an editor: a hook in the first seconds, numbers become
  * counters, charged words get an icon, and the most stressed phrase of each scene becomes a
- * headline. A model's own beats always replace this for their scene.
+ * headline. A model's own beats always replace this for their scene. The editor offers the same
+ * reading as the director's further suggestions.
  */
-internal object AutoDirector {
+object AutoDirector {
 
     private val icons = mapOf(
         "بیتکوین" to "coin", "بیت" to "coin", "bitcoin" to "coin", "btc" to "coin", "اتریوم" to "coin", "ethereum" to "coin", "کریپتو" to "coin", "crypto" to "coin",

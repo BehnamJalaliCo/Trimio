@@ -3,12 +3,15 @@ package io.trimio.engine.production
 import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.view.Surface
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.font.createFontFamilyResolver
 import androidx.compose.ui.unit.Density
@@ -46,12 +49,16 @@ class AndroidMotionExporter(private val context: Context) {
         sound: PcmAudio,
         out: File,
         onFrame: (Int, Int) -> Unit,
+        /** Output pixels per composition pixel: 2 for 4K, 2/3 for 720p from the 1080-wide layout. */
+        outputScale: Float = 1f,
     ): File = withContext(Dispatchers.Default) {
         val (audioFormat, audio) = encodeAudio(sound)
         out.absoluteFile.parentFile?.mkdirs()
         val fps = composition.fps
-        val w = composition.width
-        val h = composition.height
+        val w = even(composition.width * outputScale)
+        val h = even(composition.height * outputScale)
+        val sx = w / composition.width.toFloat()
+        val sy = h / composition.height.toFloat()
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate(w, h, fps))
@@ -72,7 +79,8 @@ class AndroidMotionExporter(private val context: Context) {
             val total = ceil(composition.duration * fps).toInt().coerceAtLeast(1)
             for (i in 0 until total) {
                 currentCoroutineContext().ensureActive()
-                draw(surface, scope, w, h) { renderer.render(this, i / fps.toFloat()) }
+                // Drawn at the output size (text and shapes stay sharp at 4K), not rendered small and stretched.
+                draw(surface, scope, w, h) { scale(sx, sy, pivot = Offset.Zero) { renderer.render(this, i / fps.toFloat()) } }
                 writer.drain(encoder, end = false)
                 onFrame(i + 1, total)
             }
@@ -227,7 +235,17 @@ class AndroidMotionExporter(private val context: Context) {
         const val PCM_MAX = 32_767f
         const val AUDIO_BITRATE = 192_000
 
-        /** About 0.27 bits a pixel at 30 fps: 16 Mbps for 1080×1920, generous for graphics edges. */
-        fun bitrate(w: Int, h: Int, fps: Int): Int = (w.toLong() * h * fps * 27 / 100).toInt().coerceIn(4_000_000, 24_000_000)
+        /** About 0.27 bits a pixel at 30 fps: 16 Mbps for 1080×1920, generous for graphics edges; up to 80 Mbps for 4K60. */
+        fun bitrate(w: Int, h: Int, fps: Int): Int = (w.toLong() * h * fps * 27 / 100).coerceIn(4_000_000L, 80_000_000L).toInt()
+
+        private fun even(v: Float): Int = ((v / 2f).roundToInt() * 2).coerceAtLeast(2)
+
+        /** Whether a hardware (or any) AVC encoder on this phone takes [w]×[h] at [fps]. */
+        fun supports(w: Int, h: Int, fps: Int): Boolean = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+            .filter { it.isEncoder && MediaFormat.MIMETYPE_VIDEO_AVC in it.supportedTypes }
+            .any { info ->
+                val video = info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities
+                runCatching { video.areSizeAndRateSupported(w, h, fps.toDouble()) || video.areSizeAndRateSupported(h, w, fps.toDouble()) }.getOrDefault(false)
+            }
     }
 }

@@ -55,5 +55,7 @@ enum class AspectRatio(val w: Int, val h: Int) {
 enum class Resolution(val shortEdge: Int) {
     Hd(720),
     FullHd(1080),
+    /** "2K" in the export screen: 1440 on the short side. */
+    Qhd(1440),
     Uhd4k(2160),
 }

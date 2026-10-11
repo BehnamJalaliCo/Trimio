@@ -58,13 +58,13 @@ class Productions(
     private val engineLock = Mutex()
 
     /** Fonts, the text engine and the bundled marks: loaded once, shared by every run. */
-    private class Engines(val text: TextLayoutEngine, val previewer: Previewer, val brands: BrandLibrary)
+    private class Engines(val text: TextLayoutEngine, val previewer: Previewer, val brands: BrandLibrary, val measurer: androidx.compose.ui.text.TextMeasurer, val fonts: MotionFonts)
 
     private suspend fun engines(): Engines = engineLock.withLock {
         engines ?: run {
             val fonts = MotionFonts.load()
             val measurer = platform.measurer()
-            Engines(TextLayoutEngine(measurer, fonts), Previewer(measurer, fonts, platform.previewShaders), BrandLibrary.load())
+            Engines(TextLayoutEngine(measurer, fonts), Previewer(measurer, fonts, platform.previewShaders), BrandLibrary.load(), measurer, fonts)
         }.also { engines = it }
     }
 
@@ -73,6 +73,49 @@ class Productions(
     override fun vary(edit: Edit, seed: Long): Flow<ProductionState> = run(edit.request.copy(seed = seed), edit, edit.taste)
 
     override fun revise(edit: Edit, feedback: String): Flow<ProductionState> = run(edit.request.copy(seed = edit.request.seed + 1), edit, edit.taste, feedback)
+
+    override suspend fun touch(edit: Edit, overrides: EditOverrides): Edit = withContext(Dispatchers.Default) {
+        val director = directorOutput(edit)
+        if (overrides.isEmpty) return@withContext Edit(edit.request, edit.base, director, edit.transcript, edit.taste, edit.base, overrides, edit.assets)
+        val result = Retouch.apply(edit.base, overrides)
+        Edit(edit.request, result.production, retouchedOutput(director, overrides), edit.transcript, edit.taste, edit.base, overrides, edit.assets, result.warnings)
+    }
+
+    override fun retouch(edit: Edit, overrides: EditOverrides): Flow<ProductionState> = channelFlow {
+        val key = edit.request.key
+        val state = MutableStateFlow(ProductionState(key, stage = Stage.Render, step = "render", progress = 0f))
+        val forward = launch { state.first { s -> send(s); s.finished } }
+        try {
+            val touched = touch(edit, overrides)
+            state.update { it.copy(panel = touched.production.panel?.let(PanelSummary::of), report = touched.production.report) }
+            val out = platform.export(touched.production, touched.request, touched.assets, touched.output) { done, total ->
+                state.update { it.copy(step = "render $done/$total", progress = done / total.coerceAtLeast(1).toFloat()) }
+            }
+            val done = Edit(touched.request, touched.production, out, touched.transcript, touched.taste, touched.base, touched.overrides, touched.assets, touched.warnings)
+            state.update { it.copy(status = ProductionStatus.Done, stage = Stage.Done, step = "done", progress = 1f, output = out, edit = done) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
+            state.update { it.copy(status = ProductionStatus.Failed, error = e.message ?: e::class.simpleName) }
+        }
+        forward.join()
+    }.conflate()
+
+    override fun playback(edit: Edit): EditPlayback = EditPlayback(
+        engines = { engines().let { it.measurer to it.fonts } },
+        shaders = platform.previewShaders,
+        open = { w, h -> platform.media(edit.request, edit.assets, FPS, w, h) },
+        speaker = platform.speaker(),
+        edit = edit,
+    )
+
+    /** The director's own render of [edit] (before any change in the editor). */
+    private fun directorOutput(edit: Edit): String =
+        if (edit.overrides.isEmpty) edit.output else edit.output.replace(RETOUCHED, ".mp4")
+
+    /** The file an edit with [overrides] renders to: one per state, so a render already made is this exact edit. */
+    private fun retouchedOutput(director: String, overrides: EditOverrides): String =
+        director.removeSuffix(".mp4") + "-e" + (overrides.hashCode().toLong() and 0xFFFFFFFFL).toString(16).padStart(8, '0') + ".mp4"
 
     private fun run(request: ProductionRequest, previous: Edit?, taste: Taste, feedback: String? = null): Flow<ProductionState> = channelFlow {
         val state = MutableStateFlow(ProductionState(request.key))
@@ -152,7 +195,7 @@ class Productions(
         r.state.update {
             it.copy(
                 status = ProductionStatus.Done, stage = Stage.Done, step = "done", progress = 1f, output = out,
-                edit = Edit(request, production, out, transcript, taste),
+                edit = Edit(request, production, out, transcript, taste, assets = assets),
             )
         }
     }
@@ -208,6 +251,7 @@ class Productions(
         const val WHISPER_RATE = 16_000
         const val FOOTAGE = "main"
         const val FPS = 30
+        private val RETOUCHED = Regex("-e[0-9a-f]{8}\\.mp4$")
         private const val LOOK_W = 288
         private const val LOOK_H = 512
         private const val SUBJECT_FRAMES = 5

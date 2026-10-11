@@ -1,331 +1,400 @@
 package io.trimio.feature.studio
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.trimio.core.data.MediaKind
-import io.trimio.core.data.Project
-import io.trimio.core.data.ProjectStatus
-import io.trimio.core.designsystem.component.GlassChip
-import io.trimio.core.designsystem.component.GlassIconButton
-import io.trimio.core.designsystem.component.GlassPanel
 import io.trimio.core.designsystem.component.TrimioIcon
-import io.trimio.core.designsystem.component.TrimioScreen
-import io.trimio.core.designsystem.component.pressable
 import io.trimio.core.designsystem.icon.TrimioIcons
+import io.trimio.core.designsystem.signature.DirectorDot
+import io.trimio.core.designsystem.signature.DisplayText
+import io.trimio.core.designsystem.signature.Hairline
+import io.trimio.core.designsystem.signature.MicroLabel
+import io.trimio.core.designsystem.signature.Sig
+import io.trimio.core.designsystem.signature.SigActionSquare
+import io.trimio.core.designsystem.signature.SigAdaptive
+import io.trimio.core.designsystem.signature.SigChip
+import io.trimio.core.designsystem.signature.SigGlass
+import io.trimio.core.designsystem.signature.SigScreen
+import io.trimio.core.designsystem.signature.WindowWidth
+import io.trimio.core.designsystem.signature.gutter
 import io.trimio.core.designsystem.theme.Trimio
-import io.trimio.core.designsystem.theme.TrimioRadius
-import io.trimio.core.designsystem.theme.TrimioSpacing
 import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
-import io.trimio.core.model.style.DesignStyle
-import io.trimio.engine.render.PreviewClock
-import io.trimio.engine.render.TimelinePreview
+import io.trimio.core.model.text.Language
 
+/**
+ * Home with the system pickers: every way in (a tile, an idea, the composer) picks the media first,
+ * then [onCreate] opens the brief with it, the idea's or the composer's words, and the idea's style.
+ */
 @Composable
 fun StudioRoute(
     viewModel: StudioViewModel,
-    onCreate: (uri: String, kind: MediaKind) -> Unit,
-    onOpen: (Project) -> Unit,
+    onCreate: (uri: String, kind: MediaKind, prompt: String?, styleId: String?) -> Unit,
+    onOpen: (String) -> Unit,
+    onDelete: (String) -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit,
+    onModels: () -> Unit,
     announcement: String? = null,
 ) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
-    StudioScreen(
-        projects = projects,
-        now = viewModel.now(),
-        onNew = { kind -> viewModel.pick(kind) { uri -> onCreate(uri, kind) } },
-        onOpen = onOpen,
-        onGallery = onGallery,
-        onSettings = onSettings,
-        announcement = announcement,
+    val readiness by viewModel.readiness.collectAsStateWithLifecycle()
+    val persian = Trimio.language == Language.Persian
+    val actions = HomeActions(
+        onNew = { kind -> viewModel.pick(kind) { uri -> onCreate(uri, kind, null, null) } },
+        onIdea = { idea -> viewModel.pick(idea.kind) { uri -> onCreate(uri, idea.kind, if (persian) idea.briefFa else idea.briefEn, idea.styleId) } },
+        onCompose = { wish -> Idea.kindFor(wish).let { kind -> viewModel.pick(kind) { uri -> onCreate(uri, kind, wish, null) } } },
+        onOpen = onOpen, onDelete = onDelete, onGallery = onGallery, onSettings = onSettings, onModels = onModels,
     )
+    StudioScreen(HomeState(projects, readiness, announcement, viewModel.now()), actions)
 }
 
 /**
- * Home. One hero action (make something new, from a video or from audio only) and the user's
- * projects as a Bento grid: the newest takes a double-width tile, every tile with a finished edit
- * plays it live, silently, with the real renderer.
+ * Home (board 1): the brand, the director's status and settings; today's date over the display
+ * question; the two ways in (a video, or the voice alone); then either ideas to start from or the
+ * creator's projects as an indexed list; and the composer, to tell the director what to make. On
+ * wide windows the ways in and the projects sit side by side.
  */
 @Composable
-fun StudioScreen(
-    projects: List<Project>,
-    now: Long,
-    onNew: (MediaKind) -> Unit,
-    onOpen: (Project) -> Unit,
-    onGallery: () -> Unit,
-    onSettings: () -> Unit,
-    announcement: String? = null,
-) {
-    TrimioScreen(dimAurora = 0.25f) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            // Phones get two columns, tablets and unfolded foldables four.
-            val columns = if (maxWidth > 700.dp) 4 else 2
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                contentPadding = PaddingValues(horizontal = TrimioSpacing.screenGutter, vertical = TrimioSpacing.md),
-                horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.md),
-                verticalArrangement = Arrangement.spacedBy(TrimioSpacing.md),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) { Header(onSettings) }
-                if (!announcement.isNullOrBlank()) item(span = { GridItemSpan(maxLineSpan) }) { Announcement(announcement) }
-                item(span = { GridItemSpan(maxLineSpan) }) { NewProjectCard(onNew) }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(Modifier.fillMaxWidth().padding(top = TrimioSpacing.md), verticalAlignment = Alignment.CenterVertically) {
-                        Text(tr("پروژه\u200Cها", "Projects"), style = Trimio.type.title, color = Trimio.colors.textPrimary, modifier = Modifier.weight(1f))
-                        if (projects.isNotEmpty()) Text(localizedNumber(projects.size.toString()), style = Trimio.type.numeric, color = Trimio.colors.textTertiary)
-                    }
+fun StudioScreen(state: HomeState, actions: HomeActions) {
+    val entrance = rememberEntrance()
+    var deleting by rememberSaveable { mutableStateOf<String?>(null) }
+    val rowActions = actions.copy(onDelete = { deleting = it })
+    SigScreen {
+        SigAdaptive { width ->
+            when (width) {
+                WindowWidth.Expanded -> WideHome(state, rowActions, entrance)
+                else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                    PhoneHome(state, rowActions, entrance, Modifier.widthIn(max = 640.dp))
                 }
-                if (projects.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { EmptyState() }
-                }
-                itemsIndexed(projects, key = { _, p -> p.id }, span = { i, _ -> GridItemSpan(if (i == 0) minOf(2, maxLineSpan) else 1) }) { index, project ->
-                    ProjectTile(project, now, featured = index == 0, enterIndex = index, onClick = { onOpen(project) })
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) { GalleryTile(onGallery) }
-                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(TrimioSpacing.xxl)) }
+            }
+        }
+        state.projects.firstOrNull { it.id == deleting }?.let { project ->
+            DeleteDialog(project.title, onConfirm = { actions.onDelete(project.id); deleting = null }, onDismiss = { deleting = null })
+        }
+    }
+}
+
+@Composable
+private fun PhoneHome(state: HomeState, actions: HomeActions, e: Entrance, modifier: Modifier) {
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = COMPOSER_CLEARANCE)) {
+            item(key = "top") { TopBar(state.readiness, actions, e) }
+            item(key = "hero") { Hero(state, e, Modifier.gutter().padding(top = 22.dp)) }
+            item(key = "tiles") { EntryTiles(actions.onNew, e, Modifier.padding(top = 20.dp)) }
+            state.announcement?.takeIf { it.isNotBlank() }?.let { item(key = "note") { Announcement(it, Modifier.gutter().padding(top = 18.dp)) } }
+            listSection(state, actions, e)
+            item(key = "gallery") { GalleryRow(actions.onGallery, Modifier.gutter().padding(top = 18.dp)) }
+        }
+        BottomScrim()
+        Composer(actions.onCompose, e, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 28.dp))
+    }
+}
+
+/** Wide windows: the ways in on one side, the projects (or ideas) and the composer on the other. */
+@Composable
+private fun WideHome(state: HomeState, actions: HomeActions, e: Entrance) {
+    val c = Sig.colors
+    Column(Modifier.fillMaxSize()) {
+        TopBar(state.readiness, actions, e)
+        Row(Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp)) {
+            Column(Modifier.weight(0.95f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                Hero(state, e, Modifier.gutter().padding(top = 22.dp), size = 64)
+                EntryTiles(actions.onNew, e, Modifier.padding(top = 28.dp))
+                state.announcement?.takeIf { it.isNotBlank() }?.let { Announcement(it, Modifier.gutter().padding(top = 18.dp)) }
+                GalleryRow(actions.onGallery, Modifier.gutter().padding(top = 18.dp, bottom = 24.dp))
+            }
+            Box(Modifier.width(1.dp).fillMaxHeight().padding(bottom = 24.dp).background(c.line))
+            Box(Modifier.weight(1.05f).fillMaxHeight()) {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = COMPOSER_CLEARANCE)) { listSection(state, actions, e, first = true) }
+                BottomScrim()
+                Composer(actions.onCompose, e, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 28.dp))
             }
         }
     }
 }
 
-@Composable
-private fun Header(onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = TrimioSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                "Trimio",
-                style = Trimio.type.display.copy(
-                    brush = Brush.horizontalGradient(listOf(Trimio.colors.textPrimary, Trimio.colors.accentCyan, Trimio.colors.accentMagenta)),
-                ),
-            )
-            Text(tr("ویدیو یا صدا بده، موشن\u200Cگرافی بگیر", "Bring a video or a voice. Get motion graphics."), style = Trimio.type.label, color = Trimio.colors.textSecondary)
+/** Ideas to start from on an empty home, otherwise the projects as an indexed list. */
+private fun LazyListScope.listSection(state: HomeState, actions: HomeActions, e: Entrance, first: Boolean = false) {
+    val top = if (first) 6.dp else if (state.projects.isEmpty()) 22.dp else 20.dp
+    if (state.projects.isEmpty()) {
+        item(key = "ideas-label") { SectionLabel(tr("یک ایده برای شروع", "An idea to start with"), "TRY", e, Modifier.padding(top = top)) }
+        itemsIndexed(Idea.all, key = { _, idea -> "idea-" + idea.id }) { i, idea ->
+            IdeaCard(idea, { actions.onIdea(idea) }, Modifier.gutter().padding(top = if (i == 0) 12.dp else 10.dp).rise(e, ROWS_AT + i * ROW_STAGGER, ROW_DURATION))
         }
-        GlassIconButton(TrimioIcons.Settings, tr("تنظیمات", "Settings"), onSettings)
-    }
-}
-
-/** A short note from the team (remote config), e.g. a new style pack or a known issue. */
-@Composable
-private fun Announcement(text: String) {
-    GlassPanel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = TrimioSpacing.md, vertical = TrimioSpacing.sm), tint = Trimio.colors.accentCyan.copy(alpha = 0.08f)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {
-            TrimioIcon(TrimioIcons.Sparkle, null, tint = Trimio.colors.accentCyan)
-            Text(text, style = Trimio.type.label, color = Trimio.colors.textPrimary)
+    } else {
+        item(key = "projects-label") {
+            SectionLabel(tr("پروژه‌ها", "Projects"), "INDEX · " + state.projects.size.toString().padStart(2, '0'), e, Modifier.padding(top = top))
         }
-    }
-}
-
-@Composable
-private fun NewProjectCard(onNew: (MediaKind) -> Unit) {
-    GlassPanel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(TrimioSpacing.lg)) {
-        Column(verticalArrangement = Arrangement.spacedBy(TrimioSpacing.md)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.sm)) {
-                TrimioIcon(TrimioIcons.Sparkle, null, tint = Trimio.colors.accentCyan)
-                Text(tr("ساخت ویدیوی جدید", "Make something new"), style = Trimio.type.title, color = Trimio.colors.textPrimary)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.md)) {
-                SourceTile(
-                    title = tr("از ویدیو", "From a video"),
-                    hint = tr("زیرنویس، کات و موشن روی فیلم", "Captions, cuts, motion on footage"),
-                    icon = TrimioIcons.Film,
-                    colors = listOf(Trimio.colors.primary, Trimio.colors.accentMagenta),
-                    modifier = Modifier.weight(1f),
-                    onClick = { onNew(MediaKind.Video) },
-                )
-                SourceTile(
-                    title = tr("فقط صدا", "Audio only"),
-                    hint = tr("سبک، کل تصویر را می\u200Cسازد", "The style paints the picture"),
-                    icon = TrimioIcons.Mic,
-                    colors = listOf(Trimio.colors.auroraB, Trimio.colors.accentCyan),
-                    modifier = Modifier.weight(1f),
-                    onClick = { onNew(MediaKind.Audio) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SourceTile(title: String, hint: String, icon: ImageVector, colors: List<Color>, modifier: Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(TrimioRadius.md)
-    Column(
-        modifier
-            .pressable(onClick = onClick)
-            .clip(shape)
-            .background(Brush.linearGradient(colors.map { it.copy(alpha = 0.85f) }, start = Offset.Zero, end = Offset.Infinite))
-            .border(1.dp, Color.White.copy(alpha = 0.25f), shape)
-            .padding(TrimioSpacing.lg),
-        verticalArrangement = Arrangement.spacedBy(TrimioSpacing.xs),
-    ) {
-        Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-            TrimioIcon(icon, null, tint = Color.White)
-        }
-        Spacer(Modifier.height(TrimioSpacing.sm))
-        Text(title, style = Trimio.type.title, color = Color.White)
-        Text(hint, style = Trimio.type.caption, color = Color.White.copy(alpha = 0.8f), maxLines = 2)
-    }
-}
-
-@Composable
-private fun ProjectTile(project: Project, now: Long, featured: Boolean, enterIndex: Int, onClick: () -> Unit) {
-    val colors = Trimio.colors
-    val motion = Trimio.motion
-    val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(motion.staggerMs(enterIndex).toLong())
-        enter.animateTo(1f, motion.spatial())
-    }
-    val shape = RoundedCornerShape(TrimioRadius.lg)
-    Box(
-        Modifier
-            .graphicsLayer {
-                alpha = enter.value
-                translationY = (1f - enter.value) * 40f
-            }
-            .fillMaxWidth()
-            .aspectRatio(if (featured) 1.25f else 0.72f)
-            .pressable(onClick = onClick)
-            .clip(shape)
-            .background(colors.canvasRaised)
-            .border(1.dp, colors.glassStroke, shape),
-    ) {
-        val timeline = project.timeline
-        val style = project.style
-        if (timeline != null && style != null) {
-            val clock = remember(project.id) { PreviewClock(minOf(timeline.durationMs / 3, 2_500)) }
-            TimelinePreview(timeline, style, Modifier.fillMaxSize(), clock)
-        } else {
-            Placeholder(project)
-        }
-        // Legibility scrim for the label.
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f))))
-        Column(Modifier.align(Alignment.BottomStart).padding(TrimioSpacing.md), verticalArrangement = Arrangement.spacedBy(TrimioSpacing.xxs)) {
-            StatusChip(project.status)
-            Text(project.title, style = if (featured) Trimio.type.title else Trimio.type.label, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOfNotNull(relativeTime(project.updatedAt, now), project.styleId?.let(DesignStyle::fromId)?.let { tr(it.nameFa, it.nameEn) }).joinToString(" · "),
-                style = Trimio.type.caption,
-                color = Color.White.copy(alpha = 0.7f),
-                maxLines = 1,
+        itemsIndexed(state.projects, key = { _, p -> p.id }) { i, project ->
+            ProjectRow(
+                index = i + 1, project = project, now = state.now, last = i == state.projects.lastIndex, actions = actions,
+                modifier = Modifier.padding(top = if (i == 0) 6.dp else 0.dp).rise(e, ROWS_AT + minOf(i, MAX_STAGGERED) * ROW_STAGGER, ROW_DURATION),
             )
         }
     }
 }
 
 @Composable
-private fun Placeholder(project: Project) {
-    val colors = Trimio.colors
-    Canvas(Modifier.fillMaxSize()) {
-        drawRect(Brush.linearGradient(listOf(colors.auroraA, colors.auroraBase, colors.auroraB), Offset.Zero, Offset(size.width, size.height)))
-        // A quiet waveform motif for audio projects, film perforations for video.
-        if (project.isAudioOnly) {
-            val bars = 24
-            val w = size.width / (bars * 2f)
-            for (i in 0 until bars) {
-                val h = size.height * (0.12f + 0.25f * kotlin.math.abs(kotlin.math.sin(i * 0.7f + project.id.hashCode() % 7)))
-                drawRoundRect(Color.White.copy(alpha = 0.25f), Offset(w * (2 * i + 0.5f), size.height * 0.45f - h / 2), androidx.compose.ui.geometry.Size(w, h), androidx.compose.ui.geometry.CornerRadius(w / 2))
-            }
-        } else {
-            for (i in 0 until 8) {
-                val y = size.height * (i + 0.5f) / 8f
-                drawRoundRect(Color.White.copy(alpha = 0.12f), Offset(size.width * 0.05f, y - 6f), androidx.compose.ui.geometry.Size(14f, 12f), androidx.compose.ui.geometry.CornerRadius(3f))
-                drawRoundRect(Color.White.copy(alpha = 0.12f), Offset(size.width * 0.95f - 14f, y - 6f), androidx.compose.ui.geometry.Size(14f, 12f), androidx.compose.ui.geometry.CornerRadius(3f))
-            }
+private fun TopBar(readiness: HomeReadiness, actions: HomeActions, e: Entrance) {
+    val c = Sig.colors
+    Row(Modifier.fillMaxWidth().gutter().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        BrandMark(Modifier.fadeIn(e, 100, 500))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.rise(e, 250, 600).clip(RoundedCornerShape(14.dp)).clickable(role = Role.Button, onClick = actions.onModels)) { ReadinessChip(readiness) }
+            Box(
+                Modifier.pop(e, 300, 700).size(32.dp).clip(CircleShape).border(1.dp, c.lineStrong, CircleShape)
+                    .clickable(role = Role.Button, onClick = actions.onSettings),
+                contentAlignment = Alignment.Center,
+            ) { TrimioIcon(TrimioIcons.Sliders, tr("تنظیمات", "Settings"), tint = c.ink, size = 16.dp) }
         }
     }
 }
 
+/** "trimio" with the ember full stop, always left to right. */
 @Composable
-private fun StatusChip(status: ProjectStatus) {
-    val colors = Trimio.colors
-    when (status) {
-        ProjectStatus.Building -> GlassChip(tr("در حال ساخت", "Building"), accent = colors.accentCyan)
-        ProjectStatus.Failed -> GlassChip(tr("ناموفق", "Failed"), accent = colors.danger)
-        ProjectStatus.Draft -> GlassChip(tr("پیش\u200Cنویس", "Draft"))
-        ProjectStatus.Ready -> Unit
-    }
-}
-
-@Composable
-private fun EmptyState() {
-    Column(
-        Modifier.fillMaxWidth().padding(vertical = TrimioSpacing.xl),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(TrimioSpacing.sm),
-    ) {
-        Box(
-            Modifier.size(72.dp).clip(CircleShape).background(Brush.radialGradient(listOf(Trimio.colors.primary.copy(alpha = 0.6f), Color.Transparent))),
-            contentAlignment = Alignment.Center,
-        ) { TrimioIcon(TrimioIcons.Wand, null, tint = Trimio.colors.textPrimary, size = 30.dp) }
-        Text(tr("هنوز پروژه\u200Cای نساختی", "No projects yet"), style = Trimio.type.title, color = Trimio.colors.textPrimary)
+internal fun BrandMark(modifier: Modifier = Modifier) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Text(
-            tr("یه ویدیو یا ویس انتخاب کن و بگو چی می\u200Cخوای؛ بقیه\u200Cاش با Trimio.", "Pick a video or a voice note and say what you want. Trimio does the rest."),
-            style = Trimio.type.body,
-            color = Trimio.colors.textSecondary,
+            buildAnnotatedString {
+                append("trimio")
+                withStyle(SpanStyle(color = Sig.colors.action)) { append(".") }
+            },
+            modifier,
+            style = Sig.type.figure.copy(fontSize = 17.sp, lineHeight = 22.sp),
+            color = Sig.colors.ink,
         )
     }
 }
 
 @Composable
-private fun GalleryTile(onClick: () -> Unit) {
-    GlassPanel(Modifier.fillMaxWidth().pressable(pressedScale = 0.98f, onClick = onClick)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TrimioSpacing.md)) {
-            TrimioIcon(TrimioIcons.Palette, null, tint = Trimio.colors.accentMagenta)
-            Column(Modifier.weight(1f)) {
-                Text(tr("گالری سبک\u200Cها", "Style gallery"), style = Trimio.type.title, color = Trimio.colors.textPrimary)
-                Text(tr("هر سبک را زنده ببین", "See every style, live"), style = Trimio.type.label, color = Trimio.colors.textSecondary)
-            }
-            TrimioIcon(TrimioIcons.ChevronForward, null, tint = Trimio.colors.textTertiary)
+private fun ReadinessChip(readiness: HomeReadiness) {
+    val c = Sig.colors
+    val percent = (readiness.progress * 100).toInt()
+    val text = when (readiness.director) {
+        HomeReadiness.Director.Ready -> if (readiness.online) tr("آنلاین · آماده", "Online · ready") else tr("آفلاین · آماده", "Offline · ready")
+        HomeReadiness.Director.Cloud -> tr("ابری · آماده", "Cloud · ready")
+        HomeReadiness.Director.Downloading -> localizedNumber(tr("دانلود کارگردان · $percent٪", "Getting the director · $percent%"))
+        HomeReadiness.Director.Missing -> tr("کارگردان دانلود نشده", "Director not downloaded")
+        HomeReadiness.Director.Preview -> tr("نسخهٔ نمایشی", "Preview")
+    }
+    SigChip(
+        text,
+        leading = {
+            if (readiness.director == HomeReadiness.Director.Missing) Box(Modifier.size(8.dp).clip(CircleShape).background(c.action)) else DirectorDot(size = 10.dp)
+        },
+    )
+}
+
+/** Today's date over the display question: a first motion to make, or what to make today. */
+@Composable
+private fun Hero(state: HomeState, e: Entrance, modifier: Modifier, size: Int = 50) {
+    val c = Sig.colors
+    val first = state.projects.isEmpty()
+    val lines = if (first) tr("اولین موشنت\nرا بساز", "Make your\nfirst motion") else tr("امروز چه\nبسازیم", "What do we\nmake today")
+    val mark = if (first) "." else tr("؟", "?")
+    val style = Sig.type.hero.copy(fontSize = size.sp, lineHeight = size.sp)
+    Column(modifier) {
+        Text(todayLine(state.now), Modifier.rise(e, 350, 600), style = Sig.type.meta, color = c.muted)
+        Spacer(Modifier.height(8.dp))
+        val split = lines.split('\n')
+        split.forEachIndexed { i, line ->
+            DisplayText(
+                buildAnnotatedString {
+                    append(line)
+                    if (i == split.lastIndex) withStyle(SpanStyle(color = c.action)) { append(mark) }
+                },
+                style = style,
+                modifier = Modifier.maskReveal(e, HERO_AT + i * HERO_STAGGER, HERO_DURATION),
+            )
         }
     }
 }
 
+/** The two ways in, between drawn rules: a video (A) and the voice alone (B). */
 @Composable
-private fun relativeTime(then: Long, now: Long): String {
-    val minutes = ((now - then) / 60_000).coerceAtLeast(0)
-    return when {
-        minutes < 1 -> tr("همین الان", "just now")
-        minutes < 60 -> localizedNumber(tr("$minutes دقیقه پیش", "$minutes min ago"))
-        minutes < 60 * 24 -> localizedNumber(tr("${minutes / 60} ساعت پیش", "${minutes / 60} h ago"))
-        else -> localizedNumber(tr("${minutes / 1440} روز پیش", "${minutes / 1440} d ago"))
+private fun EntryTiles(onNew: (MediaKind) -> Unit, e: Entrance, modifier: Modifier) {
+    val c = Sig.colors
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Column(modifier.fillMaxWidth()) {
+        Hairline(Modifier.drawRule(e, 700, 900, rtl), strong = true)
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).gutter()) {
+            EntryTile(
+                tr("ویدیو", "Video"), tr("موشن روی تصویر خودت", "Motion over your footage"), "A", TrimioIcons.VideoFrame,
+                Modifier.weight(1f).rise(e, 820, 800), endPadding = 14.dp,
+            ) { onNew(MediaKind.Video) }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(c.lineStrong).fadeIn(e, 820, 800))
+            EntryTile(
+                tr("فقط صدا", "Audio only"), tr("تصویر از صفر ساخته می‌شود", "Visuals made from scratch"), "B", TrimioIcons.Mic,
+                Modifier.weight(1f).rise(e, 900, 800), startPadding = 14.dp,
+            ) { onNew(MediaKind.Audio) }
+        }
+        Hairline(Modifier.drawRule(e, 760, 900, rtl), strong = true)
     }
 }
+
+@Composable
+private fun EntryTile(
+    title: String,
+    hint: String,
+    letter: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier,
+    startPadding: Dp = 0.dp,
+    endPadding: Dp = 0.dp,
+    onClick: () -> Unit,
+) {
+    val c = Sig.colors
+    Column(modifier.clickable(role = Role.Button, onClick = onClick).padding(start = startPadding, end = endPadding, top = 14.dp, bottom = 14.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TrimioIcon(icon, null, tint = c.ink)
+            MicroLabel(letter)
+        }
+        Text(title, style = Sig.type.title, color = c.ink, modifier = Modifier.padding(top = 16.dp))
+        Text(hint, style = Sig.type.meta.copy(fontSize = 11.5.sp), color = c.muted, maxLines = 1)
+    }
+}
+
+@Composable
+private fun SectionLabel(title: String, micro: String, e: Entrance, modifier: Modifier) {
+    Row(modifier.fillMaxWidth().gutter().rise(e, 1000, 700), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = Sig.type.bodyStrong.copy(fontSize = 14.sp), color = Sig.colors.ink)
+        MicroLabel(micro)
+    }
+}
+
+/** A note from the team (or the preview notice), quiet, under the ways in. */
+@Composable
+private fun Announcement(text: String, modifier: Modifier) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        DirectorDot(Modifier.padding(top = 4.dp), size = 10.dp)
+        Text(text, style = Sig.type.meta, color = Sig.colors.muted)
+    }
+}
+
+/** Fades the list into the canvas behind the floating composer. */
+@Composable
+private fun BoxScope.BottomScrim() {
+    val c = Sig.colors
+    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(150.dp).background(Brush.verticalGradient(0f to Color.Transparent, 0.62f to c.canvas, 1f to c.canvas)))
+}
+
+/**
+ * The composer: tell the director what to make. Sending picks the media, then opens the brief
+ * with these words; with nothing typed yet it simply takes the focus.
+ */
+@Composable
+private fun Composer(onCompose: (String) -> Unit, e: Entrance, modifier: Modifier) {
+    val c = Sig.colors
+    var text by rememberSaveable { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    fun send() {
+        if (text.isBlank()) runCatching { focus.requestFocus() } else onCompose(text.trim())
+    }
+    SigGlass(
+        modifier.fillMaxWidth().height(62.dp).slideUp(e, 1250, 1000)
+            .let { if (text.isNotEmpty()) it.border(1.5.dp, c.director[1].copy(alpha = 0.55f), RoundedCornerShape(20.dp)) else it },
+        contentPadding = PaddingValues(start = 16.dp, end = 8.dp),
+    ) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            BreathingDot()
+            val style = Sig.type.body.copy(fontSize = 14.5.sp, fontWeight = FontWeight(400))
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.weight(1f).focusRequester(focus),
+                textStyle = style.copy(color = c.ink),
+                cursorBrush = SolidColor(c.action),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { send() }),
+                decorationBox = { inner ->
+                    Box {
+                        if (text.isEmpty()) Text(tr("به کارگردان بگو چه می‌خواهی…", "Tell the director what you want…"), style = style, color = c.muted, maxLines = 1)
+                        inner()
+                    }
+                },
+            )
+            SigActionSquare(TrimioIcons.Send, tr("بفرست", "Send"), ::send)
+        }
+    }
+}
+
+/** The director's bead, breathing while it waits (still with reduced motion). */
+@Composable
+private fun BreathingDot() {
+    val reduced = Trimio.motion.isReduced
+    val breath = rememberInfiniteTransition(label = "director")
+    val phase by breath.animateFloat(0f, 1f, infiniteRepeatable(tween(BREATH_MS), RepeatMode.Reverse), label = "breath")
+    DirectorDot(Modifier.graphicsLayer { if (!reduced) (1f + 0.12f * (phase * 2f - 1f)).let { scaleX = it; scaleY = it } })
+}
+
+private val COMPOSER_CLEARANCE = 124.dp
+private const val HERO_AT = 450
+private const val HERO_STAGGER = 110
+private const val HERO_DURATION = 900
+private const val ROWS_AT = 1080
+private const val ROW_STAGGER = 70
+private const val ROW_DURATION = 800
+private const val MAX_STAGGERED = 5
+private const val BREATH_MS = 820

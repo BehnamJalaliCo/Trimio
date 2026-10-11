@@ -29,6 +29,9 @@ class AppProductionRunner(
 
     override fun revise(edit: Edit, feedback: String) = launch(edit.request.copy(seed = edit.request.seed + 1), editor.revise(edit, feedback))
 
+    // A render of the editor's changes is not resumed after process death: the changes live in the editor.
+    override fun retouch(edit: Edit, overrides: EditOverrides) = launch(edit.request, editor.retouch(edit, overrides), resumable = false)
+
     override fun cancel() {
         job?.cancel()
         job = null
@@ -44,9 +47,9 @@ class AppProductionRunner(
         return true
     }
 
-    private fun launch(request: ProductionRequest, flow: Flow<ProductionState>) {
+    private fun launch(request: ProductionRequest, flow: Flow<ProductionState>, resumable: Boolean = true) {
         job?.cancel()
-        checkpoints.setPending(request)
+        checkpoints.setPending(request.takeIf { resumable })
         state.value = ProductionState(request.key)
         job = scope.launch {
             flow.collect { s ->

@@ -26,6 +26,15 @@ class Composition(
     val shutterSamples: Int = 6,
 ) {
     val frameCount: Int get() = (duration * fps).toInt()
+
+    /** The same piece sampled at [rate] frames a second: every animation runs on seconds, so only the frames change. */
+    fun withFps(rate: Int) = Composition(width, height, rate, duration, background, root, camera, shutterAngle, shutterSamples)
+
+    /**
+     * The same piece over a transparent canvas: the graphics layer for another editor, where the
+     * creator's footage is cut underneath (see the alpha export).
+     */
+    fun transparent() = Composition(width, height, fps, duration, Color.Transparent, root, camera, shutterAngle, shutterSamples)
 }
 
 /** A camera over the whole frame: push-ins, punches, whips and handheld shake. */

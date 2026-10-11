@@ -107,22 +107,38 @@ fun SigSectionLabel(text: String, modifier: Modifier = Modifier, trailing: Strin
 
 /** Segmented choice on a quiet track; the chosen segment is an ink slab (bone on noir, black on paper). */
 @Composable
-fun <T> SigSegmented(options: List<T>, selected: T, label: @Composable (T) -> String, onSelect: (T) -> Unit, modifier: Modifier = Modifier, icon: ((T) -> ImageVector?)? = null) {
+fun <T> SigSegmented(
+    options: List<T>,
+    selected: T,
+    label: @Composable (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ((T) -> ImageVector?)? = null,
+    /** Options this device cannot do stay visible, faint and inert. */
+    enabled: (T) -> Boolean = { true },
+    height: Dp = 46.dp,
+) {
     val c = Sig.colors
     Row(
-        modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(14.dp)).background(c.ink.copy(alpha = 0.06f)).padding(4.dp),
+        modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(14.dp)).background(c.ink.copy(alpha = 0.06f)).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         options.forEach { option ->
             val on = option == selected
+            val live = enabled(option)
+            val ink = when {
+                on -> c.canvas
+                live -> c.muted
+                else -> c.faint.copy(alpha = 0.6f)
+            }
             Row(
                 Modifier.weight(1f).fillMaxSize().clip(RoundedCornerShape(10.dp)).background(if (on) c.ink else Color.Transparent)
-                    .clickable(role = Role.Tab) { onSelect(option) },
+                    .clickable(enabled = live, role = Role.Tab) { onSelect(option) },
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                icon?.invoke(option)?.let { TrimioIcon(it, null, tint = if (on) c.canvas else c.muted, size = 16.dp) }
-                Text(label(option), style = Sig.type.bodyStrong.copy(fontSize = 13.sp), color = if (on) c.canvas else c.muted)
+                icon?.invoke(option)?.let { TrimioIcon(it, null, tint = ink, size = 16.dp) }
+                Text(label(option), style = Sig.type.bodyStrong.copy(fontSize = 13.sp), color = ink, maxLines = 1)
             }
         }
     }

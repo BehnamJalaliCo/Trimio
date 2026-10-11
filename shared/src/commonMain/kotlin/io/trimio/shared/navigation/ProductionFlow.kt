@@ -7,8 +7,13 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.trimio.core.data.GallerySaver
 import io.trimio.core.data.MediaKind
+import io.trimio.core.data.Project
+import io.trimio.core.data.ProjectRepository
+import io.trimio.core.data.ProjectStatus
 import io.trimio.core.data.Sharer
 import io.trimio.core.designsystem.theme.Trimio
 import io.trimio.core.model.text.Language
@@ -35,11 +40,6 @@ import org.koin.compose.koinInject
 import kotlin.random.Random
 import kotlin.time.TimeSource
 
-/** Saves a finished MP4 to the system gallery; platforms that have one bind it (otherwise the file is shared). */
-fun interface GallerySaver {
-    suspend fun save(path: String, title: String): Boolean
-}
-
 /**
  * The glue between the screens' models (feature/create, feature/stream) and the production
  * service: requests from the brief, live and result models from [ProductionState].
@@ -57,6 +57,31 @@ object ProductionUi {
     )
 
     fun styleName(id: String?, persian: Boolean): String? = ProductionStyles.of(id)?.let { if (persian) it.nameFa else it.nameEn }
+
+    /** A style language id, or an earlier gallery pack id ("brutalism"), as the engine's style id. */
+    fun styleId(id: String): String? = ProductionStyles.all.firstOrNull { it.id == id || it.pack == id }?.id
+
+    /** A stored project's finished edit, as the result screen shows it (null until it has a file). */
+    fun result(project: Project, poster: ImageBitmap?, persian: Boolean, saved: Boolean): BuildResult? {
+        val record = project.production ?: return null
+        if (project.outputUri == null) return null
+        return BuildResult(
+            title = project.title,
+            styleName = styleName(record.styleId, persian),
+            durationMs = record.durationMs,
+            buildSeconds = record.buildSeconds,
+            onDevice = record.onDevice,
+            scenes = record.scenes.coerceAtLeast(1),
+            words = record.words,
+            effects = record.effects,
+            lufs = MASTER_LUFS,
+            judges = record.judges.map { JudgeScore(it.judge, it.score) }.ifEmpty { JudgeScore.Panel },
+            findings = record.findings,
+            poster = poster,
+            version = record.version,
+            saved = saved,
+        )
+    }
 
     fun stage(s: ProductionState): BuildStage = BuildStage.of(s.stage.name, s.step)
 
@@ -124,19 +149,27 @@ object ProductionUi {
 /**
  * The live build view over the app's production runner, its honest failure (and cancel) screens,
  * and the hand-over to the result. Stage times and the elapsed clock are kept here, so the
- * screens stay pure functions of their models.
+ * screens stay pure functions of their models. Opened from home for a project whose run is not
+ * active, it shows the stored failure (or interruption) with a retry, or restarts the run.
  */
 @Composable
 internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit, onClose: () -> Unit, onModels: () -> Unit) {
     val runner = koinInject<ProductionRunner>()
+    val productions = koinInject<ProductionProjects>()
+    val stored by koinInject<ProjectRepository>().projects.collectAsStateWithLifecycle()
+    val project = route.projectId?.let { id -> stored.firstOrNull { it.id == id } }
     val active by runner.active.collectAsStateWithLifecycle()
     val persian = Trimio.language == Language.Persian
     val clock = remember(route) { TimeSource.Monotonic.markNow() }
     val seconds = remember(route) { mutableStateMapOf<BuildStage, Float>() }
     var stageStart by remember(route) { mutableStateOf(0f) }
     var current by remember(route) { mutableStateOf(BuildStage.Listen) }
-    val s = active?.takeIf { it.key == route.request.key }
-    LaunchedEffect(route) { if (runner.active.value?.key != route.request.key) runner.start(route.request) }
+    val key = project?.production?.key ?: route.request.key
+    val s = active?.takeIf { it.key == key }
+    val retry: () -> Unit = { if (project != null) productions.retry(project) else runner.start(route.request) }
+    LaunchedEffect(route) {
+        if (runner.active.value?.key != key && project?.status != ProjectStatus.Failed) retry()
+    }
     val elapsed = clock.elapsedNow().inWholeMilliseconds / 1000f
     val stageNow = s?.let(ProductionUi::stage)
     LaunchedEffect(stageNow) {
@@ -147,22 +180,27 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
             current = stageNow
         }
     }
-    when (s?.status) {
-        ProductionStatus.Done -> LaunchedEffect(s.key) { onResult(elapsed.toInt()) }
-        ProductionStatus.Failed -> {
-            val failure = BuildFailures.of(s.error, current, persian)
+    val stopped = when {
+        s != null -> s.status.takeIf { it == ProductionStatus.Failed || it == ProductionStatus.Cancelled }?.let { it to s.error }
+        project?.status == ProjectStatus.Failed -> stoppedAs(project.error) to project.error
+        else -> null
+    }
+    when {
+        s?.status == ProductionStatus.Done -> LaunchedEffect(s.key) { onResult(elapsed.toInt()) }
+        stopped?.first == ProductionStatus.Failed -> {
+            val failure = BuildFailures.of(stopped.second, current, persian)
             val missingModel = failure.primary == BuildFailures.of("no model", current, persian).primary
             BuildFailureScreen(
                 failure,
-                onOption = { i -> if (i == 0) (if (missingModel) onModels() else runner.start(route.request)) else onClose() },
-                onPrimary = { if (missingModel) onModels() else runner.start(route.request) },
+                onOption = { i -> if (i == 0) (if (missingModel) onModels() else retry()) else onClose() },
+                onPrimary = { if (missingModel) onModels() else retry() },
                 onClose = onClose,
             )
         }
-        ProductionStatus.Cancelled -> BuildFailureScreen(
+        stopped != null -> BuildFailureScreen(
             BuildFailures.cancelled(current, persian),
-            onOption = { i -> if (i == 0) runner.start(route.request) else onClose() },
-            onPrimary = { runner.start(route.request) },
+            onOption = { i -> if (i == 0) retry() else onClose() },
+            onPrimary = { retry() },
             onClose = onClose,
         )
         else -> LiveBuildScreen(
@@ -172,43 +210,61 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
     }
 }
 
-/** The finished edit: feedback and variations start a new run on the same runner. */
+/** A stored run that ended without a file: stopped (by the creator, or the app closing) or failed. */
+private fun stoppedAs(error: String?): ProductionStatus =
+    if (error == ProductionProjects.CANCELLED || error == ProductionProjects.INTERRUPTED) ProductionStatus.Cancelled else ProductionStatus.Failed
+
+/**
+ * The finished edit: the run that just finished, or a project opened from home (its saved file,
+ * poster and numbers). Feedback and variations start the project's next version on the runner.
+ */
 @Composable
-internal fun ResultEntry(route: Route.Result, onProduce: (ProductionRequest) -> Unit, onClose: () -> Unit) {
+internal fun ResultEntry(route: Route.Result, onProduce: (request: ProductionRequest, projectId: String?, version: Int) -> Unit, onClose: () -> Unit) {
     val runner = koinInject<ProductionRunner>()
+    val productions = koinInject<ProductionProjects>()
+    val stored by koinInject<ProjectRepository>().projects.collectAsStateWithLifecycle()
+    val posters by productions.posters.collectAsStateWithLifecycle()
+    val project = route.projectId?.let { id -> stored.firstOrNull { it.id == id } }
     val active by runner.active.collectAsStateWithLifecycle()
     val koin = getKoin()
     val sharer = remember { koin.getOrNull<Sharer>() }
     val saver = remember { koin.getOrNull<GallerySaver>() }
+    val persian = Trimio.language == Language.Persian
     var saved by remember(route) { mutableStateOf(false) }
-    val s = active
-    val edit = s?.edit
-    val result = s?.let { ProductionUi.result(it, route.buildSeconds, route.version, route.styleName, saved) }
-    if (edit == null || result == null) {
+    // The live edit when it is this project's current version (or there is no project).
+    val live = active?.takeIf { s -> s.edit != null && project?.production?.key.let { it == null || it == s.key } }
+    val edit = live?.edit
+    val result = live?.let { ProductionUi.result(it, route.buildSeconds, route.version, route.styleName, saved) }?.let { r -> project?.let { r.copy(title = it.title) } ?: r }
+        ?: project?.let { ProductionUi.result(it, posters[it.id], persian, saved) }
+    val output = edit?.output ?: project?.outputUri
+    if (result == null || output == null) {
         LaunchedEffect(Unit) { onClose() }
         return
     }
+    LaunchedEffect(project?.id) { project?.let { productions.markSeen(it.id) } }
     var saving by remember { mutableStateOf(false) }
     LaunchedEffect(saving) {
         if (saving) {
-            saved = saver?.save(edit.output, result.title) ?: run { sharer?.share(edit.output, result.title); false }
+            saved = saver?.save(output, result.title) ?: run { sharer?.share(output, result.title); false }
             saving = false
         }
+    }
+    fun next(feedback: String?) {
+        val request = when {
+            project != null -> productions.next(project, edit, feedback)
+            edit != null -> edit.request.copy(seed = edit.request.seed + 1).also { if (feedback != null) runner.revise(edit, feedback) else runner.vary(edit) }
+            else -> null
+        }
+        request?.let { onProduce(it, project?.id, result.version + 1) }
     }
     ResultScreen(
         result,
         ResultActions(
             onClose = onClose,
-            onFeedback = { text ->
-                runner.revise(edit, text)
-                onProduce(edit.request.copy(seed = edit.request.seed + 1))
-            },
-            onVariation = {
-                runner.vary(edit)
-                onProduce(edit.request.copy(seed = edit.request.seed + 1))
-            },
+            onFeedback = { text -> next(text) },
+            onVariation = { next(null) },
             onSave = { saving = true },
-            onShare = { sharer?.share(edit.output, result.title) },
+            onShare = { sharer?.share(output, result.title) },
         ),
     )
 }

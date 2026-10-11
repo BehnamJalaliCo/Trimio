@@ -12,6 +12,7 @@ kotlin {
             implementation(projects.engine.models)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.runtime.compose)
+            implementation(libs.kotlinx.datetime)
         }
         jvmTest.dependencies { implementation(compose.desktop.currentOs) }
     }

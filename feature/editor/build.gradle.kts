@@ -14,6 +14,7 @@ kotlin {
             implementation(projects.engine.director)
             implementation(projects.engine.llm)
             implementation(projects.engine.media)
+            implementation(projects.engine.production)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.runtime.compose)
         }

@@ -5,8 +5,10 @@ import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.Taste
+import io.trimio.engine.autopilot.UserAsset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.Serializable
 
 /*
@@ -129,13 +131,27 @@ data class PanelSummary(
 class Edit(
     val request: ProductionRequest,
     val production: Autopilot.Production,
-    /** The finished MP4 (path). */
+    /**
+     * The MP4 (path). After the editor changed the edit it names the file this exact edit renders
+     * to, which exists only once it has been rendered ([AutoEditor.retouch]).
+     */
     val output: String,
     /** The recognised words on the source clock: variations and revisions reuse them. */
     val transcript: Transcript,
     /** The creator's taste so far: feedback accumulates across revisions. */
     val taste: Taste = Taste(),
-)
+    /** The director's production the editor's [overrides] apply to ([production] itself until the creator changes something). */
+    val base: Autopilot.Production = production,
+    /** The creator's own changes in the editor ([Retouch]). */
+    val overrides: EditOverrides = EditOverrides(),
+    /** The attachments as read for this edit (the renderer opens them by id). */
+    val assets: List<UserAsset> = emptyList(),
+    /** What the spelling gate warned about in the creator's own text (kept as written). */
+    val warnings: List<String> = emptyList(),
+) {
+    /** Whether the editor can change this edit (it kept the director's workbench). */
+    val editable: Boolean get() = Retouch.editable(base)
+}
 
 /**
  * What a run reports, as often as something changes.
@@ -182,6 +198,20 @@ interface AutoEditor {
      * by the [io.trimio.engine.autopilot.Collaborator] into the taste, and the next edit follows it.
      */
     fun revise(edit: Edit, feedback: String): Flow<ProductionState>
+
+    /**
+     * [edit]'s director's cut with the creator's [overrides] applied ([Retouch]): compiled, gated,
+     * mastered and judged, not rendered — fast enough to follow every change in the editor. The
+     * result's [Edit.output] names the file it renders to ([retouch]).
+     */
+    suspend fun touch(edit: Edit, overrides: EditOverrides): Edit = throw UnsupportedOperationException("this engine cannot change an edit")
+
+    /** The final render of [edit] with [overrides]: Render stage progress, then Done with the file. */
+    fun retouch(edit: Edit, overrides: EditOverrides): Flow<ProductionState> =
+        flowOf(ProductionState(edit.request.key, status = ProductionStatus.Failed, error = "this engine cannot change an edit"))
+
+    /** Frames and sound of [edit] for the editor's player; null where the platform cannot draw them. */
+    fun playback(edit: Edit): EditPlayback? = null
 }
 
 /**
@@ -194,5 +224,8 @@ interface ProductionRunner {
     fun start(request: ProductionRequest)
     fun vary(edit: Edit, seed: Long = edit.request.seed + 1)
     fun revise(edit: Edit, feedback: String)
+
+    /** Renders [edit] with the editor's [overrides] as the active run ([AutoEditor.retouch]). */
+    fun retouch(edit: Edit, overrides: EditOverrides) = Unit
     fun cancel()
 }

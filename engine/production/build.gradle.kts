@@ -17,6 +17,8 @@ kotlin {
             api(projects.engine.asr)
             api(projects.engine.models)
             api(projects.engine.llm)
+            // Music moods and beat grids for the editor's sound and cut tools.
+            implementation(projects.engine.assets)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.io.core)
         }

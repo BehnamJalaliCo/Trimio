@@ -17,11 +17,11 @@ import io.trimio.core.model.input.MediaUri
 import io.trimio.engine.asr.SpeechRecognizer
 import io.trimio.engine.audio.Resampler
 import io.trimio.engine.autopilot.AndroidSubject
-import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.UserAsset
 import io.trimio.engine.llm.RgbImage
 import io.trimio.engine.media.AndroidAudioDecoder
 import io.trimio.engine.models.DeviceTier
+import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.MediaSource
 import io.trimio.engine.motion.MediaSources
 import io.trimio.engine.motion.StillMedia
@@ -85,6 +85,8 @@ class AndroidProductionPlatform(
 
     override fun measurer() = TextMeasurer(createFontFamilyResolver(app), Density(1f), LayoutDirection.Ltr)
 
+    override fun speaker(): Speaker = AndroidSpeaker()
+
     /** Previews draw into software bitmaps: runtime shaders need the hardware canvas the export uses. */
     override val previewShaders: Boolean get() = false
 
@@ -105,19 +107,41 @@ class AndroidProductionPlatform(
         )
     }
 
-    override suspend fun export(
-        production: Autopilot.Production,
+    override suspend fun render(
+        composition: Composition,
+        sound: PcmAudio,
         request: ProductionRequest,
         assets: List<UserAsset>,
         out: String,
+        scale: Float,
         onFrame: (Int, Int) -> Unit,
     ): String {
-        val c = production.compiled.composition
-        val media = media(request, assets, c.fps, c.width, c.height)
+        val c = composition
+        // Footage decoded at the output size, so a 4K file gets 4K pictures, not stretched 1080p ones.
+        val media = media(request, assets, c.fps, (c.width * scale).roundToInt(), (c.height * scale).roundToInt())
         return try {
-            AndroidMotionExporter(app).export(c, media, production.soundtrack.audio, File(out), onFrame).path
+            AndroidMotionExporter(app).export(c, media, sound, File(out), onFrame, scale).path
         } finally {
             (media as? AutoCloseable)?.close()
+        }
+    }
+
+    override fun canEncode(width: Int, height: Int, fps: Int): Boolean = AndroidMotionExporter.supports(width, height, fps)
+
+    override suspend fun probe(media: String): SourceFacts = withContext(Dispatchers.IO) {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(app, mediaUri(media))
+            fun key(k: Int) = retriever.extractMetadata(k)?.toFloatOrNull() ?: 0f
+            val rotated = key(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION).toInt() % HALF_TURN == QUARTER_TURN
+            val w = key(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt()
+            val h = key(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt()
+            val seconds = key(MediaMetadataRetriever.METADATA_KEY_DURATION) / MS
+            val frames = key(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)
+            val fps = if (seconds > 0f && frames > 0f) (frames / seconds).roundToInt() else 0
+            SourceFacts(displayName(media), media.takeIf { it.startsWith("/") }?.let { "file://$it" }, seconds, if (rotated) h else w, if (rotated) w else h, fps)
+        } finally {
+            retriever.release()
         }
     }
 
@@ -168,6 +192,8 @@ class AndroidProductionPlatform(
         const val CLIP_FRAMES = 3
         const val MS = 1000f
         const val OPAQUE = 250
+        const val HALF_TURN = 180
+        const val QUARTER_TURN = 90
         const val FULL = 100
         const val LOW_BATTERY = 20
         val VIDEO = setOf("mp4", "mov", "m4v", "webm", "3gp", "mkv")
