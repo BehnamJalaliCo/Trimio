@@ -274,7 +274,8 @@ object DataRecipes {
             val sample = digits(cue.prefix + formatFixed(maxOf(from, v), cue.decimals, grouped(maxOf(from, v), cue.rtl)), cue.rtl)
             val unit = cue.suffix.trim().takeIf { it.isNotEmpty() }
             val nf = fit.fit(sample, look.number, d * 0.4f, d * 0.6f, d * (if (unit != null) 0.36f else 0.46f), maxLines = 1)
-            val uf = unit?.let { fit.fit(it, look.body.copy(weight = 800), nf.type.size * 0.27f, d * 0.5f, d * 0.14f, maxLines = 1) }
+            val unitFloor = cue.width * Craft.MIN_LABEL
+            val uf = unit?.let { fit.fit(it, look.body.copy(weight = 800), maxOf(nf.type.size * 0.27f, unitFloor), d * 0.6f, maxOf(d * 0.14f, unitFloor * 1.4f), maxLines = 1) }
             val shift = uf?.let { it.height * 0.55f } ?: 0f
             val numberY = cy - shift
             val scale = anim(0.7f, clock.at + 0.1f) { by(1f, 0.55f, Easing.Land); hold(clock.land); by(1.12f, 0.07f, Easing.ExpoOut); by(1f, 0.4f, Easing.Land) } + beat

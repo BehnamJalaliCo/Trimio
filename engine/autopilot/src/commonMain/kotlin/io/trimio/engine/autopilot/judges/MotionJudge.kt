@@ -120,6 +120,7 @@ class MotionJudge(
         const val VARIETY_FROM = 6
         const val MIN_KINDS = 3
         const val MAX_SHARE = 0.6f
-        val REPEATABLE = setOf("comment", "message")
+        /** Each figure is its own news: two counters in a row show two different numbers. */
+        val REPEATABLE = setOf("comment", "message", "counter")
     }
 }
