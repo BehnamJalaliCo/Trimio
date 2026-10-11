@@ -88,8 +88,11 @@ jobs:
 
       # GPU build for llama.cpp and whisper.cpp. It links vulkan-1.dll, which every current GPU
       # driver installs; where it is missing the loader falls back to the CPU build.
+      # The GPU build is a bonus: when it cannot build, the app ships the CPU build alone (the
+      # loader falls back to it), rather than no Windows version at all.
       - name: Native engines, Vulkan (GPU)
         if: github.event_name != 'workflow_dispatch' || inputs.vulkan
+        continue-on-error: true
         run: |
           cmake -S native -B build/native-vulkan -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \

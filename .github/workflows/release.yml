@@ -112,9 +112,10 @@ jobs:
           VERSION: ${{ needs.version.outputs.name }}
           WINDOWS: ${{ needs.windows.result }}
         run: |
-          find dist -type f \( -name '*.msi' -o -name '*.exe' \) -exec mv {} dist/ \;
-          (cd dist && sha256sum *.apk *.aab *.msi *.exe 2>/dev/null > SHA256SUMS)
+          shopt -s nullglob
+          find dist -mindepth 2 -type f \( -name '*.msi' -o -name '*.exe' \) -exec mv {} dist/ \;
+          (cd dist && sha256sum *.apk *.aab *.msi *.exe > SHA256SUMS)
           NOTES="Trimio $VERSION from ${GITHUB_SHA::7}. Installs over the previous version; downloaded models stay."
           if [ "$WINDOWS" != "success" ]; then NOTES="$NOTES Windows installers are not in this version (build: $WINDOWS)."; fi
-          gh release create "v$VERSION" dist/*.apk dist/*.aab dist/SHA256SUMS $(ls dist/*.msi dist/*.exe 2>/dev/null) \
+          gh release create "v$VERSION" dist/*.apk dist/*.aab dist/*.msi dist/*.exe dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Trimio $VERSION" --notes "$NOTES"
