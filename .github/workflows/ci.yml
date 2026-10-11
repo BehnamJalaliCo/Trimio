@@ -29,6 +29,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      # The render and production tests encode and probe real media.
+      - name: ffmpeg
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+
       - name: Static analysis (detekt, new findings only)
         run: ./gradlew detekt
 
