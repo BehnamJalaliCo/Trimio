@@ -207,11 +207,11 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
     /** The address-bar card where a site is first said, spelled as the brief writes it. */
     private fun sites(score: Score, words: List<Word>, lines: List<Lines.Line>, log: (String) -> Unit): Score {
         var s = score
-        val done = mutableSetOf<String>()
-        for (i in words.indices) {
-            val domain = glossary.site(words[i].text)?.takeIf { done.add(it.lowercase()) } ?: continue
-            val line = lines.firstOrNull { i in it.range } ?: continue
-            val k = sceneOf(s, i) ?: continue
+        val firsts = words.indices.mapNotNull { i -> glossary.site(words[i].text)?.let { it to i } }.distinctBy { it.first.lowercase() }
+        for ((domain, i) in firsts) {
+            val line = lines.firstOrNull { i in it.range }
+            val k = sceneOf(s, i)
+            if (line == null || k == null) continue
             val sc = s.scenes[k]
             val kept = sc.beats.filterNot { b -> b.at in line.range && b.recipe in TEXT }
             val beat = BeatScore("url", at = i, text = domain, brand = domain.substringBefore('.'), place = "top", hold = URL_HOLD)
@@ -228,12 +228,11 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
     private fun definitions(score: Score, words: List<Word>, lines: List<Lines.Line>, log: (String) -> Unit): Score {
         if (!glossary.explain) return score
         var s = score
-        for ((term, meaning) in glossary.terms) {
-            if (meaning == null) continue
+        for ((term, meaning) in glossary.terms.mapNotNull { (t, m) -> m?.let { t to it } }) {
             val t = term.split(' ').map(::key)
-            val i = words.indices.firstOrNull { i -> t.indices.all { j -> words.getOrNull(i + j)?.let { key(it.text) } == t[j] } } ?: continue
-            val k = sceneOf(s, i) ?: continue
-            if (lines.none { i in it.range }) continue
+            val i = words.indices.firstOrNull { i -> t.indices.all { j -> words.getOrNull(i + j)?.let { key(it.text) } == t[j] } && lines.any { i in it.range } }
+            val k = i?.let { sceneOf(s, it) }
+            if (i == null || k == null) continue
             s = s.withScene(k, s.scenes[k].let { it.copy(beats = it.beats + BeatScore("lower-third", at = i, text = meaning, label = term, hold = TERM_HOLD)) })
             log("glossary: $term explained «$meaning»")
         }

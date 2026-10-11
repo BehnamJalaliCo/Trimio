@@ -175,7 +175,10 @@ class AssetReader(private val eyes: LanguageModel? = null) {
             .split(Regex("[^\\p{L}\\p{N}]+")).filter { w -> w.length >= MIN_STEM && w.lowercase() !in GENERIC && !w.all { it.isDigit() } }
 
         private const val MIN_STEM = 3
-        private val GENERIC = setOf("img", "image", "photo", "pic", "picture", "final", "copy", "edit", "edited", "screenshot", "screen", "logo", "video", "clip", "file", "new", "untitled", "whatsapp", "telegram", "export")
+        private val GENERIC = setOf(
+            "img", "image", "photo", "pic", "picture", "final", "copy", "edit", "edited", "screenshot", "screen", "logo", "video", "clip", "file", "new",
+            "untitled", "whatsapp", "telegram", "export",
+        )
     }
 
     /** Pixel cues of a thumbnail: how much is clear, how flat its colours are, whether its ink is light. */

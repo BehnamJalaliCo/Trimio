@@ -73,7 +73,8 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
             if (k >= 2 && span.all(::latin)) domains[span.joinToString("") { latinSkeleton(it) }]?.let { return it to k }
             val spelled = span.joinToString("") { Proofreader.key(it) }
             val letters = k >= 2 || span[0].any { it in '\u0600'..'\u06FF' }
-            if (letters && (span.all(::spoken) || span.all { latin(it) && it.length <= 2 })) {
+            val names = span.all(::spoken) || span.all { latin(it) && it.length <= 2 }
+            if (letters && names) {
                 acronyms.firstOrNull { (re, a) -> re.matches(spelled) || spelled == a.lowercase() }?.let { return it.second to k }
             }
         }

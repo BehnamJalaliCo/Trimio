@@ -138,6 +138,9 @@ object UiRecipes {
 
     private fun persian(s: String) = s.any { it in '\u0600'..'\u06FF' }
 
+    /** A type size, never under what a phone reads (the jury's typography floor is 23 px). */
+    private fun px(size: Float) = maxOf(size, MIN_TEXT)
+
     // ------------------------------------------------------------------ feed
 
     /**
@@ -151,14 +154,14 @@ object UiRecipes {
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
             val at = cue.at - Craft.LEAD
             val sk = skin(look, cue)
-            val h = minOf(cue.height * 0.98f, cue.width * 1.6f)
+            val h = minOf(cue.height * 0.98f, cue.width * 1.7f)
             val w = minOf(h * 0.56f, cue.width * 0.8f)
             val rtl = cue.rtl
             val pad = w * 0.06f
             val barH = w * 0.2f
             val inside = mutableListOf<Node>()
             // App bar: a title (or a placeholder), and a round avatar on the other side.
-            val titleF = cue.label?.let { fit.fit(it, look.headline, w * 0.07f, w * 0.6f, barH * 0.5f, 1) }
+            val titleF = cue.label?.let { fit.fit(it, look.headline, px(w * 0.07f), w * 0.6f, barH * 0.5f, 1) }
             if (titleF != null) {
                 inside += text(cue.label!!, titleF, sk.ink, if (rtl) w - pad - titleF.width / 2f else pad + titleF.width / 2f, barH * 0.6f, persian(cue.label!!), name = "feed-title")
             } else {
@@ -185,8 +188,10 @@ object UiRecipes {
                 val tw = w - pad * 2.6f - av
                 val line = cue.items.getOrNull(i)
                 if (line != null) {
-                    val f = fit.fit(line, look.body.copy(weight = minOf(look.body.weight, 700)), w * 0.052f, tw, av * 1.3f, 2)
-                    rows += text(line, f, sk.ink, if (rtl) tx + tw - f.width / 2f else tx + f.width / 2f, y + f.height / 2f, persian(line), name = "post-text")
+                    // Phone-readable posts: at most a few words, never under the floor size.
+                    val post = line.split(' ').take(POST_WORDS).joinToString(" ")
+                    val f = fit.fit(post, look.body.copy(weight = minOf(look.body.weight, 700)), px(w * 0.062f), tw, av * 2.4f, 3)
+                    rows += text(post, f, sk.ink, if (rtl) tx + tw - f.width / 2f else tx + f.width / 2f, y + f.height / 2f, persian(line), name = "post-text")
                     y += maxOf(av, f.height) + pad * 0.5f
                 } else {
                     rows += bar(if (rtl) tx + tw * 0.3f else tx, y + av * 0.12f, tw * 0.7f, w * 0.032f, sk.ink.copy(alpha = 0.55f))
@@ -295,7 +300,7 @@ object UiRecipes {
             val tabH = w * 0.09f
             val lineH = w * 0.066f
             val h = tabH + lineH * (lines.size + 1.6f)
-            val size = minOf(w * 0.038f, (h - tabH) / (lines.size + 1.6f) * 0.58f)
+            val size = px(minOf(w * 0.038f, (h - tabH) / (lines.size + 1.6f) * 0.58f))
             val mono = look.label.copy(weight = 600, tracking = 0f)
             val pad = w * 0.04f
             val gutter = w * 0.085f
@@ -324,7 +329,7 @@ object UiRecipes {
             for ((i, line) in lines.withIndex()) {
                 val y = tabH + lineH * (i + 0.9f)
                 val num = "${i + 1}"
-                val nf = fit.fit(num, mono, size * 0.85f, gutter, lineH, 1)
+                val nf = fit.fit(num, mono, size, gutter, lineH, 1)
                 inside += text(num, nf, sk.muted, gutter - pad * 0.4f - nf.width / 2f, y, false, name = "code-gutter")
                 var x = gutter + pad * 0.3f
                 caretY += Anim.Key(t, y, Easing.Hold)
@@ -398,7 +403,7 @@ object UiRecipes {
             val head = h * 0.1f
             val title = cue.label ?: cue.text.takeIf { it.isNotBlank() && it.length <= MAX_TITLE }
             if (title != null) {
-                val tf = fit.fit(title, look.headline, w * 0.055f, w * 0.6f, head * 0.6f, 1)
+                val tf = fit.fit(title, look.headline, px(w * 0.055f), w * 0.6f, head * 0.6f, 1)
                 inside += text(title, tf, sk.ink, if (rtl) w - pad - tf.width / 2f else pad + tf.width / 2f, head * 0.6f, persian(title), name = "dash-title")
             } else {
                 inside += bar(if (rtl) w - pad - w * 0.3f else pad, head * 0.45f, w * 0.3f, w * 0.03f, sk.ink.copy(alpha = 0.7f))
@@ -420,7 +425,7 @@ object UiRecipes {
                 )
                 val label = cue.items.getOrNull(i)
                 if (label != null) {
-                    val lf = fit.fit(label, look.label, w * 0.03f, tileW * 0.86f, tileH * 0.3f, 1)
+                    val lf = fit.fit(label, look.label, px(w * 0.034f), tileW * 0.86f, tileH * 0.3f, 1)
                     inside += text(label, lf, sk.muted, tx + tileW / 2f, tileY + tileH * 0.27f, persian(label), name = "dash-label")
                 } else {
                     inside += bar(tx + tileW * 0.2f, tileY + tileH * 0.22f, tileW * 0.6f, w * 0.022f, sk.muted.copy(alpha = 0.5f))
@@ -518,7 +523,7 @@ object UiRecipes {
             val items = cue.items.ifEmpty { listOfNotNull(cue.text.takeIf { it.isNotBlank() }) }.take(MAX_NOTES)
             if (items.isEmpty()) return Built(emptyList())
             val w = cue.width * 0.92f
-            val size = w * 0.042f
+            val size = px(w * 0.042f)
             val pad = w * 0.045f
             val glyph = w * 0.12f
             val gap = pad * 0.5f
@@ -552,7 +557,7 @@ object UiRecipes {
                 val tw = w - glyph - pad * 3f
                 val sender = cue.label
                 if (sender != null) {
-                    val sf = fit.fit(sender, look.label, size * 0.8f, tw * 0.7f, size * 1.2f, 1)
+                    val sf = fit.fit(sender, look.label, px(size * 0.8f), tw * 0.7f, size * 1.2f, 1)
                     inner += text(sender, sf, sk.muted, if (rtl) tx0 + tw - sf.width / 2f else tx0 + sf.width / 2f, pad + sf.height / 2f, persian(sender), name = "note-sender")
                 } else {
                     inner += bar(if (rtl) tx0 + tw * 0.6f else tx0, pad * 1.1f, tw * 0.4f, size * 0.5f, sk.muted.copy(alpha = 0.5f))
@@ -604,7 +609,7 @@ object UiRecipes {
             )
             icon("lock", addrX + bar * 0.32f, bar * 0.5f, bar * 0.3f, sk.muted, at + 0.2f, 0.3f)?.let { inside += it }
             val url = cue.label?.takeIf { it.isNotBlank() }?.lowercase() ?: "your-site.com"
-            val uf = fit.fit(url, look.label.copy(tracking = 0f), bar * 0.26f, addrW - bar * 0.8f, bar * 0.4f, 1)
+            val uf = fit.fit(url, look.label.copy(tracking = 0f), px(bar * 0.26f), addrW - bar * 0.8f, bar * 0.45f, 1)
             val typing = (url.length * 0.04f).coerceIn(0.3f, 0.9f)
             inside += text(
                 url, uf, sk.ink, addrX + bar * 0.6f + uf.width / 2f, bar * 0.5f, false,
@@ -805,8 +810,10 @@ object UiRecipes {
     val all: List<Recipe> = listOf(Feed, Code, Dashboard, Chat, Browser, Scene)
 
     private const val MIN_CONTRAST = 4.6f
-    private const val DASH_ASPECT = 1.12f
-    private const val PAGE_ASPECT = 1.25f
+    private const val MIN_TEXT = 27f
+    private const val POST_WORDS = 7
+    private const val DASH_ASPECT = 1.05f
+    private const val PAGE_ASPECT = 1.12f
     private const val GLASS_PAD = 0.035f
     private const val FEED_ROWS = 6
     private const val MAX_CODE_LINES = 9

@@ -71,8 +71,9 @@ object Workshop {
         val subject = if (scenario.footage) subject(scenario) else null
         val grabber = eyes?.let { FrameGrabber { output, times -> frames(output.composition, scenario).let { f -> times.map { Media.small(f.draw(it), LOOK_W, LOOK_H) } } } }
         Autopilot(text, brands, visuals, model, Knowledge.Offline, Taste(), eyes, grabber).produce(
-            Autopilot.Request(scenario.transcript, scenario.voice, StyleAxis.prompt(scenario, style), seed, footage = if (scenario.footage) "main" else null, subject = subject, understanding = understanding,
-                assets = scenario.assets,
+            Autopilot.Request(
+                scenario.transcript, scenario.voice, StyleAxis.prompt(scenario, style), seed, footage = if (scenario.footage) "main" else null, subject = subject,
+                understanding = understanding, assets = scenario.assets,
             ),
         )
     }

@@ -124,11 +124,12 @@ object MediaRecipes {
                 transform = Transform(x = Anim.tween(-w * 0.3f, w * 1.3f, land - 0.2f, land + 0.55f, Easing.SineInOut), y = (h / 2f).anim, rotation = 18f.anim),
                 start = land - 0.25f, end = land + 0.6f, name = "product-sheen",
             )
+            val middle = Transform(x = (w / 2f).anim, y = (h / 2f).anim)
             val card = Group(
                 listOf(
                     MediaNode(media, w, h, Fit.Cover, radius = radius.anim, transform = Transform(x = (w / 2f).anim, y = (h / 2f).anim), start = t0, name = "product-photo"),
-                    Group(listOf(sheen), mask = Mask(ShapeNode(ShapeSpec.Rect(w.anim, h.anim, radius.anim), fill = Color.White.fill(), transform = Transform(x = (w / 2f).anim, y = (h / 2f).anim))), width = w, height = h),
-                    ShapeNode(ShapeSpec.Rect(w.anim, h.anim, radius.anim), stroke = Stroke(Color.White.copy(alpha = 0.28f).fill(), maxOf(1.5f, w * 0.004f)), transform = Transform(x = (w / 2f).anim, y = (h / 2f).anim)),
+                    Group(listOf(sheen), mask = Mask(ShapeNode(ShapeSpec.Rect(w.anim, h.anim, radius.anim), fill = Color.White.fill(), transform = middle)), width = w, height = h),
+                    ShapeNode(ShapeSpec.Rect(w.anim, h.anim, radius.anim), stroke = Stroke(Color.White.copy(alpha = 0.28f).fill(), maxOf(1.5f, w * 0.004f)), transform = middle),
                 ),
                 transform = Transform(
                     x = cue.x.anim, y = y.anim + lift, anchorX = 0.5f, anchorY = 0.5f, scale = scale,
@@ -184,7 +185,10 @@ object MediaRecipes {
                     shadow = Shadow(Color.Black.copy(alpha = 0.45f), 0f, bh * 0.025f, bh * 0.06f), name = "phone-body",
                 ),
                 MediaNode(media, sw, sh, Fit.Cover, radius = (sw * 0.11f).anim, name = "phone-screen"),
-                ShapeNode(ShapeSpec.Rect((sw * 0.28f).anim, (bezel * 1.3f).anim, (bezel * 0.65f).anim), fill = DEVICE.fill(), transform = Transform(y = (-sh / 2f + bezel * 1.4f).anim), name = "phone-island"),
+                ShapeNode(
+                    ShapeSpec.Rect((sw * 0.28f).anim, (bezel * 1.3f).anim, (bezel * 0.65f).anim), fill = DEVICE.fill(),
+                    transform = Transform(y = (-sh / 2f + bezel * 1.4f).anim), name = "phone-island",
+                ),
             )
             return Framed(parts, bw, bh)
         }
@@ -213,7 +217,10 @@ object MediaRecipes {
                 )
             }
             val address = cue.label?.takeIf { it.isNotBlank() }
-            parts += ShapeNode(ShapeSpec.Rect((iw * 0.5f).anim, (bar * 0.56f).anim, (bar * 0.28f).anim), fill = Color.White.fill(), transform = Transform(y = (top + bar / 2f).anim), name = "browser-address")
+            parts += ShapeNode(
+                ShapeSpec.Rect((iw * 0.5f).anim, (bar * 0.56f).anim, (bar * 0.28f).anim), fill = Color.White.fill(),
+                transform = Transform(y = (top + bar / 2f).anim), name = "browser-address",
+            )
             if (address != null) {
                 val f = fit.fit(address, look.body.copy(weight = 600), bar * 0.3f, iw * 0.44f, bar * 0.5f, maxLines = 1)
                 parts += Craft.onBody(TextNode(address, f.type, ADDRESS_INK.fill(), rtl = false, transform = Transform(y = (top + bar / 2f).anim), name = "browser-address-text"))
@@ -318,7 +325,10 @@ object MediaRecipes {
                 x += icon + gap
             }
             val typed = TextAnimator(TextUnit.Char, UnitState(opacity = 0f, scale = 1.25f), at = open, duration = 0.06f, stagger = typing / chars, ease = Easing.QuintOut)
-            nodes += Craft.onBody(TextNode(domain, f.type, ADDRESS_INK.fill(), rtl = false, animators = listOf(typed), transform = Transform(x = (x + f.width / 2f).anim, y = cue.y.anim), name = "url-domain"))
+            val typedText = TextNode(
+                domain, f.type, ADDRESS_INK.fill(), rtl = false, animators = listOf(typed), transform = Transform(x = (x + f.width / 2f).anim, y = cue.y.anim), name = "url-domain",
+            )
+            nodes += Craft.onBody(typedText)
             // The caret follows the typing, then blinks twice and rests.
             val done = open + typing
             nodes += ShapeNode(
