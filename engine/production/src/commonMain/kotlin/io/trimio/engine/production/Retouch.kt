@@ -5,7 +5,6 @@ import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.assets.MusicMood
 import io.trimio.engine.autopilot.Autopilot
-import io.trimio.engine.autopilot.Soundtrack
 import io.trimio.engine.autopilot.Workbench
 import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.SfxKind

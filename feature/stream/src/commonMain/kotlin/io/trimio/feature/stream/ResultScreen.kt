@@ -152,7 +152,15 @@ private fun Body(result: BuildResult, actions: ResultActions) {
         Stats(result)
         JurySummary(result)
         Feedback(actions.onFeedback, enabled = !result.working)
-        SigSecondaryButton(tr("نسخهٔ دیگر بساز", "Make another version"), actions.onVariation, Modifier.fillMaxWidth().height(50.dp), icon = TrimioIcons.Sparkle)
+        val edit = actions.onEdit
+        if (edit != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SigSecondaryButton(tr("باز کردن در ادیتور", "Open in editor"), edit, Modifier.weight(1.5f).height(50.dp), icon = TrimioIcons.Edit)
+                SigSecondaryButton(tr("نسخهٔ دیگر", "Another version"), actions.onVariation, Modifier.weight(1f).height(50.dp), icon = TrimioIcons.Sparkle)
+            }
+        } else {
+            SigSecondaryButton(tr("نسخهٔ دیگر بساز", "Make another version"), actions.onVariation, Modifier.fillMaxWidth().height(50.dp), icon = TrimioIcons.Sparkle)
+        }
     }
 }
 

@@ -76,6 +76,8 @@ class ProductionScreensScreenshotTest {
         shoot("result-fa-noir", paper = false) { ResultScreen(result, ResultActions()) }
         shoot("result-fa-paper", paper = true) { ResultScreen(result.copy(version = 2, saved = true), ResultActions()) }
         shoot("result-fa-desktop", paper = true, width = 1280, height = 800, density = 1.5f) { ResultScreen(result, ResultActions()) }
+        // With the edit held: the editor and the export screen are offered too.
+        shoot("result-editor-fa-noir", paper = false, height = 1320) { ResultScreen(result, ResultActions(onExport = {}, onEdit = {})) }
     }
 
     @Test

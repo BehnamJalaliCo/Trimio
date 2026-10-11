@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName") // The production flow's entries, and the models they build (ProductionUi).
+
 package io.trimio.shared.navigation
 
 import androidx.compose.runtime.Composable
@@ -225,6 +227,7 @@ internal fun ResultEntry(
     onProduce: (request: ProductionRequest, projectId: String?, version: Int) -> Unit,
     onClose: () -> Unit,
     onExport: (id: String) -> Unit = {},
+    onEdit: (id: String) -> Unit = {},
 ) {
     val runner = koinInject<ProductionRunner>()
     val productions = koinInject<ProductionProjects>()
@@ -275,6 +278,8 @@ internal fun ResultEntry(
             onShare = { sharer?.share(output, result.title) },
             // Other frames, sizes and rates, captions and the pro package: while the edit itself is held.
             onExport = exportId?.let { id -> { onExport(id) } },
+            // The editor works on the held edit when the director's workbench came with it.
+            onEdit = exportId?.takeIf { edits.find(it)?.editable == true }?.let { id -> { onEdit(id) } },
         ),
     )
 }

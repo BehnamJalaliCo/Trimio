@@ -29,8 +29,10 @@ data class GalleryStyle(
     val groups: Set<GalleryFilter>,
 ) {
     /** A dark canvas carries light text over a soft scrim; a light one dark text and no scrim. */
-    val dark: Boolean get() = canvas.luminance() < DARK
+    val dark: Boolean get() = canvas.luminance() < DARK_CANVAS
 }
+
+private const val DARK_CANVAS = 0.4f
 
 /** The 28 styles, filtered: grouped by their picker family, their motion and their character. */
 object GalleryStyles {
@@ -52,16 +54,15 @@ object GalleryStyles {
         if (s.id in CINEMATIC_IDS) add(GalleryFilter.Cinematic)
     }
 
-    private const val DARK = 0.4f
     private const val LIGHT = 0.6f
     private const val KINETIC = 0.75f
     private const val CALM = 0.4f
 
     private val KINETIC_IDS = setOf("kinetic-poster", "sports-energy", "street-hype", "playful-pop", "gaming")
     private val GLASS_IDS = setOf("lumen", "tech-product", "luxury-gold", "neon-cyber")
-    private val MINIMAL_IDS = setOf("paper", "swiss-grid", "minimal-mono", "corporate-clean", "calm-wellness", "real-estate-premium")
+    private val MINIMAL_IDS = setOf("paper", "finance-terminal", "education-chalk", "swiss-grid", "minimal-mono", "corporate-clean", "calm-wellness", "real-estate-premium")
     private val BOLD_IDS = setOf("bold-brutalist", "kinetic-poster", "neon-cyber", "playful-pop", "news-broadcast", "street-hype", "sports-energy", "gaming", "kids-bright")
-    private val CINEMATIC_IDS = setOf("noir", "cinematic-trailer", "documentary", "travel-film", "luxury-gold", "retro-vhs")
+    private val CINEMATIC_IDS = setOf("noir", "food-warm", "cinematic-trailer", "documentary", "travel-film", "luxury-gold", "retro-vhs")
 
     /** What each style is like, in a few words (the card's second line). */
     private val HINTS = mapOf(

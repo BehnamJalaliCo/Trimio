@@ -15,6 +15,8 @@ kotlin {
             implementation(projects.engine.llm)
             implementation(projects.engine.media)
             implementation(projects.engine.production)
+            // The style swatches (the picker's stills of each style) for the editor's style tool.
+            implementation(projects.feature.create)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.runtime.compose)
         }

@@ -69,7 +69,7 @@ class DirectorGate internal constructor(
         p.go(p.request.copy(director = DirectorChoice.Auto))
     }
 
-    private fun wait() {
+    private fun waitForNetwork() {
         val p = asked ?: return
         asked = null
         waiting = p
@@ -91,7 +91,7 @@ class DirectorGate internal constructor(
     fun Overlay(director: OfflineDirector?) {
         val p = asked
         if (p != null) {
-            OfflineSheet(director?.copy(seconds = designSeconds(p.mediaSeconds)) ?: OfflineDirector(null, designSeconds(p.mediaSeconds)), ::onDevice, ::wait, onDismiss = { asked = null })
+            OfflineSheet(director?.copy(seconds = designSeconds(p.mediaSeconds)) ?: OfflineDirector(null, designSeconds(p.mediaSeconds)), ::onDevice, ::waitForNetwork, onDismiss = { asked = null })
         }
         if (waiting != null) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars), contentAlignment = Alignment.BottomCenter) {

@@ -343,7 +343,7 @@ private fun MoreSections(ui: SettingsUi, actions: SettingsActions) {
             onSelect = { r -> actions.onUpdate { it.copy(exportResolution = r) } }, modifier = Modifier.padding(top = 8.dp), height = 40.dp,
         )
         SigSegmented(
-            listOf(24, 30, 60), s.exportFrameRate, label = { localizedNumber("$it fps") },
+            listOf(24, 30, 60), s.exportFrameRate, label = { localizedNumber(tr("$it فریم", "$it fps")) },
             onSelect = { r -> actions.onUpdate { it.copy(exportFrameRate = r) } }, modifier = Modifier.padding(top = 8.dp), height = 40.dp,
         )
     }

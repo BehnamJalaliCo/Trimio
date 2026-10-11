@@ -1,8 +1,8 @@
 package io.trimio.feature.editor
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalLayoutApi
-import androidx.compose.foundation.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,7 +11,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -56,7 +55,6 @@ import io.trimio.core.designsystem.theme.tr
 import io.trimio.engine.motion.style.StyleBook
 import io.trimio.engine.production.CaptionDensity
 import io.trimio.feature.create.StyleCards
-import io.trimio.feature.create.StyleSwatch
 
 /** متن: the line's words as chips, what to do with the picked ones, the line's sound, and the director. */
 @Composable
@@ -65,7 +63,7 @@ internal fun TextPanel(ui: EditorUi, actions: EditorActions) {
     var editing by remember(t.selection, t.quote) { mutableStateOf(false) }
     var rewriting by remember { mutableStateOf(false) }
     Column {
-        PanelHeader(if (t.quote.isEmpty()) tr("متن", "Text") else "«${t.quote}»") {
+        PanelHeader(if (t.quote.isEmpty()) tr("متن", "Text") else "«${t.quote}»", size = 13f) {
             MicroLabel("${clockTenths(t.spanStart)} → ${clockTenths(t.spanEnd)}", color = Ink.copy(alpha = 0.5f))
         }
         when {
@@ -174,7 +172,9 @@ private fun LineTimeline(ui: EditorUi, onSeek: (Float) -> Unit, modifier: Modifi
             val f = ((ui.position - t.windowStart) / span)
             if (f in 0f..1f) {
                 val x = f * size.width
-                drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent), startX = x - 8.dp.toPx(), endX = x + 8.dp.toPx()), Offset(x - 8.dp.toPx(), 0f), Size(16.dp.toPx(), size.height))
+                val halo = 8.dp.toPx()
+                val glow = Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent), startX = x - halo, endX = x + halo)
+                drawRect(glow, Offset(x - halo, 0f), Size(halo * 2, size.height))
                 drawRect(Color.White, Offset(x - 1.dp.toPx(), 0f), Size(2.dp.toPx(), size.height))
             }
         }
@@ -228,17 +228,37 @@ internal fun StylePanel(ui: EditorUi, actions: EditorActions) {
     }
 }
 
-/** A style as a still of its own look, its short name at the foot; the chosen one in the ember ring. */
+/** A style as a still of its own look (canvas, light, a word in its headline voice, its mark), its short name at the foot; the chosen one in the ember ring. */
 @Composable
 private fun StyleCardTile(id: String, nameFa: String, nameEn: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
     val card = StyleCards.all.firstOrNull { it.id == id } ?: return
+    val shape = RoundedCornerShape(14.dp)
     Box(
-        Modifier.size(86.dp, 110.dp).let { if (selected) it.border(2.dp, SigNoir.action, shape) else it }.padding(if (selected) 2.dp else 0.dp)
-            .clip(RoundedCornerShape(if (selected) 12.dp else 14.dp)).clickable(role = Role.RadioButton, onClick = onClick),
+        Modifier.size(86.dp, 110.dp).clip(shape).background(card.canvas)
+            .drawBehind {
+                card.aurora.drop(1).take(2).forEachIndexed { i, c ->
+                    val center = if (i == 0) Offset(size.width * 0.85f, size.height * 0.1f) else Offset(size.width * 0.1f, size.height * 0.95f)
+                    drawCircle(Brush.radialGradient(listOf(c.copy(alpha = 0.8f), Color.Transparent), center = center, radius = size.width * 0.8f), radius = size.width * 0.8f, center = center)
+                }
+            }
+            .let { if (selected) it.border(2.dp, SigNoir.action, shape) else it }
+            .clickable(role = Role.RadioButton, onClick = onClick),
     ) {
-        StyleSwatch(card.copy(sample = card.sample), Modifier.fillMaxSize())
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(34.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = if (card.dark) 0.35f else 0f)))))
+        Column(Modifier.align(Alignment.TopStart).padding(start = 8.dp, end = 6.dp, top = 18.dp)) {
+            val word = if (card.caps) card.sample.uppercase() else card.sample
+            val persian = word.any { it in '\u0600'..'\u06FF' }
+            Text(
+                if (persian) word else "\u2066$word\u2069",
+                style = Sig.type.hero.copy(fontSize = 21.sp, lineHeight = 26.sp, fontWeight = FontWeight(card.weight.coerceAtLeast(800))),
+                color = if (card.mark == io.trimio.engine.motion.recipe.Look.Mark.Ink) card.accent else card.ink, maxLines = 1, softWrap = false,
+            )
+            when (card.mark) {
+                io.trimio.engine.motion.recipe.Look.Mark.Block -> Box(Modifier.padding(top = 4.dp).size(30.dp, 6.dp).background(card.accent))
+                io.trimio.engine.motion.recipe.Look.Mark.Underline -> Box(Modifier.padding(top = 3.dp).size(22.dp, 2.dp).background(card.accent))
+                io.trimio.engine.motion.recipe.Look.Mark.Circle -> Box(Modifier.padding(top = 3.dp).size(22.dp, 22.dp).border(2.dp, card.accent, RoundedCornerShape(11.dp)))
+                io.trimio.engine.motion.recipe.Look.Mark.Ink -> Unit
+            }
+        }
         Text(
             tr(nameFa, nameEn), style = Sig.type.meta.copy(fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = FontWeight(700)),
             color = if (card.dark) Ink else Color(0xFF111111), maxLines = 1,
@@ -272,9 +292,3 @@ private fun densityName(d: CaptionDensity): String = when (d) {
     CaptionDensity.Phrase -> tr("عبارتی", "Phrase")
     CaptionDensity.Sentence -> tr("جمله‌ای", "Sentence")
 }
-
-/** Padding inside the glass panel. */
-internal val PanelPadding = PaddingValues(14.dp)
-
-/** The ember glow under a pressed control. */
-internal fun Modifier.glow(on: Boolean): Modifier = if (on) shadow(10.dp, RoundedCornerShape(14.dp), ambientColor = SigNoir.action) else this

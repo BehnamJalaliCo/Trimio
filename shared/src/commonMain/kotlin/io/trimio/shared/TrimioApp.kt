@@ -41,7 +41,6 @@ import io.trimio.core.designsystem.theme.TrimioPreferences
 import io.trimio.core.model.text.Language
 import io.trimio.engine.models.ModelManager
 import io.trimio.feature.create.CreateRoute
-import io.trimio.feature.editor.EditorRoute
 import io.trimio.feature.gallery.StyleGalleryRoute
 import io.trimio.feature.settings.ModelsRoute
 import io.trimio.feature.settings.SettingsRoute
@@ -50,6 +49,7 @@ import io.trimio.shared.di.AppScope
 import io.trimio.shared.di.CreateArgs
 import io.trimio.shared.di.appModule
 import io.trimio.shared.navigation.DirectorGated
+import io.trimio.shared.navigation.EditorEntry
 import io.trimio.shared.navigation.ExportEntry
 import io.trimio.shared.navigation.OnboardingEntry
 import io.trimio.shared.navigation.ProduceEntry
@@ -143,13 +143,15 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
     fun back() { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) }
     fun replaceTop(route: Route) { backStack[backStack.lastIndex] = route }
 
-    /** A project from home: its result, its live build (or stored failure), or, for an earlier pipeline's, the editor. */
+    /**
+     * A project from home: its result, or its live build (or stored failure). An earlier pipeline's
+     * project is made again by the automatic engine from its source and brief.
+     */
     fun open(p: Project) {
         val persian = language == Language.Persian
         val record = p.production
         val styleName = ProductionUi.styleName(record?.styleId ?: p.styleId?.let(ProductionUi::styleId), persian)
         when {
-            record == null && p.status == ProjectStatus.Ready -> go(Route.Editor(p.id))
             record == null -> go(Route.Produce(productions.remake(p, persian), styleName, projectId = p.id))
             p.status == ProjectStatus.Ready -> go(Route.Result(record.buildSeconds, record.version, styleName, p.id))
             else -> productions.requestOf(p)?.let { go(Route.Produce(it, styleName, record.version, p.id)) }
@@ -208,14 +210,21 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     onProduce = { request, projectId, version -> replaceTop(Route.Produce(request, route.styleName, version, projectId)) },
                     onClose = ::back,
                     onExport = { id -> go(Route.Export(id)) },
+                    onEdit = { id -> go(Route.Editor(id)) },
                 )
             }
             entry<Route.Models> { ModelsRoute(koinViewModel(), onBack = ::back) }
             entry<Route.Editor> { route ->
-                EditorRoute(
-                    koinViewModel(key = route.projectId) { parametersOf(route.projectId) },
+                EditorEntry(
+                    route,
                     onBack = ::back,
                     onExport = { id -> go(Route.Export(id)) },
+                    // The next version replaces the result the editor was opened from.
+                    onProduce = { request, projectId, version ->
+                        val result = backStack.getOrNull(backStack.lastIndex - 1) as? Route.Result
+                        if (result != null) back()
+                        replaceTop(Route.Produce(request, result?.styleName, version, projectId))
+                    },
                 )
             }
             entry<Route.Export> { route -> ExportEntry(route, onBack = ::back) }

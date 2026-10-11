@@ -15,6 +15,10 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.trimio.core.designsystem.theme.Trimio
 import kotlin.math.cos
@@ -97,3 +101,23 @@ internal fun Modifier.slideUp(e: Entrance, delay: Int, duration: Int): Modifier 
     translationY = (1f - Entrance.ease(p)) * 120.dp.toPx()
     alpha = (p * 2f).coerceAtMost(1f)
 }
+
+/**
+ * The display style at its board size, or smaller so the longest of [lines] fits in [width]
+ * (English words run longer than Persian ones; large font scales too). Never wraps a hero line.
+ */
+@Composable
+internal fun fittedHero(lines: List<String>, style: TextStyle, width: Dp): TextStyle {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(lines, style, width, density) {
+        val widest = lines.maxOfOrNull { measurer.measure(it, style, softWrap = false, maxLines = 1).size.width } ?: 0
+        val room = with(density) { width.toPx() }
+        if (widest <= room || widest == 0) style else {
+            val scale = room / widest * FIT_MARGIN
+            style.copy(fontSize = style.fontSize * scale, lineHeight = style.lineHeight * scale)
+        }
+    }
+}
+
+private const val FIT_MARGIN = 0.98f

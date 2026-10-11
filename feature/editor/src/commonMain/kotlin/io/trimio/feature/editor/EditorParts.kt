@@ -23,6 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -115,7 +118,7 @@ internal fun ToolRail(tool: EditorTool, folded: Boolean, onTool: (EditorTool) ->
                 val on = t == tool && !folded
                 val tint = if (on) SigNoir.emphasis else InkSoft
                 Column(
-                    Modifier.clip(RoundedCornerShape(10.dp)).clickable(role = Role.Tab) { onTool(t) }.padding(horizontal = 4.dp, vertical = 2.dp),
+                    Modifier.clip(RoundedCornerShape(10.dp)).clickable(role = Role.Tab) { onTool(t) }.padding(horizontal = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
@@ -146,9 +149,9 @@ internal fun toolName(t: EditorTool): String = when (t) {
 
 /** A panel's title at the reading start and its note at the end. */
 @Composable
-internal fun PanelHeader(title: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
+internal fun PanelHeader(title: String, modifier: Modifier = Modifier, size: Float = 14f, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = Sig.type.bodyStrong.copy(fontSize = 14.sp, lineHeight = 18.sp), color = Ink, maxLines = 1)
+        Text(title, Modifier.weight(1f, fill = false), style = Sig.type.bodyStrong.copy(fontSize = size.sp, lineHeight = (size + 4).sp), color = Ink, maxLines = 1)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically, content = trailing)
     }
 }
@@ -196,22 +199,27 @@ internal fun EditorToggle(on: Boolean, onChange: (Boolean) -> Unit, modifier: Mo
  * thumb. [onChange] follows the drag; [onDone] when the finger lifts.
  */
 @Composable
-internal fun EditorSlider(value: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier, onDone: () -> Unit = {}, label: String = "") {
+internal fun EditorSlider(target: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier, onDone: () -> Unit = {}, label: String = "") {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    // The thumb follows the finger at once; the edit catches up a moment later.
+    var dragged by remember { mutableStateOf<Float?>(null) }
+    val value = dragged ?: target
+    val move = { v: Float -> dragged = v; onChange(v) }
+    val lift = { dragged = null; onDone() }
     BoxWithConstraints(modifier.fillMaxWidth().height(28.dp).semantics { contentDescription = label; stateDescription = "${(value * 100).roundToInt()}%" }) {
         val width = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         fun at(x: Float) = ((if (rtl) width - x else x) / width).coerceIn(0f, 1f)
         Box(
             Modifier.fillMaxWidth().height(28.dp)
-                .pointerInput(rtl, width) { detectTapGestures { onChange(at(it.x)); onDone() } }
-                .pointerInput(rtl, width) { detectHorizontalDragGestures(onDragEnd = onDone) { change, _ -> onChange(at(change.position.x)) } },
+                .pointerInput(rtl, width) { detectTapGestures { move(at(it.x)); lift() } }
+                .pointerInput(rtl, width) { detectHorizontalDragGestures(onDragEnd = { lift() }, onDragCancel = { lift() }) { change, _ -> move(at(change.position.x)) } },
         ) {
             Canvas(Modifier.align(Alignment.Center).fillMaxWidth().height(4.dp)) {
                 drawRoundRect(Ink.copy(alpha = 0.12f), cornerRadius = CornerRadius(2.dp.toPx()))
                 val w = size.width * value.coerceIn(0f, 1f)
                 drawRoundRect(SigNoir.action, topLeft = Offset(if (rtl) size.width - w else 0f, 0f), size = Size(w, size.height), cornerRadius = CornerRadius(2.dp.toPx()))
             }
-            val thumb = (maxWidth - 18.dp) * value.coerceIn(0f, 1f)
+            val thumb = (this@BoxWithConstraints.maxWidth - 18.dp) * value.coerceIn(0f, 1f)
             Box(Modifier.align(Alignment.CenterStart).offset(x = thumb).size(18.dp).shadow(6.dp, CircleShape).clip(CircleShape).background(Color.White))
         }
     }
@@ -268,6 +276,12 @@ internal fun Transport(ui: EditorUi, onPlay: () -> Unit, modifier: Modifier = Mo
         ) { TrimioIcon(if (ui.playing) TrimioIcons.Pause else TrimioIcons.Play, null, tint = SigNoir.canvas, size = 20.dp) }
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { link?.let { DirectorLine(it, onClick = onLink) } }
     }
+}
+
+/** The board's 1dp rule between list rows, on the dark material. */
+@Composable
+internal fun EditorRule(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(1.dp).background(Ink.copy(alpha = 0.08f)))
 }
 
 /** mm:ss. */

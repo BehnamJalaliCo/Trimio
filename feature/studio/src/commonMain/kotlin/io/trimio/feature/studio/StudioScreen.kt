@@ -1,6 +1,9 @@
 package io.trimio.feature.studio
 
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -8,9 +11,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -70,7 +76,6 @@ import io.trimio.core.designsystem.signature.DisplayText
 import io.trimio.core.designsystem.signature.Hairline
 import io.trimio.core.designsystem.signature.MicroLabel
 import io.trimio.core.designsystem.signature.Sig
-import io.trimio.core.designsystem.signature.SigActionSquare
 import io.trimio.core.designsystem.signature.SigAdaptive
 import io.trimio.core.designsystem.signature.SigChip
 import io.trimio.core.designsystem.signature.SigGlass
@@ -253,20 +258,22 @@ private fun Hero(state: HomeState, e: Entrance, modifier: Modifier, size: Int = 
     val first = state.projects.isEmpty()
     val lines = if (first) tr("اولین موشنت\nرا بساز", "Make your\nfirst motion") else tr("امروز چه\nبسازیم", "What do we\nmake today")
     val mark = if (first) "." else tr("؟", "?")
-    val style = Sig.type.hero.copy(fontSize = size.sp, lineHeight = size.sp)
-    Column(modifier) {
-        Text(todayLine(state.now), Modifier.rise(e, 350, 600), style = Sig.type.meta, color = c.muted)
-        Spacer(Modifier.height(8.dp))
-        val split = lines.split('\n')
-        split.forEachIndexed { i, line ->
-            DisplayText(
-                buildAnnotatedString {
-                    append(line)
-                    if (i == split.lastIndex) withStyle(SpanStyle(color = c.action)) { append(mark) }
-                },
-                style = style,
-                modifier = Modifier.maskReveal(e, HERO_AT + i * HERO_STAGGER, HERO_DURATION),
-            )
+    val split = lines.split('\n')
+    BoxWithConstraints(modifier) {
+        val style = fittedHero(split.mapIndexed { i, l -> if (i == split.lastIndex) l + mark else l }, Sig.type.hero.copy(fontSize = size.sp, lineHeight = size.sp), maxWidth)
+        Column {
+            Text(todayLine(state.now), Modifier.rise(e, 350, 600), style = Sig.type.meta, color = c.muted)
+            Spacer(Modifier.height(8.dp))
+            split.forEachIndexed { i, line ->
+                DisplayText(
+                    buildAnnotatedString {
+                        append(line)
+                        if (i == split.lastIndex) withStyle(SpanStyle(color = c.action)) { append(mark) }
+                    },
+                    style = style,
+                    modifier = Modifier.maskReveal(e, HERO_AT + i * HERO_STAGGER, HERO_DURATION),
+                )
+            }
         }
     }
 }
@@ -376,9 +383,23 @@ private fun Composer(onCompose: (String) -> Unit, e: Entrance, modifier: Modifie
                     }
                 },
             )
-            SigActionSquare(TrimioIcons.Send, tr("بفرست", "Send"), ::send)
+            SendButton(::send)
         }
     }
+}
+
+/** The ember send square, giving a little under the finger (a spring, as in the motion board). */
+@Composable
+private fun SendButton(onClick: () -> Unit) {
+    val c = Sig.colors
+    val press = remember { MutableInteractionSource() }
+    val pressed by press.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.9f else 1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium), label = "send")
+    Box(
+        Modifier.size(46.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(RoundedCornerShape(14.dp)).background(c.action)
+            .clickable(interactionSource = press, indication = null, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { TrimioIcon(TrimioIcons.Send, tr("بفرست", "Send"), tint = c.onAction, size = 22.dp) }
 }
 
 /** The director's bead, breathing while it waits (still with reduced motion). */

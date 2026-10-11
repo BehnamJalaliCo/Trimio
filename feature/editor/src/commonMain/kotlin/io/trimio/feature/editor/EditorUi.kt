@@ -64,8 +64,8 @@ data class EditorUi(
             val anchor = selection?.first ?: facts.wordAt(position) ?: 0
             val line = facts.lines.firstOrNull { anchor in it } ?: facts.lines.getOrNull(facts.lineAt(position)) ?: words.indices
             val shown = line.map { words[it] }.filter { it.text.isNotEmpty() || it.cut }
-            val chips = shown.map { w -> WordChip(w.index, w.text.ifEmpty { w.said }, w.cut, w.emphasised, w.edited, w.hit) }
             val span = selection ?: anchor..anchor
+            val chips = chips(shown.map { w -> WordChip(w.index, w.text.ifEmpty { w.said }, w.cut, w.emphasised, w.edited, w.hit) }, selection)
             val picked = span.mapNotNull { words.getOrNull(it) }
             val from = words[line.first].start
             val to = maxOf(words[line.last].end, from + MIN_WINDOW)
@@ -81,6 +81,25 @@ data class EditorUi(
                 cut = picked.isNotEmpty() && picked.all { it.cut },
                 hasNumber = picked.any { w -> w.said.any { it.isDigit() } || NUMBER_WORDS.any { n -> w.said.startsWith(n) } },
             )
+        }
+
+        /** The picked words read as one chip, and so does a run of cut words («و خب»). */
+        internal fun chips(words: List<WordChip>, selection: IntRange?): List<WordChip> {
+            val out = mutableListOf<WordChip>()
+            for (w in words) {
+                val prev = out.lastOrNull()
+                val picked = selection?.let { w.index in it } == true
+                val together = prev != null && prev.last + 1 == w.index && (
+                    (picked && selection?.let { prev.index in it } == true) || (w.cut && prev.cut)
+                    )
+                out += if (together && prev != null) {
+                    out.removeAt(out.lastIndex)
+                    prev.copy(text = prev.text + " " + w.text, last = w.index, emphasised = prev.emphasised && w.emphasised, edited = prev.edited || w.edited, hit = prev.hit || w.hit)
+                } else {
+                    w
+                }
+            }
+            return out
         }
 
         private fun elements(facts: EditFacts, shown: Int): ElementsTool {
@@ -134,7 +153,8 @@ data class TextTool(
     val hasNumber: Boolean = false,
 )
 
-data class WordChip(val index: Int, val text: String, val cut: Boolean, val emphasised: Boolean, val edited: Boolean, val hit: Boolean)
+/** One or more words ([index]..[last]) as a chip. */
+data class WordChip(val index: Int, val text: String, val cut: Boolean, val emphasised: Boolean, val edited: Boolean, val hit: Boolean, val last: Int = index)
 
 /** A word on the line's strip, on the edit's clock. */
 data class Segment(val start: Float, val end: Float, val selected: Boolean)

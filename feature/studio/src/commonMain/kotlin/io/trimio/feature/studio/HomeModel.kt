@@ -111,3 +111,6 @@ data class Idea(
         )
     }
 }
+
+/** What onboarding's device card shows: real numbers, or nothing where the platform cannot tell. */
+data class OnboardingDevice(val ramGb: Int, val cores: Int = 0, val freeBytes: Long? = null)

@@ -200,7 +200,7 @@ private fun Choices(ui: ExportUi, actions: ExportActions) {
         )
         Label(tr("نرخ فریم", "Frame rate"), Modifier.padding(top = 14.dp))
         SigSegmented(
-            ExportUi.Rates, ui.fps, { localizedNumber("$it") }, { if (!locked) actions.onFps(it) }, Modifier.padding(top = 8.dp),
+            ExportUi.Rates, ui.fps, { "$it" }, { if (!locked) actions.onFps(it) }, Modifier.padding(top = 8.dp),
             enabled = { r -> (ui.quality to r) !in ui.unsupported }, height = 44.dp,
         )
         Column(Modifier.padding(top = 18.dp, bottom = 12.dp)) {
@@ -271,7 +271,7 @@ private fun Bottom(ui: ExportUi, actions: ExportActions, modifier: Modifier) {
         if (!videoShown) {
             SigButton(
                 tr("ساخت خروجی $quality", "Export $quality"), actions.onExport, Modifier.fillMaxWidth(),
-                trailing = TrimioIcons.Export, enabled = job?.running != true,
+                leading = TrimioIcons.Export, enabled = job?.running != true,
             )
         }
     }
@@ -314,13 +314,13 @@ private fun Bar(progress: Float) {
 @Composable
 private fun Done(ui: ExportUi, job: ExportJob, actions: ExportActions) {
     val c = Sig.colors
-    val name = job.files.firstOrNull()?.substringAfterLast('/')?.substringAfterLast('\\').orEmpty()
+    val (w, h) = ui.spec.size
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         SigChip(
             tr("آماده شد", "Ready"), container = c.emphasisSoft, content = c.emphasisSoftContent,
             leading = { TrimioIcon(TrimioIcons.Check, null, tint = c.emphasisSoftContent, size = 13.dp) },
         )
-        MicroLabel(name.take(NAME), Modifier.weight(1f), color = c.faint)
+        MicroLabel("${w}×$h · ${ui.spec.fps} FPS · MP4", Modifier.weight(1f), color = c.muted)
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         val saveLabel = when {
@@ -385,5 +385,4 @@ private fun score(v: Float): String = ((v * TENTH).toInt() / TENTH).let { if (it
 private const val MS = 1000L
 private const val MINUTE = 60
 private const val PERCENT = 100
-private const val NAME = 48
 private const val TENTH = 10f

@@ -134,4 +134,6 @@ data class ResultActions(
     val onShare: () -> Unit = {},
     /** The export screen (other frames, sizes and rates, captions, the pro package); null hides it. */
     val onExport: (() -> Unit)? = null,
+    /** The editor on this edit (text, style, sound, elements, cuts); null hides it. */
+    val onEdit: (() -> Unit)? = null,
 )

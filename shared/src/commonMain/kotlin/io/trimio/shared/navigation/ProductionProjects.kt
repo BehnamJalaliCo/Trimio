@@ -117,7 +117,8 @@ class ProductionProjects(
         )
         runner.start(request)
         val record = ProductionRecord(encode(request), request.key, keys = listOf(request.key), styleId = request.style)
-        persist(project.copy(status = ProjectStatus.Building, error = null, outputUri = null, production = record, title = project.title.ifBlank { titleOf(project.prompt, project.isAudioOnly, persian) }))
+        val title = project.title.ifBlank { titleOf(project.prompt, project.isAudioOnly, persian) }
+        persist(project.copy(status = ProjectStatus.Building, error = null, outputUri = null, production = record, title = title))
         return request
     }
 
@@ -164,12 +165,14 @@ class ProductionProjects(
     fun delete(project: Project) {
         scope.launch {
             lock.withLock {
-                val record = project.production
+                // The stored project may have moved on (a version finished) since the row was shown.
+                val current = repository.get(project.id) ?: project
+                val record = current.production
                 if (record != null) {
                     if (runner.active.value?.let { it.key == record.key && !it.finished } == true) runner.cancel()
                     record.keys.forEach(checkpoints::delete)
                     withContext(Dispatchers.Default) {
-                        (record.files + listOfNotNull(project.outputUri, record.poster)).distinct().forEach(::deleteFile)
+                        (record.files + listOfNotNull(current.outputUri, record.poster)).distinct().forEach(::deleteFile)
                         folder?.let { runCatching { SystemFileSystem.delete(Path(it, project.id), mustExist = false) } }
                     }
                 }

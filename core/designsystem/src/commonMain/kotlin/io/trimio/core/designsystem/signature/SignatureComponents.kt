@@ -51,7 +51,15 @@ import io.trimio.core.designsystem.theme.Trimio
 
 /** The primary action: ember slab with a warm glow and a lit top edge. */
 @Composable
-fun SigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, trailing: ImageVector? = null, enabled: Boolean = true) {
+fun SigButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: ImageVector? = null,
+    enabled: Boolean = true,
+    /** An icon before the label, at the reading start (the boards' export and "continue on device" actions). */
+    leading: ImageVector? = null,
+) {
     val c = Sig.colors
     val shape = RoundedCornerShape(SigSpace.radiusMd)
     Row(
@@ -68,6 +76,7 @@ fun SigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        leading?.let { TrimioIcon(it, null, tint = if (enabled) c.onAction else c.muted, size = 20.dp) }
         Text(text, style = Sig.type.button, color = if (enabled) c.onAction else c.muted)
         trailing?.let { TrimioIcon(it, null, tint = if (enabled) c.onAction else c.muted, size = 20.dp) }
     }

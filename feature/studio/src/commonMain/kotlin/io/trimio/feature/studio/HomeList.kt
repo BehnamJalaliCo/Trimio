@@ -220,7 +220,7 @@ private fun IdeaThumb(idea: Idea, modifier: Modifier) {
         }
         else -> Box(modifier.background(Color(0xFF0D0C0B))) {
             Text(
-                tr("سود", "Profit"), Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 9.dp),
+                tr("سود", "+12%"), Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 9.dp),
                 style = Sig.type.hero.copy(fontSize = 15.sp, lineHeight = 18.sp), color = c.onMedia,
             )
             Box(Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 5.dp).size(18.dp, 2.dp).background(c.action))

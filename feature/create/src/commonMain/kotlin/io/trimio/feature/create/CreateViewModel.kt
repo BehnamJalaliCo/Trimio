@@ -8,6 +8,7 @@ import io.trimio.core.data.ThermalLevel
 import io.trimio.core.data.ThermalMonitor
 import io.trimio.core.model.input.AspectRatio
 import io.trimio.core.model.input.MediaInfo
+import io.trimio.core.model.input.MediaUri
 import io.trimio.core.pipeline.DirectorBackend
 import io.trimio.engine.director.Brief
 import io.trimio.engine.director.BriefParser

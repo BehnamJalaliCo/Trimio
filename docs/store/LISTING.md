@@ -52,10 +52,10 @@ For high-end phones (Android 13+, 8 GB RAM or more).
 |---|---|---|
 | 1 | studio-fa.png | Home, Bento projects with live previews |
 | 2 | create-fa.png | Prompt composer and style choice |
-| 3 | editor-words-fa.png | Word-level caption editor |
+| 3 | editor-text-fa.png | Editor: the words of a line, emphasis, edit, hit and delete |
 | 4 | gallery-fa.png | 28-style gallery |
 | 5 | all-styles.png | Style contact sheet |
-| 6 | editor-sound-tablet-fa.png | Sound and music (tablet) |
+| 6 | editor-sound-wide-fa.png | Editor: music, level, effects and loudness (desktop) |
 | 7 | settings-fa.png | On-device models and privacy |
 
 Phone screenshots must be re-captured on a device at 1080×2400 before submission (the files here are renderer captures).

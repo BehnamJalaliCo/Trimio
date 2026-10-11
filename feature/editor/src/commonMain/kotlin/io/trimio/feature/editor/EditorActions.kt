@@ -39,4 +39,6 @@ data class EditorActions(
     val onSilences: (Boolean) -> Unit = {},
     val onFillers: (Boolean) -> Unit = {},
     val onBeatCuts: (Boolean) -> Unit = {},
+    /** The stage's width in pixels: frames are drawn at it. */
+    val onStageWidth: (Int) -> Unit = {},
 )

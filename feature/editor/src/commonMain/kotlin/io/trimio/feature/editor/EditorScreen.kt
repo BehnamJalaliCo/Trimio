@@ -12,7 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -40,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -55,6 +57,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -101,7 +104,8 @@ private fun Phone(ui: EditorUi, actions: EditorActions, frame: ImageBitmap?) {
     GlassScene(
         Modifier.fillMaxSize(),
         background = {
-            Stage(frame, ContentScale.Crop, Modifier.fillMaxSize())
+            // The whole frame's width shows (nothing of the edit is cropped), from the top, under the bar.
+            Stage(frame, ContentScale.FillWidth, Modifier.fillMaxSize().onSizeChanged { actions.onStageWidth(it.width) }, Alignment.TopCenter)
             // The board's grade: a little dark under the bar, clear over the picture, deep under the panel.
             Box(
                 Modifier.fillMaxSize().background(
@@ -138,7 +142,7 @@ private fun Wide(ui: EditorUi, actions: EditorActions, frame: ImageBitmap?) {
     GlassScene(
         Modifier.fillMaxSize(),
         // The edit's own light, soft and far behind the glass.
-        background = { Stage(frame, ContentScale.Crop, Modifier.fillMaxSize().alpha(0.22f)) },
+        background = { Stage(frame, ContentScale.Crop, Modifier.fillMaxSize().blur(90.dp).alpha(0.32f)) },
     ) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 22.dp, vertical = 12.dp)) {
             EditorTopBar(ui, actions)
@@ -147,14 +151,18 @@ private fun Wide(ui: EditorUi, actions: EditorActions, frame: ImageBitmap?) {
                     Row(Modifier.fillMaxHeight(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
                         val shape = RoundedCornerShape(20.dp)
                         Box(Modifier.fillMaxHeight().aspectRatio(9f / 16f).clip(shape).border(1.dp, Color.White.copy(alpha = 0.14f), shape)) {
-                            Stage(frame, ContentScale.Fit, Modifier.fillMaxSize())
+                            Stage(frame, ContentScale.Fit, Modifier.fillMaxSize().onSizeChanged { actions.onStageWidth(it.width) })
                             StageNotes(ui, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
                         }
                         ToolRail(ui.tool, folded = false, onTool = actions.onTool)
                     }
                 }
-                SigGlass(Modifier.width(440.dp).fillMaxHeight(), shape = RoundedCornerShape(26.dp), contentPadding = PaddingValues(18.dp), overMedia = true) {
-                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { Panel(ui, actions, wide = true) }
+                // The panel is as tall as its tool needs, scrolling past the window's height.
+                BoxWithConstraints(Modifier.width(440.dp).fillMaxHeight()) {
+                    val room = maxHeight - 36.dp
+                    SigGlass(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), contentPadding = PaddingValues(18.dp), overMedia = true) {
+                        Column(Modifier.heightIn(max = room).verticalScroll(rememberScrollState())) { Panel(ui, actions, wide = true) }
+                    }
                 }
             }
         }
@@ -167,15 +175,15 @@ private fun Panel(ui: EditorUi, actions: EditorActions, wide: Boolean) {
         EditorTool.Text -> TextPanel(ui, actions)
         EditorTool.Style -> StylePanel(ui, actions)
         EditorTool.Sound -> SoundPanel(ui, actions, listHeight = if (wide) 420.dp else 126.dp)
-        EditorTool.Elements -> ElementsPanel(ui, actions, listHeight = if (wide) 520.dp else 196.dp)
+        EditorTool.Elements -> ElementsPanel(ui, actions, listHeight = if (wide) 520.dp else 232.dp)
         EditorTool.Cut -> CutPanel(ui, actions)
     }
 }
 
 /** The edit as rendered now; the board's footage stand-in until the first frame is drawn. */
 @Composable
-private fun Stage(frame: ImageBitmap?, scale: ContentScale, modifier: Modifier) {
-    if (frame == null) FootagePlaceholder(modifier) else Image(frame, null, modifier, contentScale = scale)
+private fun Stage(frame: ImageBitmap?, scale: ContentScale, modifier: Modifier, alignment: Alignment = Alignment.Center) {
+    if (frame == null) FootagePlaceholder(modifier) else Image(frame, null, modifier, alignment = alignment, contentScale = scale)
 }
 
 /** What the stage is showing besides the edit: the director's version (compare), the work in hand, a warning. */

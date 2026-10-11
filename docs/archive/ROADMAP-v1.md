@@ -244,7 +244,7 @@
 | | | |
 |---|---|---|
 | ![](screenshots/onboarding-fa.png) | ![](screenshots/studio-fa.png) | ![](screenshots/create-fa.png) |
-| ![](screenshots/editor-words-fa.png) | ![](screenshots/gallery-fa.png) | ![](screenshots/settings-fa.png) |
+| ![](screenshots/editor-text-fa.png) | ![](screenshots/gallery-fa.png) | ![](screenshots/settings-fa.png) |
 
 - [x] ناوبری با Navigation 3 (پشتهٔ صفحهٔ متعلق به اپ، ViewModel برای هر صفحه، انیمیشن جهت‌دار RTL، Predictive Back)
 - [ ] Shared Element بین کارت پروژه و ادیتور ← فاز ۹ (صیقل حرکت)

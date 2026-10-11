@@ -58,15 +58,19 @@ class EditPlayback internal constructor(
         current = edit
     }
 
-    /** The frame at [t] seconds, [width] px wide, drawn as the export would draw it (no motion blur: a still). */
-    suspend fun frame(t: Float, width: Int): ImageBitmap? = lock.withLock {
+    /**
+     * The frame at [t] seconds, [width] px wide, drawn as the export would draw it (no motion blur:
+     * a still), into [into] when it is that size (a player alternates two buffers instead of
+     * allocating a frame each time).
+     */
+    suspend fun frame(t: Float, width: Int, into: ImageBitmap? = null): ImageBitmap? = lock.withLock {
         if (closed) return@withLock null
         try {
             val c = current.production.compiled.composition
             val r = rendererFor(c)
             val k = width / c.width.toFloat()
             val height = (c.height * k).roundToInt().coerceAtLeast(1)
-            val image = ImageBitmap(width, height)
+            val image = into?.takeIf { it.width == width && it.height == height } ?: ImageBitmap(width, height)
             CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(image), Size(width.toFloat(), height.toFloat())) {
                 scale(k, k, pivot = Offset.Zero) { r.render(this, t.coerceIn(0f, c.duration)) }
             }

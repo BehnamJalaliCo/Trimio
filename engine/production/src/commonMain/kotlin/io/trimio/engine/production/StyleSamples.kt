@@ -5,47 +5,68 @@ import io.trimio.core.model.text.Language
 import io.trimio.core.model.time.TimeRange
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
-import io.trimio.engine.autopilot.Lines
-import io.trimio.engine.autopilot.Planner
-import io.trimio.engine.autopilot.RulesUnderstander
-import io.trimio.engine.autopilot.Taste
 import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.MotionFonts
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.recipe.BrandLibrary
+import io.trimio.engine.motion.score.BeatScore
+import io.trimio.engine.motion.score.CaptionScore
 import io.trimio.engine.motion.score.Compiler
+import io.trimio.engine.motion.score.SceneScore
+import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.style.StyleBook
 
 /**
- * A short live sample of each of the 28 styles for the gallery: one sample voice-over ("Bitcoin
- * grew five percent today…"), read by the rules, planned by the same planner as a real edit with
- * the style asked for by name, and compiled. So a card shows what the director makes in that
- * style, not an illustration of it.
+ * A short live sample of each of the 28 styles for the gallery: the style's own headline word
+ * entering the way the style likes (its favourite entrance, mark and stage), then a figure and a
+ * line of the sample voice-over ("Bitcoin grew five percent today…"), compiled by the same
+ * compiler and drawn by the same renderer as a real edit. So a card shows the style's voice in
+ * motion, not an illustration of it.
  */
 class StyleSamples(measurer: TextMeasurer, fonts: MotionFonts, private val brands: BrandLibrary = BrandLibrary.Empty) {
     private val compiler = Compiler(TextLayoutEngine(measurer, fonts), brands)
 
-    /**
-     * [style]'s sample, over footage (the card draws a stand-in) when [footage]. Motion blur is
-     * off: cards are small and many play at once.
-     */
-    fun sample(style: String, footage: Boolean = true, seed: Long = SEED): Compiler.Output {
+    /** [style]'s sample with [word] (a word in its voice: «نوآر», «سود!») as the headline. Motion blur is off: many cards play at once. */
+    fun sample(style: String, word: String): Compiler.Output {
         val s = StyleBook.of(style) ?: error("no style $style")
-        val brief = "$PROMPT\n\nStyle: ${s.nameEn} (${s.id})"
-        val lines = Lines.split(WORDS)
-        val understanding = RulesUnderstander.understand(TRANSCRIPT, brief, lines)
-        val plan = Planner(Taste(), brief).plan(WORDS, lines, understanding, seed, footage = footage)
-        val out = compiler.compile(Compiler.Input(plan.score, TRANSCRIPT, footage = if (footage) FOOTAGE else null, fps = FPS))
+        val stage = s.rhythm.stages.maxByOrNull { it.value }?.key ?: "aurora"
+        val entrance = s.motion.entrances.filterKeys { it in TEXT_ENTRANCES }.maxByOrNull { it.value }?.key
+            ?: if (s.motion.energy >= LIVELY) "slam" else "mask-rise"
+        val then = s.motion.enter.maxByOrNull { it.value }?.key ?: "cut"
+        val score = Score(
+            look = s.id, background = s.background, lens = s.lens, auto = false, captions = CaptionScore(show = false),
+            scenes = listOf(
+                SceneScore(time = 0f, bg = stage, camera = "push-in", beats = listOf(BeatScore(entrance, time = HEADLINE_AT, hold = HEADLINE_HOLD, text = word, emphasis = listOf(word), place = "center", energy = s.motion.energy.coerceIn(0f, 1f)))),
+                SceneScore(
+                    time = SECOND_AT, bg = stage, transition = then,
+                    beats = listOf(
+                        BeatScore("counter", time = SECOND_AT + LEAD, hold = FIGURE_HOLD, value = FIGURE, from = 0f, prefix = "+", suffix = "%", decimals = 1, label = LABEL, place = "center"),
+                    ),
+                ),
+            ),
+        )
+        val out = compiler.compile(Compiler.Input(score, TRANSCRIPT, duration = DURATION, fps = FPS))
         val c = out.composition
         return out.copy(composition = Composition(c.width, c.height, c.fps, c.duration, c.background, c.root, c.camera, shutterAngle = 0f))
     }
 
     companion object {
-        /** The media id the sample's footage answers to. */
-        const val FOOTAGE = "main"
+        /** The moment a paused card shows: the headline has landed. */
+        fun still(output: Compiler.Output): Float = output.beats.firstOrNull()?.let { it.at + HOLD } ?: (output.composition.duration * SHARE)
+
+        private const val HOLD = 0.9f
+        private const val SHARE = 0.3f
         private const val FPS = 30
-        private const val SEED = 7L
-        private const val PROMPT = "یک ریلز کوتاه و پرانرژی درباره‌ی سیگنال امروز بیت‌کوین"
+        private const val DURATION = 5.6f
+        private const val HEADLINE_AT = 0.35f
+        private const val HEADLINE_HOLD = 2.3f
+        private const val SECOND_AT = 2.9f
+        private const val LEAD = 0.25f
+        private const val FIGURE_HOLD = 2.3f
+        private const val FIGURE = 5.2f
+        private const val LIVELY = 0.6f
+        private const val LABEL = "بیت‌کوین امروز"
+        private val TEXT_ENTRANCES = setOf("mask-rise", "slam", "type-on", "blur-in", "flip", "spread", "stack", "glitch")
 
         /** The sample voice-over, word by word (seconds), as a recogniser would hear it. */
         private val SAID = listOf(

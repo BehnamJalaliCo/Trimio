@@ -194,6 +194,11 @@ class EditHistory(initial: EditOverrides = EditOverrides(), private val limit: I
         return current
     }
 
+    /** Ends a run of merged changes (the finger lifted): the next change is a step of its own. */
+    fun seal() {
+        lastGroup = null
+    }
+
     fun undo(): EditOverrides {
         val previous = past.removeLastOrNull() ?: return current
         future.addLast(current)

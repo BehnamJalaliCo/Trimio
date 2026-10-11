@@ -241,11 +241,15 @@ class AndroidMotionExporter(private val context: Context) {
         private fun even(v: Float): Int = ((v / 2f).roundToInt() * 2).coerceAtLeast(2)
 
         /** Whether a hardware (or any) AVC encoder on this phone takes [w]×[h] at [fps]. */
-        fun supports(w: Int, h: Int, fps: Int): Boolean = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-            .filter { it.isEncoder && MediaFormat.MIMETYPE_VIDEO_AVC in it.supportedTypes }
-            .any { info ->
-                val video = info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities
-                runCatching { video.areSizeAndRateSupported(w, h, fps.toDouble()) || video.areSizeAndRateSupported(h, w, fps.toDouble()) }.getOrDefault(false)
-            }
+        fun supports(w: Int, h: Int, fps: Int): Boolean = encoders.any { video ->
+            runCatching { video.areSizeAndRateSupported(w, h, fps.toDouble()) || video.areSizeAndRateSupported(h, w, fps.toDouble()) }.getOrDefault(false)
+        }
+
+        /** The phone's AVC encoders' video limits, read once. */
+        private val encoders by lazy {
+            MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+                .filter { it.isEncoder && MediaFormat.MIMETYPE_VIDEO_AVC in it.supportedTypes }
+                .mapNotNull { runCatching { it.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities }.getOrNull() }
+        }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -82,9 +83,6 @@ import io.trimio.engine.models.ModelSpec
 import io.trimio.engine.models.ModelState
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
-
-/** What the device card shows: real numbers, or nothing where the platform cannot tell. */
-data class OnboardingDevice(val ramGb: Int, val cores: Int = 0, val freeBytes: Long? = null)
 
 /**
  * First run (board 1, three screens): what Trimio does, with the UI language; the director on this
@@ -192,18 +190,22 @@ private fun WelcomeFootage() {
 
 @Composable
 private fun ColumnScope.Welcome(counter: String, language: Language?, onLanguage: (Language?) -> Unit, onSkip: () -> Unit, onNext: () -> Unit) {
-    val c = Sig.colors
     TopRow(counter, tr("رد کردن", "Skip"), onSkip, onMedia = true)
-    Kinetic(Modifier.padding(start = 28.dp, top = 100.dp - TOP_ROW))
-    Spacer(Modifier.weight(1f))
-    Column(Modifier.gutter()) {
-        DisplayText(
-            buildAnnotatedString {
-                append(tr("ویدیو بده.\nموشن بگیر", "Give a video.\nGet motion"))
-                withStyle(SpanStyle(color = c.action)) { append(".") }
-            },
-            style = Sig.type.hero,
-        )
+    // The motion at the top and the words at the foot; on short screens (or large text) it scrolls.
+    BoxWithConstraints(Modifier.weight(1f)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).heightIn(min = maxHeight), verticalArrangement = Arrangement.SpaceBetween) {
+            Kinetic(Modifier.padding(start = 28.dp, top = 100.dp - TOP_ROW, bottom = 24.dp))
+            WelcomeWords(language, onLanguage)
+        }
+    }
+    BottomAction(tr("شروع", "Start"), onNext, trailing = TrimioIcons.ChevronForward)
+}
+
+@Composable
+private fun WelcomeWords(language: Language?, onLanguage: (Language?) -> Unit) {
+    val c = Sig.colors
+    Column(Modifier.gutter().padding(bottom = 45.dp)) {
+        PageHero(tr("ویدیو بده.\nموشن بگیر", "Give a video.\nGet motion"), 50)
         Text(
             tr(
                 "یک ویدیو یا فقط صدایت، و یک جمله. کارگردانِ Trimio برایش فکر می‌کند، طراحی می‌کند و می‌سازد؛ روی همین گوشی.",
@@ -226,8 +228,22 @@ private fun ColumnScope.Welcome(counter: String, language: Language?, onLanguage
             modifier = Modifier.padding(top = 8.dp),
         )
     }
-    Spacer(Modifier.height(45.dp))
-    BottomAction(tr("شروع", "Start"), onNext, trailing = TrimioIcons.ChevronForward)
+}
+
+/** A page's display title with the ember full stop, made smaller only when a line would not fit. */
+@Composable
+private fun PageHero(text: String, size: Int, modifier: Modifier = Modifier) {
+    val lines = text.split('\n')
+    BoxWithConstraints(modifier) {
+        val style = fittedHero(lines.mapIndexed { i, l -> if (i == lines.lastIndex) "$l." else l }, Sig.type.hero.copy(fontSize = size.sp, lineHeight = size.sp), maxWidth)
+        DisplayText(
+            buildAnnotatedString {
+                append(text)
+                withStyle(SpanStyle(color = Sig.colors.action)) { append(".") }
+            },
+            style = style,
+        )
+    }
 }
 
 /** The motion on the footage: a hook stamp, a word, the lime block and the ember rule. */
@@ -265,14 +281,7 @@ private fun ColumnScope.Models(
                 DirectorDot(size = 14.dp)
                 Text(tr("کارگردان", "The director"), style = Sig.type.meta.copy(fontWeight = FontWeight(700), brush = c.directorInkBrush))
             }
-            DisplayText(
-                buildAnnotatedString {
-                    append(tr("روی گوشی\nخودت", "On your\nown phone"))
-                    withStyle(SpanStyle(color = c.action)) { append(".") }
-                },
-                style = Sig.type.hero.copy(fontSize = 44.sp, lineHeight = 44.sp),
-                modifier = Modifier.padding(top = 12.dp),
-            )
+            PageHero(tr("روی گوشی\nخودت", "On your\nown phone"), 44, Modifier.padding(top = 12.dp))
             Text(
                 tr(
                     "بدون اشتراک و بدون اینترنت کار می‌کند. یک بار دانلود؛ اگر قطع شد، از همان‌جا ادامه می‌دهد.",
@@ -456,14 +465,7 @@ private fun ColumnScope.Privacy(counter: String, onConnectCloud: () -> Unit, onF
     val c = Sig.colors
     TopRow(counter, null, {})
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-        DisplayText(
-            buildAnnotatedString {
-                append(tr("ویدیوی تو\nاز گوشی\nبیرون نمی‌رود", "Your video\nnever leaves\nyour phone"))
-                withStyle(SpanStyle(color = c.action)) { append(".") }
-            },
-            style = Sig.type.hero.copy(fontSize = 42.sp, lineHeight = 42.sp),
-            modifier = Modifier.gutter().padding(top = 26.dp),
-        )
+        PageHero(tr("ویدیوی تو\nاز گوشی\nبیرون نمی‌رود", "Your video\nnever leaves\nyour phone"), 42, Modifier.gutter().padding(top = 26.dp))
         Column(Modifier.gutter().padding(top = 22.dp)) {
             Hairline(strong = true)
             Promise(1, tr("همه چیز روی گوشی ساخته می‌شود", "Everything is made on the phone"), tr("شنیدن، طراحی و رندر؛ بدون سرور.", "Listening, design and render; no server."))

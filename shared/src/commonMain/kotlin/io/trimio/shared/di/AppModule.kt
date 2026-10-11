@@ -145,5 +145,5 @@ val appModule: Module = module {
     // Exports need the platform's encoder; platforms without the production engine (web previews) have none.
     viewModel { (args: ExportArgs) -> ExportViewModel(args, get(), getOrNull<ProductionPlatform>()?.let(::EditExports), get(), getOrNull(), getOrNull()) }
     viewModel { SettingsViewModel(get(), get(), get(), get(), getOrNull(), get(), get()) }
-    viewModel { GalleryViewModel(get()) }
+    viewModel { GalleryViewModel() }
 }

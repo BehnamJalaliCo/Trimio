@@ -235,6 +235,25 @@ class RetouchTest {
     }
 
     @Test
+    fun factsReadTheEditForTheEditor() = runBlocking {
+        val facts = EditFacts.of(edit)
+        assertEquals(bench.transcript.words.size, facts.words.size)
+        assertEquals(base.score.look, facts.styles.first(), "the director's style first")
+        assertEquals(base.plan.music?.id, facts.moods.first().id, "the director's music first")
+        assertEquals(Cuts.pauses(base.edit), facts.pauses)
+        assertEquals(listOf(index("خب")), facts.fillers)
+        assertTrue(facts.unplayed.any { it.endInclusive - it.start > 0.5f }, "the cut pause shows as removed")
+        assertEquals(66, facts.mixPeaks(66).size)
+        // After a change: the cut word, the text and the counts follow the edit.
+        val i = index("رشد")
+        val touched = EditFacts.of(editor.touch(edit, EditOverrides(deleted = setOf(i), texts = listOf(Retext(i + 2, i + 2, "سیگنالِ")), effects = false)))
+        assertTrue(touched.words[i].cut)
+        assertEquals("سیگنالِ", touched.words[i + 2].text)
+        assertEquals(0, touched.effectCount)
+        assertTrue(touched.duration < facts.duration)
+    }
+
+    @Test
     fun thePictureComesFirstAndTheSoundAfter() = runBlocking {
         val i = index("رشد")
         val o = EditOverrides().with(EditChange.Delete(i, i, true))

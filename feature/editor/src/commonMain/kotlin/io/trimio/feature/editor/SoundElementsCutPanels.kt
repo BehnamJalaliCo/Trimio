@@ -25,14 +25,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.trimio.core.designsystem.component.TrimioIcon
 import io.trimio.core.designsystem.icon.TrimioIcons
 import io.trimio.core.designsystem.signature.DirectorDot
-import io.trimio.core.designsystem.signature.Hairline
 import io.trimio.core.designsystem.signature.Sig
 import io.trimio.core.designsystem.signature.SigChip
 import io.trimio.core.designsystem.signature.SigNoir
@@ -93,7 +95,8 @@ private fun MoodLine(mood: MoodRow?, index: Int, s: SoundTool, actions: EditorAc
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val (a, b) = TILES[index % TILES.size]
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(if (mood == null) Brush.linearGradient(listOf(Ink.copy(alpha = 0.16f), Ink.copy(alpha = 0.06f))) else Brush.linearGradient(listOf(a, b))), contentAlignment = Alignment.Center) {
+        val tile = if (mood == null) Brush.linearGradient(listOf(Ink.copy(alpha = 0.16f), Ink.copy(alpha = 0.06f))) else Brush.linearGradient(listOf(a, b))
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(tile), contentAlignment = Alignment.Center) {
             TrimioIcon(if (mood == null) TrimioIcons.Close else TrimioIcons.Music, null, tint = Ink, size = 18.dp)
         }
         Column(Modifier.weight(1f)) {
@@ -109,7 +112,7 @@ private fun MoodLine(mood: MoodRow?, index: Int, s: SoundTool, actions: EditorAc
 
 /** المان‌ها: every graphic with its switch, time and kind; adding one; the director's further suggestions. */
 @Composable
-internal fun ElementsPanel(ui: EditorUi, actions: EditorActions, listHeight: Dp = 196.dp) {
+internal fun ElementsPanel(ui: EditorUi, actions: EditorActions, listHeight: Dp = 232.dp) {
     val e = ui.elements
     Column {
         PanelHeader(tr("المان‌ها", "Elements")) {
@@ -148,7 +151,7 @@ private fun ElementLine(row: ElementRow, actions: EditorActions, last: Boolean) 
             if (row.suggested) DirectorDot(size = 10.dp)
             EditorToggle(row.on, { actions.onElement(row.key, it) }, label = title(row))
         }
-        if (!last) Hairline(Modifier.background(Color.Transparent))
+        if (!last) EditorRule()
     }
 }
 
@@ -202,7 +205,10 @@ private fun AddMenu(ui: EditorUi, actions: EditorActions) {
             WideButton(tr("تیتر", "Title"), { actions.onAdd(ElementKind.Headline) }, Modifier.weight(1f), enabled = quote.isNotEmpty()) {}
             WideButton(tr("ضربه", "Impact"), { actions.onAdd(ElementKind.Impact) }, Modifier.weight(1f), enabled = quote.isNotEmpty()) {}
             WideButton(tr("شمارنده", "Counter"), { actions.onAdd(ElementKind.Counter) }, Modifier.weight(1f), enabled = ui.text.hasNumber) {}
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Ink.copy(alpha = 0.08f)).clickable(role = Role.Button) { actions.onAdding(false) }, contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Ink.copy(alpha = 0.08f)).clickable(role = Role.Button) { actions.onAdding(false) },
+                contentAlignment = Alignment.Center,
+            ) {
                 TrimioIcon(TrimioIcons.Close, tr("بستن", "Close"), tint = InkSoft, size = 18.dp)
             }
         }
@@ -227,10 +233,15 @@ internal fun CutPanel(ui: EditorUi, actions: EditorActions) {
     val c = ui.cut
     Column {
         PanelHeader(tr("برش", "Cut")) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Figure("${clock(c.sourceDuration)} → ", color = InkLabel)
-                Figure(clock(c.duration), color = SigNoir.emphasis)
-            }
+            // One left-to-right run: the source's length, then the edit's in acid.
+            Text(
+                buildAnnotatedString {
+                    append("\u2066${clock(c.sourceDuration)} → ")
+                    withStyle(SpanStyle(color = SigNoir.emphasis)) { append(clock(c.duration)) }
+                    append("\u2069")
+                },
+                style = figureStyle(), color = InkLabel, maxLines = 1,
+            )
         }
         Box(Modifier.fillMaxWidth().padding(top = 12.dp).height(76.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.32f))) {
             Waveform(c.peaks, Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp).height(60.dp), maxBar = 30f)
@@ -242,7 +253,7 @@ internal fun CutPanel(ui: EditorUi, actions: EditorActions) {
                 localizedNumber(tr("${c.pauses} مکث · ${seconds(c.pauseSeconds)} ثانیه", "${c.pauses} pauses · ${seconds(c.pauseSeconds)} s")),
                 c.silences, actions.onSilences, enabled = c.pauses > 0,
             )
-            Hairline()
+            EditorRule()
             CutLine(
                 tr("حذف تکیه‌کلام‌ها", "Remove filler words"),
                 if (c.fillerCount == 0) {
@@ -252,7 +263,7 @@ internal fun CutPanel(ui: EditorUi, actions: EditorActions) {
                 },
                 c.fillers, actions.onFillers, enabled = c.fillerCount > 0,
             )
-            Hairline()
+            EditorRule()
             CutLine(
                 tr("کات روی ضرب موسیقی", "Cut on the beat"),
                 if (c.beatCutsAvailable) localizedNumber(tr("جابه‌جایی کات‌ها تا ۸۰ میلی‌ثانیه", "Cuts move up to 80 ms")) else tr("این ادیت موسیقی ندارد", "This edit has no music"),
@@ -274,10 +285,11 @@ private fun ColumnScope.CutLine(title: String, sub: String, on: Boolean, onChang
     }
 }
 
-/** 4.1 → "4.1" (localised by the caller). */
+/** 4.1 → "4.1", with the Persian decimal mark in Persian (digits are localised by the caller). */
+@Composable
 private fun seconds(s: Float): String {
     val tenths = (s * 10).roundToInt()
-    return "${tenths / 10}.${tenths % 10}"
+    return "${tenths / 10}" + tr("٫", ".") + "${tenths % 10}"
 }
 
 private const val TARGET_LUFS = 14f

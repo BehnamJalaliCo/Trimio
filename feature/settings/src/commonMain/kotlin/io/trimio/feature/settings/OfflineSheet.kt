@@ -92,7 +92,7 @@ fun OfflineSheet(director: OfflineDirector, onDevice: () -> Unit, onWait: () -> 
                     DeviceCard(director, Modifier.padding(top = 18.dp))
                 }
                 Column(Modifier.padding(horizontal = SigSpace.gutter).padding(top = 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SigButton(tr("ادامه روی گوشی", "Continue on device"), onDevice, Modifier.fillMaxWidth(), trailing = TrimioIcons.Phone)
+                    SigButton(tr("ادامه روی گوشی", "Continue on device"), onDevice, Modifier.fillMaxWidth(), leading = TrimioIcons.Phone)
                     Box(
                         Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, c.lineStrong, RoundedCornerShape(16.dp))
                             .clickable(role = Role.Button, onClick = onWait),
