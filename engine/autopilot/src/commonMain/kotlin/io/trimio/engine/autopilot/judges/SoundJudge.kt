@@ -69,7 +69,9 @@ class SoundJudge(
     private fun clicks(c: Jury.Context, sound: Soundtrack.Result): List<Finding> {
         val x = sound.audio.samples
         val rate = sound.audio.sampleRate
-        val joins = c.edit?.played.orEmpty().map { it.outStart }.filter { it > 0f }
+        // A cut that lands on a deliberate hit (a transition's whoosh or boom) is that hit, not a splice click.
+        val hits = c.compiled.sfx.map { it.at }
+        val joins = c.edit?.played.orEmpty().map { it.outStart }.filter { t -> t > 0f && hits.none { kotlin.math.abs(it - t) < HIT_MASK_S } }
         return joins.mapNotNull { t ->
             val i = (t * rate).toInt()
             val near = rate * NEAR_MS / 1000
@@ -113,6 +115,7 @@ class SoundJudge(
     private fun r1(v: Double) = kotlin.math.round(v * 10.0) / 10.0
 
     companion object {
+        private const val HIT_MASK_S = 0.06f
         private const val MAX_UNDER_DB = -15f
         private const val MIN_DUCK_DB = 4f
         private const val MIN_MINUTES = 0.25f

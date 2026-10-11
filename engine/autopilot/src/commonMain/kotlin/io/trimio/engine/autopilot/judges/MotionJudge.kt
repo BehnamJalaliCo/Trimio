@@ -83,7 +83,9 @@ class MotionJudge(
         val graphics = Bench.graphics(c).sortedBy { it.at }
         for ((g, need) in short(c, graphics)) {
             val at = Bench.locate(score, c.words, g) ?: continue
-            score = Bench.mapBeat(score, at) { it.copy(hold = need + 0.1f) }
+            // Held longer; and when the next scene leaves no room after it, it lands a little earlier instead.
+            val early = (need - (g.out - g.at) + 0.1f).coerceIn(0f, MAX_EARLY)
+            score = Bench.mapBeat(score, at) { it.copy(hold = need + 0.1f, time = (g.at - early).coerceAtLeast(0f), at = null) }
             score = unblock(score, c, at.first, g.at + need + 0.1f)
         }
         for ((_, b) in crossing(graphics)) {
@@ -108,6 +110,7 @@ class MotionJudge(
 
     private companion object {
         const val MIN_READ = 1.0f
+        const val MAX_EARLY = 0.6f
         const val READ_SLACK = 0.9f
         const val MIN_OPENING = 1.2f
         const val OPENING_SLACK = 0.1f
