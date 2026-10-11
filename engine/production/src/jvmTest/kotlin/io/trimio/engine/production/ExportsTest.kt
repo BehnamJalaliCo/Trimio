@@ -106,7 +106,7 @@ class ExportsTest {
         val captioned = touched.production.score.captions.recipe
         fun captions(o: Compiler.Output) = o.beats.filter { it.recipe == captioned }.joinToString(" ") { it.text }
         fun graphics(o: Compiler.Output) = o.beats.filter { it.recipe != captioned }.map { it.recipe + "|" + it.text }.sorted()
-        assertTrue("مهم" in captions(directorWide), "the director's edit says the word")
+        assertTrue("مهم" in captions(directorWide), "the director's edit says the word: ${captions(directorWide)} | ${directorWide.beats.map { it.recipe + ":" + it.text + "@" + it.at }} || ${wide.beats.map { it.recipe + ":" + it.text + "@" + it.at }} || ${touched.production.edit.segments} vs ${edit.production.edit.segments}")
         assertFalse("مهم" in captions(wide), "the cut word stays cut in 16:9: ${captions(wide)}")
         assertEquals(graphics(touched.production.compiled), graphics(wide), "the same graphics in either frame")
         assertEquals(graphics(directorWide).count { it.startsWith(off.recipe + "|") } - 1, graphics(wide).count { it.startsWith(off.recipe + "|") }, "the graphic stays off in 16:9")
