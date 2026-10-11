@@ -4,11 +4,13 @@ import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.assets.MusicArrangement
 import io.trimio.engine.assets.MusicMood
+import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Subject
+import io.trimio.engine.motion.visual.VectorIcon
 
 /**
  * What a delivered production keeps so the creator's own changes (the editor) can be applied to it
@@ -29,7 +31,7 @@ class Workbench internal constructor(
     /** Silences the voice really has, in source seconds. */
     val pauses: List<ClosedFloatingPointRange<Float>>,
     /** The order the edit was made for: the voice, the prompt, the seed, the footage and the speaker's place. */
-    private val request: Autopilot.Request,
+    internal val request: Autopilot.Request,
     val understanding: Understanding,
     val lexicon: PersianSpelling,
     val compiler: Compiler,
@@ -38,6 +40,10 @@ class Workbench internal constructor(
     private val measure: LineMeasure,
     /** The levels the delivered soundtrack was mastered at. */
     val levels: Soundtrack.Levels = Soundtrack.Levels(),
+    /** Marks found online for this piece (in [compiler]'s brand library), kept with the edit ([Delivery]). */
+    internal val marks: Map<String, BrandLibrary.Entry> = emptyMap(),
+    /** Pictures fetched from the web for this piece (in [compiler]'s vocabulary), kept with the edit ([Delivery]). */
+    internal val icons: List<VectorIcon> = emptyList(),
 ) {
     /** The voice, 48 kHz mono, on the source clock. */
     val voice: PcmAudio get() = request.voice

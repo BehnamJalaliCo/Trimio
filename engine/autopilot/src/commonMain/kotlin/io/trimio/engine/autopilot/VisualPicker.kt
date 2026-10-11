@@ -25,7 +25,8 @@ class VisualPicker(
     private val knowledge: Knowledge = Knowledge.Offline,
     private val model: LanguageModel? = null,
 ) {
-    data class Result(val library: VisualLibrary, val picks: Map<String, String?>)
+    /** [found]: the pictures fetched from the web for this piece (already in [library]). */
+    data class Result(val library: VisualLibrary, val picks: Map<String, String?>, val found: List<VectorIcon> = emptyList())
 
     /** [queries] with the line each comes from (context for the model). Returns ids ("set:name") per query. */
     suspend fun pick(queries: Map<String, String>): Result {
@@ -36,7 +37,7 @@ class VisualPicker(
             (local + web).distinctBy { it.id }.take(LOCAL + WEB)
         }.filterValues { it.isNotEmpty() }
         val chosen = choose(candidates, queries) ?: candidates.mapValues { it.value.firstOrNull()?.id }
-        return Result(library.withIcons(found), queries.keys.associateWith { chosen[it] })
+        return Result(library.withIcons(found), queries.keys.associateWith { chosen[it] }, found.distinctBy { it.id })
     }
 
     /** The local search found nothing whose name or keywords contain the query's head noun. */

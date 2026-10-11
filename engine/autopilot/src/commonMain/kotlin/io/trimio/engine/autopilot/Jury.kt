@@ -20,8 +20,10 @@ import io.trimio.engine.motion.score.CutPoints
 import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Subject
+import kotlinx.serialization.Serializable
 
 /** How much a finding costs its judge's score (out of 10). */
+@Serializable
 enum class Severity(val cost: Float) {
     /** Worth reporting, costs nothing. */
     Note(0f),
@@ -34,9 +36,11 @@ enum class Severity(val cost: Float) {
 }
 
 /** One thing a judge saw: when, how bad, and what an editor would do about it. */
+@Serializable
 data class Finding(val at: Float, val severity: Severity, val what: String, val fix: String)
 
 /** A judge's score (0–10) and the findings behind it. */
+@Serializable
 data class Verdict(val judge: String, val dimension: String, val score: Float, val findings: List<Finding>) {
     val perfect: Boolean get() = score >= PERFECT
 

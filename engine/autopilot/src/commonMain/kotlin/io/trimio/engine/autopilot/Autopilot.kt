@@ -13,6 +13,7 @@ import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Subject
+import io.trimio.engine.motion.visual.VectorIcon
 import io.trimio.engine.motion.visual.VisualLibrary
 
 /**
@@ -93,6 +94,9 @@ class Autopilot(
             val s = source ?: return if (same) compiled.copy(composition = c.withFps(fps)) else null
             return s.compiler.compile(s.input.copy(score = score.copy(format = format), edit = edit, fps = fps))
         }
+
+        /** What to keep of this production to make it again without the director ([restore]); null without its [bench]. */
+        fun delivery(): Delivery? = Delivery.of(this)
     }
 
     /** A compiler and the input it compiled the delivered edit from. */
@@ -126,13 +130,14 @@ class Autopilot(
         report += "understand: ${understanding.title} | ${understanding.domain}/${understanding.mood} | hook line ${understanding.hook?.line} | cta ${understanding.cta?.keyword}"
 
         onStage("research", 0.45f)
-        val brandLibrary = research(understanding, report, Glossary.read(request.prompt).sites.map { it.substringBefore('.') })
+        val marks = research(understanding, report, Glossary.read(request.prompt).sites.map { it.substringBefore('.') })
+        val brandLibrary = if (marks.isEmpty()) brands else brands.withMarks(marks)
         // The creator's own media: what each one is (the eyes, or the rules), read once for every variation.
         val persian = transcript.words.count { w -> w.text.any { it in '\u0600'..'\u06FF' } } * 2 > transcript.words.size
         val readings = AssetReader(eyes).read(request.assets, request.prompt, persian) { report += it }
 
         onStage("plan", 0.55f)
-        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt))
+        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks)
         val first = draft(reading, request.seed, look = true, onStage) { report += it }
         // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
         val d = deliberate(reading, first, onStage, report)
@@ -165,7 +170,33 @@ class Autopilot(
     }
 
     private fun bench(r: Reading, d: Draft, pauses: List<ClosedFloatingPointRange<Float>>, levels: Soundtrack.Levels) =
-        Workbench(r.transcript, r.lines, pauses, r.request, r.understanding, r.lexicon, d.compiler, jury, { r.brands.find(it)?.isMonogram == false }, measure, levels)
+        Workbench(r.transcript, r.lines, pauses, r.request, r.understanding, r.lexicon, d.compiler, jury, { r.brands.find(it)?.isMonogram == false }, measure, levels, r.marks, d.icons)
+
+    /**
+     * The production [kept] describes, made again without the director: the same words, score,
+     * cut, marks and pictures through the same compiler, the sound mastered again over [voice] at
+     * the levels it was delivered at, and the jury's verdict as it was given. No model, no
+     * recognition, no web: the delivered edit itself, ready for the editor and for exports.
+     * [assets] are the creator's attachments read again (under the ids the score names).
+     */
+    suspend fun restore(kept: Delivery, voice: PcmAudio, assets: List<UserAsset> = emptyList()): Production {
+        val request = Request(kept.transcript, voice, kept.prompt, kept.seed, kept.footage, kept.subject?.subject(), kept.understanding, kept.fps, assets)
+        val library = if (kept.marks.isEmpty()) brands else brands.withMarks(kept.marks)
+        val icons = kept.icons.map { it.icon() }
+        val compiler = Compiler(text, library, visuals.withIcons(icons))
+        val edit = kept.cut.plan()
+        val input = input(kept.score, kept.transcript, edit, request)
+        val compiled = compiler.compile(input)
+        val pauses = kept.pauses.map { it.from..it.to }
+        val bench = Workbench(
+            kept.transcript, kept.lines, pauses, request, kept.understanding, PersianSpelling.load(), compiler, jury,
+            { library.find(it)?.isMonogram == false }, measure, kept.levels, kept.marks, icons,
+        )
+        val mood = kept.music?.let(io.trimio.engine.assets.MusicMood::fromId)
+        val sound = bench.master(compiled, edit, kept.transcript, mood, bench.arrange(mood, edit, kept.transcript), kept.levels)
+        val plan = Planner.Plan(kept.planned, mood, kept.choices, kept.notes)
+        return Production(compiled, kept.score, plan, kept.understanding, sound, edit, kept.report, kept.panel?.let(Jury::Panel), Compiled(compiler, input), bench)
+    }
 
     /** What every variation of one request shares: the words, their lines and reading, the silence cut, the marks, the lexicon. */
     private class Reading(
@@ -177,6 +208,8 @@ class Autopilot(
         val brands: BrandLibrary,
         val lexicon: PersianSpelling,
         val media: UserMedia,
+        /** Marks found online for this piece (already in [brands]). */
+        val marks: Map<String, BrandLibrary.Entry> = emptyMap(),
     )
 
     /** One seed's edit, compiled and through the critics. */
@@ -191,6 +224,8 @@ class Autopilot(
         val looks: List<VisionCritic.Look>,
         /** The music composed to this edit; its grid is the score's. */
         val music: io.trimio.engine.assets.MusicArrangement? = null,
+        /** Pictures fetched from the web for this draft (already in [compiler]'s vocabulary). */
+        val icons: List<VectorIcon> = emptyList(),
     )
 
     /** Plans, pictures, compiles and critiques the edit of [seed]; the eyes look only when [look] (they are slow). */
@@ -219,7 +254,7 @@ class Autopilot(
         val picked = pictures(placed, output, r.lines, log)
 
         onStage("compile", 0.75f)
-        val compiler = Compiler(text, r.brands, picked.second)
+        val compiler = Compiler(text, r.brands, picked.second.library)
         // Nothing reaches the screen misspelled: every Persian word was heard, briefed or is known.
         var score = ScreenSpelling(r.lexicon, texts, request.prompt).check(picked.first, log)
         var compiled = compile(compiler, score, transcript, edit, request)
@@ -243,7 +278,7 @@ class Autopilot(
                 log("eyes: edit revised from what was seen")
             }
         }
-        return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music)
+        return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music, picked.second.found)
     }
 
     /**
@@ -298,23 +333,23 @@ class Autopilot(
             .also { report += "understand: ${m.id}" }
     }
 
-    /** Marks for named brands the bundled pack lacks, looked up online. */
-    private suspend fun research(u: Understanding, report: MutableList<String>, sites: List<String> = emptyList()): BrandLibrary {
+    /** Marks for named brands the bundled pack lacks, looked up online (by library key, ready for [BrandLibrary.withMarks]). */
+    private suspend fun research(u: Understanding, report: MutableList<String>, sites: List<String> = emptyList()): Map<String, BrandLibrary.Entry> {
         val wanted = (u.entities.filter { it.kind in BRAND_KINDS }.map { it.name } + u.lines.flatMap { it.items } + sites)
             .filter { n -> n.any { it in 'A'..'Z' || it in 'a'..'z' } }.distinctBy { BrandLibrary.key(it) }
         val found = wanted.filter { brands.find(it)?.isMonogram != false }.mapNotNull { name -> knowledge.brand(name)?.let { BrandLibrary.key(name) to it } }
         found.forEach { (k, e) -> report += "research: mark for ${e.t} ($k) from Simple Icons" }
-        return if (found.isEmpty()) brands else brands.withMarks(found.associate { (k, e) -> k to e.copy(a = e.a + k) })
+        return found.associate { (k, e) -> k to e.copy(a = e.a + k) }
     }
 
-    /** Every picture query in the score, resolved to one chosen icon id. */
-    private suspend fun pictures(score: Score, words: List<Word>, lines: List<Lines.Line>, log: (String) -> Unit): Pair<Score, VisualLibrary> {
+    /** Every picture query in the score, resolved to one chosen icon id; with the vocabulary that draws them. */
+    private suspend fun pictures(score: Score, words: List<Word>, lines: List<Lines.Line>, log: (String) -> Unit): Pair<Score, VisualPicker.Result> {
         val context = mutableMapOf<String, String>()
         for (scene in score.scenes) for (b in scene.beats) {
             val line = lines.firstOrNull { (b.at ?: scene.from ?: -1) in it.range }?.let { words.textOf(it.range) }.orEmpty()
             (listOfNotNull(b.visual) + b.visuals).filter { it.isNotBlank() }.forEach { context.getOrPut(it) { line } }
         }
-        if (context.isEmpty()) return score to visuals
+        if (context.isEmpty()) return score to VisualPicker.Result(visuals, emptyMap())
         val result = VisualPicker(visuals, knowledge, model).pick(context)
         result.picks.forEach { (q, id) -> log("picture: \"$q\" → ${id ?: "none"}") }
         fun BeatScore.resolved() = copy(
@@ -322,7 +357,7 @@ class Autopilot(
             visuals = visuals.map { result.picks[it] ?: it },
         )
         val resolved = score.copy(scenes = score.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> b.resolved().takeIf { r -> !(b.recipe == "object" && r.visual == null) } }) })
-        return resolved to result.library
+        return resolved to result
     }
 
     /**

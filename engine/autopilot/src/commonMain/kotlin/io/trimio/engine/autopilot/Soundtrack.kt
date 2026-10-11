@@ -14,6 +14,7 @@ import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.SfxKind
 import io.trimio.engine.motion.score.CutPoints
 import io.trimio.engine.motion.score.EditPlan
+import kotlinx.serialization.Serializable
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -36,6 +37,7 @@ class Soundtrack(private val rate: Int = 48_000) {
 
     data class Result(val audio: PcmAudio, val lufs: Double, val peakDb: Double)
 
+    @Serializable
     data class Levels(
         /** Music bed relative to the voice, under words and between them. */
         val musicUnderDb: Float = -20f,

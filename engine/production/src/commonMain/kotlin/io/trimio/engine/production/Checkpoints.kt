@@ -1,6 +1,7 @@
 package io.trimio.engine.production
 
 import io.trimio.core.model.transcript.Transcript
+import io.trimio.engine.autopilot.Delivery
 import io.trimio.engine.autopilot.Understanding
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
@@ -11,14 +12,22 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * The expensive, deterministic halves of a run, saved as they finish: the words (whisper) and the
- * reading (the director model). A run the system killed restarts from [pending] and skips both;
- * planning, the jury and the render are fast enough to redo. Null [dir]: nothing is kept.
+ * The expensive halves of a run, saved as they finish: the words (whisper), the reading (the
+ * director model) and, once the run is done, the director's whole decision ([Delivery]). A run
+ * the system killed restarts from [pending] and skips the first two; a finished edit is made
+ * again from the third ([AutoEditor.reopen]) after the app restarts, for the editor and exports,
+ * without whisper or the model. Null [dir]: nothing is kept.
  */
 class Checkpoints(private val dir: Path?) {
 
     @Serializable
-    data class Saved(val transcript: Transcript, val understanding: Understanding? = null)
+    data class Saved(
+        /** The recognised words on the source clock, as whisper gave them. */
+        val transcript: Transcript,
+        val understanding: Understanding? = null,
+        /** The finished edit as the director delivered it (absent while the run is going, and in files of earlier versions). */
+        val delivery: Delivery? = null,
+    )
 
     fun load(key: String): Saved? = read(file(key)) { json.decodeFromString(Saved.serializer(), it) }
 

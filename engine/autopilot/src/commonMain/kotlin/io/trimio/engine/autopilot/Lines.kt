@@ -1,6 +1,7 @@
 package io.trimio.engine.autopilot
 
 import io.trimio.core.model.transcript.Word
+import kotlinx.serialization.Serializable
 
 /**
  * The transcript cut into lines an editor would treat as one thought: sentence ends and real
@@ -9,6 +10,7 @@ import io.trimio.core.model.transcript.Word
  * model than free word indices) and the planner's unit of rhythm.
  */
 object Lines {
+    @Serializable
     data class Line(val first: Int, val last: Int) {
         val range: IntRange get() = first..last
         val size: Int get() = last - first + 1
