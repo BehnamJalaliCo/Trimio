@@ -2,7 +2,7 @@ name: Desktop (Windows)
 
 # Builds the Windows desktop app: the native engines as DLLs with MSVC (CPU/AVX2 and Vulkan), the
 # pinned LGPL ffmpeg build, the JVM tests, and the MSI + EXE installers (per-user install). See
-# docs/DESKTOP.md. Runs by hand or on a release tag.
+# docs/DESKTOP.md. Runs by hand, or from the Release workflow for every version.
 #
 # Optional secrets (installers are built unsigned without them):
 #   WINDOWS_SIGNING_CERT_BASE64   code-signing certificate (.pfx), base64
@@ -15,8 +15,16 @@ on:
         description: Also build the Vulkan (GPU) variant of the native engines
         type: boolean
         default: true
-  push:
-    tags: ["v*", "desktop-v*"]
+  # The Release workflow builds every version through this one (same number as Android).
+  workflow_call:
+    inputs:
+      version:
+        description: Version to stamp on the installers (1.0.N)
+        type: string
+        required: true
+      vulkan:
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -145,7 +153,7 @@ jobs:
 
       # --- Installers ---------------------------------------------------------------------------------
       - name: Package MSI and EXE
-        run: ./gradlew :desktopApp:packageMsi :desktopApp:packageExe "-Ptrimio.desktop.version=${GITHUB_REF_NAME#*v}"
+        run: ./gradlew :desktopApp:packageMsi :desktopApp:packageExe "-Ptrimio.desktop.version=${{ inputs.version || '1.0.0' }}"
         if: startsWith(github.ref, 'refs/tags/')
 
       - name: Package MSI and EXE (manual run)
