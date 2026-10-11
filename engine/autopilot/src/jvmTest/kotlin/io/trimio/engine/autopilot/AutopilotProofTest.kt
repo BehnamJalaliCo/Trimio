@@ -67,12 +67,15 @@ class AutopilotProofTest {
             )
         }
 
+        // -Pauto.assets=<dir>: the pictures and clips the creator attached beside the prompt (the app works out what each is).
+        val assets = System.getProperty("auto.assets")?.let(::File)?.takeIf { it.isDirectory }?.listFiles()?.filter { it.isFile }?.sortedBy { it.name }
+            ?.mapIndexed { i, f -> Media.asset(f, "asset-$i") }.orEmpty()
         for (seed in seeds) {
             val t0 = System.nanoTime()
             val studio = Studio(brands, visuals, llm, knowledge)
             // -Pauto.reuse=<file>: plan from a saved reading (no model run), for fast iteration and variations.
             val reuse = System.getProperty("auto.reuse")?.let(::File)?.takeIf { it.isFile }?.let { json.decodeFromString(Understanding.serializer(), it.readText()) }
-            val production = runBlocking { studio.produce(video, prompt, seed, transcript, reuse) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
+            val production = runBlocking { studio.produce(video, prompt, seed, transcript, reuse, assets) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
             System.getProperty("auto.frames")?.split(',')?.map { it.trim().toFloat() }?.let { times ->
                 val c = production.compiled.composition
                 io.trimio.engine.motion.export.FfmpegFootage(video, c.fps, c.width, c.height).use { footage ->
@@ -88,7 +91,7 @@ class AutopilotProofTest {
             if (System.getProperty("auto.video.out") != "false") {
                 kotlinx.coroutines.runBlocking { llm?.release() }
                 val t1 = System.nanoTime()
-                studio.render(production, video, File(out, "seed-$seed.mp4"))
+                studio.render(production, video, File(out, "seed-$seed.mp4"), assets = assets)
                 println("seed $seed rendered in ${(System.nanoTime() - t1) / 1e9}s")
             }
         }
