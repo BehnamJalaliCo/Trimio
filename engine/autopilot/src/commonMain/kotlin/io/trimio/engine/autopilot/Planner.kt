@@ -467,7 +467,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             // Not in the first seconds: the viewer first meets the speaker (and the hook).
             // A thread takes the full frame only when it is long (three bubbles or more).
             val candidates = reads.indices.filter { k ->
-                k > 0 && k < lines.lastIndex && (reads[k].show in TAKEOVER_SHOWS || uiOf(k) != null) && words[lines[k].first].range.startMs >= EARLIEST_TAKEOVER_MS &&
+                k > 0 && k < lines.lastIndex && reads[k].show in TAKEOVER_SHOWS && words[lines[k].first].range.startMs >= EARLIEST_TAKEOVER_MS &&
                 (threads[k]?.bubbles?.size ?: STAGED_THREAD) >= STAGED_THREAD &&
                 // The ask keeps the speaker on screen while it plays out (the DM step after the keyword).
                 reads[k - 1].show != "comment" &&
@@ -541,10 +541,13 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             }
         }
 
-        /** The interface B-roll ([UiBroll]) a line about an app, a site, code or a dashboard shows, if any. */
+        /**
+         * The interface B-roll ([UiBroll]) a line about an app, a site, code or a dashboard shows on
+         * its full-frame cut, if any. It never makes a line full-frame on its own: the cut is chosen as before.
+         */
         private fun uiOf(k: Int): String? = reads.getOrNull(k)?.takeIf { it.show in UiBroll.TRADES }?.let { UiBroll.recipeFor(texts.subList(lines[k].first, lines[k].last + 1)) }
 
-        private fun takeoverWeight(k: Int): Float = ((TAKEOVER_SHOWS[reads[k].show] ?: 0f) + (if (uiOf(k) != null) UI_TAKEOVER else 0f)) * takeoverRng.range(0.5f, 1.5f) +
+        private fun takeoverWeight(k: Int): Float = TAKEOVER_SHOWS.getValue(reads[k].show) * takeoverRng.range(0.5f, 1.5f) +
             (if (reads[k].show in BIG_MOMENTS || k in requested) BIG_FIRST else 0f) + (if (k == payoffLine) 1f else 0f)
 
         private fun primary(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
@@ -852,9 +855,6 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val UPGRADABLE = setOf("headline", "counter", "none")
 
         const val MIN_TAKEOVER_S = 1.4f
-
-        /** How much a line naming an interface ([UiBroll]) leans toward a full-frame cut. */
-        const val UI_TAKEOVER = 0.5f
         const val EARLIEST_TAKEOVER_MS = 3500L
         const val MIN_NODES = 7
         const val PICTURE_CHANCE = 0.7f

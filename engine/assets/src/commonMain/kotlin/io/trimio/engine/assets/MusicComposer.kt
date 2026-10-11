@@ -121,12 +121,13 @@ class MusicComposer(private val rate: Int = 48_000) {
             kicks += start
             val osc = Synth.Osc(rate)
             val click = Synth.Noise(start)
-            val hp = Synth.Svf(rate)
+            val bp = Synth.Svf(rate)
             val low = groove.kickLow
             write(drums, start, rate * 420 / 1000) { i ->
                 val t = s.seconds(i)
                 val body = osc.sine(low + 115f * s.decay(t, 45f)) * s.ar(t, 0.6f, groove.kickDecay)
-                val snap = hp.process(click.white(), 3_500f).high * s.decay(t, 4f) * 0.35f
+                // The beater: band-limited (no sample-to-sample step that would read as a splice click), 10 ms.
+                val snap = bp.process(click.white(), 3_000f, 0.8f).band * s.ar(t, 1f, 10f) * 0.45f
                 Synth.softClip((body * 1.15f + snap) * v, 1.6f) * 0.95f
             }
         }
@@ -182,9 +183,11 @@ class MusicComposer(private val rate: Int = 48_000) {
         private fun tom(start: Int, v: Float) {
             val osc = Synth.Osc(rate)
             val noise = Synth.Noise(start)
+            val bp = Synth.Svf(rate)
             write(drums, start, rate * 800 / 1000) { i ->
                 val t = s.seconds(i)
-                val x = (osc.sine(58f + 45f * s.decay(t, 110f)) * s.decay(t, 650f) + noise.white() * s.decay(t, 12f) * 0.2f) * 0.75f * v
+                val skin = bp.process(noise.white(), 1_500f, 0.8f).band * s.ar(t, 1f, 20f) * 0.3f
+                val x = (osc.sine(58f + 45f * s.decay(t, 110f)) * s.decay(t, 650f) + skin) * 0.75f * v
                 verbSend.addAt(start + i, x * 0.5f)
                 x
             }

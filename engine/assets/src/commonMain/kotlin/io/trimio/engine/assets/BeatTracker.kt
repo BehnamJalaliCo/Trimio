@@ -41,13 +41,15 @@ object BeatTracker {
         val b = (to * rate).roundToInt().coerceIn(a, audio.size)
         val x = audio.samples.copyOfRange(a, b)
         val hop = rate / FRAMES_PER_S
-        val onset = onsets(x, rate, hop)
+        val (onset, kick) = onsets(x, rate, hop)
         if (onset.size < FRAMES_PER_S * 2) return null
         val coarse = tempo(onset) ?: return null
         var period = coarse
         var phase = phase(onset, period)
         repeat(REFINE_PASSES) { refine(onset, period, phase)?.let { (p, ph) -> period = p; phase = ph } }
         comb(onset, period, phase).let { (p, ph) -> period = p; phase = ph }
+        // Off-beats (open hats, off-beat bass) can outweigh the beat in the full onset; the kick decides which half is the beat.
+        if (combSum(kick, period, phase + period / 2) > combSum(kick, period, phase) * OFFBEAT_MARGIN) phase = (phase + period / 2) % period
         val periodS = period / FRAMES_PER_S
         // Frame n covers [n·hop, (n+1)·hop): a transient shows its flux at the frame it starts in.
         val firstBeat = phase / FRAMES_PER_S + from + LATENCY_S
@@ -63,7 +65,17 @@ object BeatTracker {
 
     // ----------------------------------------------------------------------------------- onsets
 
-    private fun onsets(x: FloatArray, rate: Int, hop: Int): FloatArray {
+    private const val OFFBEAT_MARGIN = 1.2
+
+    private fun combSum(o: FloatArray, period: Double, phase: Double): Double {
+        var sum = 0.0
+        var t = phase
+        while (t < o.size - 1) { sum += o[t.roundToInt()]; t += period }
+        return sum
+    }
+
+    /** The combined onset strength, and the kick band's alone. */
+    private fun onsets(x: FloatArray, rate: Int, hop: Int): Pair<FloatArray, FloatArray> {
         val frames = x.size / hop
         val low = Synth.Svf(rate)
         val mid = Synth.Svf(rate)
@@ -80,7 +92,8 @@ object BeatTracker {
             bands[0][f] = l; bands[1][f] = m; bands[2][f] = h
         }
         val out = FloatArray(frames)
-        for (band in bands) {
+        val kick = FloatArray(frames)
+        for ((b, band) in bands.withIndex()) {
             val mean = band.average().coerceAtLeast(1e-12)
             var prev = 0.0
             val flux = DoubleArray(frames)
@@ -91,8 +104,9 @@ object BeatTracker {
             }
             val norm = flux.average().coerceAtLeast(1e-9)
             for (f in 0 until frames) out[f] += (flux[f] / norm).toFloat()
+            if (b == 0) for (f in 0 until frames) kick[f] = (flux[f] / norm).toFloat()
         }
-        return out
+        return out to kick
     }
 
     private fun Float.sq() = this.toDouble() * this
