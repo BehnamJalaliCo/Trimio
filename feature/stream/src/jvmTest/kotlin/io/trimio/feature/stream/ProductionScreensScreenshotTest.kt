@@ -69,6 +69,10 @@ class ProductionScreensScreenshotTest {
         shoot("live-build-fa-noir", paper = false) { LiveBuildScreen(live) {} }
         shoot("live-build-fa-paper", paper = true) { LiveBuildScreen(live.copy(stage = BuildStage.Plan, judges = JudgeScore.Panel, previews = emptyList(), framesTotal = 0)) {} }
         shoot("live-build-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { LiveBuildScreen(live) {} }
+        // The editor's changes rendered as the next version: only the render stage runs.
+        shoot("live-render-edit-fa-noir", paper = false) {
+            LiveBuildScreen(LiveBuild(styleName = "پاپ", progress = 0.42f, stage = BuildStage.Render, previews = listOf(frame(1)), framesDone = 132, framesTotal = 315, etaSeconds = 9)) {}
+        }
     }
 
     @Test

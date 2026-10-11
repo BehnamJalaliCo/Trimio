@@ -40,9 +40,9 @@ import io.trimio.feature.stream.LiveBuild
 import io.trimio.feature.stream.LiveBuildScreen
 import io.trimio.feature.stream.ResultActions
 import io.trimio.feature.stream.ResultScreen
+import kotlinx.coroutines.launch
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
-import kotlinx.coroutines.launch
 import kotlin.random.Random
 import kotlin.time.TimeSource
 
@@ -173,6 +173,7 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
     val seconds = remember(route) { mutableStateMapOf<BuildStage, Float>() }
     var stageStart by remember(route) { mutableStateOf(0f) }
     var current by remember(route) { mutableStateOf(BuildStage.Listen) }
+    var reported by remember(route) { mutableStateOf(false) }
     val key = project?.production?.key ?: route.request.key
     val s = active?.takeIf { it.key == key }
     val scope = rememberCoroutineScope()
@@ -190,12 +191,15 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
     val elapsed = clock.elapsedNow().inWholeMilliseconds / 1000f
     val stageNow = s?.let(ProductionUi::stage)
     LaunchedEffect(stageNow) {
-        if (stageNow != null && stageNow != current) {
+        if (stageNow == null) return@LaunchedEffect
+        if (stageNow != current) {
             val now = clock.elapsedNow().inWholeMilliseconds / 1000f
-            seconds[current] = now - stageStart
+            // A stage the run never reported took no time (a render of the editor's changes starts at the render).
+            if (reported) seconds[current] = now - stageStart
             stageStart = now
             current = stageNow
         }
+        reported = true
     }
     val stopped = when {
         s != null -> s.status.takeIf { it == ProductionStatus.Failed || it == ProductionStatus.Cancelled }?.let { it to s.error }
