@@ -43,6 +43,7 @@ import io.trimio.feature.create.CreateRoute
 import io.trimio.feature.editor.EditorRoute
 import io.trimio.feature.editor.ExportRoute
 import io.trimio.feature.gallery.StyleGalleryRoute
+import io.trimio.feature.settings.ModelsRoute
 import io.trimio.feature.settings.SettingsRoute
 import io.trimio.feature.stream.BuildStreamRoute
 import io.trimio.feature.studio.OnboardingScreen
@@ -50,6 +51,9 @@ import io.trimio.feature.studio.StudioRoute
 import io.trimio.shared.di.AppScope
 import io.trimio.shared.di.CreateArgs
 import io.trimio.shared.di.appModule
+import io.trimio.shared.navigation.ProduceEntry
+import io.trimio.shared.navigation.ProductionUi
+import io.trimio.shared.navigation.ResultEntry
 import io.trimio.shared.navigation.Route
 import io.trimio.shared.ui.UpdateRequiredScreen
 import kotlinx.coroutines.CoroutineScope
@@ -175,9 +179,25 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     viewModel = koinViewModel(key = route.toString()) { parametersOf(CreateArgs(route.uri, route.kind, route.styleId)) },
                     onBack = ::back,
                     onCreated = { id -> replaceTop(Route.Build(id)) },
-                    onSettings = { go(Route.Settings) },
+                    onPickMedia = { kind -> scope.launch { picker.pick(kind)?.let { replaceTop(Route.Create(it.value, kind, route.styleId)) } } },
+                    onProduce = { state ->
+                        val persian = language == Language.Persian
+                        replaceTop(Route.Produce(ProductionUi.request(route.uri, state, persian), ProductionUi.styleName(state.styleId, persian)))
+                    },
                 )
             }
+            entry<Route.Produce> { route ->
+                ProduceEntry(
+                    route,
+                    onResult = { seconds -> replaceTop(Route.Result(seconds, route.version, route.styleName)) },
+                    onClose = ::back,
+                    onModels = { go(Route.Models) },
+                )
+            }
+            entry<Route.Result> { route ->
+                ResultEntry(route, onProduce = { request -> replaceTop(Route.Produce(request, route.styleName, route.version + 1)) }, onClose = ::back)
+            }
+            entry<Route.Models> { ModelsRoute(koinViewModel(), onBack = ::back) }
             entry<Route.Build> { route ->
                 BuildStreamRoute(koinViewModel(key = route.projectId) { parametersOf(route.projectId) }, onOpen = { replaceTop(Route.Editor(route.projectId)) })
             }
@@ -203,11 +223,14 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     scope.launch { picker.pick(MediaKind.Video)?.let { go(Route.Create(it.value, MediaKind.Video, styleId)) } }
                 })
             }
-            entry<Route.Settings> { SettingsRoute(koinViewModel(), onBack = ::back) }
+            entry<Route.Settings> { SettingsRoute(koinViewModel(), onBack = ::back, onModels = { go(Route.Models) }) }
         },
     )
     // Projects are loaded once at start; keep the reference so the graph is warm.
     LaunchedEffect(projects) { projects.load() }
+    // Files dropped on the window or opened with Trimio (desktop) start a new edit.
+    val incoming = org.koin.compose.getKoin().getOrNull<IncomingMedia>()
+    LaunchedEffect(incoming) { incoming?.requests?.collect { go(Route.Create(it.uri, it.kind)) } }
 }
 
 /** Forward: the new screen slides in from the reading-direction end, the old one recedes. */

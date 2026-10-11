@@ -49,32 +49,11 @@ import io.trimio.core.designsystem.component.TrimioIcon
 import io.trimio.core.designsystem.component.filmGrain
 import io.trimio.core.designsystem.icon.TrimioIcons
 
-/**
- * Window width classes (Material breakpoints). The same screens run on phones and on the desktop
- * app: Compact stacks one column, Expanded splits into a stage and a control column.
- */
-enum class WindowWidth {
-    Compact, Medium, Expanded;
-
-    val wide: Boolean get() = this == Expanded
-
-    companion object {
-        fun of(width: Dp): WindowWidth = when {
-            width < 600.dp -> Compact
-            width < 840.dp -> Medium
-            else -> Expanded
-        }
-    }
-}
-
 /** Measures the space the screen gets (not the device) and hands its width class to [content]. */
 @Composable
 fun SigAdaptive(modifier: Modifier = Modifier, content: @Composable BoxScope.(WindowWidth) -> Unit) {
     BoxWithConstraints(modifier.fillMaxSize()) { content(WindowWidth.of(maxWidth)) }
 }
-
-/** Widest a reading column may grow on large windows, so lines and controls keep phone proportions. */
-val SigReadingWidth: Dp = 560.dp
 
 /**
  * A Signature screen: the canvas (with film grain on noir), glass that blurs what is behind it,

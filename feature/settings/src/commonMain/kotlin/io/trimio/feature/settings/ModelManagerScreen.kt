@@ -55,17 +55,6 @@ import io.trimio.engine.models.DeviceMemory
 import io.trimio.engine.models.ModelFit
 import io.trimio.engine.models.ModelState
 
-/** What the model manager can do with one model (by catalogue id). */
-data class ModelActions(
-    val onBack: () -> Unit = {},
-    val onDownload: (String) -> Unit = {},
-    val onCancel: (String) -> Unit = {},
-    val onDelete: (String) -> Unit = {},
-    val onUpdate: (String) -> Unit = {},
-    /** Makes an installed director the one that runs. */
-    val onUse: (String) -> Unit = {},
-)
-
 @Composable
 fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val settings by viewModel.state.collectAsStateWithLifecycle()
@@ -178,18 +167,23 @@ private fun Recommended(ui: ModelsUi, actions: ModelActions) {
                 localizedNumber(
                     tr(
                         "بزرگ‌ترین کارگردانی که روی این ${if (ui.desktop) "سیستم" else "گوشی"} راحت کار می‌کند؛ حدود ${gbFa(row.footprintBytes)} گیگ رم هنگام ساخت، ${gbFa(row.sizeBytes)} گیگ دانلود.",
-                        "The largest director this ${if (ui.desktop) "computer" else "phone"} runs comfortably: about ${gb(row.footprintBytes)} of RAM while building, ${gb(row.sizeBytes)} to download.",
+                        "The largest director this ${if (ui.desktop) "computer" else "phone"} runs comfortably: " +
+                            "about ${gb(row.footprintBytes)} of RAM while building, ${gb(row.sizeBytes)} to download.",
                     ),
                 ),
                 style = Sig.type.meta, color = c.muted,
             )
             when (val s = row.state) {
                 is ModelState.Downloading -> Progress(s.fraction)
-                ModelState.NotInstalled, is ModelState.Failed -> SigButton(tr("دانلود", "Download"), { actions.onDownload(row.id) }, Modifier.fillMaxWidth().height(50.dp), trailing = TrimioIcons.Download)
+                ModelState.NotInstalled, is ModelState.Failed ->
+                    SigButton(tr("دانلود", "Download"), { actions.onDownload(row.id) }, Modifier.fillMaxWidth().height(50.dp), trailing = TrimioIcons.Download)
                 else -> if (!row.active) {
                     SigButton(tr("استفاده از این کارگردان", "Use this director"), { actions.onUse(row.id) }, Modifier.fillMaxWidth().height(50.dp))
                 } else {
-                    SigChip(tr("فعال و آماده", "Active and ready"), container = c.emphasisSoft, content = c.emphasisSoftContent, leading = { TrimioIcon(TrimioIcons.Check, null, tint = c.emphasisSoftContent, size = 13.dp) })
+                    SigChip(
+                        tr("فعال و آماده", "Active and ready"), container = c.emphasisSoft, content = c.emphasisSoftContent,
+                        leading = { TrimioIcon(TrimioIcons.Check, null, tint = c.emphasisSoftContent, size = 13.dp) },
+                    )
                 }
             }
         }

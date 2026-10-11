@@ -95,3 +95,6 @@ object StyleCards {
         "travel-film" to "سفر", "real-estate-premium" to "خانه", "gaming" to "GG", "podcast-studio" to "پادکست",
     )
 }
+
+/** The picker's filters, in the board's order. */
+enum class StyleFilter { Suggested, All, Energetic, Dark, Light }

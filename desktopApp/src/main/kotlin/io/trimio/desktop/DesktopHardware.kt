@@ -25,8 +25,11 @@ data class DesktopHardware(val ramGb: Int, val cores: Int, val gpus: List<Gpu> =
         /** Also asks the OS for its GPUs (a helper process, up to a few seconds): call off the UI thread. */
         fun detect(os: DesktopOs = DesktopOs.current): DesktopHardware = basic().copy(gpus = gpus(os))
 
-        /** Marketed RAM: a "32 GB" machine reports a little less to the OS. */
-        fun ramGb(totalBytes: Long = totalMemory()): Int = ((totalBytes + DeviceFit.GIB / 2) / DeviceFit.GIB).toInt()
+        /**
+         * Marketed RAM: a "32 GB" machine reports 31-31.9 GiB (firmware and integrated graphics
+         * keep some), so the next whole GiB up is what the user bought.
+         */
+        fun ramGb(totalBytes: Long = totalMemory()): Int = ((totalBytes + DeviceFit.GIB - 1) / DeviceFit.GIB).toInt()
 
         private fun totalMemory(): Long =
             (ManagementFactory.getOperatingSystemMXBean() as? com.sun.management.OperatingSystemMXBean)?.totalMemorySize ?: (8 * DeviceFit.GIB)

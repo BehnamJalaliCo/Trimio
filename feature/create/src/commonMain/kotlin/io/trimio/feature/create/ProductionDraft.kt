@@ -1,6 +1,7 @@
 package io.trimio.feature.create
 
 import androidx.compose.ui.graphics.ImageBitmap
+import io.trimio.core.data.MediaKind
 
 /** What a user attaches next to the prompt; the director places it where the speaker talks about it. */
 enum class AttachmentKind { Picture, Clip, Logo }
@@ -75,3 +76,18 @@ object EnginePrompt {
         AttachmentKind.Logo -> if (persian) "لوگو" else "logo"
     }
 }
+
+/** Everything the create screen can ask for; one holder keeps the screen's signature short. */
+data class CreateActions(
+    val onBack: () -> Unit = {},
+    val onPickMedia: (MediaKind) -> Unit = {},
+    val onPrompt: (String) -> Unit = {},
+    val onExpert: (Boolean) -> Unit = {},
+    val onAddTerm: (String) -> Unit = {},
+    val onRemoveTerm: (String) -> Unit = {},
+    val onAttach: (AttachmentKind) -> Unit = {},
+    val onDetach: (String) -> Unit = {},
+    val onCaption: (String, String) -> Unit = { _, _ -> },
+    val onStyle: (String?) -> Unit = {},
+    val onCreate: () -> Unit = {},
+)

@@ -75,10 +75,20 @@ object BuildFailures {
     fun cancelled(stage: BuildStage, persian: Boolean) = BuildFailure(
         stage = stage,
         title = t(persian, "ساخت متوقف شد", "Build stopped"),
-        body = t(persian, "هر چه تا این‌جا شنیده و فهمیده شده نگه داشته شده؛ ادامه از همان‌جا شروع می‌شود.", "What was heard and understood is kept; continuing starts from there."),
+        body = t(
+            persian,
+            "هر چه تا این‌جا شنیده و فهمیده شده نگه داشته شده؛ ادامه از همان‌جا شروع می‌شود.",
+            "What was heard and understood is kept; continuing starts from there.",
+        ),
         options = listOf(
-            BuildFailure.Option(t(persian, "ادامه از همان‌جا", "Continue where it stopped"), t(persian, "کلمه‌ها و برداشت کارگردان دوباره استفاده می‌شود", "Reuses the words and the director's reading"), recommended = true),
-            BuildFailure.Option(t(persian, "پرامپت را عوض کن", "Change the prompt"), t(persian, "برگشت به صفحهٔ ساخت", "Back to the brief")),
+            BuildFailure.Option(
+                t(persian, "ادامه از همان‌جا", "Continue where it stopped"),
+                t(persian, "کلمه‌ها و برداشت کارگردان دوباره استفاده می‌شود", "Reuses the words and the director's reading"), recommended = true,
+            ),
+            BuildFailure.Option(
+                t(persian, "پرامپت را عوض کن", "Change the prompt"),
+                t(persian, "برگشت به صفحهٔ ساخت", "Back to the brief"),
+            ),
         ),
         primary = t(persian, "ادامهٔ ساخت", "Continue"),
     )
@@ -92,9 +102,18 @@ object BuildFailures {
             "Most of the video is silent or very quiet, so I couldn't write the words accurately. The project is saved; nothing is lost.",
         ),
         options = listOf(
-            BuildFailure.Option(t(persian, "صدا را تقویت کن و دوباره بساز", "Boost the voice and build again"), t(persian, "پیشنهاد کارگردان · تقویت تا \u2066-14 LUFS\u2069", "Director's pick · boost to -14 LUFS"), recommended = true),
-            BuildFailure.Option(t(persian, "بدون زیرنویس بساز", "Build without captions"), t(persian, "فقط موشن، موسیقی و برش روی تصویر", "Motion, music and cuts only")),
-            BuildFailure.Option(t(persian, "فایل دیگری انتخاب کن", "Choose another file"), t(persian, "ویدیو یا فقط صدا", "A video or audio only")),
+            BuildFailure.Option(
+                t(persian, "صدا را تقویت کن و دوباره بساز", "Boost the voice and build again"),
+                t(persian, "پیشنهاد کارگردان · تقویت تا \u2066-14 LUFS\u2069", "Director's pick · boost to -14 LUFS"), recommended = true,
+            ),
+            BuildFailure.Option(
+                t(persian, "بدون زیرنویس بساز", "Build without captions"),
+                t(persian, "فقط موشن، موسیقی و برش روی تصویر", "Motion, music and cuts only"),
+            ),
+            BuildFailure.Option(
+                t(persian, "فایل دیگری انتخاب کن", "Choose another file"),
+                t(persian, "ویدیو یا فقط صدا", "A video or audio only"),
+            ),
         ),
         primary = t(persian, "تقویت صدا و ساخت دوباره", "Boost and build again"),
         detail = error,
@@ -103,10 +122,20 @@ object BuildFailures {
     private fun missingModel(stage: BuildStage, error: String?, persian: Boolean) = BuildFailure(
         stage = stage,
         title = t(persian, "مدل روی دستگاه نیست", "The model isn't on this device"),
-        body = t(persian, "برای شنیدن و کارگردانی روی همین دستگاه، یک بار دانلود مدل لازم است؛ بعد همه‌چیز آفلاین کار می‌کند.", "Hearing and directing on this device needs a one-time model download; then everything works offline."),
+        body = t(
+            persian,
+            "برای شنیدن و کارگردانی روی همین دستگاه، یک بار دانلود مدل لازم است؛ بعد همه‌چیز آفلاین کار می‌کند.",
+            "Hearing and directing on this device needs a one-time model download; then everything works offline.",
+        ),
         options = listOf(
-            BuildFailure.Option(t(persian, "دانلود مدل پیشنهادی", "Download the recommended model"), t(persian, "مناسب همین دستگاه", "Fits this device"), recommended = true),
-            BuildFailure.Option(t(persian, "ساخت با قواعد، بدون مدل", "Build with rules, no model"), t(persian, "سریع‌تر، با تنوع کمتر", "Faster, less varied")),
+            BuildFailure.Option(
+                t(persian, "دانلود مدل پیشنهادی", "Download the recommended model"),
+                t(persian, "مناسب همین دستگاه", "Fits this device"), recommended = true,
+            ),
+            BuildFailure.Option(
+                t(persian, "ساخت با قواعد، بدون مدل", "Build with rules, no model"),
+                t(persian, "سریع‌تر، با تنوع کمتر", "Faster, less varied"),
+            ),
         ),
         primary = t(persian, "رفتن به مدل‌ها", "Open models"),
         detail = error,
@@ -115,10 +144,20 @@ object BuildFailures {
     private fun generic(stage: BuildStage, error: String?, persian: Boolean) = BuildFailure(
         stage = stage,
         title = t(persian, "ساخت کامل نشد", "The build didn't finish"),
-        body = t(persian, "در مرحلهٔ «${stage.fa}» مشکلی پیش آمد. کارهای انجام‌شده ذخیره شده‌اند و دوباره ساختن از همان‌جا ادامه می‌دهد.", "Something went wrong while ${stage.en.lowercase()}. Finished work is saved; building again continues from there."),
+        body = t(
+            persian,
+            "در مرحلهٔ «${stage.fa}» مشکلی پیش آمد. کارهای انجام‌شده ذخیره شده‌اند و دوباره ساختن از همان‌جا ادامه می‌دهد.",
+            "Something went wrong while ${stage.en.lowercase()}. Finished work is saved; building again continues from there.",
+        ),
         options = listOf(
-            BuildFailure.Option(t(persian, "دوباره بساز", "Build again"), t(persian, "از آخرین مرحلهٔ ذخیره‌شده", "From the last saved stage"), recommended = true),
-            BuildFailure.Option(t(persian, "با سبک دیگری بساز", "Try another style"), t(persian, "برگشت به صفحهٔ ساخت", "Back to the brief")),
+            BuildFailure.Option(
+                t(persian, "دوباره بساز", "Build again"),
+                t(persian, "از آخرین مرحلهٔ ذخیره‌شده", "From the last saved stage"), recommended = true,
+            ),
+            BuildFailure.Option(
+                t(persian, "با سبک دیگری بساز", "Try another style"),
+                t(persian, "برگشت به صفحهٔ ساخت", "Back to the brief"),
+            ),
         ),
         primary = t(persian, "ساخت دوباره", "Build again"),
         detail = error,

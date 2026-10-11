@@ -43,7 +43,9 @@ import io.trimio.core.designsystem.component.PillSelector
 import io.trimio.core.designsystem.component.ProgressLine
 import io.trimio.core.designsystem.component.SectionLabel
 import io.trimio.core.designsystem.component.SurfaceCard
+import io.trimio.core.designsystem.component.TrimioIcon
 import io.trimio.core.designsystem.component.TrimioScreen
+import io.trimio.core.designsystem.component.pressable
 import io.trimio.core.designsystem.component.TrimioButton
 import io.trimio.core.designsystem.component.TrimioSwitch
 import io.trimio.core.designsystem.component.TrimioTopBar
@@ -144,7 +146,7 @@ class SettingsViewModel(
 }
 
 @Composable
-fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
+fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit, onModels: (() -> Unit)? = null) {
     val settings by viewModel.state.collectAsStateWithLifecycle()
     val modelStates by viewModel.models.states.collectAsStateWithLifecycle()
     val keys by viewModel.keys.collectAsStateWithLifecycle()
@@ -167,6 +169,7 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
         offer = offer,
         onBuyPro = viewModel::buyPro,
         onRestore = viewModel::restorePurchases,
+        onModels = onModels,
     )
 }
 
@@ -192,6 +195,8 @@ fun SettingsScreen(
     offer: ProOffer? = null,
     onBuyPro: () -> Unit = {},
     onRestore: () -> Unit = {},
+    /** Opens the model manager; when set, it replaces the inline model list. */
+    onModels: (() -> Unit)? = null,
 ) {
     TrimioScreen(dimAurora = 0.65f) {
         Column(Modifier.fillMaxSize()) {
@@ -222,7 +227,18 @@ fun SettingsScreen(
                 }
 
                 val ramHint = localizedNumber(tr("رم این گوشی: ${device.ramGb} گیگ", "This phone: ${device.ramGb} GB RAM"))
-                if (!device.previewOnly) Section(tr("مدل\u200Cهای روی گوشی", "On-device models"), hint = ramHint) {
+                if (onModels != null) Section(tr("مدل\u200Cهای روی گوشی", "On-device models"), hint = ramHint) {
+                    Row(
+                        Modifier.fillMaxWidth().pressable(onClick = onModels).padding(vertical = TrimioSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            tr("مدیریت مدل\u200Cها و پیشنهاد برای این دستگاه", "Manage models, and what fits this device"),
+                            style = Trimio.type.body, color = Trimio.colors.textPrimary, modifier = Modifier.weight(1f),
+                        )
+                        TrimioIcon(TrimioIcons.ChevronForward, null, tint = Trimio.colors.textSecondary)
+                    }
+                } else if (!device.previewOnly) Section(tr("مدل\u200Cهای روی گوشی", "On-device models"), hint = ramHint) {
                     val groups = listOf(ModelKind.Speech to tr("تشخیص گفتار", "Speech"), ModelKind.Language to tr("کارگردان", "Director"))
                     groups.forEach { (kind, title) ->
                         Text(title, style = Trimio.type.label, color = Trimio.colors.accentCyan, modifier = Modifier.padding(top = TrimioSpacing.sm))

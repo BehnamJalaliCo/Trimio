@@ -105,3 +105,14 @@ object ModelShelf {
         "lfm2.5-8b-a1b-q4km" to ("سریع MoE" to "Fast MoE"),
     )
 }
+
+/** What the model manager can do with one model (by catalogue id). */
+data class ModelActions(
+    val onBack: () -> Unit = {},
+    val onDownload: (String) -> Unit = {},
+    val onCancel: (String) -> Unit = {},
+    val onDelete: (String) -> Unit = {},
+    val onUpdate: (String) -> Unit = {},
+    /** Makes an installed director the one that runs. */
+    val onUse: (String) -> Unit = {},
+)

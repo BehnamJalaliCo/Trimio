@@ -121,3 +121,15 @@ data class BuildFailure(
 ) {
     data class Option(val title: String, val hint: String, val recommended: Boolean = false)
 }
+
+/** What the creator can do with a finished edit. */
+data class ResultActions(
+    val onClose: () -> Unit = {},
+    val onPlay: () -> Unit = {},
+    /** Their reaction in their own words; the next edit follows it. */
+    val onFeedback: (String) -> Unit = {},
+    /** Another variation: same words and reading, a new seed. */
+    val onVariation: () -> Unit = {},
+    val onSave: () -> Unit = {},
+    val onShare: () -> Unit = {},
+)

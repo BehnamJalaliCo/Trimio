@@ -1,7 +1,9 @@
 # Third-party notices / ممیزی لایسنس
 
-Trimio ships no GPL/LGPL/AGPL code. Every dependency, model and asset is listed here with its
-licence; CI-enforced checks are planned in phase 9 (`license audit`).
+Trimio links no GPL/LGPL/AGPL code. The one exception in any download is the desktop installers'
+FFmpeg (below): separate LGPL executables the app runs as programs, never linked into it. Every
+dependency, model and asset is listed here with its licence; CI-enforced checks are planned in
+phase 9 (`license audit`).
 
 ## Libraries (in the app)
 
@@ -18,6 +20,27 @@ licence; CI-enforced checks are planned in phase 9 (`license audit`).
 | Anthropic Java SDK (+ OkHttp, Jackson) | 2.34.0 | MIT (+ Apache-2.0) |
 | whisper.cpp | v1.9.5 | MIT |
 | llama.cpp / ggml | b11536 | MIT |
+| Vulkan loader headers (Windows GPU build of ggml, links the driver's vulkan-1.dll) | SDK 1.4.309 | Apache-2.0 |
+
+## Desktop installers only: FFmpeg
+
+| Component | Build | Licence |
+|---|---|---|
+| FFmpeg `ffmpeg.exe` / `ffprobe.exe` (Windows x64) | BtbN/FFmpeg-Builds, `win64-lgpl` variant, pinned by sha256 in `desktopApp/ffmpeg/windows.properties` | LGPL-2.1-or-later |
+
+- The bundle is built **without** `--enable-gpl` / `--enable-nonfree`: no libx264, libx265 or other
+  GPL-only libraries. CI fails the Windows build if `ffmpeg -buildconf` shows either flag or if
+  libx264 is present (`.github/workflows/desktop-windows.yml`).
+- H.264 is encoded by Windows' own Media Foundation encoder through FFmpeg's `h264_mf` wrapper;
+  Microsoft licenses that codec with the operating system. AAC uses FFmpeg's native encoder.
+- The executables are unmodified, shipped next to the app with FFmpeg's `LICENSE.txt` and a
+  `SOURCE.txt` naming the exact build; its source is the FFmpeg release branch in that name.
+  Because Trimio only runs them as separate processes, the LGPL places no terms on Trimio's code.
+- Development machines and the Linux CI may use a GPL ffmpeg with libx264 from the PATH; that
+  binary is never distributed. If a future build ever bundles libx264, the bundled ffmpeg becomes
+  GPL-2.0-or-later: it would still be a separate program (mere aggregation), but the installer
+  must then carry the GPL text and an offer of the exact FFmpeg + x264 source, and the x264
+  commercial licence question has to be settled first. See docs/DESKTOP.md.
 
 ## Fonts
 

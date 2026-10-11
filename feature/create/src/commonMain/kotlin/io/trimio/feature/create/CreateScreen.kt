@@ -90,30 +90,26 @@ import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 import io.trimio.core.model.input.MediaInfo
 
-/** Everything the create screen can ask for; one holder keeps the screen's signature short. */
-data class CreateActions(
-    val onBack: () -> Unit = {},
-    val onPickMedia: (MediaKind) -> Unit = {},
-    val onPrompt: (String) -> Unit = {},
-    val onExpert: (Boolean) -> Unit = {},
-    val onAddTerm: (String) -> Unit = {},
-    val onRemoveTerm: (String) -> Unit = {},
-    val onAttach: (AttachmentKind) -> Unit = {},
-    val onDetach: (String) -> Unit = {},
-    val onCaption: (String, String) -> Unit = { _, _ -> },
-    val onStyle: (String?) -> Unit = {},
-    val onCreate: () -> Unit = {},
-)
-
+/**
+ * [onProduce] hands the brief to the automatic engine (the production runner); without it the
+ * legacy pipeline builds a project and [onCreated] receives its id.
+ */
 @Composable
-fun CreateRoute(viewModel: CreateViewModel, onBack: () -> Unit, onCreated: (String) -> Unit, onPickMedia: (MediaKind) -> Unit = {}) {
+fun CreateRoute(
+    viewModel: CreateViewModel,
+    onBack: () -> Unit,
+    onCreated: (String) -> Unit,
+    onPickMedia: (MediaKind) -> Unit = {},
+    onProduce: ((CreateState) -> Unit)? = null,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     CreateScreen(
         state,
         CreateActions(
             onBack = onBack, onPickMedia = onPickMedia, onPrompt = viewModel::setPrompt, onExpert = viewModel::setExpert,
             onAddTerm = viewModel::addTerm, onRemoveTerm = viewModel::removeTerm, onAttach = viewModel::attach, onDetach = viewModel::detach,
-            onCaption = viewModel::setCaption, onStyle = viewModel::setStyle, onCreate = { viewModel.create(onCreated) },
+            onCaption = viewModel::setCaption, onStyle = viewModel::setStyle,
+            onCreate = { if (onProduce != null) { if (state.canCreate) onProduce(state) } else viewModel.create(onCreated) },
         ),
     )
 }
@@ -438,7 +434,12 @@ private fun StyleRow(state: CreateState, ranked: List<Pair<StyleCard, Int>>, onS
 private fun CreateAction(state: CreateState, onCreate: () -> Unit, modifier: Modifier = Modifier) {
     val c = Sig.colors
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (state.hot) SigChip(tr("گوشی داغ است؛ ساخت آرام‌تر و خنک‌تر انجام می‌شود", "Your phone is hot: the build runs cooler and slower"), container = c.emphasisSoft, content = c.emphasisSoftContent)
+        if (state.hot) {
+            SigChip(
+                tr("گوشی داغ است؛ ساخت آرام‌تر و خنک‌تر انجام می‌شود", "Your phone is hot: the build runs cooler and slower"),
+                container = c.emphasisSoft, content = c.emphasisSoftContent,
+            )
+        }
         SigButton(
             if (state.creating) tr("در حال آماده‌سازی…", "Preparing…") else tr("بساز", "Make it"),
             onCreate, Modifier.fillMaxWidth(), trailing = TrimioIcons.ChevronForward, enabled = state.canCreate,

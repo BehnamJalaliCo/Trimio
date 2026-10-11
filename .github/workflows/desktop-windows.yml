@@ -1,0 +1,217 @@
+name: Desktop (Windows)
+
+# Builds the Windows desktop app: the native engines as DLLs with MSVC (CPU/AVX2 and Vulkan), the
+# pinned LGPL ffmpeg build, the JVM tests, and the MSI + EXE installers (per-user install). See
+# docs/DESKTOP.md. Runs by hand or on a release tag.
+#
+# Optional secrets (installers are built unsigned without them):
+#   WINDOWS_SIGNING_CERT_BASE64   code-signing certificate (.pfx), base64
+#   WINDOWS_SIGNING_CERT_PASSWORD its password
+#   TRIMIO_BRAND_KEY              decrypts the licensed brand fonts (open fallbacks without it)
+on:
+  workflow_dispatch:
+    inputs:
+      vulkan:
+        description: Also build the Vulkan (GPU) variant of the native engines
+        type: boolean
+        default: true
+  push:
+    tags: ["v*", "desktop-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIMIO_BRAND_KEY: ${{ secrets.TRIMIO_BRAND_KEY }}
+  NATIVE_OUT: desktopApp/resources/windows/native
+  FFMPEG_OUT: desktopApp/resources/windows/ffmpeg
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    env:
+      # Secrets cannot appear in a step's `if`; a job-level flag can.
+      HAS_SIGNING_CERT: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 != '' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # cl.exe, link.exe and the Windows SDK on the PATH for CMake + Ninja.
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # --- Native engines -------------------------------------------------------------------------
+      # Static MSVC runtime (native/CMakeLists.txt) and no OpenMP, so the DLLs need nothing from the
+      # Visual C++ redistributable. AVX2 + FMA + F16C: every x64 CPU since 2013/2015.
+      - name: Native engines, CPU (AVX2)
+        run: |
+          cmake -S native -B build/native-cpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \
+            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF
+          cmake --build build/native-cpu --target trimio_llama trimio_whisper
+          mkdir -p "$NATIVE_OUT/cpu"
+          cp build/native-cpu/trimio_llama.dll build/native-cpu/trimio_whisper.dll "$NATIVE_OUT/cpu/"
+
+      - name: Vulkan SDK
+        if: github.event_name != 'workflow_dispatch' || inputs.vulkan
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: 1.4.309.0
+          install_runtime: false
+          cache: true
+          stripdown: true
+
+      # GPU build for llama.cpp and whisper.cpp. It links vulkan-1.dll, which every current GPU
+      # driver installs; where it is missing the loader falls back to the CPU build.
+      - name: Native engines, Vulkan (GPU)
+        if: github.event_name != 'workflow_dispatch' || inputs.vulkan
+        run: |
+          cmake -S native -B build/native-vulkan -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \
+            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF -DGGML_VULKAN=ON
+          cmake --build build/native-vulkan --target trimio_llama trimio_whisper
+          mkdir -p "$NATIVE_OUT/vulkan"
+          cp build/native-vulkan/trimio_llama.dll build/native-vulkan/trimio_whisper.dll "$NATIVE_OUT/vulkan/"
+
+      # --- ffmpeg (LGPL, pinned) --------------------------------------------------------------------
+      - name: Fetch and verify the LGPL ffmpeg build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prop() { grep "^$1=" desktopApp/ffmpeg/windows.properties | cut -d= -f2- | tr -d '\r'; }
+          TAG=$(prop tag); ASSET=$(prop asset); PIN=$(prop sha256)
+          BASE="https://github.com/BtbN/FFmpeg-Builds/releases/download/$TAG"
+          mkdir -p build/ffmpeg && cd build/ffmpeg
+          curl -sSfL -o "$ASSET" "$BASE/$ASSET"
+          curl -sSfL -o checksums.sha256 "$BASE/checksums.sha256"
+          ACTUAL=$(sha256sum "$ASSET" | cut -d' ' -f1)
+          grep -q "^$ACTUAL  $ASSET\$" checksums.sha256 || { echo "::error::$ASSET does not match the release's checksums.sha256"; exit 1; }
+          if [ -n "$PIN" ]; then
+            [ "$ACTUAL" = "$PIN" ] || { echo "::error::ffmpeg sha256 $ACTUAL differs from the pin $PIN"; exit 1; }
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "::error::Release builds need a pinned ffmpeg: set tag/asset/sha256 in desktopApp/ffmpeg/windows.properties (sha256=$ACTUAL)"; exit 1
+          else
+            echo "::warning::ffmpeg is not pinned yet; pin sha256=$ACTUAL (with a monthly autobuild tag) in desktopApp/ffmpeg/windows.properties"
+          fi
+          echo "ffmpeg: \`$ASSET\` sha256 \`$ACTUAL\`" >> "$GITHUB_STEP_SUMMARY"
+          unzip -q "$ASSET"
+          DIR="${ASSET%.zip}"
+          cd ../..
+          mkdir -p "$FFMPEG_OUT"
+          cp "build/ffmpeg/$DIR/bin/ffmpeg.exe" "build/ffmpeg/$DIR/bin/ffprobe.exe" "$FFMPEG_OUT/"
+          cp "build/ffmpeg/$DIR/LICENSE.txt" "$FFMPEG_OUT/LICENSE.txt"
+          printf 'FFmpeg (LGPL-2.1-or-later) from https://github.com/BtbN/FFmpeg-Builds, %s\nSource: https://github.com/FFmpeg/FFmpeg (the release branch named in the file name)\n' "$ASSET" > "$FFMPEG_OUT/SOURCE.txt"
+
+      - name: Check the ffmpeg licence and encoders
+        run: |
+          FF="$FFMPEG_OUT/ffmpeg.exe"
+          if "$FF" -hide_banner -buildconf | grep -E -- '--enable-(gpl|nonfree)'; then echo "::error::the bundled ffmpeg is GPL/nonfree"; exit 1; fi
+          if "$FF" -hide_banner -encoders | grep -q libx264; then echo "::error::libx264 must not be bundled"; exit 1; fi
+          "$FF" -hide_banner -encoders | grep -q ' h264_mf ' || { echo "::error::this build has no Media Foundation H.264 encoder"; exit 1; }
+          "$FF" -hide_banner -encoders | grep -q ' aac ' || { echo "::error::no native AAC encoder"; exit 1; }
+
+      # Windows Server images lack Media Foundation until the feature is added; desktop Windows has it.
+      - name: Encode with Media Foundation (smoke)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Install-WindowsFeature Server-Media-Foundation | Out-Null
+          & "$env:FFMPEG_OUT/ffmpeg.exe" -hide_banner -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -t 2 `
+            -vf format=yuv420p -c:v h264_mf -rate_control u_vbr -b:v 8M -g 60 -y build/mf-smoke.mp4
+          if (!(Test-Path build/mf-smoke.mp4)) { throw "h264_mf produced no file" }
+
+      # --- Tests --------------------------------------------------------------------------------------
+      - name: JVM tests (desktop app, models, production engine) and the packaged DLLs
+        run: >
+          ./gradlew :desktopApp:test :engine:models:jvmTest :engine:production:jvmTest
+          "-Ptrimio.nativeSmoke=$GITHUB_WORKSPACE/$NATIVE_OUT"
+
+      # --- Installers ---------------------------------------------------------------------------------
+      - name: Package MSI and EXE
+        run: ./gradlew :desktopApp:packageMsi :desktopApp:packageExe "-Ptrimio.desktop.version=${GITHUB_REF_NAME#*v}"
+        if: startsWith(github.ref, 'refs/tags/')
+
+      - name: Package MSI and EXE (manual run)
+        run: ./gradlew :desktopApp:packageMsi :desktopApp:packageExe
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Sign installers
+        env:
+          CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        if: env.HAS_SIGNING_CERT == 'true'
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          Get-ChildItem desktopApp/build/compose/binaries/main -Recurse -Include *.msi,*.exe | ForEach-Object {
+            & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signing $($_.Name) failed" }
+          }
+          Remove-Item $pfx
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trimio-windows-installers
+          path: |
+            desktopApp/build/compose/binaries/main/msi/*.msi
+            desktopApp/build/compose/binaries/main/exe/*.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trimio-windows-native
+          path: ${{ env.NATIVE_OUT }}
+
+  # macOS: prepared, not built yet. Enable when the Apple Developer account, a Developer ID
+  # certificate and an LGPL ffmpeg build for macOS exist (docs/DESKTOP.md, "Shipping macOS").
+  macos:
+    if: false
+    runs-on: macos-14
+    timeout-minutes: 150
+    env:
+      TRIMIO_MAC_SIGN: "true"
+      TRIMIO_MAC_SIGN_IDENTITY: ${{ secrets.MAC_SIGNING_IDENTITY }}
+      TRIMIO_MAC_NOTARY_APPLE_ID: ${{ secrets.MAC_NOTARY_APPLE_ID }}
+      TRIMIO_MAC_NOTARY_PASSWORD: ${{ secrets.MAC_NOTARY_PASSWORD }}
+      TRIMIO_MAC_NOTARY_TEAM_ID: ${{ secrets.MAC_NOTARY_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Native engines (arm64, Metal)
+        run: |
+          cmake -S native -B build/native-metal -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON
+          cmake --build build/native-metal --target trimio_llama trimio_whisper
+          mkdir -p desktopApp/resources/macos/native/metal
+          cp build/native-metal/libtrimio_llama.dylib build/native-metal/libtrimio_whisper.dylib desktopApp/resources/macos/native/metal/
+      # TODO before enabling: fetch a pinned LGPL ffmpeg/ffprobe for macOS arm64 into
+      # desktopApp/resources/macos/ffmpeg (h264_videotoolbox), as the Windows job does.
+      - run: ./gradlew :desktopApp:test :desktopApp:notarizeDmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trimio-macos-dmg
+          path: desktopApp/build/compose/binaries/main/dmg/*.dmg

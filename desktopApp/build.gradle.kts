@@ -111,4 +111,10 @@ tasks.withType<Test>().configureEach {
     // Headless rendering for the window screenshot test (Skia draws off-screen).
     systemProperty("java.awt.headless", "true")
     systemProperty("trimio.home", layout.buildDirectory.dir("test-home").get().asFile.absolutePath)
+    // CI on Windows: -Ptrimio.nativeSmoke=<dir with cpu/ and vulkan/ DLLs> loads the packaged engines.
+    providers.gradleProperty("trimio.nativeSmoke").orNull?.let { dir ->
+        systemProperty("trimio.native.smoke", "true")
+        systemProperty("trimio.native.dir", dir)
+        systemProperty("trimio.native.variants", "vulkan,cpu")
+    }
 }

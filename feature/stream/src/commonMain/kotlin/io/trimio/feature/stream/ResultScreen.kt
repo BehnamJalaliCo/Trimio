@@ -65,18 +65,6 @@ import io.trimio.core.designsystem.signature.gutter
 import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 
-/** What the creator can do with a finished edit. */
-data class ResultActions(
-    val onClose: () -> Unit = {},
-    val onPlay: () -> Unit = {},
-    /** Their reaction in their own words; the next edit follows it. */
-    val onFeedback: (String) -> Unit = {},
-    /** Another variation: same words and reading, a new seed. */
-    val onVariation: () -> Unit = {},
-    val onSave: () -> Unit = {},
-    val onShare: () -> Unit = {},
-)
-
 /**
  * Board 2, fourth screen, grown into the conversation the engine supports: the finished edit
  * playing, its numbers, what the jury said, a line to tell the director what to change, another

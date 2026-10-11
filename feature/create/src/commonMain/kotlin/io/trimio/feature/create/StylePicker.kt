@@ -59,9 +59,6 @@ import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 import io.trimio.engine.motion.recipe.Look
 
-/** The picker's filters, in the board's order. */
-enum class StyleFilter { Suggested, All, Energetic, Dark, Light }
-
 /** A still of one style: its canvas and living light, a word in its headline voice and its emphasis mark. */
 @Composable
 fun StyleSwatch(card: StyleCard, modifier: Modifier = Modifier) {
@@ -74,7 +71,8 @@ fun StyleSwatch(card: StyleCard, modifier: Modifier = Modifier) {
         BrandFonts.Role.Ui -> families.ui
     }
     val style = Sig.type.hero.copy(fontFamily = family, fontWeight = FontWeight(card.weight.coerceAtLeast(700)), fontSize = 30.sp, lineHeight = 34.sp)
-    val text = if (card.caps) card.sample.uppercase() else card.sample
+    // Latin samples (a price, a year) stay left-to-right inside the Persian layout.
+    val text = (if (card.caps) card.sample.uppercase() else card.sample).let { if (persian) it else "\u2066$it\u2069" }
     Box(
         modifier.background(card.canvas).drawBehind {
             val w = size.width
@@ -99,7 +97,10 @@ fun StyleSwatch(card: StyleCard, modifier: Modifier = Modifier) {
             Look.Mark.Circle -> Text(
                 text, style = style, color = card.ink, maxLines = 1,
                 modifier = Modifier.drawBehind {
-                    drawOval(card.accent, topLeft = Offset(-size.width * 0.18f, -size.height * 0.05f), size = size.copy(width = size.width * 1.36f, height = size.height * 1.1f), style = Stroke(2.dp.toPx()))
+                    drawOval(
+                        card.accent, topLeft = Offset(-size.width * 0.18f, -size.height * 0.05f),
+                        size = size.copy(width = size.width * 1.36f, height = size.height * 1.1f), style = Stroke(2.dp.toPx()),
+                    )
                 }.padding(horizontal = 4.dp),
             )
         }
