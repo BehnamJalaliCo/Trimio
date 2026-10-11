@@ -113,7 +113,11 @@ val appModule: Module = module {
     single<ProductionRunner> { get<AppProductionRunner>() }
 
     viewModel { StudioViewModel(get(), get()) }
-    viewModel { (args: CreateArgs) -> CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), get(), get(), args.styleId, get(), getOrNull<io.trimio.feature.create.AttachmentPicker>() ?: io.trimio.shared.navigation.mediaAttachments(get())) }
+    viewModel { (args: CreateArgs) ->
+        // A platform's own attachment chooser (desktop) wins over the system media chooser.
+        val attachments = getOrNull<io.trimio.feature.create.AttachmentPicker>() ?: io.trimio.shared.navigation.mediaAttachments(get())
+        CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), get(), get(), args.styleId, get(), attachments)
+    }
     viewModel { (projectId: String) -> BuildStreamViewModel(get(), get(), projectId) }
     viewModel { (projectId: String) -> EditorViewModel(projectId, get(), get()) }
     viewModel { (projectId: String) -> ExportViewModel(projectId, get(), get(), get(), get()) }
