@@ -474,10 +474,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 // Nor while the line before still holds its graphic (names, a figure, a list): the cut would end it early.
                 reach(k - 1) < k }
                 // The piece's big figures first; the rest by weight, varied by seed.
-                .sortedByDescending { k ->
-                    val weight = (TAKEOVER_SHOWS[reads[k].show] ?: 0f) + (if (uiOf(k) != null) UI_TAKEOVER else 0f)
-                    weight * takeoverRng.range(0.5f, 1.5f) + (if (reads[k].show in BIG_MOMENTS || k in requested) BIG_FIRST else 0f) + (if (k == payoffLine) 1f else 0f)
-                }
+                .sortedByDescending { k -> takeoverWeight(k) }
             val chosen = mutableSetOf<Int>()
             var used = 0f
             for (k in candidates) {
@@ -545,26 +542,15 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         }
 
         /** The interface B-roll ([UiBroll]) a line about an app, a site, code or a dashboard shows, if any. */
-        private val uiLines = HashMap<Int, String?>()
+        private fun uiOf(k: Int): String? = reads.getOrNull(k)?.takeIf { it.show in UiBroll.TRADES }?.let { UiBroll.recipeFor(texts.subList(lines[k].first, lines[k].last + 1)) }
 
-        private fun uiOf(k: Int): String? = uiLines.getOrPut(k) {
-            reads.getOrNull(k)?.takeIf { it.show in UiBroll.TRADES }?.let { UiBroll.recipeFor(texts.subList(lines[k].first, lines[k].last + 1)) }
-        }
-
-        /** A full-frame interface for the line: what it shows comes from the line's title and items. */
-        private fun uiBeat(line: Lines.Line, read: LineRead, recipe: String): BeatScore {
-            val title = read.title.ifBlank { Phrases.title(words, line, hookKeys) }.takeIf { it.isNotBlank() && textKey(it) !in hookKeys }
-            return when (recipe) {
-                "ui-code" -> BeatScore(recipe = recipe, at = line.first, until = line.last, items = read.items.filter { it.isAscii() }.take(6), place = "center")
-                "ui-browser" -> BeatScore(recipe = recipe, at = line.first, until = line.last, text = title, label = u.entities.firstOrNull { '.' in it.name }?.name, place = "center")
-                "ui-dashboard" -> BeatScore(recipe = recipe, at = line.first, until = line.last, label = title, place = "center")
-                else -> BeatScore(recipe = recipe, at = line.first, until = line.last, items = listOfNotNull(title), place = "center")
-            }
-        }
+        private fun takeoverWeight(k: Int): Float = ((TAKEOVER_SHOWS[reads[k].show] ?: 0f) + (if (uiOf(k) != null) UI_TAKEOVER else 0f)) * takeoverRng.range(0.5f, 1.5f) +
+            (if (reads[k].show in BIG_MOMENTS || k in requested) BIG_FIRST else 0f) + (if (k == payoffLine) 1f else 0f)
 
         private fun primary(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
-            if (takeover) uiOf(lines.indexOf(line))?.let { return uiBeat(line, read, it) }
-            return primaryShow(line, read, e, takeover)
+            val ui = if (takeover) uiOf(lines.indexOf(line)) else null
+            val title = { read.title.ifBlank { Phrases.title(words, line, hookKeys) }.takeIf { it.isNotBlank() && textKey(it) !in hookKeys } }
+            return ui?.let { UiBroll.beat(it, line.first, line.last, title(), read.items, u.entities.map { it.name }) } ?: primaryShow(line, read, e, takeover)
         }
 
         private fun primaryShow(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? = when (compact(read, takeover)) {

@@ -1,5 +1,7 @@
 package io.trimio.engine.autopilot
 
+import io.trimio.engine.motion.score.BeatScore
+
 /**
  * Interface B-roll for tech and product talk (the `ui-*` recipes): a line that names an app, a
  * site, code, a dashboard or notifications can cut to a simulated, brand-free interface instead
@@ -18,11 +20,24 @@ object UiBroll {
         return null
     }
 
+    /**
+     * A full-frame interface over the words [first]..[last]: the line's [title] heads the page,
+     * the dashboard or the post; code lines come from [items]; a site's address from a dotted name.
+     */
+    fun beat(recipe: String, first: Int, last: Int, title: String?, items: List<String>, names: List<String>): BeatScore = when (recipe) {
+        "ui-code" -> BeatScore(recipe = recipe, at = first, until = last, items = items.filter { it.all { c -> c.code < ASCII } }.take(CODE_LINES), place = "center")
+        "ui-browser" -> BeatScore(recipe = recipe, at = first, until = last, text = title, label = names.firstOrNull { '.' in it }, place = "center")
+        "ui-dashboard" -> BeatScore(recipe = recipe, at = first, until = last, label = title, place = "center")
+        else -> BeatScore(recipe = recipe, at = first, until = last, items = listOfNotNull(title), place = "center")
+    }
+
     /** Readings a matching line may trade for its interface (it had no graphic of its own to lose). */
     val TRADES = setOf("headline", "none", "object", "terminal")
 
     private val SUFFIXES = setOf("", "ها", "های", "ش", "مون", "تون", "رو", "و", "ی", "s")
     private const val MIN_STEM = 3
+    private const val ASCII = 128
+    private const val CODE_LINES = 6
 
     private val CONCEPTS: Map<String, String> = HashMap<String, String>().apply {
         fun add(recipe: String, vararg keys: String) = keys.forEach { put(it.replace("‌", ""), recipe) }

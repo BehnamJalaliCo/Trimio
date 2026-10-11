@@ -42,7 +42,7 @@ half4 main(float2 fc) { return half4(half3(field(fc)), 1.0); }
 """
 
     /** Volumetric glow: a light above the frame, rays through haze, a soft floor bounce. */
-    val glow = STAGE_HEAD + """
+    const val glow = STAGE_HEAD + """
 float3 field(float2 fc) {
     float2 uv = fc / uSize;
     float asp = uSize.x / uSize.y;
@@ -65,7 +65,7 @@ float3 field(float2 fc) {
 """ + STAGE_MAIN
 
     /** Light leaks: warm anamorphic blooms drifting in from the edges, film-like streaks. */
-    val leaks = STAGE_HEAD + """
+    const val leaks = STAGE_HEAD + """
 float blob(float2 uv, float2 at, float2 stretch) { float2 q = (uv - at) * stretch; return exp(-dot(q, q)); }
 float3 field(float2 fc) {
     float2 uv = fc / uSize;
@@ -84,7 +84,7 @@ float3 field(float2 fc) {
 """ + STAGE_MAIN
 
     /** Bokeh: out-of-focus discs with brighter rims drifting slowly upward over a soft gradient. */
-    val bokeh = STAGE_HEAD + """
+    const val bokeh = STAGE_HEAD + """
 float3 field(float2 fc) {
     float2 uv = fc / uSize;
     float asp = uSize.x / uSize.y;
@@ -108,7 +108,7 @@ float3 field(float2 fc) {
 """ + STAGE_MAIN
 
     /** Dust: motes catching a diagonal volumetric beam, twinkling as they turn. */
-    val dust = STAGE_HEAD + """
+    const val dust = STAGE_HEAD + """
 float3 field(float2 fc) {
     float2 uv = fc / uSize;
     float asp = uSize.x / uSize.y;
@@ -131,7 +131,7 @@ float3 field(float2 fc) {
 """ + STAGE_MAIN
 
     /** Liquid gradient: colour bands on a domain-warped flow with a glossy sheen. */
-    val liquid = STAGE_HEAD + """
+    const val liquid = STAGE_HEAD + """
 float3 field(float2 fc) {
     float2 uv = fc / uSize;
     float asp = uSize.x / uSize.y;
@@ -167,7 +167,7 @@ half4 split(float2 p, float2 dir) {
 """
 
     /** Chromatic aberration: RGB split growing toward the frame's edges. */
-    val chromatic = FILTER_HEAD + """
+    const val chromatic = FILTER_HEAD + """
 half4 main(float2 fc) {
     float2 d = (fc - uSize * 0.5) / uSize.y;
     float k = uAmount * uSize.y * 0.006 * length(d) * 2.0;
@@ -176,7 +176,7 @@ half4 main(float2 fc) {
 """
 
     /** Lens: barrel distortion, edge fringing and fall-off, like a wide prime at the corners. */
-    val lens = FILTER_HEAD + """
+    const val lens = FILTER_HEAD + """
 half4 main(float2 fc) {
     float2 c = uSize * 0.5;
     float2 uv = (fc - c) / c.y;
@@ -189,7 +189,7 @@ half4 main(float2 fc) {
 """
 
     /** Glitch: horizontal slices jump sideways two frames at a time, with an RGB split. */
-    val glitch = FILTER_HEAD + """
+    const val glitch = FILTER_HEAD + """
 half4 main(float2 fc) {
     float tick = floor(uTime * 12.0) + uSeed;
     float rows = 18.0 + 30.0 * hash(float2(tick, 1.0));
@@ -203,7 +203,7 @@ half4 main(float2 fc) {
 """
 
     /** Ripple: a ring of displacement expanding from the centre as progress runs 0 → 1. */
-    val ripple = FILTER_HEAD + """
+    const val ripple = FILTER_HEAD + """
 half4 main(float2 fc) {
     float2 c = uSize * 0.5;
     float2 d = fc - c;
@@ -223,7 +223,7 @@ half4 main(float2 fc) {
      * Halation: highlights bleed a warm red glow into their surroundings, as on film. The glow is
      * gathered from [bloom], a quarter-resolution copy of the content (wide taps cost little there).
      */
-    val halation = FILTER_HEAD + """
+    const val halation = FILTER_HEAD + """
 uniform shader bloom;
 uniform float uBloomScale;
 half4 main(float2 fc) {
@@ -248,7 +248,7 @@ half4 main(float2 fc) {
      * seen through a rounded panel — refracted at the rim like thick glass, averaged over a
      * disc (frost), lifted toward white. Transparent outside the panel. [uSize] is this render's size.
      */
-    val glass = """
+    const val glass = """
 uniform shader stage;
 uniform float2 uStage;
 uniform float2 uSize;

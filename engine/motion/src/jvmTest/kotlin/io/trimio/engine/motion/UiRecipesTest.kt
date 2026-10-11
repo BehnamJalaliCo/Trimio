@@ -90,28 +90,31 @@ class UiRecipesTest {
     /** Ink on its own body: every text an interface draws clears 4.5:1 against the surface under it. */
     @Test
     fun interfaceTextIsReadableOnItsBody() {
+        for (look in Look.all) for (over in listOf(false, true)) for (r in UiRecipes.all.filter { it.name != "ui-scene" }) readable(r, look, over)
+    }
+
+    private fun inks(n: Node, into: MutableList<Pair<Color, String>>) {
+        when (n) {
+            is Group -> n.children.forEach { inks(it, into) }
+            is TextNode -> (n.fill as? Fill.Solid)?.let { into += it.color.at(5f) to n.name }
+            is CounterNode -> (n.fill as? Fill.Solid)?.let { into += it.color.at(5f) to n.name }
+            else -> Unit
+        }
+    }
+
+    private fun readable(r: io.trimio.engine.motion.recipe.Recipe, look: Look, over: Boolean) {
         val fitter = Fitter { s, voice, preferred, maxW, _, _ -> Fitted(voice.at(preferred), minOf(maxW, s.length * preferred * 0.5f), preferred * 1.3f, 1) }
-        for (look in Look.all) for (over in listOf(false, true)) for (r in UiRecipes.all.filter { it.name != "ui-scene" }) {
-            val cue = Cue(
-                text = "ثبت‌نام", at = 1f, out = 6f, x = 540f, y = 900f, width = 900f, height = 800f, label = "label", value = 1200f,
-                items = listOf("یک", "دو", "سه"), overMedia = over,
-            )
-            val texts = mutableListOf<Pair<Color, String>>()
-            fun walk(n: Node) {
-                when (n) {
-                    is Group -> n.children.forEach(::walk)
-                    is TextNode -> (n.fill as? Fill.Solid)?.let { texts += it.color.at(5f) to n.name }
-                    is CounterNode -> (n.fill as? Fill.Solid)?.let { texts += it.color.at(5f) to n.name }
-                    else -> Unit
-                }
-            }
-            r.build(cue, look, fitter).nodes.forEach(::walk)
-            val dark = Contrast.luminance(look.canvas) < 0.4f
-            val body = if (dark) Color(0xFF15161A) else Color.White
-            for ((ink, name) in texts.filter { !it.second.startsWith("page-cta") }) {
-                val ratio = Contrast.ratio(Contrast.luminance(ink.compositeOver(body)), Contrast.luminance(body))
-                assertTrue(ratio >= 4.5f, "${r.name} ${look.name} $name: ${"%.2f".format(ratio)}")
-            }
+        val cue = Cue(
+            text = "ثبت‌نام", at = 1f, out = 6f, x = 540f, y = 900f, width = 900f, height = 800f, label = "label", value = 1200f,
+            items = listOf("یک", "دو", "سه"), overMedia = over,
+        )
+        val texts = mutableListOf<Pair<Color, String>>()
+        r.build(cue, look, fitter).nodes.forEach { inks(it, texts) }
+        val body = if (Contrast.luminance(look.canvas) < 0.4f) Color(0xFF15161A) else Color.White
+        // The call to action is the accent's own text colour on the accent.
+        for ((ink, name) in texts.filter { !it.second.startsWith("page-cta") }) {
+            val ratio = Contrast.ratio(Contrast.luminance(ink.compositeOver(body)), Contrast.luminance(body))
+            assertTrue(ratio >= 4.5f, "${r.name} ${look.name} $name: ${"%.2f".format(ratio)}")
         }
     }
 
