@@ -18,10 +18,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.toMutableStateList
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -117,7 +119,8 @@ fun TrimioApp(systemLanguage: Language, systemPreferences: TrimioPreferences = T
             UpdateRequiredScreen(onUpdate = device.storeUrl?.let { url -> { runCatching { uriHandler.openUri(url) } } })
             return@TrimioAppTheme
         }
-        val backStack = remember { listOf<Route>(if (settings.onboardingDone) Route.Studio else Route.Onboarding).toMutableStateList() }
+        // Kept by the host's view-model store: rotating the phone, or the system switching dark mode or language, keeps the place.
+        val backStack = viewModel { BackStack(if (settings.onboardingDone) Route.Studio else Route.Onboarding) }.routes
         // The canvas behind every screen, so transitions never show through to the window.
         Box(Modifier.fillMaxSize().background(Sig.colors.canvas)) { AppNavigation(backStack, settings.language ?: systemLanguage, systemLanguage) }
     }
@@ -158,7 +161,11 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
         when {
             record == null -> go(Route.Produce(productions.remake(p, persian), styleName, projectId = p.id))
             p.status == ProjectStatus.Ready -> go(Route.Result(record.buildSeconds, record.version, styleName, p.id))
-            else -> productions.requestOf(p)?.let { go(Route.Produce(it, styleName, record.version, p.id)) }
+            // A run for the next version (a project with a file), or its first; the editor's changes when it is their render.
+            else -> productions.requestOf(p)?.let {
+                val next = p.outputUri != null && p.status == ProjectStatus.Building
+                go(Route.Produce(it, styleName, if (next) record.version + 1 else record.version, p.id, retouch = next && record.draft != null))
+            }
         }
     }
 
@@ -246,6 +253,11 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
     // Files dropped on the window or opened with Trimio (desktop) start a new edit.
     val incoming = org.koin.compose.getKoin().getOrNull<IncomingMedia>()
     LaunchedEffect(incoming) { incoming?.requests?.collect { go(Route.Create(it.uri, it.kind)) } }
+}
+
+/** The app's back stack (Navigation 3: a plain list the app owns), outliving configuration changes. */
+private class BackStack(start: Route) : ViewModel() {
+    val routes: SnapshotStateList<Route> = mutableStateListOf(start)
 }
 
 /** Forward: the new screen slides in from the reading-direction end, the old one recedes. */

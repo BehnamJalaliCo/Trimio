@@ -114,10 +114,10 @@ class EditorViewModel(
         history = EditHistory(edit.overrides)
         playback = runCatching { editor.playback(edit) }.getOrNull()
         facts = withContext(Dispatchers.Default) { EditFacts.of(edit) }
-        publish()
-        viewModelScope.launch { frames() }
         // Changes left unsaved last time are back, one undo away from the version.
-        drafts?.draft(id)?.takeIf { it != committed }?.let { render(history.restore(it)) }
+        val draft = drafts?.draft(id)?.takeIf { it != committed }
+        if (draft != null) render(history.restore(draft)) else publish()
+        viewModelScope.launch { frames() }
     }
 
     // ------------------------------------------------------------------ the session

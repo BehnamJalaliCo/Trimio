@@ -11,7 +11,6 @@ import io.trimio.engine.production.AutoEditor
 import io.trimio.engine.production.ProductionPlatform
 import io.trimio.feature.create.AttachmentPicker
 import io.trimio.shared.IncomingMedia
-import io.trimio.shared.di.PipelineFactory
 import io.trimio.shared.initTrimio
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Image
@@ -71,7 +70,6 @@ class DesktopAppTest {
         val koin = GlobalContext.get()
         assertNotNull(koin.get<AutoEditor>())
         assertNotNull(koin.get<ProductionPlatform>())
-        assertNotNull(koin.get<PipelineFactory>())
         assertNotNull(koin.get<AttachmentPicker>())
         assertEquals(32, koin.get<DeviceInfo>().ramGb)
     }

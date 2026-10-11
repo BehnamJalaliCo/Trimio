@@ -11,13 +11,11 @@ import io.trimio.core.data.DeviceInfo
 import io.trimio.core.data.Entitlements
 import io.trimio.core.data.FileProjectStore
 import io.trimio.core.data.NoBilling
-import io.trimio.core.data.JobRunner
 import io.trimio.core.data.MediaKind
 import io.trimio.core.data.MemoryProjectStore
 import io.trimio.core.data.ProjectRepository
 import io.trimio.core.data.SettingsRepository
 import io.trimio.core.model.text.Language
-import io.trimio.core.pipeline.PipelineOrchestrator
 import io.trimio.engine.assets.AssetLibrary
 import io.trimio.engine.llm.CloudModels
 import io.trimio.engine.llm.LanguageModel
@@ -66,19 +64,6 @@ data class AppPaths(
     val remoteCache: Path? = null,
 )
 
-/**
- * Builds the two legacy pipelines (engine/director + engine/render) with each platform's engines.
- * Superseded by the automatic engine ([AutoEditor] / [ProductionRunner], phase 7.1); kept only for
- * [JobRunner] while the editor and export screens of earlier projects still run on it.
- */
-interface PipelineFactory {
-    /** All nine stages: probe, clean, recognise, align, analyse, direct, match assets, render, publish. */
-    fun build(): PipelineOrchestrator
-
-    /** Render and publish only, from an edited timeline. */
-    fun export(): PipelineOrchestrator
-}
-
 /** The official Claude client where the platform has one (Android/desktop: the Java SDK). */
 fun interface ClaudeFactory {
     fun create(apiKey: String, model: String): LanguageModel
@@ -96,8 +81,8 @@ data class CreateArgs(val uri: String, val kind: MediaKind, val styleId: String?
 /**
  * The dependency graph shared by every platform. A platform module must provide: [AppPaths],
  * SecretStore, MediaPicker, Sharer, DeviceInfo, MediaProbe, [HttpClient], the production engine
- * ([AutoEditor] and its [Checkpoints]), the legacy [PipelineFactory] and optionally
- * [ClaudeFactory], [DownloadHooks] and a store [Billing].
+ * ([AutoEditor] and its [Checkpoints]) and optionally [ClaudeFactory], [DownloadHooks] and a
+ * store [Billing].
  */
 val appModule: Module = module {
     single(AppScope) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
@@ -117,7 +102,6 @@ val appModule: Module = module {
             onActiveChanged = { hooks?.onActiveChanged(it) },
         )
     }
-    single { JobRunner(get(AppScope), get(), { get<PipelineFactory>().build() }, { get<PipelineFactory>().export() }) }
     // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
     single { AppProductionRunner(get(), get(AppScope), get()) }
     single<ProductionRunner> { get<AppProductionRunner>() }

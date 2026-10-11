@@ -43,10 +43,6 @@
             android:name="io.trimio.engine.production.ProductionService"
             android:exported="false"
             android:foregroundServiceType="mediaProcessing|dataSync" />
-        <service
-            android:name=".RenderService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProcessing|dataSync" />
 
         <!-- Shares project files (FCPXML, Premiere XML, SRT) with other apps. -->
         <provider

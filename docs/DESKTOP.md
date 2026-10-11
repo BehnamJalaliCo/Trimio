@@ -18,7 +18,7 @@ ffmpeg for decoding and encoding, Skia for frames, whisper.cpp and llama.cpp thr
 |---|---|
 | `desktopApp/src/main/kotlin/io/trimio/desktop/Main.kt` | entry point, window (1360×880, min 1040×680), files passed on the command line (file associations) |
 | `DesktopShell.kt` | desktop layout: side rail (new from video / voice, drop zone, output folder, this computer's RAM, GPU and directors) + the shared app in a readable column; drag and drop anywhere |
-| `DesktopPlatform.kt` | the Koin platform module: paths, file dialogs, sharer, device info, `ProductionPlatform` (`JvmProductionPlatform`) + `AutoEditor`, legacy `PipelineFactory`, API-key store |
+| `DesktopPlatform.kt` | the Koin platform module: paths, file dialogs, sharer, device info, `ProductionPlatform` (`JvmProductionPlatform`) + `AutoEditor` and its checkpoints, API-key store |
 | `DesktopEnvironment.kt` | `DesktopDirs` (where files live), `BundledTools` (points the engines at the installed ffmpeg and DLLs) |
 | `DesktopHardware.kt` | RAM, GPUs, `DesktopDirectors` (which on-device directors this machine is offered) |
 | `DesktopFiles.kt` | system open dialogs for video, audio and attachments; "share" = reveal in Explorer/Finder |
@@ -123,7 +123,7 @@ enabled yet.
 
 | Check | Linux server | Windows CI |
 |---|---|---|
-| desktopApp compiles, Koin graph resolves (AutoEditor, ProductionPlatform, PipelineFactory) | yes | yes |
+| desktopApp compiles, Koin graph resolves (AutoEditor, ProductionPlatform) | yes | yes |
 | Headless main-window screenshot (`build/screenshots/desktop-main-window.png`) | yes | yes |
 | `createDistributable` (packaging config) | yes (Linux image) | — |
 | DLLs build with MSVC, CPU + Vulkan | — | yes |

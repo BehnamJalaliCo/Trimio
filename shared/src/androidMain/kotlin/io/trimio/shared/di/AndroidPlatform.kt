@@ -9,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.text.font.FontFamily
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.trimio.core.data.Billing
@@ -24,18 +23,13 @@ import io.trimio.core.data.MediaPicker
 import io.trimio.core.data.SettingsRepository
 import io.trimio.core.data.Sharer
 import io.trimio.core.model.input.MediaUri
-import io.trimio.engine.asr.whisper.InstalledWhisperRecognizer
-import io.trimio.engine.director.DefaultDirectorModels
 import io.trimio.engine.llm.CloudModels
 import io.trimio.engine.llm.KeystoreSecretStore
 import io.trimio.engine.llm.SecretStore
 import io.trimio.engine.llm.cloud.ClaudeLanguageModel
-import io.trimio.engine.llm.local.LocalModels
-import io.trimio.engine.media.AndroidAudioDecoder
 import io.trimio.engine.media.AndroidMediaProbe
 import io.trimio.engine.media.MediaProbe
 import io.trimio.engine.models.DeviceMemory
-import io.trimio.engine.models.ModelKind
 import io.trimio.engine.models.ModelManager
 import io.trimio.engine.models.ModelStore
 import io.trimio.engine.autopilot.WebKnowledge
@@ -47,11 +41,6 @@ import io.trimio.engine.production.LocalDirectors
 import io.trimio.engine.production.ProductionPlatform
 import io.trimio.engine.production.ProductionService
 import io.trimio.engine.production.Productions
-import io.trimio.engine.render.AndroidVideoExporter
-import io.trimio.engine.render.ExportRequest
-import io.trimio.engine.render.MediaStorePublisher
-import io.trimio.engine.render.RenderFonts
-import io.trimio.engine.render.VideoExporter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.io.files.Path
 import org.koin.dsl.module
@@ -121,38 +110,6 @@ fun androidPlatformModule(
     single<Connectivity> { AndroidConnectivity(app) }
     // The foreground service finds the runner here when the system restarts it after killing the process.
     ProductionService.runner = { org.koin.core.context.GlobalContext.get().get<AppProductionRunner>() }
-    // Legacy pipelines for JobRunner (the screens not yet moved to the production runner).
-    single<PipelineFactory> {
-        val settings = get<SettingsRepository>()
-        val models = get<ModelManager>()
-        val store = ModelStore(get<AppPaths>().models, get())
-        val ram = get<DeviceInfo>().ramGb
-        val decoder = AndroidAudioDecoder(app)
-        EnginePipelines(
-            probe = get(),
-            decoder = decoder,
-            recognizer = InstalledWhisperRecognizer {
-                val installed = models.catalog.filter { it.kind == ModelKind.Speech && models.isInstalled(it) && it.tier.minRamGb <= ram }
-                (installed.firstOrNull { it.id == settings.settings.value.speechModelId } ?: installed.maxByOrNull { it.sizeBytes })?.let(models::pathOf)
-            },
-            styles = get(),
-            directors = DefaultDirectorModels(get<CloudModels>()) { LocalModels(store, ram, models.catalog).best(settings.settings.value.localModelId) },
-            library = get(),
-            exporter = FontsFirst { fonts -> AndroidVideoExporter(app, fonts) },
-            publisher = MediaStorePublisher(app),
-            outputPath = { jobId -> File(app.cacheDir, "renders").apply { mkdirs() }.resolve("$jobId.mp4").absolutePath },
-            threads = { get<DeviceProfile>().threadsFor(get<ThermalMonitor>().level.value) },
-        )
-    }
-}
-
-/** Loads the render font once, then hands it to the real exporter. */
-private class FontsFirst(private val create: (FontFamily) -> VideoExporter) : VideoExporter {
-    private var delegate: VideoExporter? = null
-    override suspend fun export(request: ExportRequest, onFrame: suspend (Int, Int) -> Unit): String {
-        val exporter = delegate ?: create(RenderFonts.vazirmatn()).also { delegate = it }
-        return exporter.export(request, onFrame)
-    }
 }
 
 private fun ramGb(context: Context): Int {

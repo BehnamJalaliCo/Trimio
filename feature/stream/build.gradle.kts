@@ -4,13 +4,10 @@ plugins {
 
 kotlin {
     sourceSets {
+        // The production screens (live build, result, failure) are pure functions of their models.
         commonMain.dependencies {
             implementation(projects.core.model)
-            implementation(projects.core.pipeline)
-            implementation(projects.core.data)
             implementation(projects.core.designsystem)
-            implementation(libs.androidx.lifecycle.viewmodel.compose)
-            implementation(libs.androidx.lifecycle.runtime.compose)
         }
     }
 }

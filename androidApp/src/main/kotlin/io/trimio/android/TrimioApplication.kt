@@ -3,7 +3,6 @@ package io.trimio.android
 import android.app.Application
 import io.trimio.core.data.CrashLog
 import kotlinx.io.files.Path
-import io.trimio.core.data.JobRunner
 import io.trimio.engine.production.ProductionRunner
 import io.trimio.engine.production.ProductionService
 import io.trimio.shared.di.AppScope
@@ -13,8 +12,6 @@ import io.trimio.android.billing.StoreBilling
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.distinctUntilChangedBy
-import kotlinx.coroutines.launch
 import org.koin.core.context.GlobalContext
 
 class TrimioApplication : Application() {
@@ -43,15 +40,10 @@ class TrimioApplication : Application() {
         Notifications.createChannels(this)
         ModelUpdateJob.schedule(this)
 
-        // Every build or export runs under a foreground service, so it finishes with the screen off.
+        // Productions (and the editor's renders) run under a foreground service, so they finish with the screen off;
+        // a run the system killed is restarted and resumed.
         val koin = GlobalContext.get()
         val scope = koin.get<CoroutineScope>(AppScope)
-        scope.launch {
-            koin.get<JobRunner>().active.distinctUntilChangedBy { it?.projectId to it?.kind }.collect { run ->
-                if (run != null) RenderService.start(this@TrimioApplication)
-            }
-        }
-        // Automatic productions run under their own foreground service (restarted and resumed after process death).
         ProductionService.icon = R.drawable.ic_stat_trimio
         ProductionService.opens = MainActivity::class.java
         ProductionService.watch(this, koin.get<ProductionRunner>(), scope)

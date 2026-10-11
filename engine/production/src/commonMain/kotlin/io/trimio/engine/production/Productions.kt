@@ -128,13 +128,8 @@ class Productions(
         withContext(Dispatchers.Default) { checkpoints.load(request.key)?.delivery?.version == Delivery.VERSION }
 
     /** [block]'s result, or null when the platform could not read the creator's media. */
-    private suspend fun <T> readable(block: suspend () -> T): T? = try {
-        block()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
-        null
-    }
+    private suspend fun <T> readable(block: suspend () -> T): T? =
+        runCatching { block() }.onFailure { if (it is CancellationException) throw it }.getOrNull()
 
     /** A frame of [edit] for its poster (null when it cannot be drawn). */
     private suspend fun still(edit: Edit): ImageBitmap? = readable {

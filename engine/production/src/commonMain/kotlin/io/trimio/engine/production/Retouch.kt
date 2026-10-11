@@ -157,7 +157,39 @@ object Retouch {
             ),
         )
         o.energy?.let { score = energised(score, it) }
-        return worded(score, texts, o)
+        return uncut(worded(score, texts, o), texts, o.deleted)
+    }
+
+    /**
+     * Words the creator cut are gone from the graphics that quote them, as from the sound and the
+     * captions: a graphic's text without them (its own occurrence: the one around the word it lands
+     * on, else the first), and a graphic left with nothing to say goes. Text that does not quote
+     * the transcript word for word is left as written.
+     */
+    internal fun uncut(score: Score, said: List<String>, deleted: Set<Int>): Score {
+        if (deleted.isEmpty()) return score
+        val heard = said.map(::norm)
+        fun cut(text: String?, at: Int?): String? {
+            if (text == null) return null
+            val tokens = text.split(' ').filter { it.isNotBlank() }
+            val wanted = tokens.map(::norm)
+            if (wanted.isEmpty() || wanted.size > heard.size) return text
+            val starts = (0..heard.size - wanted.size).filter { s -> wanted.indices.all { j -> heard[s + j] == wanted[j] } }
+            val s = starts.firstOrNull { at != null && at in it until it + wanted.size } ?: starts.firstOrNull() ?: return text
+            return tokens.filterIndexed { j, _ -> s + j !in deleted }.joinToString(" ")
+        }
+        return score.copy(
+            scenes = score.scenes.map { scene ->
+                scene.copy(
+                    beats = scene.beats.mapNotNull { b ->
+                        val text = cut(b.text, b.at)
+                        if (b.text != null && text.isNullOrEmpty()) return@mapNotNull null
+                        val left = text.orEmpty().split(' ').map(::norm).toSet()
+                        b.copy(text = text, emphasis = if (text == b.text) b.emphasis else b.emphasis.filter { norm(it) in left })
+                    },
+                )
+            },
+        )
     }
 
     /** Every beat moved by the same amount, so the piece's mean energy is [target] and its contrasts stay. */

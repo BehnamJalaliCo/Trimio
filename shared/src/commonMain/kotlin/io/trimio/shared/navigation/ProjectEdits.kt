@@ -37,26 +37,20 @@ class ProjectEdits(
         val record = project.production?.takeIf { finished(project) } ?: return Opened.NotKept
         val request = ProductionProjects.decode(record.request) ?: return Opened.NotKept
         val overrides = overridesOf(record)
-        val opened = try {
+        val opened = runCatching {
             // The run's edit is still held (another version of it is): only the creator's changes are applied again.
             recent.find(record.key)?.let { held -> Opened.Ready(editor.touch(held, overrides)) } ?: editor.reopen(request, overrides)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
+        }.onFailure { if (it is CancellationException) throw it }
             // An engine that cannot apply changes, or a saved state it cannot read: nothing to open.
-            Opened.NotKept
-        }
+            .getOrDefault(Opened.NotKept)
         if (opened is Opened.Ready) recent.remember(opened.edit)
         return opened
     }
 
     override suspend fun openable(id: String): Boolean {
         if (find(id) != null) return true
-        val project = projects.get(id) ?: return false
-        val record = project.production?.takeIf { finished(project) } ?: return false
-        if (recent.find(record.key) != null) return true
-        val request = ProductionProjects.decode(record.request) ?: return false
-        return editor.kept(request)
+        val record = projects.get(id)?.takeIf(::finished)?.production ?: return false
+        return recent.find(record.key) != null || ProductionProjects.decode(record.request)?.let { editor.kept(it) } == true
     }
 
     override fun hold(id: String, edit: Edit) = recent.hold(id, edit)

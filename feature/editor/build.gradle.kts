@@ -24,6 +24,10 @@ kotlin {
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.ui)
         }
-        jvmTest.dependencies { implementation(compose.desktop.currentOs) }
+        jvmTest.dependencies {
+            implementation(compose.desktop.currentOs)
+            // The view models' main dispatcher in tests.
+            implementation(libs.kotlinx.coroutines.swing)
+        }
     }
 }

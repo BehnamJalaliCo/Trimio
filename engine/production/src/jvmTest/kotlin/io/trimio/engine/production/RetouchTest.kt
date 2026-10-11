@@ -215,6 +215,32 @@ class RetouchTest {
     }
 
     @Test
+    fun aCutWordLeavesTheGraphicsThatQuoteIt() {
+        val said = listOf("امروز", "یک", "نکته‌ی", "مهم", "می‌گم.", "مهم")
+        val score = io.trimio.engine.motion.score.Score(
+            scenes = listOf(
+                io.trimio.engine.motion.score.SceneScore(
+                    beats = listOf(
+                        io.trimio.engine.motion.score.BeatScore("slam", text = "نکته‌ی مهم", emphasis = listOf("مهم")),
+                        io.trimio.engine.motion.score.BeatScore("slam", at = 5, text = "مهم"),
+                        io.trimio.engine.motion.score.BeatScore("mask-rise", text = "حرف خودم"),
+                        io.trimio.engine.motion.score.BeatScore("counter", value = 5f),
+                    ),
+                ),
+            ),
+        )
+        val beats = Retouch.uncut(score, said, setOf(3)).scenes.single().beats
+        assertEquals(listOf("نکته‌ی", "مهم", "حرف خودم", null), beats.map { it.text }, "only the quoted occurrence of the cut word goes")
+        assertEquals(emptyList(), beats.first().emphasis)
+        // Every quoted word cut: the graphic has nothing left to say.
+        assertEquals(listOf("نکته‌ی", "حرف خودم", null), Retouch.uncut(score, said, setOf(3, 5)).scenes.single().beats.map { it.text })
+        // In a real edit: the cut word is nowhere on screen.
+        val i = index("بیت")
+        val cut = apply(EditChange.Delete(i, i, true))
+        assertFalse(cut.compiled.beats.any { b -> b.text.split(' ').any { it.startsWith("بیت") } }, cut.compiled.beats.map { it.text }.toString())
+    }
+
+    @Test
     fun touchAndTheFinalRenderGoThroughTheEngine() = runBlocking {
         val i = index("رشد")
         val o = EditOverrides().with(EditChange.Delete(i, i, true))
