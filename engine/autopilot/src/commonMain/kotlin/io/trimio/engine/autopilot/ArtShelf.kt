@@ -3,6 +3,7 @@ package io.trimio.engine.autopilot
 import io.trimio.engine.assets.art.ArtCatalogue
 import io.trimio.engine.assets.art.ArtEntry
 import io.trimio.engine.assets.art.AssetCache
+import io.trimio.engine.assets.packs.ContentPacks
 import io.trimio.engine.autopilot.resources.Res
 import io.trimio.engine.motion.art.ArtFlavour
 import io.trimio.engine.motion.art.MotionArt
@@ -43,9 +44,9 @@ class ArtShelf(
      * Documents come from the starter pack, then the cache, then [fetch] (null: offline).
      */
     suspend fun find(query: String, line: String, flavour: ArtFlavour, limit: Int, fetch: (suspend (String) -> String?)?): List<Found> {
-        val own = catalogue.search(query, line, limit * 2, SOURCES.getValue(flavour))
+        val own = catalogue.search(query, line, limit * 2, sources(flavour))
         val best = own.firstOrNull()?.relevance ?: 0f
-        val other = if (best >= GOOD) emptyList() else catalogue.search(query, line, limit, SOURCES.getValue(flavour.other()))
+        val other = if (best >= GOOD) emptyList() else catalogue.search(query, line, limit, sources(flavour.other()))
             .map { it.copy(relevance = it.relevance - OTHER_FLAVOUR) }
         val hits = (own + other).sortedByDescending { it.relevance }
         val out = mutableListOf<Found>()
@@ -53,7 +54,25 @@ class ArtShelf(
             if (out.size >= limit) break
             icon(hit.entry, fetch)?.let { out += Found(it, hit.relevance, hit.entry) }
         }
-        return out
+        // Packs first, online second: a connected animation service is asked only when nothing here shows the query well.
+        if ((out.firstOrNull()?.relevance ?: 0f) < GOOD && fetch != null) out += online(query, limit, fetch, out.firstOrNull()?.relevance ?: 0f)
+        return out.sortedByDescending { it.relevance }.take(limit)
+    }
+
+    /** The style's picture sets: the bundled one of its flavour and every installed pack's set of that flavour. */
+    private fun sources(flavour: ArtFlavour): Set<String> =
+        SOURCES.getValue(flavour) + ContentPacks.artSources(if (flavour == ArtFlavour.Emoji) "emoji" else "line")
+
+    /** Pictures from [ContentPacks.online] (the creator's own LottieFiles key), better than [floor]; documents kept in the cache. */
+    private suspend fun online(query: String, limit: Int, fetch: suspend (String) -> String?, floor: Float): List<Found> {
+        val service = ContentPacks.online ?: return emptyList()
+        val hits = runCatching { service.search(query, limit, fetch) }.getOrDefault(emptyList())
+        return hits.mapNotNull { hit ->
+            val relevance = ArtCatalogue.relevance(query, hit.entry.name, hit.entry.tags)
+            if (relevance <= floor || relevance < ArtCatalogue.MIN_RELEVANCE) return@mapNotNull null
+            cache.put(hit.entry.source.urlOf(hit.entry.key), hit.document)
+            icon(hit.entry, null)?.let { Found(it, relevance, hit.entry) }
+        }
     }
 
     /** The picture for [entry], drawn from its document (null when it cannot be had or drawn). */
@@ -69,6 +88,7 @@ class ArtShelf(
 
     private suspend fun document(entry: ArtEntry, fetch: (suspend (String) -> String?)?): String? {
         starter[entry.id]?.let { return it }
+        ContentPacks.artDocument(entry.id)?.let { return it }
         val url = entry.source.urlOf(entry.key)
         cache.get(url)?.let { return it.ifEmpty { null } }
         val fetched = fetch?.invoke(url) ?: return null
@@ -109,10 +129,13 @@ class ArtShelf(
 
         private var pack: Pair<ArtCatalogue, Map<String, String>>? = null
         private val shelves = HashMap<AssetCache?, ArtShelf>()
+        private var packs = -1
         private val loading = Mutex()
 
         /** The bundled catalogue and starter pack (read once), keeping fetched documents in [cache] (one shelf per cache). */
         suspend fun bundled(cache: AssetCache? = null): ArtShelf = loading.withLock {
+            // Installed content packs join the search (and replace the shelves) as soon as they change.
+            if (packs != ContentPacks.generation) shelves.clear().also { packs = ContentPacks.generation }
             shelves[cache] ?: run {
                 val (catalogue, starter) = pack ?: run {
                     val index = Res.readBytes("files/art/index.json").decodeToString()
@@ -120,7 +143,9 @@ class ArtShelf(
                         .mapValues { it.value.jsonPrimitive.content }
                     (ArtCatalogue.parse(index) to docs).also { pack = it }
                 }
-                ArtShelf(catalogue, starter, cache ?: AssetCache.Memory()).also { shelves[cache] = it }
+                val extra = ContentPacks.artEntries().filter { catalogue.entry(it.id) == null }
+                val merged = if (extra.isEmpty()) catalogue else ArtCatalogue(catalogue.entries + extra)
+                ArtShelf(merged, starter, cache ?: AssetCache.Memory()).also { shelves[cache] = it }
             }
         }
     }

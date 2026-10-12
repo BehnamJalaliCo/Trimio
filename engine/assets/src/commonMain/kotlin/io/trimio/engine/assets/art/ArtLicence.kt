@@ -36,6 +36,12 @@ data class ArtLicence(
 
         /** ShareAlike, NonCommercial, NoDerivatives and personal-only terms. */
         private val REFUSED = listOf("-sa", "sa-", "-nc", "nc-", "-nd", "nd-", "gpl", "personal", "non-commercial", "noncommercial", "proprietary", "all-rights")
-        private val PERMISSIVE = listOf("mit", "isc", "apache-2.0", "apache", "bsd-2-clause", "bsd-3-clause", "bsd", "unlicense", "0bsd")
+        private val PERMISSIVE = listOf("mit", "isc", "apache-2.0", "apache", "bsd-2-clause", "bsd-3-clause", "bsd", "unlicense", "0bsd") + IMPORTED
+
+        /**
+         * Pictures the creator brought in themselves (their own files, or LottieFiles animations under the
+         * Lottie Simple License — commercial use, no attribution — fetched with their own key): local packs only.
+         */
+        private val IMPORTED = listOf("licenseref-owner", "lottie-simple-license")
     }
 }

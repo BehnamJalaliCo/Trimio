@@ -9,6 +9,7 @@ import io.trimio.engine.assets.MusicMood
 import io.trimio.engine.assets.ProceduralSfx
 import io.trimio.engine.assets.SfxPalette
 import io.trimio.engine.assets.SoundPresets
+import io.trimio.engine.assets.packs.ContentPacks
 import io.trimio.engine.audio.LoudnessMeter
 import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.SfxKind
@@ -220,7 +221,8 @@ class Soundtrack(private val rate: Int = 48_000) {
         for ((i, cue) in kept) {
             val (base, g) = VOICES.getValue(cue.kind)
             val id = if (base in SfxPalette.CUES) "$base@${palette.id}" else base
-            val pcm = sfx.generate(id, seed = i + 1) ?: sfx.generate(base, seed = i + 1) ?: continue
+            // A recorded take from an installed sound pack voices the cue when there is one; otherwise it is synthesised.
+            val pcm = ContentPacks.sfx(base, palette.id, i + 1, rate) ?: sfx.generate(id, seed = i + 1) ?: sfx.generate(base, seed = i + 1) ?: continue
             val spoken = cue.kind !in ACCENTS && words.any { w -> cue.at * 1000 >= w.range.startMs && cue.at * 1000 < w.range.endMs }
             val stage = g * cue.gain * scale * (if (spoken) db(UNDER_WORD_DB) else 1f)
             val start = (cue.at * rate).toInt()
