@@ -244,15 +244,21 @@ class Compiler(
                 val (ink, type) = restMemo.getOrPut(key) { geometry.rest(out.nodes, w, h, times) }
                 if (restMemo.size > REST_MEMO) restMemo.remove(restMemo.keys.first())
                 ink?.let { rests[b.id] = it }
-                val move = ink?.let { safely(it, type) } ?: return@mapValues out
+                val move = ink?.let { safely(it, type, b.cue.overMedia) } ?: return@mapValues out
                 rests[b.id] = move.third
                 notes += "kept ${b.recipe.name} inside the frame"
                 out.copy(nodes = listOf(Group(out.nodes, transform = move.first, name = "keep-inside")), box = out.box?.let(move.second))
             }
         }
 
+        /** Whether [box] covers more than [FACE_SHARE] of the speaker's face. */
+        private fun covers(box: Geometry.Ink, face: Subject): Boolean {
+            val f = Geometry.Ink(face.left * w, face.top * h, face.right * w, face.bottom * h)
+            return f.area > 0f && box.shared(f) / f.area > FACE_SHARE
+        }
+
         /** The move that brings [ink] (its letters [type]) inside the safe area, and what it does to a box; null when it is inside. */
-        private fun safely(ink: Geometry.Ink, type: Geometry.Ink?): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
+        private fun safely(ink: Geometry.Ink, type: Geometry.Ink?, overMedia: Boolean): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
             val fw = w.toFloat()
             val fh = h.toFloat()
             // A full-frame stage fills the frame on purpose; a band across it may run off the sides, its words may not.
@@ -260,8 +266,14 @@ class Compiler(
             val band = ink.width >= fw * FULL
             val box = if (band) Geometry.Ink((type ?: ink).left, ink.top, (type ?: ink).right, ink.bottom) else ink
             val tall = h > w
-            val top = fh * SAFE_TOP
-            val bottom = fh * if (tall) SAFE_BOTTOM_TALL else SAFE_BOTTOM
+            var top = fh * SAFE_TOP
+            var bottom = fh * if (tall) SAFE_BOTTOM_TALL else SAFE_BOTTOM
+            // Over the speaker the face is off limits too: a graphic above it stays above the brow, one below it under the chin.
+            val face = input.subject?.takeIf { overMedia }
+            if (face != null && covers(box, face)) {
+                if ((box.top + box.bottom) / 2f < face.centerY * fh) bottom = minOf(bottom, face.top * fh - FACE_GAP) else top = maxOf(top, face.bottom * fh + FACE_GAP)
+            }
+            if (bottom - top < box.height * MIN_FIT) return null
             val left = fw * SAFE_SIDE
             // The platform's buttons run down the right of a vertical video, from about the middle.
             val right = fw * if (tall && box.bottom > fh * BUTTONS_FROM) SAFE_BUTTONS else 1f - SAFE_SIDE
@@ -807,6 +819,11 @@ class Compiler(
         /** A graphic as wide as the frame is a stage, not something over the caption band. */
         private const val FULL_WIDTH = 0.97f
         private const val NUDGE_TOL = 3f
+        /** Kept off the face: more than this share of it covered is a graphic over the face; the gap kept from it, px. */
+        private const val FACE_SHARE = 0.12f
+        private const val FACE_GAP = 12f
+        /** A graphic is shrunk to fit at most this much; smaller would be unreadable (the jury moves it instead). */
+        private const val MIN_FIT = 0.6f
         private const val REST_MEMO = 512
         private const val SHRINK_TOL = 0.01f
         private const val FOOTAGE_TEXTURE = 0.35f
