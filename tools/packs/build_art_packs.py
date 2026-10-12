@@ -68,7 +68,7 @@ def fetch(url, path, tries=4):
                 os.replace(path + ".tmp", path)
                 break
             except OSError as e:
-                if i == tries - 1:
+                if i == tries - 1 or getattr(e, "code", None) == 404:
                     raise
                 print("retry", url, e)
                 time.sleep(2 + 3 * i)
@@ -117,7 +117,10 @@ def noto_rows(work):
 
 def noto_doc(work, cp):
     os.makedirs(os.path.join(work, "noto"), exist_ok=True)
-    raw = fetch(NOTO_LOTTIE.format(id=cp), os.path.join(work, "noto", f"{cp}.json"))
+    try:
+        raw = fetch(NOTO_LOTTIE.format(id=cp), os.path.join(work, "noto", f"{cp}.json"))
+    except OSError as e:
+        return None, f"not published ({e})"
     doc = json.loads(raw)
     problem = artcheck.lottie_problem(doc)
     return None if problem else json.dumps(packlib.minify_lottie(doc), separators=(",", ":")).encode("utf-8"), problem
