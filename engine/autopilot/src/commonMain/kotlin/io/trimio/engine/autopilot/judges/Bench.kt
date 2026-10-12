@@ -130,7 +130,8 @@ internal object Bench {
 
         /** The same words (or figure) as a plain text treatment, or null when it says nothing in words. */
         fun plain(b: BeatScore): BeatScore? {
-            if (b.value != null && b.recipe != "counter") return BeatScore(
+            // Only a figure that was said becomes a counter (a progress bar's fill or a countdown's hours are worked out, not said).
+            if (b.value != null && b.recipe in SAID_FIGURES) return BeatScore(
                 recipe = "counter", at = b.at, until = b.until, time = b.time, value = b.value, decimals = b.decimals, prefix = b.prefix,
                 suffix = b.suffix, label = b.label, place = b.place, energy = b.energy,
             )
@@ -139,6 +140,7 @@ internal object Bench {
             return BeatScore(recipe = "mask-rise", at = b.at, time = b.time, text = words, place = b.place, energy = b.energy, mark = b.mark, hold = b.hold)
         }
 
+        private val SAID_FIGURES = setOf("meter", "voucher", "price-tag", "bars")
         private const val PLAIN_ITEMS = 3
         private const val PLAIN_WORDS = 5
     }

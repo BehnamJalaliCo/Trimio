@@ -44,7 +44,8 @@ internal class Script(private val c: Jury.Context) {
 
     /** Whether Latin word [w] may be on screen (anything not Latin always may). */
     fun ok(w: String): Boolean {
-        if (!latin(w)) return true
+        // A lone letter is a monogram (a brand's initial on its tile), not a word.
+        if (!latin(w) || w.count { it.isLetter() } <= 1) return true
         val low = w.lowercase()
         if (low in allowed || c.brand(w) || TIMES.matches(low)) return true
         // A site or a dotted name made of allowed parts (nobitex.ir).

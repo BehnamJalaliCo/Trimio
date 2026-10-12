@@ -245,6 +245,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             if (footage) rhythm.keepAlive(scenes)
             rhythm.vary(scenes)
             rhythm.prune(scenes, least)
+            // A full-frame stage whose graphic was pruned would stand empty: the speaker stays instead.
+            for (k in scenes.indices) if (scenes[k].bg != null && scenes[k].beats.isEmpty()) scenes[k] = scenes[k].copy(bg = null, transition = null)
             notes += rhythm.notes
         }
 
