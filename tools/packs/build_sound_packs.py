@@ -5,7 +5,7 @@ Builds the recorded-sound packs of the content channel from CC0 sources with a v
   sound.kenney-sfx    Kenney's audio packs (CC0-1.0, kenney.nl; the licence file of each pack says
                       "Creative Commons Zero, CC0"): interface, impact, UI, digital, sci-fi, casino
                       and RPG sounds, each file mapped to the soundtrack cue it voices (impact, whoosh,
-                      swoosh, pop, tick, glitch, shimmer, riser, rewind) and the palettes it suits
+                      swoosh, pop, tick, glitch, shimmer) and the palettes it suits
   music.kenney-stings Kenney's Music Jingles (CC0-1.0): short stings for openings, reveals and
                       endings (catalogue only for now: the soundtrack composes its bed)
 
@@ -41,6 +41,7 @@ SOURCES = {
 }
 ALL = ["punchy", "cinematic", "soft", "digital", "luxe", "playful"]
 # (source, file-name prefix) -> (cue, palettes, tags). First match wins; unmatched files are left out.
+# Risers and rewinds stay synthesised: their length is fitted to the build and the cold open's restart.
 RULES = [
     ("impact", "impactPunch", "impact", ["punchy", "cinematic"], ["punch", "hit"]),
     ("impact", "impactMetal_heavy", "impact", ["cinematic", "punchy"], ["metal", "heavy hit"]),
@@ -67,20 +68,14 @@ RULES = [
     ("interface", "minimize", "swoosh", ["soft", "digital"], ["close"]),
     ("interface", "open", "swoosh", ["soft"], ["open"]),
     ("interface", "scroll", "swoosh", ["digital", "soft"], ["scroll"]),
-    ("interface", "scratch", "rewind", ["playful", "punchy"], ["scratch"]),
     ("ui", "click", "tick", ["digital", "soft"], ["click"]),
     ("ui", "switch", "glitch", ["digital", "soft"], ["switch"]),
     ("ui", "rollover", "tick", ["soft", "luxe"], ["hover"]),
-    ("digital", "phaserUp", "riser", ["digital", "playful"], ["rise", "phaser"]),
-    ("digital", "powerUp", "riser", ["playful", "digital"], ["power up"]),
-    ("digital", "zapThreeToneUp", "riser", ["digital"], ["zap up"]),
-    ("digital", "highUp", "riser", ["digital", "playful"], ["up"]),
     ("digital", "laser", "whoosh", ["digital"], ["laser"]),
     ("digital", "zap", "glitch", ["digital", "punchy"], ["zap"]),
     ("digital", "pepSound", "pop", ["playful", "digital"], ["blip"]),
     ("digital", "twoTone", "shimmer", ["digital", "playful"], ["chime"]),
     ("digital", "threeTone", "shimmer", ["digital", "playful"], ["chime"]),
-    ("scifi", "forceField", "riser", ["digital", "cinematic"], ["force field"]),
     ("scifi", "laserLarge", "whoosh", ["digital", "cinematic"], ["laser"]),
     ("scifi", "laserRetro", "whoosh", ["digital", "playful"], ["laser"]),
     ("scifi", "laserSmall", "swoosh", ["digital"], ["laser"]),

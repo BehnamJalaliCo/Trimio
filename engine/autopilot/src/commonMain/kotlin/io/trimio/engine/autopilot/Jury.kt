@@ -281,25 +281,34 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var round = 0
         while (!panel.unanimous && round < budget.rounds) {
             val options = options(ctx, panel)
-            if (options.isEmpty()) break
-            round++
-            var kept = false
-            for ((what, fix) in options) {
-                val next = revise(current, fix)
-                val nextCtx = context(next)
-                val nextPanel = deliberate(nextCtx)
-                log("jury $name round $round ($what): ${nextPanel.summary()}")
-                if (!nextPanel.betterThan(panel)) continue
-                current = next
-                ctx = nextCtx
-                panel = nextPanel
-                panel.details().forEach(log)
-                kept = true
-                break
-            }
-            if (!kept) break
+            if (options.isNotEmpty()) round++
+            val better = if (options.isEmpty()) null else firstBetter(current, panel, options, context, revise) { what, p -> log("jury $name round $round ($what): ${p.summary()}") }
+            if (better == null) break
+            current = better.first
+            ctx = better.second
+            panel = better.third
+            panel.details().forEach(log)
         }
         return Triple(current, panel, round)
+    }
+
+    /** The first of [options] whose revision of [current] the panel prefers to [panel], with its context and panel; null when none is. */
+    private suspend fun <T> firstBetter(
+        current: T,
+        panel: Panel,
+        options: List<Pair<String, Revision>>,
+        context: suspend (T) -> Context,
+        revise: suspend (T, Revision) -> T,
+        log: (String, Panel) -> Unit,
+    ): Triple<T, Context, Panel>? {
+        for ((what, fix) in options) {
+            val next = revise(current, fix)
+            val nextCtx = context(next)
+            val nextPanel = deliberate(nextCtx)
+            log(what, nextPanel)
+            if (nextPanel.betterThan(panel)) return Triple(next, nextCtx, nextPanel)
+        }
+        return null
     }
 
     companion object {
