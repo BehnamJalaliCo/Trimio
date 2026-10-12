@@ -163,7 +163,7 @@ class EditGateTest {
         val beats = fixed.scenes.flatMap { it.beats }
         assertTrue(beats.any { it.recipe == "counter" && it.value == 90f }, "a counter where ninety percent is said: $beats")
         assertTrue(beats.any { it.recipe == "url" && it.text == "nobitrade.ir" }, "$beats")
-        assertTrue(beats.any { it.label == "@NobiSignal_bot" }, "$beats")
+        assertTrue(beats.any { it.label?.trim('\u200E') == "@NobiSignal_bot" }, "$beats")
         val after = BriefJudge().score(context(fixed))
         assertTrue(after.findings.none { "numbers as graphics" in it.what || "site card" in it.what || "NobiSignal" in it.what }, "${after.findings}")
     }

@@ -132,7 +132,7 @@ class Autopilot(
         val lineFixes = lines.indices.flatMap { k ->
             val l = lines[k]
             Proofreader.align(texts.subList(l.first, l.last + 1), l.first, understanding.lines.getOrNull(k)?.fixed.orEmpty()).entries
-        }.associate { it.key to it.value }.filter { (i, w) -> real(w, lexicon, request.prompt) && !lexicon.worse(texts[i], w) }
+        }.associate { it.key to it.value }.filter { (i, w) -> real(w, lexicon, request.prompt) && !lexicon.worse(texts[i], w) && !latinised(texts[i], w) }
         lineFixes.forEach { (i, w) -> report += "spelling (director): ${texts[i]} → $w" }
         val transcript = analysis.transcript.withFixes(lineFixes)
         report += "understand: ${understanding.title} | ${understanding.domain}/${understanding.mood} | hook line ${understanding.hook?.line} | cta ${understanding.cta?.keyword}"
@@ -401,6 +401,10 @@ class Autopilot(
         val said = prompt.replace("\u200C", "").split(Regex("[^\\p{L}\\p{N}]+")).toSet()
         return lexicon.count(core) > 0 || core.replace("\u200C", "") in said
     }
+
+    /** A word said in Persian («تتر») respelled in Latin letters («Tether»): a translation, not a spelling fix. */
+    private fun latinised(heard: String, fixed: String): Boolean =
+        heard.any { it in '\u0600'..'\u06FF' } && fixed.none { it in '\u0600'..'\u06FF' } && fixed.any { it.isLetter() }
 
     private fun compile(compiler: Compiler, score: Score, transcript: Transcript, edit: EditPlan, request: Request) =
         compiler.compile(input(score, transcript, edit, request)).also(onCompiled)

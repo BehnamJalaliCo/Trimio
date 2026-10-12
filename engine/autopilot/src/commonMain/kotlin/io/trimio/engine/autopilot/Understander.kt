@@ -49,10 +49,13 @@ class Understander(private val model: LanguageModel) {
         // a third of the calls. Past [budget] the rest are read by the rules, so a slow device ends.
         val clock = TimeSource.Monotonic.markNow()
         val rules by lazy { RulesUnderstander.understand(transcript, prompt, lines).lines }
-        val reads = mutableListOf<LineRead>()
-        for (group in lines.indices.chunked(GROUP)) {
+        val reads = mutableMapOf<Int, LineRead>()
+        // On a slow device the budget runs out after a few groups: the model reads the lines that become
+        // graphics first (figures, names, the ask, what the rules would show), the rules read the plain rest.
+        val groups = lines.indices.chunked(GROUP).let { all -> if (budget == null) all else all.sortedByDescending { g -> g.sumOf { weight(it, transcript, lines, rules) } } }
+        for (group in groups) {
             if (budget != null && clock.elapsedNow() > budget) {
-                group.forEach { k -> reads += rules.getOrNull(k) ?: LineRead(show = "none") }
+                group.forEach { k -> reads[k] = rules.getOrNull(k) ?: LineRead(show = "none") }
             } else {
                 val got = runCatching {
                     model.generateStructured(
@@ -63,11 +66,21 @@ class Understander(private val model: LanguageModel) {
                         LineReads.serializer(), onText = onText,
                     ).reads
                 }.getOrDefault(emptyList())
-                group.forEachIndexed { i, k -> reads += got.getOrNull(i) ?: rules.getOrNull(k) ?: LineRead(show = "none") }
+                group.forEachIndexed { i, k -> reads[k] = got.getOrNull(i) ?: rules.getOrNull(k) ?: LineRead(show = "none") }
             }
             onLine(reads.size, lines.size)
         }
-        return sanitize(g.copy(lines = reads), transcript.words.size, lines.size)
+        return sanitize(g.copy(lines = lines.indices.map { reads[it] ?: LineRead(show = "none") }), transcript.words.size, lines.size)
+    }
+
+    /** How much line [k] needs the model: a figure, a name, the ask, or a graphic the rules would show. */
+    private fun weight(k: Int, transcript: Transcript, lines: List<Lines.Line>, rules: List<LineRead>): Int {
+        val texts = transcript.words.subList(lines[k].first, lines[k].last + 1).map { it.text }
+        val figure = if (io.trimio.engine.motion.score.NumberWords.findAll(texts).any { it.value >= 2 }) 2 else 0
+        val name = if (texts.any { w -> w.any { it in 'A'..'Z' || it in 'a'..'z' } }) 1 else 0
+        val shown = if (rules.getOrNull(k)?.show !in setOf(null, "none", "headline")) 2 else 0
+        val ask = if (k == lines.lastIndex || k == lines.lastIndex - 1) 2 else 0
+        return figure + name + shown + ask
     }
 
     companion object {

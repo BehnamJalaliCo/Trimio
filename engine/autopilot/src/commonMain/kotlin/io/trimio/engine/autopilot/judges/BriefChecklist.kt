@@ -49,13 +49,20 @@ internal class BriefChecklist(private val c: Jury.Context) {
     fun figures(): List<Pair<Float, Quantities.Quantity>> {
         if (!asked("اعداد", "عددها", "عدد ها", "ارقام", "رقم", "numbers", "figures")) return emptyList()
         val senses = Quantities.senses(texts, c.lines)
-        return senses.flatMap { it.quantities }.filter(::significant).distinctBy { it.at }.mapNotNull { q ->
-            val t = start(q.at)
-            val digits = io.trimio.core.model.text.Numerals.toLatin(NumberWords.normalize(q.value.toLong().toString()))
-            val shown = graphics.any { g ->
-                g.at <= t + AFTER && g.out >= t - BEFORE && (g.recipe in FIGURES || digits in io.trimio.core.model.text.Numerals.toLatin(g.text).replace("٬", "").replace(",", ""))
-            }
-            (t to q).takeIf { !shown && t >= prelude }
+        // Each figure once: a value already in a graphic (the voucher's 350, the quota's 1000), or up as one of its mentions is said.
+        val values = c.score.scenes.flatMap { s -> s.beats.mapNotNull { it.value } }.map { it.toDouble() }
+        return senses.flatMap { it.quantities }.filter { significant(it) && start(it.at) >= prelude }.groupBy { it.value }.values.mapNotNull { said ->
+            val shown = values.any { kotlin.math.abs(it - said.first().value) < SAME } || said.any(::shownAt)
+            said.first().takeIf { !shown }?.let { start(it.at) to it }
+        }
+    }
+
+    /** A figure graphic, or one writing [q]'s digits, up while [q] is said. */
+    private fun shownAt(q: Quantities.Quantity): Boolean {
+        val t = start(q.at)
+        val digits = io.trimio.core.model.text.Numerals.toLatin(NumberWords.normalize(q.value.toLong().toString()))
+        return graphics.any { g ->
+            g.at <= t + AFTER && g.out >= t - BEFORE && (g.recipe in FIGURES || digits in io.trimio.core.model.text.Numerals.toLatin(g.text).replace("٬", "").replace(",", ""))
         }
     }
 
@@ -101,7 +108,8 @@ internal class BriefChecklist(private val c: Jury.Context) {
 
     fun revise(): Score {
         var score = c.score
-        for ((_, q) in figures().take(MAX_EACH)) score = add(score, q.at, counter(q))
+        // A full-frame stage already holds its own graphic: a second card on it would crowd it.
+        for ((t, q) in figures().take(MAX_EACH)) if (Bench.overFootageAt(c, t)) score = add(score, q.at, counter(q))
         for (k in bare().take(MAX_EACH)) {
             val title = Phrases.title(c.words, c.lines[k]).ifBlank { continue }
             score = add(score, c.lines[k].first, BeatScore(recipe = "mask-rise", text = title, place = "top", energy = KEY_ENERGY))
@@ -135,7 +143,7 @@ internal class BriefChecklist(private val c: Jury.Context) {
 
     /** The brief's handle on the ask: the comment field's or end card's label names it. */
     private fun named(score: Score): Score {
-        val handle = glossary.handles.first()
+        val handle = glossary.shown(glossary.handles.first())
         var done = false
         val scenes = score.scenes.map { s ->
             s.copy(beats = s.beats.map { b -> if (!done && (b.recipe == Bench.COMMENT || b.recipe == "endcard")) b.copy(label = handle).also { done = true } else b })
@@ -151,6 +159,7 @@ internal class BriefChecklist(private val c: Jury.Context) {
 
     private companion object {
         const val PAUSE = 0.45f
+        const val SAME = 0.01
         const val MAX_EACH = 3
         const val BEFORE = 1.0f
         const val AFTER = 0.8f

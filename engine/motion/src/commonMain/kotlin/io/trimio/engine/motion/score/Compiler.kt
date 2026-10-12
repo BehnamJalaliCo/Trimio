@@ -269,7 +269,7 @@ class Compiler(
             var top = fh * SAFE_TOP
             var bottom = fh * if (tall) SAFE_BOTTOM_TALL else SAFE_BOTTOM
             // Over the speaker the face is off limits too: a graphic above it stays above the brow, one below it under the chin.
-            val face = input.subject?.takeIf { overMedia }
+            val face = input.subject?.face?.takeIf { overMedia }
             if (face != null && covers(box, face)) {
                 if ((box.top + box.bottom) / 2f < face.centerY * fh) bottom = minOf(bottom, face.top * fh - FACE_GAP) else top = maxOf(top, face.bottom * fh + FACE_GAP)
             }

@@ -205,4 +205,14 @@ class EditPlan(
 data class Subject(val left: Float, val top: Float, val right: Float, val bottom: Float) {
     val centerX: Float get() = (left + right) / 2f
     val centerY: Float get() = (top + bottom) / 2f
+
+    /**
+     * The face inside the head box: brow to chin. A card may rest on the top of the head (the
+     * scalp, the hair) as editors put titles there; over the eyes, nose or mouth it may not.
+     */
+    val face: Subject get() = copy(top = top + (bottom - top) * SCALP)
+
+    private companion object {
+        const val SCALP = 0.25f
+    }
 }

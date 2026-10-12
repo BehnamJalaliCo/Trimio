@@ -16,6 +16,12 @@ internal class Glossary(
     /** Handles the brief writes (a Telegram bot or channel, an Instagram page): «@trimio_bot», as written. */
     val handles: List<String> = emptyList(),
 ) {
+    /**
+     * A handle as it is set in a Persian line: a left-to-right mark before it keeps «@» on the
+     * handle's left («@trimio_bot», never «trimio_bot@»).
+     */
+    fun shown(handle: String) = "\u200E" + handle
+
     /** The brief's spelling of a heard [word] when it is one of its sites (or any domain said as one). */
     fun site(word: String): String? {
         val core = word.trim { !it.isLetterOrDigit() }

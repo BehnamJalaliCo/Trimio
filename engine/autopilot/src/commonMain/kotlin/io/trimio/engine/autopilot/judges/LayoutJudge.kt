@@ -155,7 +155,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
     }
 
     private fun onFace(c: Jury.Context, frame: Frame, g: Geometry.Track): Boolean {
-        val s = c.subject ?: return false
+        val s = c.subject?.face ?: return false
         val face = Geometry.Ink(s.left * frame.w, s.top * frame.h, s.right * frame.w, s.bottom * frame.h)
         if (face.area <= 0f) return false
         return g.resting().any { r -> r.ink?.let { !frame.fills(it) && it.shared(face) / face.area > faceShare } == true }
@@ -193,7 +193,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         val w = c.compiled.composition.width.toFloat()
         val h = c.compiled.composition.height.toFloat()
         val seen = c.looks.filter { it.coversFace }.map { it.beat }
-        val s = c.subject ?: return seen
+        val s = c.subject?.face ?: return seen
         val face = listOf(s.left * w, s.top * h, s.right * w, s.bottom * h)
         val area = (face[2] - face[0]) * (face[3] - face[1])
         val covering = graphics.filter { g ->

@@ -26,7 +26,7 @@ import io.trimio.engine.motion.score.Words
  * Glossary: a site said aloud gets the address-bar card spelled as the brief writes it, and when
  * the brief asks for terms to be explained («توضیح بده») a term it defines gets a lower third.
  */
-internal class UserMedia(private val assets: List<UserAsset>, private val readings: List<AssetReading>, brief: String) {
+internal class UserMedia(private val assets: List<UserAsset>, private val readings: List<AssetReading>, private val brief: String) {
 
     private val glossary = Glossary.read(brief)
 
@@ -207,6 +207,12 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
 
     // ------------------------------------------------------------------ glossary
 
+    /** The content words of the brief's sentence that asks for [domain] (what the card should land on). */
+    private fun cueWords(domain: String): Set<String> {
+        val sentence = brief.split('\n', '.', '؛', '!', '?', '؟').firstOrNull { it.contains(domain, ignoreCase = true) } ?: return emptySet()
+        return sentence.split(' ', '،', ',', '«', '»', '(', ')').map(::key).filter { it.length >= CUE_LETTERS && it.none { c -> c in 'a'..'z' } && it !in CUE_STOP }.toSet()
+    }
+
     /** The address-bar card where a site is first said, spelled as the brief writes it. */
     private fun sites(score: Score, words: List<Word>, lines: List<Lines.Line>, log: (String) -> Unit): Score {
         var s = score
@@ -214,7 +220,9 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
         // Asked for and never said: on the speaker's own mention of a site or link, else on the line before the last.
         val firsts = said.ifEmpty {
             val domain = glossary.sites.firstOrNull()?.takeIf { cardAsked } ?: return@ifEmpty emptyList()
-            val mention = words.indices.firstOrNull { key(words[it].text) in MENTIONS }
+            // The brief says when («وقتی از صرافی و ثبت‌نام حرف می‌زنه … nobitex.ir»): the first of its words the speaker says.
+            val cue = cueWords(domain)
+            val mention = words.indices.firstOrNull { key(words[it].text) in cue } ?: words.indices.firstOrNull { key(words[it].text) in MENTIONS }
             listOfNotNull((mention ?: lines.getOrNull(lines.size - 2)?.first)?.let { domain to it })
         }
         for ((domain, i) in firsts) {
@@ -269,6 +277,9 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
         private const val PIP_HOLD = 2.2f
         private const val URL_HOLD = 2.8f
         private val CARD_WORDS = listOf("آدرس سایت", "کارت سایت", "سایت رو", "سایت را", "لینک سایت", "website", "site card", "url")
+        private const val CUE_LETTERS = 3
+        /** The brief's own instructions around a site are not what the speaker says. */
+        private val CUE_STOP = setOf("وقتی", "کارت", "آدرس", "سایت", "نشون", "نشان", "بده", "بذار", "حرف", "میزنه", "می‌زنه", "رو", "را", "اسم", "میاد")
         private val MENTIONS = setOf("سایت", "سایتمون", "سایتم", "وبسایت", "آدرس", "لینک", "site", "website", "link")
         private const val TERM_HOLD = 3.2f
         private const val MIN_CUT_IN = 1.2f
