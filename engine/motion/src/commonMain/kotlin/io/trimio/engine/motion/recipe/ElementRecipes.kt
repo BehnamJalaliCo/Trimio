@@ -376,7 +376,11 @@ object ElementRecipes {
     private const val MAX_ITEMS = 6
     private const val HOOK_ENERGY = 0.8f
 
-    val all: List<Recipe> = listOf(Counter, Ticker, Chart, Bars, IconPop, LowerThird, Stamp, Checklist)
+    /**
+     * The lower-third, the counter and the stamp are registered as their families ([TalkFamilies.LowerThirds],
+     * [FigureFamilies]), whose signature cuts these are.
+     */
+    val all: List<Recipe> = listOf(Ticker, Chart, Bars, IconPop, Checklist)
 }
 
 private fun Color.luminance(): Float = 0.2126f * red + 0.7152f * green + 0.0722f * blue

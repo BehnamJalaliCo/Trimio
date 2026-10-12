@@ -32,7 +32,6 @@ class AndroidFootage(
     private var wantedUs = 0L
     private var last: ImageBitmap? = null
     private val info = MediaCodec.BufferInfo()
-    private val pixels = IntArray(width * height)
 
     override fun frame(source: String, time: Float): ImageBitmap? {
         if (id != null && source != id) return null
@@ -108,40 +107,28 @@ class AndroidFootage(
         return !(inputDone && outputDone)
     }
 
-    /** YUV_420_888 → ARGB, centre-cropped to fill the frame, rotated upright, in one pass. */
+    /** YUV_420_888 → ARGB, centre-cropped to fill the frame, rotated upright, in one pass ([YuvCrop], rows in parallel). */
     private fun convert(image: android.media.Image): ImageBitmap {
-        val sw = image.width
-        val sh = image.height
-        val upright = rotation % 180 != 0
-        val uw = if (upright) sh else sw
-        val uh = if (upright) sw else sh
-        val k = maxOf(width / uw.toFloat(), height / uh.toFloat())
-        val ox = (uw - width / k) / 2f
-        val oy = (uh - height / k) / 2f
         val (yp, up, vp) = image.planes.let { Triple(it[0], it[1], it[2]) }
-        val y = yp.buffer
-        val u = up.buffer
-        val v = vp.buffer
-        for (dy in 0 until height) {
-            for (dx in 0 until width) {
-                val ux = (ox + dx / k).toInt().coerceIn(0, uw - 1)
-                val uy = (oy + dy / k).toInt().coerceIn(0, uh - 1)
-                // Upright coordinates back to the stored (unrotated) frame.
-                val (sx, sy) = when (rotation) {
-                    ROT_90 -> uy to (sh - 1 - ux)
-                    ROT_180 -> (sw - 1 - ux) to (sh - 1 - uy)
-                    ROT_270 -> (sw - 1 - uy) to ux
-                    else -> ux to uy
-                }
-                val lum = y.get(sy * yp.rowStride + sx * yp.pixelStride).toInt() and 0xFF
-                val ci = (sy / 2) * up.rowStride + (sx / 2) * up.pixelStride
-                val cb = (u.get(ci).toInt() and 0xFF) - CHROMA_ZERO
-                val cr = (v.get((sy / 2) * vp.rowStride + (sx / 2) * vp.pixelStride).toInt() and 0xFF) - CHROMA_ZERO
-                pixels[dy * width + dx] = argb(lum, cb, cr)
-            }
-        }
-        val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
+        val planes = YuvPlanes(
+            copy(yp.buffer, 0), yp.rowStride, yp.pixelStride,
+            copy(up.buffer, 1), up.rowStride, up.pixelStride,
+            copy(vp.buffer, 2), vp.rowStride, vp.pixelStride,
+        )
+        crop.convert(planes, image.width, image.height, rotation) { n, band -> java.util.stream.IntStream.range(0, n).parallel().forEach { band(it) } }
+        val bitmap = Bitmap.createBitmap(crop.pixels, width, height, Bitmap.Config.ARGB_8888)
         return bitmap.asImageBitmap()
+    }
+
+    private val crop = YuvCrop(width, height)
+    private val planeBytes = arrayOfNulls<ByteArray>(3)
+
+    /** A plane's bytes in a reused array (absolute indices, as the plane's strides address them). */
+    private fun copy(buffer: java.nio.ByteBuffer, k: Int): ByteArray {
+        val n = buffer.limit()
+        val bytes = planeBytes[k]?.takeIf { it.size >= n } ?: ByteArray(n).also { planeBytes[k] = it }
+        buffer.duplicate().apply { position(0) }.get(bytes, 0, n)
+        return bytes
     }
 
     override fun close() {
@@ -157,19 +144,6 @@ class AndroidFootage(
         const val FRAME_US = 33_333L
         const val SEEK_AHEAD_US = 2_000_000L
         const val TIMEOUT_US = 10_000L
-        const val ROT_90 = 90
-        const val ROT_180 = 180
-        const val ROT_270 = 270
-        const val CHROMA_ZERO = 128
-
-        /** BT.601 limited range, the phone cameras' default. */
-        fun argb(lum: Int, cb: Int, cr: Int): Int {
-            val c = (lum - 16).coerceAtLeast(0) * 1192
-            val r = ((c + 1634 * cr) shr 10).coerceIn(0, 255)
-            val g = ((c - 833 * cr - 400 * cb) shr 10).coerceIn(0, 255)
-            val b = ((c + 2066 * cb) shr 10).coerceIn(0, 255)
-            return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-        }
     }
 }
 

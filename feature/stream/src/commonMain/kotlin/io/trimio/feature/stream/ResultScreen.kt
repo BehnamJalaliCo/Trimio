@@ -34,6 +34,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -60,6 +62,7 @@ import io.trimio.core.designsystem.signature.SigRoundButton
 import io.trimio.core.designsystem.signature.SigScreen
 import io.trimio.core.designsystem.signature.SigSecondaryButton
 import io.trimio.core.designsystem.signature.SigSpace
+import io.trimio.core.designsystem.signature.SigTextButton
 import io.trimio.core.designsystem.signature.SigTextField
 import io.trimio.core.designsystem.signature.gutter
 import io.trimio.core.designsystem.theme.localizedNumber
@@ -71,7 +74,17 @@ import io.trimio.core.designsystem.theme.tr
  * version, and saving or sharing the file.
  */
 @Composable
-fun ResultScreen(result: BuildResult, actions: ResultActions, player: (@Composable BoxScope.() -> Unit)? = null) {
+fun ResultScreen(result: BuildResult, actions: ResultActions, video: VideoPlayer? = null, startFullscreen: Boolean = false) {
+    var fullscreen by remember(video) { mutableStateOf(startFullscreen && video != null) }
+    if (fullscreen && video != null) {
+        // The edit alone on black, the whole window or screen; the transport leaves it the same way.
+        FullscreenBack { fullscreen = false }
+        VideoStage(video, result.poster, result.title, fullscreen = true, onFullscreen = { fullscreen = it }, modifier = Modifier.fillMaxSize(), initiallyStarted = true)
+        return
+    }
+    val player: (@Composable BoxScope.() -> Unit)? = video?.let { v ->
+        { VideoStage(v, result.poster, result.title, fullscreen = false, onFullscreen = { fullscreen = it }, modifier = Modifier.fillMaxSize()) }
+    }
     SigScreen {
         SigAdaptive { width ->
             if (width.wide) {
@@ -155,6 +168,8 @@ private fun Body(result: BuildResult, actions: ResultActions) {
     Column(Modifier.padding(top = 6.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Stats(result)
         JurySummary(result)
+        // The run's technical report (device, engine, every stage's time, speeds), kept with the project.
+        actions.onDetails?.let { SigTextButton(tr("جزئیات فنی این ساخت", "This build's technical details"), it) }
         Feedback(actions.onFeedback, enabled = !result.working)
         val edit = actions.onEdit
         if (edit != null) {
@@ -210,7 +225,8 @@ private fun JurySummary(result: BuildResult) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             result.judges.forEach { JudgeBead(it) }
         }
-        result.findings.take(2).forEach { line ->
+        // Every judge below 10, said plainly (the jury's summary lines come first, details are indented).
+        result.findings.filter { !it.startsWith(" ") }.ifEmpty { result.findings.take(2) }.take(MAX_SHORTFALLS).forEach { line ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.padding(top = 8.dp).size(4.dp).clip(CircleShape).background(c.faint))
                 Text(line, style = Sig.type.meta, color = c.muted)
@@ -290,7 +306,17 @@ private fun took(seconds: Int, onDevice: Boolean): String {
     }
 }
 
+/** The system back (Android) leaves full screen instead of the result. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun FullscreenBack(onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
+}
+
 internal fun clock(ms: Long): String {
     val s = (ms / 1000).toInt()
     return "${(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}"
 }
+
+/** Judges below 10 listed on the result (all ten at most). */
+private const val MAX_SHORTFALLS = 10

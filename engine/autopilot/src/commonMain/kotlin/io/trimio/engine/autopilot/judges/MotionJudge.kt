@@ -34,8 +34,15 @@ class MotionJudge(
         f += crossing(graphics).map { (a, b) ->
             Bench.finding(b.at, Severity.Minor, "${b.recipe} enters over ${a.recipe}'s exit in the ${b.zone} band", "move it to the other band or wait for the exit")
         }.capped()
-        f += repeats(c, graphics).map { (a, b) -> Bench.finding(b.at, Severity.Minor, "${b.recipe} twice back to back (${Bench.r1(a.at)}s, ${Bench.r1(b.at)}s)", "vary the second treatment") }.capped()
+        f += repeats(c, graphics).map { (a, b) ->
+            val sev = if (a.variant == b.variant) Severity.Major else Severity.Minor
+            Bench.finding(b.at, sev, "${b.recipe} twice back to back (${Bench.r1(a.at)}s, ${Bench.r1(b.at)}s)", "another device, or at least another layout of it")
+        }.capped()
         f += variety(graphics)
+        // The right element for the moment: a graphic shows what is being said while it is up.
+        f += Relevance(c).misses().map { m ->
+            Bench.finding(m.placed.at, Severity.Major, "${m.placed.recipe} shows «${m.shown}» while something else is said", if (m.saidAt != null) "land it where it is said" else "show what this line says")
+        }.capped(MAX_SHORT)
         return Verdict.of(this, f)
     }
 
@@ -72,8 +79,10 @@ class MotionJudge(
         if (graphics.size < VARIETY_FROM) return emptyList()
         val counts = graphics.groupingBy { it.recipe }.eachCount()
         val top = counts.maxBy { it.value }
+        // A longer piece earns more devices: a third of its graphics, between three and six.
+        val kinds = (graphics.size / KINDS_PER).coerceIn(MIN_KINDS, MAX_KINDS)
         return listOfNotNull(
-            Bench.finding(0f, Severity.Minor, "only ${counts.size} treatments over ${graphics.size} graphics", "vary the treatments").takeIf { counts.size < MIN_KINDS },
+            Bench.finding(0f, Severity.Minor, "only ${counts.size} treatments over ${graphics.size} graphics", "vary the treatments").takeIf { counts.size < kinds },
             Bench.finding(0f, Severity.Minor, "${top.key} is ${top.value} of ${graphics.size} graphics", "vary the treatments").takeIf { top.value > graphics.size * MAX_SHARE },
         )
     }
@@ -93,8 +102,21 @@ class MotionJudge(
             Bench.locate(score, c.words, b)?.let { at -> score = Bench.mapBeat(score, at) { it.copy(place = Bench.otherBand(b.zone)) } }
         }
         for ((_, b) in repeats(c, graphics)) {
-            val swap = Bench.ALTERNATE[b.recipe] ?: continue
-            Bench.locate(score, c.words, b)?.let { at -> score = Bench.mapBeat(score, at) { it.copy(recipe = swap) } }
+            val at = Bench.locate(score, c.words, b) ?: continue
+            val variants = Recipes.named(b.recipe)?.variants ?: 1
+            val swap = Bench.ALTERNATE[b.recipe]
+            score = Bench.mapBeat(score, at) { s ->
+                when {
+                    swap != null -> s.copy(recipe = swap)
+                    s.variant == null && variants > 1 -> s.copy(variant = (b.variant + 1) % variants)
+                    else -> s
+                }
+            }
+        }
+        // Out of its moment: landed where its words are said, or left out.
+        for (m in Relevance(c).misses()) {
+            val at = Bench.locate(score, c.words, m.placed) ?: continue
+            score = Bench.mapBeat(score, at) { s -> m.saidAt?.takeIf { s.at != it }?.let { i -> s.copy(at = i, until = null, time = null) } }
         }
         return score.takeIf { it != c.score }
     }
@@ -122,8 +144,10 @@ class MotionJudge(
         const val EXIT = 0.6f
         const val VARIETY_FROM = 6
         const val MIN_KINDS = 3
-        const val MAX_SHARE = 0.6f
-        /** Each figure is its own news: two counters in a row show two different numbers. */
-        val REPEATABLE = setOf("comment", "message", "counter")
+        const val MAX_KINDS = 6
+        const val KINDS_PER = 3
+        const val MAX_SHARE = 0.4f
+        /** The ask and a thread run on as one story; every other device twice running reads as a loop. */
+        val REPEATABLE = setOf("comment", "message")
     }
 }

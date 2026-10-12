@@ -150,6 +150,23 @@ sealed interface Decoration {
         val duration: Float = 0.12f,
     ) : Decoration
 
+    /**
+     * A hand-drawn mark under the words, drawn on in reading order: a wavy scribble, a double
+     * rule, or a strike through them ([Scribble.Kind]).
+     */
+    data class Scribble(
+        override val words: IntRange,
+        override val at: Float,
+        val color: Color,
+        val kind: Kind = Kind.Wave,
+        val duration: Float = 0.42f,
+        val thickness: Float = 0.07f,
+        /** em below the baseline (a strike ignores it and runs through the middle of the letters). */
+        val offset: Float = 0.18f,
+    ) : Decoration {
+        enum class Kind { Wave, Double, Strike }
+    }
+
     /** A hand-drawn loop around the words, drawn on. */
     data class Circle(
         override val words: IntRange,

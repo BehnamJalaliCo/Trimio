@@ -94,13 +94,31 @@ data class Delivery(
     @Serializable
     data class Hold(val length: Float, val sourceStart: Float, val running: Float)
 
-    /** A vector picture ([VectorIcon]); colours as ARGB. */
+    /** A vector picture ([VectorIcon]); colours as ARGB; an animated one keeps its document ([motion]). */
     @Serializable
-    data class Icon(val name: String, val set: String, val width: Float, val height: Float, val layers: List<Layer>, val keywords: List<String> = emptyList()) {
-        fun icon() = VectorIcon(name, set, width, height, layers.map { it.layer() }, keywords)
+    data class Icon(
+        val name: String,
+        val set: String,
+        val width: Float,
+        val height: Float,
+        val layers: List<Layer>,
+        val keywords: List<String> = emptyList(),
+        val motion: Motion? = null,
+    ) {
+        fun icon() = VectorIcon(name, set, width, height, layers.map { it.layer() }, keywords, motion?.art(width, height))
 
         companion object {
-            fun of(i: VectorIcon) = Icon(i.name, i.set, i.width, i.height, i.layers.map(Layer::of), i.keywords)
+            fun of(i: VectorIcon) = Icon(i.name, i.set, i.width, i.height, i.layers.map(Layer::of), i.keywords, i.motion?.let(Motion::of))
+        }
+    }
+
+    /** An animated picture's document ([io.trimio.engine.motion.art.MotionArt]): drawn again with no network. */
+    @Serializable
+    data class Motion(val format: String, val document: String, val loops: Boolean) {
+        fun art(width: Float, height: Float) = io.trimio.engine.motion.art.MotionArts.read(format, document, width, height, loops)
+
+        companion object {
+            fun of(m: io.trimio.engine.motion.art.MotionArt) = Motion(m.format, m.document, m.loops)
         }
     }
 

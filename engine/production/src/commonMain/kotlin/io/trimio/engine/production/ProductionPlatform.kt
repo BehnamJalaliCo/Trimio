@@ -11,6 +11,8 @@ import io.trimio.engine.llm.RgbImage
 import io.trimio.engine.models.DeviceTier
 import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.MediaSource
+import io.trimio.engine.production.diagnostics.Fact
+import io.trimio.engine.production.diagnostics.MemoryUse
 
 /**
  * What differs between platforms; everything else (the autopilot, previews, checkpoints, the
@@ -56,6 +58,18 @@ interface ProductionPlatform {
 
     /** Device class, heat and battery right now: they set the jury's budget ([Juries.forDevice]). */
     fun device(): DeviceState = DeviceState()
+
+    /** The device for the technical report: maker and model, chip, OS, memory, cores. */
+    fun about(): List<Fact> = emptyList()
+
+    /** The process's memory now and at its peak, where the platform can read it. */
+    fun memory(): MemoryUse? = null
+
+    /** The speech model recognition uses now (catalogue id or file name), when known. */
+    fun speechModel(): String? = null
+
+    /** The next lighter director after the model [current] (a smaller installed one, else the rules). */
+    suspend fun lighter(current: String?): DirectorChoice = DirectorChoice.Rules
 
     /** Renders [production] to the MP4 at [out] with its mastered soundtrack; [onFrame] gets (done, total). */
     suspend fun export(

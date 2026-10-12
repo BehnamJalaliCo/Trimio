@@ -49,6 +49,7 @@ internal class VectorPainter {
 
     fun draw(scope: DrawScope, node: VectorNode, t: Float, alpha: Float) = with(scope) {
         val icon = node.icon
+        icon.motion?.let { art -> return@with drawMotion(node, art, t, alpha) }
         val k = node.width / icon.width
         val tint = node.tint.at(t)
         val assemble = node.assemble.at(t).coerceIn(0f, 1f)
@@ -69,6 +70,22 @@ internal class VectorPainter {
                 val m = if (local >= 1f) M3.IDENTITY else M3.translate(cx, cy) * M3.scale(s, s) * M3.translate(-cx, -cy)
                 withM(m) { drawLayer(layer, p, tint, a) }
             }
+        }
+    }
+
+    /**
+     * An animated picture plays on its own clock ([VectorNode.play], else from when it starts to
+     * assemble); the assemble only fades it in, the animation itself is the entrance.
+     */
+    private fun DrawScope.drawMotion(node: VectorNode, art: io.trimio.engine.motion.art.MotionArt, t: Float, alpha: Float) {
+        val onset = (node.assemble as? Anim.Keys)?.keys?.first()?.t ?: node.start.takeIf { it.isFinite() } ?: 0f
+        val clock = node.play?.at(t) ?: (t - onset)
+        val fade = Easing.ExpoOut.at((node.assemble.at(t) * MOTION_FADE).coerceIn(0f, 1f))
+        val a = alpha * fade
+        if (a <= 0.002f) return
+        val k = node.width / art.width
+        withTransform({ scale(k, k, Offset.Zero) }) {
+            art.draw(this, clock.coerceAtLeast(0f), io.trimio.engine.motion.art.ArtPaint(node.tint.at(t), a))
         }
     }
 
@@ -97,5 +114,8 @@ internal class VectorPainter {
     private companion object {
         /** How much of the assemble is spent staggering layers (the rest lets the last one land). */
         const val ASSEMBLE_SPREAD = 0.6f
+
+        /** An animated picture is fully in by a third of its assemble. */
+        const val MOTION_FADE = 3f
     }
 }

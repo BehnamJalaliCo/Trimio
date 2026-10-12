@@ -87,3 +87,18 @@ Decision: everything is composed and synthesised in code (sections, drums, bass,
 layered hits), so exports carry no third-party terms. Recorded packs may be added later only as
 **CC0-1.0** with a verified original author, delivered as signed downloadable packs
 (`PackManifest.license` must name the SPDX id; the server refuses anything else) and listed here.
+
+### Animated pictures (phase 8b)
+
+Unlike sounds, the director may now put third-party **animated pictures** into an edit. Only
+licences that allow commercial use inside an app and in the creator's exported video pass
+(`ArtLicence`: CC0, public domain, MIT/ISC/BSD/Apache-2.0, CC BY with credit); ShareAlike,
+NonCommercial, NoDerivatives and unknown licences never enter the catalogue. Details and the
+sources reviewed and rejected (LottieFiles, OpenMoji, Pexels, Pixabay, Wikimedia Commons):
+`docs/ASSETS.md`, "Animated pictures".
+
+| Component | Where | Licence | Credit |
+|---|---|---|---|
+| Noto Animated Emoji (Google) — 19 Lottie files bundled (starter pack), the rest fetched on demand | `engine/autopilot/.../files/art/starter.json`, fonts.gstatic.com | CC BY 4.0 | "Animated emoji: Noto Emoji Animation by Google (CC BY 4.0)" in the app's licences and in every edit that shows one (`Production.credits`) |
+| Material Line Icons (`line-md`) by Vjacheslav Trushkin — 28 bundled, the rest through Iconify | `files/art/starter.json`, api.iconify.design | MIT | licence text in the app |
+| Unicode CLDR emoji annotations (English and Persian keywords of the search index) | `files/art/index.json` | Unicode License v3 | licence text in the app |

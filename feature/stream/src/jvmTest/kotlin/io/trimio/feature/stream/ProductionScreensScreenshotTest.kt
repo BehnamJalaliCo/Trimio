@@ -94,6 +94,51 @@ class ProductionScreensScreenshotTest {
         shoot("failure-cancelled-fa-paper", paper = true) { BuildFailureScreen(BuildFailures.cancelled(BuildStage.Plan, true), {}, {}, {}) }
     }
 
+    /** A run's technical report as the app builds it (a 12 GB phone, the 9B director on the Adreno GPU, one death). */
+    private val technical = TechnicalDetails(
+        runId = "p3f9a21c-7",
+        status = "در حال ساخت · تلاش ۲",
+        running = true,
+        summary = listOf(
+            TechFact("دستگاه", "samsung SM-S948B · Qualcomm SM8850"),
+            TechFact("سیستم", "Android 16 (API 36) · 11 433 MB total"),
+            TechFact("نسخه", "Trimio 1.0.14 (114) · Android 16"),
+            TechFact("کارگردان", "qwen3.5-9b-ud-q3kxl (on device)"),
+            TechFact("گفتار", "whisper-large-v3-turbo-q5"),
+            TechFact("موتور مدل", "opencl · QUALCOMM Adreno(TM) 830 · 33/33 layers on the GPU · 6 threads · KV q8_0"),
+        ),
+        stages = listOf(
+            TechStage("آماده‌سازی", 1.2f), TechStage("شنیدن (whisper)", 96.4f), TechStage("بارگذاری کارگردان", 14.8f),
+            TechStage("تحلیل گفتار", 0.6f), TechStage("فهم", null, "18/48"),
+        ),
+        metrics = listOf(
+            TechFact("مدل زبانی", "7.9 tok/s · read 61.2 tok/s · 6 calls · 1 840 tokens out · 233.0 s"),
+            TechFact("شنیدن", "RTF 0.81 · 118.0 s sound in 96.4 s · 6 threads"),
+            TechFact("حافظه", "peak 7 912 MB · now 7 204 MB"),
+        ),
+        jury = listOf(TechSitting(1, 7f, 9.1f, listOf("spelling major at 3.2s: «بیتکوین» → «بیت‌کوین»", "layout minor at 8.0s: headline over the face → move up"))),
+        problems = listOf("برنامه در «llm understand 12/48» بسته شد (تلاش ۱)", "۶ دقیقه بدون پیشرفت در «understand 12/48» → صبر کرد"),
+        text = (1..60).joinToString("\n") { if (it == 1) "Trimio technical report" else "  line $it · understand 12/48 qwen3.5-9b · prompt 1820 tok · out 412 tok · 52.1 s · 7.9 tok/s · ok" },
+        fileName = "trimio-report-p3f9a21c-7.txt",
+    )
+
+    @Test
+    fun technicalDetails() {
+        shoot("technical-fa-noir", paper = false, height = 1500) { TechnicalDetailsScreen(technical, {}, {}) }
+        shoot("technical-fa-paper", paper = true) { TechnicalDetailsScreen(technical.copy(running = false, status = "ساخته شد · تلاش ۲", problems = emptyList()), {}, {}) }
+        shoot("technical-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { TechnicalDetailsScreen(technical, {}, {}) }
+        // The watchdog's card on the live build, and the details one tap away.
+        shoot("live-stalled-fa-noir", paper = false, height = 1100) {
+            LiveBuildScreen(live.copy(stage = BuildStage.Understand, framesTotal = 0, linesDone = 18, linesTotal = 48, stall = BuildStall(6, "understand 18/48", BuildStage.Understand)), onDetails = {}) {}
+        }
+        // The app ended twice in the same step: an honest failure with lighter ways on.
+        shoot("failure-died-fa-noir", paper = false) { BuildFailureScreen(BuildFailures.of("died-in:llm understand 12/48", BuildStage.Plan, true), {}, {}, {}, onDetails = {}) }
+        shoot("result-details-fa-noir", paper = false, height = 1400) { ResultScreen(result, ResultActions(onExport = {}, onEdit = {}, onDetails = {})) }
+        assertEquals(BuildStage.Understand, BuildFailures.stageOf("llm understand 12/48"))
+        assertEquals(BuildStage.Listen, BuildFailures.stageOf("transcribe"))
+        assertEquals(BuildStage.Render, BuildFailures.stageOf("after render"))
+    }
+
     @Test
     fun stagesFromTheEngine() {
         assertEquals(BuildStage.Listen, BuildStage.of("Transcribe", "transcribe"))

@@ -73,6 +73,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val fillRng = root.fork(10)
         val dialogueRng = root.fork(11)
 
+        /** The premium families the seed may take for a line's beat ([Shows]); its own stream. */
+        val shows by lazy { Shows(rtl, u.domain, mood, root.fork(12), u.entities) }
+
         /** Reported speech shown as a chat thread, by the line it starts on. */
         val threads = mutableMapOf<Int, Dialogue.Thread>()
         val dialogue = Dialogue(words, lines, texts.count { w -> w.any { it in '\u0600'..'\u06FF' } } * 2 > texts.size)
@@ -176,9 +179,10 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 look = look,
                 accent = accent,
                 bpm = music?.bpm?.toFloat(),
-                captions = CaptionScore(show = showCaptions, maxWords = captionWords, place = style.captions.place),
+                captions = CaptionScore(show = showCaptions, maxWords = captionWords, place = style.captions.place, mark = shows.captionMark(style)),
                 scenes = scenes,
                 auto = false,
+                variety = Shows.variety(seed),
             )
             notes += "seed $seed: look $look $accent, music ${music?.id}, mark $mark, captions $captionWords, takeovers ${takeovers.sorted()}"
             return Plan(score, music, Choices(seed, look, music?.id, usedRecipes.toList(), usedTransitions.toList()), notes)
@@ -553,7 +557,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         private fun primary(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
             val ui = if (takeover) uiOf(lines.indexOf(line)) else null
             val title = { read.title.ifBlank { Phrases.title(words, line, hookKeys) }.takeIf { it.isNotBlank() && textKey(it) !in hookKeys } }
-            return ui?.let { UiBroll.beat(it, line.first, line.last, title(), read.items, u.entities.map { it.name }) } ?: primaryShow(line, read, e, takeover)
+            return ui?.let { UiBroll.beat(it, line.first, line.last, title(), read.items, u.entities.map { it.name }) }
+                ?: primaryShow(line, read, e, takeover)?.let { b -> shows.vary(b, texts, line, read, sense(line), takeover) }
         }
 
         private fun primaryShow(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? = when (compact(read, takeover)) {
@@ -575,6 +580,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             "progress" -> progress(line, read, e, takeover)
             "message" -> message(line, read, e, takeover)
             "headline" -> headline(line, read, e, takeover)
+            in Shows.FAMILIES -> shows.direct(read.show, texts, line, read, sense(line), e, place(takeover)) ?: headline(line, read, e, takeover)
             else -> null
         }
 
@@ -665,7 +671,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             // Parts of the thing mapped, not the brands already shown as logos.
             val own = read.items.filter { it.length in 2..14 && it.lowercase() !in shownLogos && u.entities.none { e -> e.name.equals(it, true) } }
             val names = u.entities.map { it.name }.filter { it.length in 2..14 }
-            val usual = NETWORK_DEFAULTS[u.domain] ?: NETWORK_DEFAULTS.getValue("tech")
+            // The usual parts in the piece's own language: "src", "api" on a Persian map are English text.
+            val defaults = if (rtl) PERSIAN_NETWORK else NETWORK_DEFAULTS
+            val usual = defaults[u.domain] ?: defaults.getValue("tech")
             val parts = if (own.size >= MIN_NODES - 2) own else own + usual
             return (parts + names.filter { it.lowercase() !in shownLogos }).distinctBy { it.lowercase() }.take(maxOf(MIN_NODES, own.size).coerceAtMost(MAX_NODES))
         }
@@ -729,7 +737,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             // The line's own picture, when it names something concrete (a short noun phrase).
             val query = read.visual.substringBefore(',').trim().takeIf { q -> q.split(' ').size in 1..3 && Rhythm.isPicture(q) && q !in usedVisuals } ?: return null
             usedVisuals += query
-            return BeatScore(recipe = "object", at = focus(line), visual = query, hold = 1.8f, place = "top", label = labelOf(line))
+            // A feeling pops as a small animated reaction; a thing is a sticker, or on some lines the picture beside its label.
+            return BeatScore(recipe = ArtBeats.recipe(query, seed, lines.indexOf(line)), at = focus(line), visual = query, hold = 1.8f, place = "top", label = labelOf(line))
         }
 
         // ------------------------------------------------------------ choices
@@ -841,7 +850,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         const val SPEAKER_BETWEEN_S = 2f
 
         /** Graphics that show data: they stay long enough to be read. */
-        val DATA_RECIPES = setOf("counter", "voucher", "stats", "countdown", "progress", "chart", "meter", "network", "terminal", "list", "objects", "logos")
+        val DATA_RECIPES = setOf("counter", "voucher", "stats", "countdown", "progress", "chart", "meter", "network", "terminal", "list", "objects", "logos") + Shows.DATA
         val NUMBER_SHOWS = setOf("counter", "meter", "chart")
 
         /** Data graphics with nothing else to say: shown in full or not at all. */
@@ -865,6 +874,13 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         val GROWTH = setOf("رشد", "سود", "افزایش", "بیشتر", "up", "growth", "more", "increase")
         val DECLINE = setOf("کاهش", "ریزش", "سقوط", "کمتر", "ضرر", "down", "drop", "less", "decrease", "loss")
+        val PERSIAN_NETWORK = mapOf(
+            "software" to listOf("کد", "رابط", "داده", "سرور", "تست", "مستندات", "تنظیمات"),
+            "tech" to listOf("سرور", "رابط", "داده", "فضای ابری", "امنیت", "کاربر", "مستندات"),
+            "ai" to listOf("مدل", "داده", "پرامپت", "ابزار", "حافظه", "دستیار"),
+            "crypto" to listOf("بازار", "صرافی", "کیف پول", "سفارش", "نمودار", "سود", "ریسک"),
+            "finance" to listOf("بازار", "سرمایه", "سود", "ریسک", "سهام", "نمودار", "تحلیل"),
+        )
         val NETWORK_DEFAULTS = mapOf(
             "software" to listOf("src", "api", "ui", "db", "auth", "tests", "docs", "config", "utils"),
             "tech" to listOf("api", "ui", "db", "cloud", "auth", "data", "docs"),

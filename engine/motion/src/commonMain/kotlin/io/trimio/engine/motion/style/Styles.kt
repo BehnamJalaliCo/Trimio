@@ -205,7 +205,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.7f, ease = Ease.Snap,
             entrances = weights("glitch 1.2, type-on 1, slam 0.8, flip 0.6, mask-rise 0.6, spread 0.4, blur-in 0.2"),
-            enter = weights("flash 1, whip 0.6, zoom 0.5, leak 0.4"), exit = weights("cut 0.8, whip 0.6"), push = 1f, still = 0.6f,
+            enter = weights("flash 1, whip 0.6, zoom 0.5, leak 0.4, slice 0.8, burn 0.6"), exit = weights("cut 0.8, whip 0.6, slice 0.5"), push = 1f, still = 0.6f,
         ),
         captions = CaptionTreatment(marks = weights("block 1, ink 0.6"), words = listOf(3, 4)),
         rhythm = Cadence(density = 1.05f, takeover = 1f, stages = weights("grid 1, aurora 0.6")),
@@ -231,7 +231,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.85f, ease = Ease.Snap,
             entrances = weights("glitch 1.5, type-on 0.9, slam 0.8, spread 0.6, flip 0.5, mask-rise 0.4"),
-            enter = weights("flash 1, whip 0.8, zoom 0.5"), exit = weights("whip 0.8, cut 0.8"), push = 1.2f, still = 0.6f,
+            enter = weights("flash 1, whip 0.8, zoom 0.5, slice 0.8"), exit = weights("whip 0.8, cut 0.8, slice 0.4"), push = 1.2f, still = 0.6f,
         ),
         captions = CaptionTreatment(marks = weights("ink 1, block 0.6, underline 0.4"), words = listOf(2, 3)),
         rhythm = Cadence(density = 1.2f, takeover = 1.1f, stages = weights("grid 1.2, aurora 0.6")),
@@ -257,7 +257,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.45f, ease = Ease.Sine,
             entrances = weights("mask-rise 1.2, blur-in 1, type-on 0.7, spread 0.3, flip 0.2, slam 0.2"),
-            enter = weights("cut 1, zoom 0.5, leak 0.2"), exit = weights("cut 1, zoom 0.3"), push = 0.3f, still = 2f,
+            enter = weights("cut 1, zoom 0.5, leak 0.2, dip 0.7"), exit = weights("cut 1, zoom 0.3, dip 0.5"), push = 0.3f, still = 2f,
         ),
         captions = CaptionTreatment(marks = weights("underline 1, block 0.5"), words = listOf(3, 4, 4)),
         rhythm = Cadence(density = 0.8f, takeover = 0.85f, stages = weights("plain 1, grid 0.6, aurora 0.3")),
@@ -309,7 +309,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.65f, ease = Ease.Snap,
             entrances = weights("type-on 1.4, mask-rise 1, glitch 0.5, slam 0.5, flip 0.3, blur-in 0.2, spread 0.2"),
-            enter = weights("cut 1, whip 0.6, flash 0.5, zoom 0.4"), exit = weights("cut 1, whip 0.5"), push = 0.6f, still = 1.4f,
+            enter = weights("cut 1, whip 0.6, flash 0.5, zoom 0.4, slice 0.5"), exit = weights("cut 1, whip 0.5"), push = 0.6f, still = 1.4f,
         ),
         captions = CaptionTreatment(marks = weights("block 1, underline 0.7"), words = listOf(3, 4)),
         rhythm = Cadence(density = 1.1f, takeover = 1.15f, stages = weights("grid 1.5, aurora 0.3")),
@@ -361,7 +361,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.4f, ease = Ease.Sine,
             entrances = weights("blur-in 1.2, mask-rise 1.2, type-on 0.8, flip 0.2, slam 0.2, spread 0.2"),
-            enter = weights("leak 0.8, zoom 0.8, cut 0.8"), exit = weights("cut 1, zoom 0.4"), push = 0.8f, still = 1f,
+            enter = weights("leak 0.8, zoom 0.8, cut 0.8, burn 0.7, dip 0.5"), exit = weights("cut 1, zoom 0.4, dip 0.4"), push = 0.8f, still = 1f,
         ),
         captions = CaptionTreatment(marks = weights("underline 1, ink 0.6, block 0.4"), words = listOf(4, 5)),
         rhythm = Cadence(density = 0.85f, takeover = 0.85f, stages = weights("aurora 1, grid 0.2")),
@@ -387,7 +387,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.7f, ease = Ease.Expo,
             entrances = weights("blur-in 1, mask-rise 1, spread 1, slam 0.7, stack 0.4, flip 0.2, type-on 0.2"),
-            enter = weights("flash 1, leak 0.7, zoom 0.6, whip 0.2"), exit = weights("cut 1.2, zoom 0.6"), push = 1.6f, still = 0.4f,
+            enter = weights("flash 1, leak 0.7, zoom 0.6, whip 0.2, burn 0.7, dip 0.6"), exit = weights("cut 1.2, zoom 0.6, dip 0.5"), push = 1.6f, still = 0.4f,
         ),
         captions = CaptionTreatment(marks = weights("ink 1, underline 0.5, block 0.4"), words = listOf(3, 4)),
         rhythm = Cadence(density = 0.9f, takeover = 1.2f, stages = weights("aurora 1, grid 0.1")),
@@ -465,7 +465,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.6f, ease = Ease.Expo,
             entrances = weights("mask-rise 1.2, blur-in 1.1, flip 0.8, type-on 0.5, spread 0.4, slam 0.4"),
-            enter = weights("zoom 1.2, whip 0.6, leak 0.4, flash 0.3"), exit = weights("zoom 1, whip 0.5"), push = 1.3f, still = 0.6f,
+            enter = weights("zoom 1.2, whip 0.6, leak 0.4, flash 0.3, leak-cool 0.6"), exit = weights("zoom 1, whip 0.5"), push = 1.3f, still = 0.6f,
         ),
         captions = CaptionTreatment(marks = weights("ink 1, block 0.5, underline 0.5"), words = listOf(3, 4)),
         rhythm = Cadence(density = 1f, takeover = 1.1f, stages = weights("aurora 1, grid 0.5")),
@@ -595,7 +595,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.4f, ease = Ease.Sine,
             entrances = weights("blur-in 1.4, mask-rise 1, spread 0.7, flip 0.2, type-on 0.2, slam 0.1"),
-            enter = weights("leak 1.2, zoom 0.8"), exit = weights("zoom 0.8, cut 0.6, whip 0.2"), push = 1.2f, still = 0.6f,
+            enter = weights("leak 1.2, zoom 0.8, dip 0.6"), exit = weights("zoom 0.8, cut 0.6, whip 0.2, dip 0.5"), push = 1.2f, still = 0.6f,
         ),
         captions = CaptionTreatment(marks = weights("underline 1, ink 0.8, block 0.3"), words = listOf(3, 4)),
         rhythm = Cadence(density = 0.8f, takeover = 0.9f, stages = weights("aurora 1, grid 0.1")),
@@ -621,7 +621,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.95f, ease = Ease.Snap,
             entrances = weights("stack 1.3, slam 1.1, spread 1, glitch 0.9, flip 0.5, mask-rise 0.3, blur-in 0.1"),
-            enter = weights("flash 1, whip 1, cut 0.6"), exit = weights("whip 1, cut 1"), push = 1.8f, still = 0.4f,
+            enter = weights("flash 1, whip 1, cut 0.6, slice 0.6"), exit = weights("whip 1, cut 1"), push = 1.8f, still = 0.4f,
         ),
         captions = CaptionTreatment(marks = weights("block 1, circle 0.6, ink 0.3"), words = listOf(2, 3)),
         rhythm = Cadence(density = 1.25f, takeover = 1.15f, stages = weights("grid 0.5, aurora 0.8")),
@@ -647,7 +647,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.3f, ease = Ease.Sine,
             entrances = weights("blur-in 1.5, mask-rise 1, spread 0.3, type-on 0.3, flip 0.2, slam 0.05"),
-            enter = weights("leak 1, zoom 0.6"), exit = weights("cut 0.8, zoom 0.6"), push = 0.5f, still = 1.4f,
+            enter = weights("leak 1, zoom 0.6, leak-cool 0.6, dip 0.6"), exit = weights("cut 0.8, zoom 0.6, dip 0.5"), push = 0.5f, still = 1.4f,
         ),
         captions = CaptionTreatment(marks = weights("underline 1, block 0.6, circle 0.3"), words = listOf(3, 4, 5)),
         rhythm = Cadence(density = 0.75f, takeover = 0.8f, stages = weights("aurora 1")),
@@ -673,7 +673,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.6f, ease = Ease.Sine,
             entrances = weights("spread 1.2, blur-in 1, mask-rise 1, flip 0.3, slam 0.3, type-on 0.3"),
-            enter = weights("leak 1.2, whip 0.8, zoom 0.6"), exit = weights("whip 0.8, zoom 0.6"), push = 1.4f, still = 0.5f,
+            enter = weights("leak 1.2, whip 0.8, zoom 0.6, burn 0.8"), exit = weights("whip 0.8, zoom 0.6"), push = 1.4f, still = 0.5f,
         ),
         captions = CaptionTreatment(marks = weights("underline 1, ink 0.8, block 0.5"), words = listOf(3, 4)),
         rhythm = Cadence(density = 0.95f, takeover = 0.95f, stages = weights("aurora 1, grid 0.1")),
@@ -725,7 +725,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.9f, ease = Ease.Back,
             entrances = weights("glitch 1.2, slam 1.1, flip 1, stack 0.8, spread 0.6, mask-rise 0.4"),
-            enter = weights("flash 1, zoom 1, whip 0.8"), exit = weights("zoom 0.9, whip 0.8"), push = 1.6f, still = 0.5f,
+            enter = weights("flash 1, zoom 1, whip 0.8, slice 0.8"), exit = weights("zoom 0.9, whip 0.8, slice 0.4"), push = 1.6f, still = 0.5f,
         ),
         captions = CaptionTreatment(marks = weights("block 1, ink 0.7"), words = listOf(2, 3)),
         rhythm = Cadence(density = 1.2f, takeover = 1.15f, stages = weights("grid 1, aurora 0.8")),
@@ -751,7 +751,7 @@ internal object Styles {
         motion = MotionGrammar(
             energy = 0.45f, ease = Ease.Sine,
             entrances = weights("mask-rise 1.2, type-on 0.9, blur-in 0.9, flip 0.3, slam 0.3, spread 0.3"),
-            enter = weights("zoom 1, leak 0.6, cut 0.6"), exit = weights("cut 1, zoom 0.6"), push = 0.6f, still = 1.4f,
+            enter = weights("zoom 1, leak 0.6, cut 0.6, dip 0.6"), exit = weights("cut 1, zoom 0.6"), push = 0.6f, still = 1.4f,
         ),
         captions = CaptionTreatment(marks = weights("block 1, underline 0.8, ink 0.5"), words = listOf(4, 5)),
         rhythm = Cadence(density = 0.85f, takeover = 0.9f, stages = weights("aurora 1, grid 0.2")),

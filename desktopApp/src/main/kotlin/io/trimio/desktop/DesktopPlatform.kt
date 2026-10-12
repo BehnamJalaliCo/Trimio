@@ -66,6 +66,19 @@ fun desktopPlatformModule(
     single { DesktopSharer(dirs.output, os) }
     single<Sharer> { get<DesktopSharer>() }
     single<GallerySaver> { DesktopGallerySaver(dirs.output, get()) }
+    // The result screen plays the finished edit in the app (the bundled ffmpeg, the sound card as the clock).
+    single { io.trimio.shared.player.ffmpegVideoPlayers() }
+    // The create screen's speeds: the directors offered here, and the dedicated cards' memory (asked once, off the UI thread).
+    single<io.trimio.engine.models.DirectorOffer> {
+        io.trimio.engine.models.DirectorOffer { catalog -> DesktopDirectors.catalogFor(hardware.ramGb, catalog).filter { it.kind == io.trimio.engine.models.ModelKind.Language } }
+    }
+    single<io.trimio.engine.models.GraphicsProbe> {
+        val cards = lazy { DesktopHardware.detect().gpus.filter { it.vramMb != null } }
+        io.trimio.engine.models.GraphicsProbe {
+            withContext(Dispatchers.IO) { cards.value }.takeIf { it.isNotEmpty() }
+                ?.let { g -> io.trimio.engine.models.GraphicsMemory(g.map { it.name }, g.sumOf { it.vramMb ?: 0L } shl 20) }
+        }
+    }
     single<Connectivity> { DesktopConnectivity() }
     single { DeviceInfo(ramGb = hardware.ramGb, platform = platformName(os), appVersion = appVersion, cores = hardware.cores) }
     single<StorageInfo> { StorageInfo { runCatching { dirs.models.apply { mkdirs() }.usableSpace }.getOrNull()?.takeIf { it > 0 } } }
@@ -88,10 +101,13 @@ fun desktopPlatformModule(
             preferred = { settings.settings.value.localModelId }, cloud = { get<CloudModels>().firstAvailable() },
         )
         val recognizer = directors().recognizer { settings.settings.value.speechModelId }
-        JvmProductionPlatform(dirs.output, recognizer = { recognizer }, directors = { choice -> directors().director(choice) })
+        JvmProductionPlatform(
+            dirs.output, recognizer = { recognizer }, directors = { choice -> directors().director(choice) },
+            lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },
+        )
     }
     single<AutoEditor> {
-        Productions(get(), get(), WebKnowledge(get()), threads = { get<DeviceProfile>().threads })
+        Productions(get(), get(), WebKnowledge.cached(get(), File(dirs.cache, "web").absolutePath), threads = { get<DeviceProfile>().threads }, app = "Trimio $appVersion · ${platformName(os)}")
     }
 }
 

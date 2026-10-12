@@ -197,6 +197,7 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     viewModel = koinViewModel(key = route.toString()) { parametersOf(CreateArgs(route.uri, route.kind, route.styleId, route.prompt)) },
                     onBack = ::back,
                     onPickMedia = { kind -> scope.launch { picker.pick(kind)?.let { replaceTop(route.copy(uri = it.value, kind = kind)) } } },
+                    onModels = { go(Route.Models) },
                     onProduce = { state ->
                         val persian = language == Language.Persian
                         gate.start(ProductionUi.request(route.uri, state, persian), (state.info?.durationMs ?: 0L) / 1000f) { request ->

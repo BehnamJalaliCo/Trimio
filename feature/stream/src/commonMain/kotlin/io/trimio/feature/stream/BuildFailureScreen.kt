@@ -38,7 +38,14 @@ import io.trimio.core.designsystem.theme.tr
  * and numbered ways forward (the director's recommendation marked); never a dead end.
  */
 @Composable
-fun BuildFailureScreen(failure: BuildFailure, onOption: (Int) -> Unit, onPrimary: () -> Unit, onClose: () -> Unit) {
+fun BuildFailureScreen(
+    failure: BuildFailure,
+    onOption: (Int) -> Unit,
+    onPrimary: () -> Unit,
+    onClose: () -> Unit,
+    /** «جزئیات فنی»: the run's whole technical report; null shows the engine's message in place instead. */
+    onDetails: (() -> Unit)? = null,
+) {
     var details by remember { mutableStateOf(false) }
     SigScreen {
         Column(Modifier.fillMaxSize().widthIn(max = 620.dp).align(Alignment.TopCenter)) {
@@ -54,7 +61,9 @@ fun BuildFailureScreen(failure: BuildFailure, onOption: (Int) -> Unit, onPrimary
             }
             Column(Modifier.gutter().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 SigButton(failure.primary, onPrimary, Modifier.fillMaxWidth(), trailing = TrimioIcons.Undo)
-                if (failure.detail != null) Box(Modifier.padding(top = 4.dp)) { SigTextButton(tr("جزئیات فنی", "Technical details"), { details = !details }) }
+                if (onDetails != null || failure.detail != null) {
+                    Box(Modifier.padding(top = 4.dp)) { SigTextButton(tr("جزئیات فنی", "Technical details"), onDetails ?: { details = !details }) }
+                }
             }
         }
     }
@@ -66,6 +75,7 @@ object BuildFailures {
     fun of(error: String?, stage: BuildStage, persian: Boolean): BuildFailure {
         val e = error.orEmpty().lowercase()
         return when {
+            e.startsWith(DIED) -> died(error.orEmpty().removePrefix(DIED), persian)
             "speech model" in e || "no model" in e || "not installed" in e -> missingModel(stage, error, persian)
             stage == BuildStage.Listen -> unclearVoice(error, persian)
             else -> generic(stage, error, persian)
@@ -92,6 +102,52 @@ object BuildFailures {
         ),
         primary = t(persian, "ادامهٔ ساخت", "Continue"),
     )
+
+    /** The engine's error for a run that gave up after the app ended twice in one step (engine ProductionState.DIED). */
+    const val DIED = "died-in:"
+
+    /** The stage on screen for an engine step a process died in ("llm understand 12/48", "transcribe", "render"). */
+    fun stageOf(step: String): BuildStage {
+        val s = step.removePrefix("after ").removePrefix("llm ").trim()
+        return when {
+            s.startsWith("transcribe") || s.startsWith("decode") || s.startsWith("start") || s.startsWith("prepare") -> BuildStage.Listen
+            s.startsWith("render") -> BuildStage.Render
+            else -> BuildStage.of("Direct", s)
+        }
+    }
+
+    /**
+     * The app ended twice in the same step (the system closed it for memory, or the model's engine
+     * crashed): no third try in a loop, an honest sentence and lighter ways on instead.
+     */
+    fun died(step: String, persian: Boolean): BuildFailure {
+        val stage = stageOf(step)
+        return BuildFailure(
+            stage = stage,
+            title = t(persian, "ساخت دو بار در مرحلهٔ «${stage.fa}» بسته شد", "The build closed twice while ${stage.en.lowercase()}"),
+            body = t(
+                persian,
+                "برنامه دو بار در همین مرحله بسته شد؛ معمولاً یعنی حافظهٔ این دستگاه برای این مدل کافی نیست. برای این‌که دوباره همان‌جا گیر نکند، خودکار تکرارش نمی‌کنم. با مدل کوچک‌تر یا کارگردان ابری ادامه بده؛ کلمه‌ها و برداشت تا این‌جا حفظ شده‌اند.",
+                "The app closed twice at this same step; usually this device does not have enough memory for this model. So it is not retried in a loop. Continue with a smaller model or the cloud director; the words and the reading so far are kept.",
+            ),
+            options = listOf(
+                BuildFailure.Option(
+                    t(persian, "ادامه با مدل کوچک‌تر", "Continue with a smaller model"),
+                    t(persian, "سبک‌تر برای حافظهٔ این دستگاه؛ اگر نبود، با قواعد", "Lighter on this device's memory; the rules if there is none"), recommended = true,
+                ),
+                BuildFailure.Option(
+                    t(persian, "کارگردان ابری", "Cloud director"),
+                    t(persian, "سریع و بدون فشار به دستگاه؛ کلید در تنظیمات", "Fast, nothing heavy on the device; key in settings"),
+                ),
+                BuildFailure.Option(
+                    t(persian, "ساخت با قواعد، بدون مدل", "Build with rules, no model"),
+                    t(persian, "سریع‌ترین، با تنوع کمتر", "Fastest, less varied"),
+                ),
+            ),
+            primary = t(persian, "ادامه با مدل کوچک‌تر", "Continue with a smaller model"),
+            detail = step,
+        )
+    }
 
     private fun unclearVoice(error: String?, persian: Boolean) = BuildFailure(
         stage = BuildStage.Listen,

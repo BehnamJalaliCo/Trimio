@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.media.MediaMetadataRetriever
+import android.os.Build
 import android.os.BatteryManager
 import android.os.PowerManager
 import android.provider.OpenableColumns
@@ -21,6 +22,8 @@ import io.trimio.engine.autopilot.UserAsset
 import io.trimio.engine.llm.RgbImage
 import io.trimio.engine.media.AndroidAudioDecoder
 import io.trimio.engine.models.DeviceTier
+import io.trimio.engine.production.diagnostics.Fact
+import io.trimio.engine.production.diagnostics.MemoryUse
 import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.MediaSource
 import io.trimio.engine.motion.MediaSources
@@ -43,6 +46,10 @@ class AndroidProductionPlatform(
     private val directors: suspend (DirectorChoice) -> Director,
     /** The phone's class by RAM ([io.trimio.engine.models.DeviceMemory.tier]). */
     private val tier: DeviceTier,
+    /** The next lighter director after a model id ([LocalDirectors.lighter]). */
+    private val lighter: suspend (String?) -> DirectorChoice = { DirectorChoice.Rules },
+    /** The speech model recognition uses now ([LocalDirectors.speechModel]). */
+    private val speech: () -> String? = { null },
 ) : ProductionPlatform {
     private val app = context.applicationContext
 
@@ -106,6 +113,28 @@ class AndroidProductionPlatform(
             lowBattery = battery?.isCharging == false && level in 0 until LOW_BATTERY,
         )
     }
+
+    override fun about(): List<Fact> {
+        val ram = app.getSystemService(android.app.ActivityManager::class.java)?.let { am ->
+            android.app.ActivityManager.MemoryInfo().also(am::getMemoryInfo)
+        }
+        val soc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}" else Build.HARDWARE
+        return listOfNotNull(
+            Fact("device", "${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})"),
+            Fact("chip", soc),
+            Fact("os", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"),
+            ram?.let { Fact("memory", "${it.totalMem / MB} MB total · ${it.availMem / MB} MB free now" + if (it.lowMemory) " · low" else "") },
+            Fact("cores", "${Runtime.getRuntime().availableProcessors()} (fast: ${io.trimio.engine.llm.local.FastCores.count() ?: "?"})"),
+            Fact("tier", tier.name),
+            Fact("thermal", app.getSystemService(PowerManager::class.java)?.currentThermalStatus?.toString() ?: "?"),
+        )
+    }
+
+    override fun memory(): MemoryUse? = ProcessMemory.read()
+
+    override fun speechModel(): String? = speech()
+
+    override suspend fun lighter(current: String?): DirectorChoice = lighter.invoke(current)
 
     override suspend fun render(
         composition: Composition,
@@ -191,6 +220,7 @@ class AndroidProductionPlatform(
         const val THUMB = 256
         const val CLIP_FRAMES = 3
         const val MS = 1000f
+        const val MB = 1024L * 1024L
         const val OPAQUE = 250
         const val HALF_TURN = 180
         const val QUARTER_TURN = 90

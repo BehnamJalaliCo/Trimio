@@ -13,6 +13,8 @@ internal class Glossary(
     val terms: Map<String, String?>,
     /** The brief asks for a short definition of its terms on screen. */
     val explain: Boolean,
+    /** Handles the brief writes (a Telegram bot or channel, an Instagram page): «@trimio_bot», as written. */
+    val handles: List<String> = emptyList(),
 ) {
     /** The brief's spelling of a heard [word] when it is one of its sites (or any domain said as one). */
     fun site(word: String): String? {
@@ -27,6 +29,9 @@ internal class Glossary(
         private val EXPLAIN = listOf("توضیح", "تعریف", "explain", "define", "definition", "what it means")
         private val ACRONYM = Regex("\\b[A-Z][A-Z0-9]{1,5}\\b")
         private val QUOTED = Regex("«([^»]{2,30})»")
+        /** "@name" (Telegram, Instagram), or a bot named without the @ ("trimio_bot", "TrimioBot"); never an e-mail. */
+        private val HANDLE = Regex("(?:^|(?<=[^\\w.@]))(@?)([A-Za-z][A-Za-z0-9_.]{1,30}[A-Za-z0-9_])")
+        private val BOT = Regex("(?:_bot|[a-z0-9]Bot)$")
         private const val MAX_DEFINITION = 48
 
         fun read(brief: String): Glossary {
@@ -34,7 +39,9 @@ internal class Glossary(
             val names = (ACRONYM.findAll(brief).map { it.value } + QUOTED.findAll(brief).map { it.groupValues[1].trim() }).distinct().toList()
             val terms = names.associateWith { definition(brief, it) }.filter { (t, d) -> d != null || ACRONYM.matches(t) }
             val lower = brief.lowercase()
-            return Glossary(sites, terms, EXPLAIN.any { it in lower })
+            val handles = HANDLE.findAll(brief).filter { it.groupValues[1] == "@" || BOT.containsMatchIn(it.groupValues[2]) }
+                .map { "@" + it.groupValues[2] }.distinct().toList()
+            return Glossary(sites, terms, EXPLAIN.any { it in lower }, handles)
         }
 
         /** The meaning the brief gives [term]: «RSI یعنی …», "RSI (…)", "RSI: …", "RSI means …". */

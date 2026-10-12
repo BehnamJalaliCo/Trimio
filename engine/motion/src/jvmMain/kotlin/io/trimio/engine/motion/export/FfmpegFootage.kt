@@ -58,9 +58,11 @@ class FfmpegFootage(
     private fun restart(target: Int) {
         stop()
         val p = ProcessBuilder(
-            MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.3f".format(target / fps.toFloat()), "-i", file.absolutePath, "-an",
-            "-vf", "fps=$fps,scale=$w:$h:flags=lanczos+accurate_rnd+full_chroma_int",
-            "-f", "rawvideo", "-pix_fmt", "rgba", "-",
+            listOf(MediaTools.ffmpeg, "-loglevel", "error") + hwaccel() + listOf(
+                "-ss", "%.3f".format(java.util.Locale.ROOT, target / fps.toFloat()), "-i", file.absolutePath, "-an",
+                "-vf", "fps=$fps,scale=$w:$h:flags=lanczos+accurate_rnd+full_chroma_int",
+                "-f", "rawvideo", "-pix_fmt", "rgba", "-",
+            ),
         ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
         process = p
         input = DataInputStream(p.inputStream.buffered(1 shl 22))
@@ -83,6 +85,17 @@ class FfmpegFootage(
 
     companion object {
         private const val MAX_SKIP = 45
+
+        /**
+         * Decoding on the graphics card: `-Dtrimio.ffmpeg.hwaccel` (`auto`, `none`, or a method such as
+         * `d3d11va`); by default `auto` on Windows (Direct3D or NVDEC; ffmpeg decodes in software
+         * where no method works) and software elsewhere. Phone footage (4K HEVC) is the costly case.
+         */
+        fun hwaccel(): List<String> {
+            val asked = System.getProperty("trimio.ffmpeg.hwaccel")?.trim()?.takeIf { it.isNotEmpty() }
+            val method = asked ?: if (System.getProperty("os.name").orEmpty().startsWith("Windows")) "auto" else "none"
+            return if (method == "none") emptyList() else listOf("-hwaccel", method)
+        }
 
         /** Display width and height of the first video stream (rotation applied). */
         fun probe(file: File): Pair<Int, Int> {

@@ -14,6 +14,11 @@ import io.trimio.core.model.input.MediaInfo
 import io.trimio.core.model.input.VideoFormat
 import io.trimio.core.model.text.Language
 import io.trimio.engine.director.BriefParser
+import io.trimio.engine.models.DeviceMemory
+import io.trimio.engine.models.GraphicsMemory
+import io.trimio.engine.models.ModelCatalog
+import io.trimio.engine.models.SpeedMode
+import io.trimio.engine.models.SpeedModes
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -69,6 +74,28 @@ class CreateScreenshotTest {
     fun desktop() {
         shoot("create-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { CreateScreen(state, CreateActions()) }
         shoot("styles-fa-desktop", paper = true, width = 1280, height = 800, density = 1.5f) { CreateScreen(state, CreateActions(), pickerOpen = true) }
+    }
+
+    /** A 12 GB phone with the MoE, the 4B and the light 9B installed. */
+    private val phone = SpeedModes.plan(
+        ModelCatalog.all, { it in setOf(ModelCatalog.lfm25_8bA1b, ModelCatalog.qwen35_4b, ModelCatalog.qwen35_9bLight) }, DeviceMemory.phone(12),
+    )
+
+    /** The owner's laptop: 16 GB, an RTX 3050 Ti with 4 GB, the 4B and the 9B installed. */
+    private val laptop = SpeedModes.plan(
+        listOf(ModelCatalog.qwen35_9b, ModelCatalog.qwen35_4b), { true }, DeviceMemory.desktop(16),
+        GraphicsMemory(listOf("NVIDIA GeForce RTX 3050 Ti Laptop GPU"), 4L shl 30),
+    )
+
+    @Test
+    fun speeds() {
+        assertEquals(SpeedMode.Balanced, phone.default)
+        assertEquals(ModelCatalog.qwen35_4b.id, state.copy(speeds = phone).speedModel, "the comfortable 4B by default")
+        shoot("create-speed-fa-noir", paper = false) { CreateScreen(state.copy(speeds = phone), CreateActions()) }
+        // The 9B on a 12 GB phone only fits: the screen says so.
+        shoot("create-speed-pro-warning-fa-paper", paper = true) { CreateScreen(state.copy(speeds = phone, speed = SpeedMode.Pro), CreateActions()) }
+        shoot("create-speed-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { CreateScreen(state.copy(speeds = laptop), CreateActions()) }
+        shoot("create-speed-pro-fa-desktop", paper = true, width = 1280, height = 800, density = 1.5f) { CreateScreen(state.copy(speeds = laptop, speed = SpeedMode.Pro), CreateActions()) }
     }
 
     @Test

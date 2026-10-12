@@ -18,6 +18,7 @@ import io.trimio.engine.motion.TypeSpec
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.score.CutPoints
 import io.trimio.engine.motion.score.EditPlan
+import io.trimio.engine.motion.score.Geometry
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Subject
 import kotlinx.serialization.Serializable
@@ -89,16 +90,18 @@ fun interface LineMeasure {
 class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) {
 
     /** At most [rounds] revisions per variation and [variations] extra seeds. */
-    data class Budget(val rounds: Int = 3, val variations: Int = 3) {
+    data class Budget(val rounds: Int = 6, val variations: Int = 3) {
         companion object {
             /**
-             * What a device can afford: Standard and High phones 2 rounds and 1 variation, Ultra
-             * and Max 3 and 2; desktop, server and web (no tier) 3 and 3.
+             * What a device can afford: Standard and High phones 3 rounds and 1 variation, Ultra
+             * and Max 4 and 2; desktop, server and web (no tier) 6 and 3. A round tries up to four
+             * revisions (each a compile and a sitting, no model), so a fix that needs several steps
+             * — another layout, the other band, a plain form — gets them.
              */
             fun forDevice(tier: DeviceTier?): Budget = when (tier) {
-                DeviceTier.Standard, DeviceTier.High -> Budget(rounds = 2, variations = 1)
-                DeviceTier.Ultra, DeviceTier.Max -> Budget(rounds = 3, variations = 2)
-                null -> Budget(rounds = 3, variations = 3)
+                DeviceTier.Standard, DeviceTier.High -> Budget(rounds = 3, variations = 1)
+                DeviceTier.Ultra, DeviceTier.Max -> Budget(rounds = 4, variations = 2)
+                null -> Budget(rounds = 6, variations = 3)
             }
         }
     }
@@ -137,8 +140,18 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         val brand: (String) -> Boolean = { false },
         /** Media ids of the pictures and clips the creator attached: each must be in the edit. */
         val assets: List<String> = emptyList(),
+        /** Draws each graphic alone to see where it really is, frame by frame ([Geometry]); null judges the slots. */
+        val geometry: Geometry? = null,
+        /**
+         * How well each picture the edit shows fits its moment, by picture id ("noto:1f680",
+         * "fluent:rocket"), 0..1 ([VisualPicker.Result.relevance]); empty when nothing was picked.
+         */
+        val pictures: Map<String, Float> = emptyMap(),
     ) {
         val duration: Float get() = compiled.composition.duration
+
+        /** Every placed beat's ink over its life, when [geometry] can draw (shared by the judges of one panel). */
+        val tracks: List<Geometry.Track>? get() = geometry?.let { g -> runCatching { g.traced(compiled) }.getOrNull() }
 
         /** The voice's own levels, for judging where cuts fall (built once per context). */
         val cuts: CutPoints? by lazy { voice?.let { CutPoints(it) } }
@@ -157,9 +170,18 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
 
         fun summary(): String = "min ${fmt(min)} mean ${fmt(mean)} — " + verdicts.joinToString(" ") { "${it.judge} ${fmt(it.score)}" }
 
-        /** One line per finding, for the production report. */
-        fun findings(): List<String> = verdicts.flatMap { v ->
+        /**
+         * What is not 10, said plainly: one line per judge below 10 (its name in Persian, its score
+         * and its worst finding), first; then one indented line per finding, for the report.
+         */
+        fun findings(): List<String> = shortfalls() + verdicts.flatMap { v ->
             v.findings.map { f -> "  ${v.judge} ${f.severity.name.lowercase()} at ${fmt(f.at)}s: ${f.what} → ${f.fix}" }
+        }
+
+        /** One line per judge below 10: «چیدمان ۸ از ۱۰ — …», with its worst finding. */
+        fun shortfalls(): List<String> = verdicts.filter { !it.perfect }.sortedBy { it.score }.map { v ->
+            val worst = v.findings.maxByOrNull { it.severity.cost }
+            "${PERSIAN_NAMES[v.judge] ?: v.judge} ${io.trimio.core.model.text.Numerals.toPersian(fmt(v.score))} از ۱۰ — ${worst?.what ?: v.dimension}"
         }
     }
 
@@ -184,6 +206,24 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }?.let { outro = maxOf(outro ?: 0f, it) }
         }
         return Revision(score, outro).takeIf { score != c.score || outro != null }
+    }
+
+    /**
+     * What a round may try, best bet first: every failing judge's fix together ([fixes]), then
+     * each failing judge's own fix alone, lowest score first — one judge's fix can undo another's
+     * (a graphic moved off the face onto a caption), and alone it may still be a step forward.
+     */
+    fun options(c: Context, panel: Panel): List<Pair<String, Revision>> {
+        val together = fixes(c, panel)?.let { listOf("all fixes" to it) }.orEmpty()
+        val held = c.edit?.outro?.length ?: 0f
+        val alone = panel.verdicts.filter { !it.perfect }.sortedBy { it.score }.mapNotNull { v ->
+            val judge = judges.firstOrNull { it.name == v.judge } ?: return@mapNotNull null
+            val score = runCatching { judge.revise(c, v) }.getOrNull() ?: c.score
+            val outro = runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }
+            (v.judge to Revision(score, outro)).takeIf { score != c.score || outro != null }
+        }
+        // A lone fix equal to the joint one (only one judge could fix anything) is not tried twice.
+        return (together + alone.filter { a -> together.none { it.second == a.second } }).take(MAX_TRIES)
     }
 
     /**
@@ -219,7 +259,10 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         return Outcome(best, bestPanel ?: deliberate(context(best)), rounds, variation)
     }
 
-    /** One candidate through up to [Budget.rounds] revisions; a revision that does not improve the panel ends it. */
+    /**
+     * One candidate through up to [Budget.rounds] revisions. Each round tries the [options] in
+     * turn and keeps the first that improves the panel; a round where none does ends it.
+     */
     private suspend fun <T> polish(
         first: T,
         name: String,
@@ -232,26 +275,39 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var panel = deliberate(ctx)
         log("jury $name round 0: ${panel.summary()}")
         var round = 0
-        var improving = true
-        while (improving && !panel.unanimous && round < budget.rounds) {
-            val fixed = fixes(ctx, panel) ?: break
+        while (!panel.unanimous && round < budget.rounds) {
+            val options = options(ctx, panel)
+            if (options.isEmpty()) break
             round++
-            val next = revise(current, fixed)
-            val nextCtx = context(next)
-            val nextPanel = deliberate(nextCtx)
-            log("jury $name round $round: ${nextPanel.summary()}")
-            improving = nextPanel.betterThan(panel)
-            if (improving) {
+            var kept = false
+            for ((what, fix) in options) {
+                val next = revise(current, fix)
+                val nextCtx = context(next)
+                val nextPanel = deliberate(nextCtx)
+                log("jury $name round $round ($what): ${nextPanel.summary()}")
+                if (!nextPanel.betterThan(panel)) continue
                 current = next
                 ctx = nextCtx
                 panel = nextPanel
+                kept = true
+                break
             }
+            if (!kept) break
         }
         return Triple(current, panel, round)
     }
 
     companion object {
         private const val EPS = 1e-3f
+
+        /** The judges as the creator reads them. */
+        val PERSIAN_NAMES = mapOf(
+            "hook" to "هوک", "rhythm" to "ریتم", "motion" to "حرکت و تنوع", "typography" to "تایپوگرافی", "spelling" to "املا و خط",
+            "layout" to "چیدمان", "sound" to "صدا", "music" to "موسیقی", "brief" to "پیروی از بریف", "cta" to "دعوت به اقدام",
+        )
+
+        /** Revisions tried in one round at most (each is a compile and a sitting). */
+        private const val MAX_TRIES = 4
 
         /** The ten judges, in the order they report. */
         fun standard(): List<Judge> = listOf(

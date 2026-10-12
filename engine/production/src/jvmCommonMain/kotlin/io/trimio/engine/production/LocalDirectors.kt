@@ -33,21 +33,45 @@ class LocalDirectors(
         is DirectorChoice.Local -> local(choice.modelId)
     }
 
+    /**
+     * The next lighter director after the model [current] (null: the one [DirectorChoice.Auto] runs):
+     * the largest installed model that runs here and is smaller than it, else the rules.
+     */
+    fun lighter(current: String?): DirectorChoice {
+        val id = current ?: local.best(preferred())?.id ?: return DirectorChoice.Rules
+        val size = catalog.firstOrNull { it.id == id }?.sizeBytes ?: ModelCatalog.byId(id)?.sizeBytes ?: return DirectorChoice.Rules
+        return local.installed().filter { it.sizeBytes < size }.maxByOrNull { it.sizeBytes }?.let { DirectorChoice.Local(it.id) } ?: DirectorChoice.Rules
+    }
+
+    /** The speech model [recognizer] resolves to now (its catalogue id), for the technical report. */
+    fun speechModel(preferredSpeech: () -> String? = { null }): String? = speechSpec(preferredSpeech)?.id
+
     private fun local(id: String?): Director {
         val model = local.best(id) ?: return Director.None
         return Director(model, local.eyes(model))
     }
 
     /**
-     * Whisper with the installed speech model: [preferredSpeech] when installed, else the largest that fits.
-     * Fit is the real memory check the models screen shows ([DeviceFit]), not the coarse RAM tier.
+     * Whisper with the installed speech model: [preferredSpeech] when installed; else, on a phone,
+     * the large-v3 turbo (4 decoder layers instead of 32: several times faster to decode on a phone's
+     * CPU) when it is installed; else the largest that fits. Fit is the real memory check the
+     * models screen shows ([DeviceFit]), not the coarse RAM tier.
      */
     fun recognizer(preferredSpeech: () -> String? = { null }) = InstalledWhisperRecognizer {
+        speechSpec(preferredSpeech)?.let { store.pathOf(it).toString() }
+    }
+
+    private fun speechSpec(preferredSpeech: () -> String?): ModelSpec? {
         val installed = catalog.filter { it.kind == ModelKind.Speech && store.isInstalled(it) }
-        (
-            installed.firstOrNull { it.id == preferredSpeech() }
-                ?: installed.filter { DeviceFit.of(it, device) <= ModelFit.Experimental }.maxByOrNull { it.sizeBytes }
-                ?: installed.minByOrNull { it.sizeBytes }
-            )?.let { store.pathOf(it).toString() }
+        val fits = installed.filter { DeviceFit.of(it, device) <= ModelFit.Experimental }
+        return installed.firstOrNull { it.id == preferredSpeech() }
+            ?: PHONE_SPEECH.takeUnless { device.desktop }?.firstNotNullOfOrNull { id -> fits.firstOrNull { it.id == id } }
+            ?: fits.maxByOrNull { it.sizeBytes }
+            ?: installed.minByOrNull { it.sizeBytes }
+    }
+
+    private companion object {
+        /** The phone's default speech models, best first: turbo decodes fast enough for a phone's CPU. */
+        val PHONE_SPEECH = listOf(ModelCatalog.whisperTurboQ8.id, ModelCatalog.whisperTurboQ5.id)
     }
 }

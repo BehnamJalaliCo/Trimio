@@ -116,7 +116,7 @@ class VisionCritic(private val model: LanguageModel, private val maxFrames: Int 
     private companion object {
         const val CAPTIONS = "pop-captions"
         const val COVER = 0.15f
-        val PICTURES = setOf("object", "objects", "icon")
+        val PICTURES = setOf("object", "objects", "icon", "animated", "live-reaction")
         val TEXT = setOf("slam", "stack", "mask-rise", "flip", "spread", "type-on", "blur-in", "glitch", "stamp", "comment")
         const val SYSTEM = "You check frames of short vertical videos for an editor. Look carefully and answer in JSON."
         const val QUESTION = "Is there a person in this frame? If so, give the bounding box of the person's face (from the top of the head to the chin) " +

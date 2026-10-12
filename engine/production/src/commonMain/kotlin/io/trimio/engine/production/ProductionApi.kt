@@ -6,6 +6,7 @@ import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.Taste
 import io.trimio.engine.autopilot.UserAsset
+import io.trimio.engine.production.diagnostics.RunReport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -180,13 +181,28 @@ data class ProductionState(
     val output: String? = null,
     val edit: Edit? = null,
     val error: String? = null,
+    /** What the run measured so far ([RunReport]): the «technical details» the creator can read and share. */
+    val technical: RunReport? = null,
+    /** Moves while a model streams text (at most every few seconds): progress the bar does not show. */
+    val heartbeat: Long = 0,
+    /** Set by the runner's watchdog when nothing moved for too long ([ProductionRunner.keepWaiting], [ProductionRunner.lighter]). */
+    val stall: Stall? = null,
 ) {
     val finished: Boolean get() = status != ProductionStatus.Running
 
     companion object {
         const val MAX_PREVIEWS = 6
+
+        /** [error] of a run that gave up after the process died twice in the same step ([diedIn] reads the step back). */
+        const val DIED = "died-in:"
+
+        /** The step a run gave up in after repeated process deaths, or null for any other error. */
+        fun diedIn(error: String?): String? = error?.takeIf { it.startsWith(DIED) }?.removePrefix(DIED)
     }
 }
+
+/** No progress in [step] for [minutes] minutes: the creator may wait, go on with a smaller model, or cancel. */
+data class Stall(val step: String, val minutes: Int)
 
 /**
  * The automatic editor. Every function returns a cold [Flow]: collecting starts the run,
@@ -229,6 +245,15 @@ interface AutoEditor {
 
     /** Whether [reopen] has what it needs for [request] (its run kept the delivered edit); reads no media. */
     suspend fun kept(request: ProductionRequest): Boolean = false
+
+    /** The next lighter director after [current] (a model id; null for the rules or unknown): a smaller installed model, else the rules. */
+    suspend fun lighter(current: String?): DirectorChoice = DirectorChoice.Rules
+
+    /** How long a run may go without any progress on this device before the watchdog speaks (ms). */
+    fun stallLimitMs(): Long = io.trimio.engine.production.diagnostics.Watchdog.limitFor(null)
+
+    /** Notes the watchdog's finding (or the creator's answer) in run [key]'s technical report. */
+    fun stalled(key: String, step: String, minutes: Int, choice: String? = null) = Unit
 }
 
 /**
@@ -245,4 +270,16 @@ interface ProductionRunner {
     /** Renders [edit] with the editor's [overrides] as the active run ([AutoEditor.retouch]). */
     fun retouch(edit: Edit, overrides: EditOverrides) = Unit
     fun cancel()
+
+    /** The watchdog spoke and the creator keeps waiting: as long again before it speaks again. */
+    fun keepWaiting() = Unit
+
+    /**
+     * [request] (by default the active or last run) again with a lighter director
+     * ([AutoEditor.lighter]); its saved words and reading carry over.
+     */
+    fun lighter(request: ProductionRequest? = null) = Unit
+
+    /** [request] (by default the active or last run) again with [director] (the rules, the cloud). */
+    fun redirect(director: DirectorChoice, request: ProductionRequest? = null) = Unit
 }

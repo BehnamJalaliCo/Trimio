@@ -19,6 +19,21 @@ abstract class Recipe(val name: String, val kind: Kind) {
     /** Seconds the choreography needs to play out and be read. */
     open val minHold: Float = 0f
 
+    /**
+     * Treatments of the same device (layout × choreography): the compiler picks one per beat
+     * ([Variety]) and hands it over as [Cue.variant]; 0 is the recipe's signature form.
+     */
+    open val variants: Int = 1
+
+    /** How many of the [variants] are distinct layouts (the rest are other moves of them). */
+    open val layouts: Int = 1
+
+    /**
+     * How much the look wants each treatment (a Swiss look never bounces, a calm one never slams);
+     * zero rules one out. One weight per variant.
+     */
+    open fun variantWeights(look: Look, cue: Cue): List<Float> = List(variants) { 1f }
+
     abstract fun build(cue: Cue, look: Look, fit: Fitter): Built
 }
 
@@ -69,6 +84,13 @@ data class Cue(
     /** The frame, in px: a full-frame cut-in fills it whatever slot it was given. */
     val frameWidth: Float = 0f,
     val frameHeight: Float = 0f,
+    /** Which of the recipe's treatments ([Recipe.variants]) to build; 0 is its signature form. */
+    val variant: Int = 0,
+    /**
+     * The edit's variety seed ([io.trimio.engine.motion.score.Score.variety]): 0 keeps every
+     * finishing touch in its signature form, any other value lets them vary ([Variety.touch]).
+     */
+    val variety: Int = 0,
 ) {
     val duration: Float get() = out - at
     val words: List<String> get() = text.split(' ').filter { it.isNotEmpty() }
@@ -97,11 +119,36 @@ data class Built(
     val sfx: List<Sfx> = emptyList(),
     /** Overlays drawn above everything (flashes), in frame space. */
     val overlays: List<Node> = emptyList(),
+    /**
+     * Where the graphic sits once it has landed, in frame px, when the recipe knows it tighter than
+     * its slot: captions and other graphics keep off it ([Box.overlaps]); null means the whole slot.
+     */
+    val box: Box? = null,
 )
+
+/** A rectangle in frame px: what a graphic covers at rest (see [Built.box]). */
+data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+    val width: Float get() = right - left
+    val height: Float get() = bottom - top
+    val centerX: Float get() = (left + right) / 2f
+    val centerY: Float get() = (top + bottom) / 2f
+
+    fun overlaps(o: Box, margin: Float = 0f): Boolean =
+        left < o.right + margin && o.left < right + margin && top < o.bottom + margin && o.top < bottom + margin
+
+    /** Whether it lies inside a [width] × [height] frame with [margin] px to spare on every side. */
+    fun inside(width: Float, height: Float, margin: Float = 0f): Boolean =
+        left >= margin && top >= margin && right <= width - margin && bottom <= height - margin
+
+    companion object {
+        fun around(cx: Float, cy: Float, w: Float, h: Float) = Box(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
+    }
+}
 
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
-    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all + UiRecipes.all + MediaRecipes.all
+    val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all +
+        UiRecipes.all + MediaRecipes.all + Families.all + io.trimio.engine.motion.art.AnimatedRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",
@@ -120,16 +167,16 @@ object Recipes {
         "logo" to "logos", "brands" to "logos", "brand" to "logos", "apps" to "logos", "tools" to "logos", "tags" to "chips", "pills" to "chips",
         "code" to "terminal", "install" to "terminal", "cli" to "terminal", "command" to "terminal", "shell" to "terminal",
         "map" to "network", "nodes" to "network", "graph-map" to "network", "mindmap" to "network", "tree" to "network",
-        "usage" to "meter", "compare" to "meter", "saving" to "meter", "savings" to "meter", "before-after" to "meter",
+        "usage" to "meter", "compare" to "meter", "saving" to "meter", "savings" to "meter",
         "cta" to "comment", "comment-cta" to "comment", "keyword" to "comment",
         "sticker" to "object", "emoji" to "object", "illustration" to "object", "prop" to "object",
         "picture" to "object", "visual" to "object",
         "stickers" to "objects", "ingredients" to "objects", "items" to "objects", "things" to "objects",
-        "bar" to "bars", "bar-chart" to "bars", "checklist" to "list", "steps" to "list",
+        "bar" to "bars", "bar-chart" to "bars", "checklist" to "list",
         "timer" to "countdown", "deadline" to "countdown", "time-left" to "countdown", "hours-left" to "countdown", "urgency" to "countdown",
         "clock" to "countdown", "countdown-timer" to "countdown", "expires" to "countdown", "last-chance" to "countdown",
         "kpi" to "stats", "kpis" to "stats", "metrics" to "stats", "numbers" to "stats", "figures" to "stats", "statistics" to "stats",
-        "stat-row" to "stats", "proof" to "stats", "social-proof" to "stats",
+        "stat-row" to "stats", "proof" to "stats",
         "progress-bar" to "progress", "capacity" to "progress", "filled" to "progress", "quota" to "progress",
         "spots" to "progress", "seats" to "progress", "loading" to "progress", "sold-out" to "progress",
         "coupon" to "voucher", "ticket" to "voucher", "gift-card" to "voucher", "giftcard" to "voucher", "gift" to "voucher",
@@ -149,7 +196,7 @@ object Recipes {
 
     fun named(name: String?): Recipe? {
         val key = name?.trim()?.lowercase()?.replace('_', '-')?.replace(' ', '-') ?: return null
-        val canonical = aliases[key] ?: key
+        val canonical = aliases[key] ?: Families.aliases[key] ?: key
         return all.firstOrNull { it.name == canonical }
     }
 }

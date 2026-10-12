@@ -25,6 +25,7 @@ private val appVersion: String = System.getProperty("jpackage.app-version") ?: "
 fun main(args: Array<String>) {
     BundledTools.configure()
     val dirs = DesktopDirs.of().create()
+    BundledTools.state(dirs)
     val hardware = DesktopHardware.basic()
     val incoming = IncomingMedia()
     var frame: Frame? = null

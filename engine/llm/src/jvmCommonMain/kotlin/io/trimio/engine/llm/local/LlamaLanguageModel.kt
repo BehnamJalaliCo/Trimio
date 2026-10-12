@@ -7,7 +7,9 @@ import io.trimio.engine.llm.GenerationRequest
 import io.trimio.engine.llm.JsonSchemaGrammar
 import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.llm.LanguageModelException
+import io.trimio.engine.llm.ModelRuntime
 import io.trimio.engine.llm.StopReason
+import io.trimio.engine.llm.Usage
 import io.trimio.engine.models.ChatFormat
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +66,34 @@ internal object LlamaNative {
         return ""
     }
 
-    external fun init(modelPath: String, contextSize: Int, threads: Int, gpuLayers: Int): Long
+    /**
+     * Engine options, from `-Dtrimio.llama.*` (or their defaults) in the order the native side
+     * reads them: KV cache type (ggml type: 1 f16, 8 q8_0), flash attention (-1 auto, 0, 1),
+     * n_batch, n_ubatch, prompt-head reuse, lazy grammar, and the share of the weights (percent)
+     * a GPU must be able to run before a model is put on it.
+     */
+    fun options(): IntArray = intArrayOf(
+        when (prop("kv")) { "f16" -> F16; else -> Q8_0 },
+        when (prop("flash")) { "on" -> 1; "off" -> 0; else -> -1 },
+        prop("batch")?.toIntOrNull() ?: BATCH,
+        prop("ubatch")?.toIntOrNull() ?: BATCH,
+        if (prop("prefixCache") == "off") 0 else 1,
+        if (prop("lazyGrammar") == "off") 0 else 1,
+        prop("minGpuCoverage")?.toIntOrNull() ?: MIN_GPU_COVERAGE,
+    )
+
+    private fun prop(name: String): String? = System.getProperty("trimio.llama.$name")?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
+
+    private const val F16 = 1
+    private const val Q8_0 = 8
+    private const val BATCH = 512
+    private const val MIN_GPU_COVERAGE = 90
+
+    external fun init(modelPath: String, contextSize: Int, threads: Int, gpuLayers: Int, options: IntArray): Long
+    external fun runtimeInfo(handle: Long): String
+
+    /** The last call: prompt tokens, reused tokens, generated tokens, prompt µs, generate µs, grammar resamples. */
+    external fun lastCall(handle: Long): LongArray
     external fun free(handle: Long)
     external fun contextSize(handle: Long): Int
     external fun countTokens(handle: Long, text: ByteArray): Int
@@ -148,15 +177,28 @@ class LlamaLanguageModel(
                 -5 -> throw LanguageModelException(LanguageModelException.Kind.Other, "An image could not be read")
                 else -> throw LanguageModelException(LanguageModelException.Kind.Other, "llama.cpp decode failed ($status)")
             }
-            Generation(out.toString(), stop, servedBy = id)
+            val c = LlamaNative.lastCall(engine)
+            val usage = Usage(1, c[0].toInt(), c[1].toInt(), c[2].toInt(), c[3] / US, c[4] / US)
+            total += usage
+            if (log) System.err.println("trimio llm: ${usage.summary()}, grammar resamples ${c[RESAMPLES]}")
+            Generation(out.toString(), stop, servedBy = id, usage = usage)
         }
     }
+
+    private var total = Usage(calls = 0)
+    private var info: Map<String, List<String>> = emptyMap()
+
+    /** Where this model runs (GPU, layers, threads, cache) and its calls so far; null until it loads. */
+    override val runtime: ModelRuntime?
+        get() = info.takeIf { it.isNotEmpty() }?.let { LlamaRuntime.parse(LlamaNative.variant, it, total) }
 
     private fun ensureLoaded(): Long {
         if (handle != 0L) return handle
         if (!File(modelPath).isFile) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Model not installed: $modelPath")
-        handle = LlamaNative.init(modelPath, contextSize, threads, LlamaNative.gpuLayers)
+        handle = LlamaNative.init(modelPath, contextSize, threads, LlamaNative.gpuLayers, LlamaNative.options())
         if (handle == 0L) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Could not load $modelPath")
+        info = LlamaRuntime.lines(LlamaNative.runtimeInfo(handle))
+        runtime?.let { System.err.println("trimio " + it.summary()) }
         return handle
     }
 
@@ -196,10 +238,21 @@ class LlamaLanguageModel(
     }
 
     companion object {
-        /** Big cores only: little cores slow the whole decode down to their pace ([FastCores] where measurable). */
-        fun defaultThreads(): Int = FastCores.count()?.coerceIn(2, MAX_THREADS) ?: (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 6)
+        /**
+         * Big cores only: little cores slow the whole decode down to their pace ([FastCores] where
+         * measurable), less one, left to the app (previews, the screen, the stream). ggml's threads
+         * meet at a spinning barrier after every operation: when one of them is put aside for
+         * another program, all of them wait for its turn. On this repo's busy 4-core test server
+         * whisper with 4 threads took over 600 s for what 1 thread did in 4.5 s.
+         */
+        fun defaultThreads(): Int = FastCores.count()?.let { (it - 1).coerceIn(2, MAX_THREADS) } ?: (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 6)
 
         private const val MAX_THREADS = 8
+        private const val US = 1000L
+        private const val RESAMPLES = 5
+
+        /** `-Dtrimio.llama.log=calls`: one line per call (tokens, speed) on stderr, for measurements. */
+        private val log = System.getProperty("trimio.llama.log") == "calls"
 
         fun systemInfo(): String = LlamaNative.systemInfo()
 

@@ -5,6 +5,9 @@
 // decoding UTF-8. Segments are delivered through a callback as soon as the decoder emits them.
 
 #include <jni.h>
+
+#include <cstdio>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -107,19 +110,81 @@ int dedicated_gpu() {
     return 0;
 }
 
+/** whisper.cpp's own log lines worth keeping for the runtime report (which backend it uses). */
+std::mutex log_mutex;
+std::string load_log;
+std::string last_info;
+
+void keep_log(ggml_log_level level, const char * text, void *) {
+    if (text == nullptr) return;
+    const std::string line(text);
+    static const char * keep[] = {"using ", "no GPU found", "failed to initialize", "flash attn", "compute buffer"};
+    bool wanted = level == GGML_LOG_LEVEL_ERROR;
+    for (const char * k : keep) wanted = wanted || line.find(k) != std::string::npos;
+    if (!wanted) return;
+    std::lock_guard<std::mutex> lock(log_mutex);
+    if (load_log.size() < 4096) load_log += "log=" + line.substr(0, line.find_last_not_of("\n") + 1) + "\n";
+}
+
+const char * device_kind(ggml_backend_dev_t dev) {
+    switch (ggml_backend_dev_type(dev)) {
+        case GGML_BACKEND_DEVICE_TYPE_GPU: return "gpu";
+        case GGML_BACKEND_DEVICE_TYPE_IGPU: return "igpu";
+        case GGML_BACKEND_DEVICE_TYPE_ACCEL: return "accel";
+        default: return "cpu";
+    }
+}
+
+/** Every device ggml sees, one line each: kind, name, description, free/total MiB. */
+std::string device_lines() {
+    std::string out;
+    for (size_t i = 0; i < ggml_backend_dev_count(); i++) {
+        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        size_t free = 0;
+        size_t total = 0;
+        ggml_backend_dev_memory(dev, &free, &total);
+        char line[512];
+        std::snprintf(line, sizeof(line), "device=%s|%s|%s|%zu|%zu\n", device_kind(dev), ggml_backend_dev_name(dev),
+            ggml_backend_dev_description(dev), free >> 20, total >> 20);
+        out += line;
+    }
+    return out;
+}
+
 }  // namespace
 
 extern "C" {
 
 JNIEXPORT jlong JNICALL
 Java_io_trimio_engine_asr_whisper_WhisperNative_init(JNIEnv * env, jobject, jstring modelPath, jboolean useGpu, jboolean flashAttention) {
+    whisper_log_set(keep_log, nullptr);
+    {
+        std::lock_guard<std::mutex> lock(log_mutex);
+        load_log.clear();
+    }
     whisper_context_params params = whisper_context_default_params();
     params.use_gpu = useGpu == JNI_TRUE;
     params.gpu_device = dedicated_gpu();
     params.flash_attn = flashAttention == JNI_TRUE;
     const std::string path = to_string(env, modelPath);
     whisper_context * ctx = whisper_init_from_file_with_params(path.c_str(), params);
+    std::string info = device_lines();
+    info += "use_gpu=" + std::to_string(params.use_gpu ? 1 : 0) + "\ngpu_device=" + std::to_string(params.gpu_device) +
+        "\nflash=" + std::to_string(params.flash_attn ? 1 : 0) + "\n";
+    {
+        std::lock_guard<std::mutex> lock(log_mutex);
+        info += load_log;
+        load_log.clear();
+    }
+    last_info = info;
     return reinterpret_cast<jlong>(ctx);
+}
+
+/** How the last model was loaded: devices, the GPU it runs on (or none), as key=value lines. */
+JNIEXPORT jstring JNICALL
+Java_io_trimio_engine_asr_whisper_WhisperNative_runtimeInfo(JNIEnv * env, jobject) {
+    std::lock_guard<std::mutex> lock(log_mutex);
+    return env->NewStringUTF(last_info.c_str());
 }
 
 JNIEXPORT void JNICALL
@@ -136,7 +201,7 @@ Java_io_trimio_engine_asr_whisper_WhisperNative_isMultilingual(JNIEnv *, jobject
 JNIEXPORT jint JNICALL
 Java_io_trimio_engine_asr_whisper_WhisperNative_transcribe(
     JNIEnv * env, jobject, jlong handle, jfloatArray pcm, jstring language, jstring initialPrompt,
-    jint threads, jobject callback) {
+    jint threads, jint beamSize, jobject callback) {
 
     auto * ctx = reinterpret_cast<whisper_context *>(handle);
     jclass cls = env->GetObjectClass(callback);
@@ -152,8 +217,10 @@ Java_io_trimio_engine_asr_whisper_WhisperNative_transcribe(
     const std::string lang = to_string(env, language);
     const std::string prompt = to_string(env, initialPrompt);
 
-    whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH);
-    params.beam_search.beam_size = 3;
+    // Beam search ([beamSize] > 1) or greedy (one decoder; temperature fallbacks keep best_of 2).
+    whisper_full_params params = whisper_full_default_params(beamSize > 1 ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY);
+    if (beamSize > 1) params.beam_search.beam_size = beamSize;
+    else params.greedy.best_of = 2;
     params.n_threads = threads;
     params.language = lang.empty() ? "auto" : lang.c_str();
     params.detect_language = false;

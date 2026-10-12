@@ -97,6 +97,8 @@ fun CreateRoute(
     onBack: () -> Unit,
     onProduce: (CreateState) -> Unit,
     onPickMedia: (MediaKind) -> Unit = {},
+    /** The models screen, for a speed whose director is not installed yet. */
+    onModels: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     CreateScreen(
@@ -105,6 +107,7 @@ fun CreateRoute(
             onBack = onBack, onPickMedia = onPickMedia, onPrompt = viewModel::setPrompt, onExpert = viewModel::setExpert,
             onAddTerm = viewModel::addTerm, onRemoveTerm = viewModel::removeTerm, onAttach = viewModel::attach, onDetach = viewModel::detach,
             onCaption = viewModel::setCaption, onStyle = viewModel::setStyle,
+            onSpeed = { mode -> if (!viewModel.setSpeed(mode)) onModels() },
             onCreate = { if (state.canCreate) onProduce(state) },
         ),
     )
@@ -129,7 +132,7 @@ fun CreateScreen(state: CreateState, actions: CreateActions, pickerOpen: Boolean
                         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                             MediaHero(state, actions, Modifier.fillMaxHeight().aspectRatio(9f / 16f).clip(RoundedCornerShape(SigSpace.radiusLg)), framed = true)
                         }
-                        CreateAction(state, actions.onCreate)
+                        CreateAction(state, actions)
                     }
                     Column(Modifier.weight(1.1f).widthIn(max = 640.dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = SigSpace.xl)) {
                         BriefColumn(state, actions, ranked) { picking = true }
@@ -140,7 +143,7 @@ fun CreateScreen(state: CreateState, actions: CreateActions, pickerOpen: Boolean
                         MediaHero(state, actions, Modifier.fillMaxWidth().height(268.dp))
                         BriefColumn(state, actions, ranked) { picking = true }
                     }
-                    CreateAction(state, actions.onCreate, Modifier.gutter().padding(bottom = 8.dp))
+                    CreateAction(state, actions, Modifier.gutter().padding(bottom = 8.dp))
                 }
             }
             if (picking) {
@@ -427,8 +430,9 @@ private fun StyleRow(state: CreateState, ranked: List<Pair<StyleCard, Int>>, onS
 }
 
 @Composable
-private fun CreateAction(state: CreateState, onCreate: () -> Unit, modifier: Modifier = Modifier) {
+private fun CreateAction(state: CreateState, actions: CreateActions, modifier: Modifier = Modifier) {
     val c = Sig.colors
+    val onDevice = state.director == io.trimio.core.pipeline.DirectorBackend.OnDevice
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (state.hot) {
             SigChip(
@@ -436,13 +440,17 @@ private fun CreateAction(state: CreateState, onCreate: () -> Unit, modifier: Mod
                 container = c.emphasisSoft, content = c.emphasisSoftContent,
             )
         }
+        if (onDevice) SpeedChoice(state.speeds, state.speed, actions.onSpeed)
         SigButton(
             if (state.creating) tr("در حال آماده‌سازی…", "Preparing…") else tr("بساز", "Make it"),
-            onCreate, Modifier.fillMaxWidth(), trailing = TrimioIcons.ChevronForward, enabled = state.canCreate,
+            actions.onCreate, Modifier.fillMaxWidth(), trailing = TrimioIcons.ChevronForward, enabled = state.canCreate,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             TrimioIcon(TrimioIcons.Phone, null, tint = c.faint, size = 12.dp)
-            Text(tr("روی همین دستگاه · بدون اینترنت", "On this device · offline"), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.faint)
+            Text(
+                if (onDevice) speedLine(state.speeds, state.speed) else tr("روی همین دستگاه · بدون اینترنت", "On this device · offline"),
+                style = Sig.type.meta.copy(fontSize = 11.sp), color = c.faint, maxLines = 2,
+            )
         }
     }
 }

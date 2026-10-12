@@ -87,7 +87,7 @@ class DesktopVideoExporter(private val fonts: androidx.compose.ui.text.font.Font
         private fun openNext(): DataInputStream? {
             val seg = segments.removeFirstOrNull() ?: return null
             val p = ProcessBuilder(
-                MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.3f".format(seg.startMs / 1000.0), "-t", "%.3f".format(seg.durationMs / 1000.0),
+                MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.3f".format(java.util.Locale.ROOT, seg.startMs / 1000.0), "-t", "%.3f".format(java.util.Locale.ROOT, seg.durationMs / 1000.0),
                 "-i", path, "-an", "-vf", "scale=$w:$h:force_original_aspect_ratio=increase,crop=$w:$h,fps=${request.fps}",
                 "-f", "rawvideo", "-pix_fmt", "bgra", "-",
             ).redirectError(ProcessBuilder.Redirect.DISCARD).start()

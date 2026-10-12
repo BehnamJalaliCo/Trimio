@@ -372,6 +372,34 @@ class MotionRenderer(
             val y = line.baseline + d.offset * size
             drawRoundRect(d.color, Offset(r.left, y), Size(r.width, d.thickness * size), androidx.compose.ui.geometry.CornerRadius(d.thickness * size / 2), alpha = alpha)
         }
+        for (d in node.decorations.filterIsInstance<Decoration.Scribble>()) drawScribble(d, line, t, node.rtl, size, alpha)
+    }
+
+    /** A hand-drawn wave, double rule or strike under (or through) the words, drawn on in reading order. */
+    private fun DrawScope.drawScribble(d: Decoration.Scribble, line: TextLine, t: Float, rtl: Boolean, size: Float, alpha: Float) {
+        val r = wipeRect(d.words, d.at, d.duration, Easing.ExpoOut, line, t, rtl, size * 0.06f) ?: return
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            d.thickness * size, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        val rows = when (d.kind) {
+            Decoration.Scribble.Kind.Wave -> listOf(line.baseline + d.offset * size)
+            Decoration.Scribble.Kind.Double -> listOf(line.baseline + d.offset * size * 0.8f, line.baseline + d.offset * size * 0.8f + d.thickness * size * 2.4f)
+            Decoration.Scribble.Kind.Strike -> listOf((line.inkTop + line.inkBottom) / 2f + size * 0.04f)
+        }
+        val amp = if (d.kind == Decoration.Scribble.Kind.Wave) size * 0.07f else size * 0.012f
+        val period = size * 0.42f
+        for ((k, y) in rows.withIndex()) {
+            val path = androidx.compose.ui.graphics.Path()
+            val steps = (r.width / (size * 0.08f)).toInt().coerceIn(4, 400)
+            for (i in 0..steps) {
+                // Drawn from the reading start: the wave's phase follows the hand, not the screen.
+                val f = i / steps.toFloat()
+                val x = if (rtl) r.right - r.width * f else r.left + r.width * f
+                val yy = y + amp * sin((r.width * f) / period * 2f * PI.toFloat() + k * 1.3f) + size * 0.01f * k
+                if (i == 0) path.moveTo(x, yy) else path.lineTo(x, yy)
+            }
+            drawPath(path, d.color, alpha = alpha, style = stroke)
+        }
     }
 
     private inline fun DrawScope.clipIf(condition: Boolean, r: Rect, block: DrawScope.() -> Unit) {

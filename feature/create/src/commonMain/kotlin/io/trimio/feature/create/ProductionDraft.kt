@@ -89,5 +89,7 @@ data class CreateActions(
     val onDetach: (String) -> Unit = {},
     val onCaption: (String, String) -> Unit = { _, _ -> },
     val onStyle: (String?) -> Unit = {},
+    /** A speed (fast, balanced, pro); one whose model is not installed opens the models screen. */
+    val onSpeed: (io.trimio.engine.models.SpeedMode) -> Unit = {},
     val onCreate: () -> Unit = {},
 )

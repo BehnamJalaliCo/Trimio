@@ -57,7 +57,7 @@ class TextBlock(val lines: List<TextLine>, val width: Float, val height: Float, 
  * every line is shaped on its own so units can animate without breaking Persian joining, and each
  * word and letter gets a clip slice that partitions its line.
  */
-class TextLayoutEngine(private val measurer: TextMeasurer, private val fonts: MotionFonts) {
+class TextLayoutEngine(val measurer: TextMeasurer, val fonts: MotionFonts) {
 
     /**
      * The accent face is Latin-only: Persian text asked of it is set in the display face instead,

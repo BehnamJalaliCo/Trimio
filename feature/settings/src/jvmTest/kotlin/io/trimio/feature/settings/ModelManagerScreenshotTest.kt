@@ -38,6 +38,20 @@ class ModelManagerScreenshotTest {
         shoot("models-fa-empty", paper = false) { ModelManagerScreen(ui(8, s = emptyMap()), ModelActions()) }
     }
 
+    /** The «موتور: …» line: measured by a build (the GPU and its layers), or not yet (only the threads). */
+    @Test
+    fun hardwareLine() {
+        val measured = HardwareLine("QUALCOMM Adreno(TM) 830", "opencl", 33, 33, 6, measured = true)
+        val speeds = mapOf("qwen3.5-4b-q4km" to 14.2f)
+        shoot("models-hardware-fa-noir", paper = false) {
+            ModelManagerScreen(ModelShelf.build(ModelCatalog.all, states, DeviceMemory(12), null, "whisper-large-v3-turbo-q5", hardware = measured, speeds = speeds), ModelActions())
+        }
+        shoot("models-hardware-fa-paper", paper = true) {
+            ModelManagerScreen(ModelShelf.build(ModelCatalog.all, states, DeviceMemory(12), null, null, hardware = HardwareLine(threads = 6)), ModelActions())
+        }
+        assertEquals(14.2f, ModelShelf.build(ModelCatalog.all, states, DeviceMemory(12), null, null, speeds = speeds).directors.first { it.id == "qwen3.5-4b-q4km" }.measuredTokensPerSecond)
+    }
+
     @Test
     fun desktop() = shoot("models-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { ModelManagerScreen(ui(32, desktop = true), ModelActions()) }
 

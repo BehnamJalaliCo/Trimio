@@ -100,13 +100,22 @@ fun androidPlatformModule(
             store, device, models.catalog, preferred = { settings.settings.value.localModelId }, cloud = { get<CloudModels>().firstAvailable() },
         )
         val recognizer = directors().recognizer { settings.settings.value.speechModelId }
-        AndroidProductionPlatform(app, { recognizer }, { choice -> directors().director(choice) }, device.tier)
+        AndroidProductionPlatform(
+            app, { recognizer }, { choice -> directors().director(choice) }, device.tier,
+            lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },
+        )
     }
     single<AutoEditor> {
-        Productions(get(), get(), WebKnowledge(get()), threads = { get<DeviceProfile>().threadsFor(get<ThermalMonitor>().level.value) })
+        val info = get<DeviceInfo>()
+        Productions(
+            get(), get(), WebKnowledge.cached(get(), File(app.cacheDir, "web").absolutePath), threads = { get<DeviceProfile>().threadsFor(get<ThermalMonitor>().level.value) },
+            app = "Trimio ${info.appVersion} (${info.versionCode}) · ${info.platform}",
+        )
     }
     // Exports and results go to Movies/Trimio; the network check is what a cloud run needs.
     single<GallerySaver> { AndroidGallerySaver(app) }
+    // The result screen plays the finished edit in the app (Media3).
+    single<io.trimio.feature.stream.VideoPlayers> { io.trimio.feature.stream.VideoPlayers { uri -> io.trimio.shared.player.ExoVideoPlayer(app, uri) } }
     single<Connectivity> { AndroidConnectivity(app) }
     // The foreground service finds the runner here when the system restarts it after killing the process.
     ProductionService.runner = { org.koin.core.context.GlobalContext.get().get<AppProductionRunner>() }

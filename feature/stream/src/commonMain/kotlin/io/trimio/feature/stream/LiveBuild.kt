@@ -88,7 +88,12 @@ data class LiveBuild(
     val transcript: String = "",
     val transcriptEmphasis: List<String> = emptyList(),
     val onDevice: Boolean = true,
+    /** The watchdog's finding: nothing has moved for a while ([BuildStall]); null while the run moves. */
+    val stall: BuildStall? = null,
 )
+
+/** No progress for [minutes] minutes in [step] (the engine's step name, for the details): wait, go lighter, or cancel. */
+data class BuildStall(val minutes: Int, val step: String, val stage: BuildStage)
 
 /** A finished edit as the result screen shows it. */
 data class BuildResult(
@@ -141,4 +146,6 @@ data class ResultActions(
     val onExport: (() -> Unit)? = null,
     /** The editor on this edit (text, style, sound, elements, cuts); null hides it. */
     val onEdit: (() -> Unit)? = null,
+    /** «جزئیات فنی»: the build's technical report; null hides it (no report was kept). */
+    val onDetails: (() -> Unit)? = null,
 )

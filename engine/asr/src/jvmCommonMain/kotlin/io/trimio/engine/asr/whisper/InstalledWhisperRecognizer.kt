@@ -6,6 +6,7 @@ import io.trimio.core.model.transcript.Word
 import io.trimio.engine.asr.RecognitionException
 import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.asr.SpeechRecognizer
+import io.trimio.engine.asr.SpeechRuntime
 
 /**
  * Resolves the installed speech model at the moment a job needs it (the user may download or
@@ -13,6 +14,10 @@ import io.trimio.engine.asr.SpeechRecognizer
  */
 class InstalledWhisperRecognizer(private val resolveModelPath: () -> String?) : SpeechRecognizer, AutoCloseable {
     private var current: Pair<String, WhisperCppRecognizer>? = null
+
+    /** The last transcription's runtime; kept after [close], for the run's report. */
+    override var runtime: SpeechRuntime? = null
+        private set
 
     override suspend fun transcribe(
         audio: PcmAudio,
@@ -26,7 +31,7 @@ class InstalledWhisperRecognizer(private val resolveModelPath: () -> String?) : 
             current?.second?.close()
             WhisperCppRecognizer(path).also { current = path to it }
         }
-        return recognizer.transcribe(audio, options, onProgress, onWord)
+        return recognizer.transcribe(audio, options, onProgress, onWord).also { runtime = recognizer.runtime }
     }
 
     override fun close() {

@@ -3,6 +3,7 @@ package io.trimio.engine.production
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.autopilot.Delivery
 import io.trimio.engine.autopilot.Understanding
+import io.trimio.engine.production.diagnostics.Reports
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
@@ -20,6 +21,9 @@ import kotlinx.serialization.json.Json
  */
 class Checkpoints(private val dir: Path?) {
 
+    /** Each run's technical report and death marker, kept beside its checkpoint ([RunReport]). */
+    val reports: Reports = Reports(dir)
+
     @Serializable
     data class Saved(
         /** The recognised words on the source clock, as whisper gave them. */
@@ -33,8 +37,9 @@ class Checkpoints(private val dir: Path?) {
 
     fun save(key: String, saved: Saved) = write(file(key), json.encodeToString(Saved.serializer(), saved))
 
-    /** Forgets a run's words and reading (the creator deleted the project). */
+    /** Forgets a run's words, reading and technical report (the creator deleted the project). */
     fun delete(key: String) {
+        reports.delete(key)
         val path = file(key) ?: return
         runCatching { SystemFileSystem.delete(path, mustExist = false) }
     }

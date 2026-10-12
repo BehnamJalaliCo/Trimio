@@ -54,6 +54,7 @@ class BriefJudge : Judge {
             if (ask.words.none { it in p } || !ask.supported(c) || ask.shown(c)) continue
             f += Bench.finding(0f, Severity.Major, "the brief asks for ${ask.what}; the edit has none", "show ${ask.what} where it is said")
         }
+        f += BriefChecklist(c).findings()
         return Verdict.of(this, f)
     }
 
@@ -66,6 +67,7 @@ class BriefJudge : Judge {
             "none" -> score.copy(captions = score.captions.copy(show = false))
             else -> score
         }
+        score = BriefChecklist(c.copy(score = score)).revise()
         return score.takeIf { it != c.score }
     }
 

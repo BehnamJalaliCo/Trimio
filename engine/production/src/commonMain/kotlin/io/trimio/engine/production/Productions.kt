@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import io.trimio.core.model.text.Language
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.asr.RecognitionOptions
+import io.trimio.engine.asr.SpeechRuntime
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Collaborator
 import io.trimio.engine.autopilot.Delivery
@@ -20,6 +21,15 @@ import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.visual.VisualLibrary
+import io.trimio.engine.production.diagnostics.Fact
+import io.trimio.engine.production.diagnostics.RenderTime
+import io.trimio.engine.production.diagnostics.RunOutcome
+import io.trimio.engine.production.diagnostics.RunRecorder
+import io.trimio.engine.production.diagnostics.RunReport
+import io.trimio.engine.production.diagnostics.Runtime
+import io.trimio.engine.production.diagnostics.SpeechTime
+import io.trimio.engine.production.diagnostics.Watchdog
+import io.trimio.engine.production.diagnostics.wallClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,7 +66,15 @@ class Productions(
     private val jury: Jury? = null,
     /** Recognition threads, read when each run starts (fewer on a warm phone). */
     private val threads: () -> Int = { DEFAULT_THREADS },
+    /** The app's version and platform, for the technical report. */
+    private val app: String = "",
+    /** Wall clock (epoch ms) for the technical report; tests pass a fake one. */
+    private val clock: () -> Long = ::wallClock,
 ) : AutoEditor {
+
+    /** The run being recorded now, for the watchdog's notes ([stalled]). */
+    @kotlin.concurrent.Volatile
+    private var recording: RunRecorder? = null
 
     private var engines: Engines? = null
     private val engineLock = Mutex()
@@ -160,17 +178,46 @@ class Productions(
     private fun retouchedOutput(director: String, overrides: EditOverrides): String =
         director.removeSuffix(".mp4") + "-e" + overrides.fingerprint + ".mp4"
 
+    override suspend fun lighter(current: String?): DirectorChoice = platform.lighter(current)
+
+    override fun stallLimitMs(): Long = Watchdog.limitFor(platform.device().tier)
+
+    override fun stalled(key: String, step: String, minutes: Int, choice: String?) {
+        val recorder = recording?.takeIf { it.key == key } ?: return
+        if (choice == null) recorder.stall(step, minutes) else recorder.stallChoice(choice)
+    }
+
     private fun run(request: ProductionRequest, previous: Edit?, taste: Taste, feedback: String? = null): Flow<ProductionState> = channelFlow {
         val state = MutableStateFlow(ProductionState(request.key))
         // Every distinct state goes out in order; the flow ends after the final one.
         val forward = launch { state.first { s -> send(s); s.finished } }
+        val recorder = RunRecorder(
+            request.key, checkpoints.reports, SESSION, clock, platform::memory,
+            onChange = { report -> state.update { it.copy(technical = report) } },
+            onBeat = { beat -> state.update { it.copy(heartbeat = beat) } },
+        )
+        recording = recorder
         try {
-            withContext(Dispatchers.Default) { work(Run(request, previous, taste, feedback, state)) }
+            withContext(Dispatchers.Default) {
+                val died = recorder.begin(app, readable { platform.about() }.orEmpty())
+                if (died != null) {
+                    // The process ended twice in the same step (memory, the native engine): say so instead of dying in a loop.
+                    recorder.finish(RunOutcome.Failed)
+                    state.update { it.copy(status = ProductionStatus.Failed, error = ProductionState.DIED + died) }
+                } else {
+                    work(Run(request, previous, taste, feedback, state, recorder))
+                }
+            }
         } catch (e: CancellationException) {
+            recorder.finish(RunOutcome.Cancelled)
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
-            // Any engine failure ends the run with its message; the screen offers to retry.
+            // Any engine failure ends the run with its message (and its stack in the report); the screen offers to retry.
+            recorder.error(e)
+            recorder.finish(RunOutcome.Failed)
             state.update { it.copy(status = ProductionStatus.Failed, error = e.message ?: e::class.simpleName) }
+        } finally {
+            if (recording === recorder) recording = null
         }
         forward.join()
     }.conflate()
@@ -181,32 +228,47 @@ class Productions(
         val taste: Taste,
         val feedback: String?,
         val state: MutableStateFlow<ProductionState>,
+        val recorder: RunRecorder,
     ) {
-        fun at(stage: Stage, within: Float, step: String) = state.update { s ->
-            val p = Stage.entries.takeWhile { it != stage }.sumOf { it.weight.toDouble() }.toFloat() + stage.weight * within.coerceIn(0f, 1f)
-            s.copy(stage = stage, step = step, progress = maxOf(s.progress, p.coerceAtMost(1f)))
+        /** Where whisper ran, once it has (null when the words came from a checkpoint). */
+        var speech: SpeechRuntime? = null
+
+        fun at(stage: Stage, within: Float, step: String) {
+            if (step != "done") recorder.step(step)
+            state.update { s ->
+                val p = Stage.entries.takeWhile { it != stage }.sumOf { it.weight.toDouble() }.toFloat() + stage.weight * within.coerceIn(0f, 1f)
+                s.copy(stage = stage, step = step, progress = maxOf(s.progress, p.coerceAtMost(1f)))
+            }
         }
     }
 
     private suspend fun ProducerScope<ProductionState>.work(r: Run) {
         val request = r.request
         val job = currentCoroutineContext()[Job]
+        val recorder = r.recorder
         r.at(Stage.Prepare, 0f, "prepare")
         val e = engines()
-        val voice = platform.audio(request.media, VOICE_RATE)
+        val voice = recorder.native("decode sound") { platform.audio(request.media, VOICE_RATE) }
         val video = request.kind == SourceKind.Video
-        val frames = if (video) platform.frames(request.media, SUBJECT_FRAMES, LOOK_W) else emptyList()
+        val frames = if (video) recorder.native("decode frames") { platform.frames(request.media, SUBJECT_FRAMES, LOOK_W) } else emptyList()
         val found = SubjectFinder.locate(frames)
         r.at(Stage.Prepare, HALF, "attachments")
-        val assets = request.assets.mapIndexed { i, a -> platform.asset(a.source, "asset-$i", a.caption) }
+        val assets = recorder.native("attachments") { request.assets.mapIndexed { i, a -> platform.asset(a.source, "asset-$i", a.caption) } }
 
         // The words: the previous edit's, the checkpoint's, or whisper's (unloaded before the director loads: phones hold one model).
         val saved = if (r.previous == null) checkpoints.load(request.key) else null
-        val transcript = r.previous?.transcript ?: saved?.transcript ?: transcribe(r, voice).also {
+        val heard = r.previous?.transcript ?: saved?.transcript
+        val transcript = heard ?: transcribe(r, voice).also {
             checkpoints.save(request.key, Checkpoints.Saved(it))
         }
 
-        val director = platform.director(request.director)
+        // The director loads (and its eyes find the speaker) within "direct": the screen counts it as listening.
+        r.at(Stage.Direct, 0f, "direct")
+        val director = platform.director(request.director).let { d ->
+            val model = d.model?.let(recorder::instrument)
+            Director(model, d.eyes?.let { eyes -> if (eyes === d.model) model else recorder.instrument(eyes) })
+        }
+        recorder.models(modelFacts(director, if (heard == null) platform.speechModel() else null, request.director))
         val subject = director.eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
         r.at(Stage.Direct, 0f, "direct")
         val taste = r.feedback?.let { r.taste.adjust(Collaborator(director.model).read(it)) } ?: r.taste
@@ -217,7 +279,7 @@ class Productions(
         val grabber = director.eyes?.let { FrameGrabber { output, times -> renderLock.withLock { times.map { t -> e.previewer.rgb(output, media.of(output), t, LOOK_W, LOOK_H) } } } }
         val autopilot = Autopilot(
             e.text, e.brands, visuals, director.model, knowledge, taste, director.eyes, grabber,
-            jury = jury ?: Juries.forDevice(platform.device()),
+            jury = recorder.instrument(jury ?: Juries.forDevice(platform.device())),
             onCompiled = { job?.ensureActive(); latest.value = it },
         )
         val understanding = r.previous?.production?.understanding ?: saved?.understanding
@@ -229,14 +291,26 @@ class Productions(
         r.state.update { it.copy(panel = production.panel?.let(PanelSummary::of), report = production.report) }
         previews.cancel()
         renderLock.withLock { media.close() }
+        // Where the engines ran (build, GPU, layers, threads), as they report it once they have worked.
+        val runtime = Runtime.of(director.model?.runtime, r.speech)
+        recorder.runtime(runtime)
 
         r.at(Stage.Render, 0f, "render")
-        val out = platform.export(production, request, assets, request.output ?: platform.outputFor(request)) { done, total ->
-            job?.ensureActive()
-            r.at(Stage.Render, done / total.coerceAtLeast(1).toFloat(), "render $done/$total")
+        val renderStart = clock()
+        var frameCount = 0
+        val out = recorder.native("render") {
+            platform.export(production, request, assets, request.output ?: platform.outputFor(request)) { done, total ->
+                job?.ensureActive()
+                frameCount = done
+                r.at(Stage.Render, done / total.coerceAtLeast(1).toFloat(), "render $done/$total")
+            }
         }
+        val c = production.compiled.composition
+        recorder.render(RenderTime(frameCount, (clock() - renderStart) / MS, c.width, c.height))
         // The finished edit is kept whole: it opens again after a restart (editor, exports) without whisper or the model.
         checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, production.delivery()))
+        recorder.finish(RunOutcome.Done)
+        checkpoints.reports.saveEngine(recorder.engine(runtime, checkpoints.reports.engine()))
         r.state.update {
             it.copy(
                 status = ProductionStatus.Done, stage = Stage.Done, step = "done", progress = 1f, output = out,
@@ -261,12 +335,28 @@ class Productions(
         r.at(Stage.Transcribe, 0f, "transcribe")
         val recognizer = platform.recognizer() ?: error("No speech model is installed: download one in Settings → Models")
         val audio = io.trimio.engine.audio.Resampler().resample(voice, WHISPER_RATE)
+        val threads = threads()
+        val start = clock()
         return try {
-            recognizer.transcribe(audio, RecognitionOptions(Language.Persian, hint(r.request.brief), threads()), onProgress = { p -> r.at(Stage.Transcribe, p, "transcribe") })
+            r.recorder.native("transcribe") {
+                recognizer.transcribe(audio, RecognitionOptions(Language.Persian, hint(r.request.brief), threads), onProgress = { p -> r.at(Stage.Transcribe, p, "transcribe") })
+            }.also { t ->
+                r.speech = recognizer.runtime
+                val seconds = audio.samples.size / audio.sampleRate.toFloat()
+                r.recorder.speech(SpeechTime(platform.speechModel(), seconds, (clock() - start) / MS, threads, t.words.size))
+            }
         } finally {
             (recognizer as? AutoCloseable)?.close()
         }
     }
+
+    /** Who directed, who looked and who listened, for the technical report. */
+    private fun modelFacts(director: Director, speech: String?, choice: DirectorChoice): List<Fact> = listOfNotNull(
+        Fact(RunReport.DIRECTOR, director.model?.let { "${it.id} (${if (it.isLocal) "on device" else "cloud"})" } ?: "rules (no model)"),
+        Fact("asked for", choice.toString()),
+        director.eyes?.let { Fact(RunReport.EYES, if (it === director.model) "${it.id} (the director's own)" else it.id) },
+        speech?.let { Fact(RunReport.SPEECH, it) },
+    )
 
     /**
      * The footage for previews and the eyes, opened on the first frame drawn at the edit's own
@@ -292,6 +382,9 @@ class Productions(
     }
 
     companion object {
+        /** This process: a death marker another session left means that process ended mid-run. */
+        val SESSION: String = kotlin.random.Random.nextLong().toULong().toString(36)
+        private const val MS = 1000f
         const val VOICE_RATE = 48_000
         const val WHISPER_RATE = 16_000
         const val FOOTAGE = "main"

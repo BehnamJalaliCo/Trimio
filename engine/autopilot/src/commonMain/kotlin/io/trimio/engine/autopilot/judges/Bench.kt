@@ -24,7 +24,7 @@ internal object Bench {
 
     /** Figures that need time to be read (the planner's DATA_HOLD applies to them). */
     val DATA = setOf("counter", "voucher", "stats", "countdown", "progress", "chart", "meter", "network", "terminal", "bars")
-    val PICTURES = setOf("object", "objects", "icon")
+    val PICTURES = setOf("object", "objects", "icon", "animated", "live-reaction")
 
     /** The craft's alternatives for a text treatment used too often (the critic's table). */
     val ALTERNATE = mapOf(
@@ -100,6 +100,42 @@ internal object Bench {
     fun askedBy(score: Score, words: List<Word>): Float? {
         val starts = sceneStarts(score, words)
         return score.scenes.indices.flatMap { k -> score.scenes[k].beats.filter { it.recipe == COMMENT }.map { beatStart(it, k, score, words, starts) } }.minOrNull()
+    }
+
+    /**
+     * A beat the jury keeps finding at fault is taken one step further each round, never back:
+     * moved to the other band (over the speaker) or given another layout of its device — either
+     * way its treatment is then pinned ([BeatScore.variant] set) — then a plain treatment of the
+     * same words or figure, then left out. The call to action and the end card are never left out.
+     */
+    object Ladder {
+        private val KEEP = setOf(COMMENT, "endcard")
+
+        fun next(b: BeatScore, p: Compiler.Placed, moveFirst: Boolean): BeatScore? {
+            val variants = io.trimio.engine.motion.recipe.Recipes.named(b.recipe)?.variants ?: 1
+            return when {
+                b.variant == null && moveFirst && p.overFootage -> b.copy(place = otherBand(p.zone), variant = p.variant)
+                b.variant == null && variants > 1 -> b.copy(variant = (p.variant + 1) % variants)
+                b.variant == null -> b.copy(place = if (p.overFootage) otherBand(p.zone) else "center", variant = p.variant)
+                b.recipe in KEEP -> b
+                b.recipe !in TEXT -> plain(b)
+                else -> null
+            }
+        }
+
+        /** The same words (or figure) as a plain text treatment, or null when it says nothing in words. */
+        fun plain(b: BeatScore): BeatScore? {
+            if (b.value != null && b.recipe != "counter") return BeatScore(
+                recipe = "counter", at = b.at, until = b.until, time = b.time, value = b.value, decimals = b.decimals, prefix = b.prefix,
+                suffix = b.suffix, label = b.label, place = b.place, energy = b.energy,
+            )
+            val words = (b.text ?: b.label ?: b.items.take(PLAIN_ITEMS).joinToString(" ")).replace(" | ", " ").trim()
+            if (words.isBlank() || words.split(' ').size > PLAIN_WORDS) return null
+            return BeatScore(recipe = "mask-rise", at = b.at, time = b.time, text = words, place = b.place, energy = b.energy, mark = b.mark, hold = b.hold)
+        }
+
+        private const val PLAIN_ITEMS = 3
+        private const val PLAIN_WORDS = 5
     }
 
     /** The other band over footage: graphics trade the top for the lower third and back. */

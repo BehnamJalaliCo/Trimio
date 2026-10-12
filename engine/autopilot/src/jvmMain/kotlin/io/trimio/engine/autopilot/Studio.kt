@@ -126,7 +126,7 @@ object Media {
         return (1..count).mapNotNull { k ->
             val t = duration * k / (count + 1f)
             val p = ProcessBuilder(
-                MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.2f".format(t), "-i", file.absolutePath, "-frames:v", "1",
+                MediaTools.ffmpeg, "-loglevel", "error", "-ss", "%.2f".format(java.util.Locale.ROOT, t), "-i", file.absolutePath, "-frames:v", "1",
                 "-vf", "scale=$width:$h", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
             ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
             val bytes = p.inputStream.readBytes()

@@ -248,6 +248,12 @@ class TextNode(
     /** Sits on a body of its own (a card, a bubble, a pill): its contrast is designed, not guarded. */
     var onBody: Boolean = false
 
+    /**
+     * The colour of the body it was designed on (a card, a pill, a tag), when the recipe knows it:
+     * tests and the jury hold its ink against it to the contrast floor.
+     */
+    var ground: Color? = null
+
     /** Set by the compiler on text over footage; see [Guard]. */
     var guard: Guard? = null
 }
@@ -272,6 +278,9 @@ class CounterNode(
 ) : Node(transform, start, end, mask, blend, name) {
     /** See [TextNode.onBody]. */
     var onBody: Boolean = false
+
+    /** See [TextNode.ground]. */
+    var ground: Color? = null
 
     /** See [TextNode.guard]. */
     var guard: Guard? = null
@@ -319,6 +328,12 @@ class VectorNode(
     blend: BlendMode = BlendMode.SrcOver,
     name: String = "vector",
 ) : Node(transform, start, end, mask, blend, name) {
+    /**
+     * For an animated picture ([io.trimio.engine.motion.visual.VectorIcon.motion]): seconds into its
+     * own animation at composition time t. Null plays it from the start of [assemble] (or [start]).
+     */
+    var play: Anim? = null
+
     val width: Float get() = if (icon.width >= icon.height) size else size * icon.width / icon.height
     val height: Float get() = if (icon.height >= icon.width) size else size * icon.height / icon.width
 }

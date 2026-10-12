@@ -14,6 +14,8 @@ import io.trimio.engine.director.Brief
 import io.trimio.engine.director.BriefParser
 import io.trimio.engine.llm.CloudModels
 import io.trimio.engine.media.MediaProbe
+import io.trimio.engine.models.SpeedMode
+import io.trimio.engine.models.SpeedPlan
 import io.trimio.engine.motion.style.StyleBook
 import io.trimio.engine.styles.StylePack
 import io.trimio.engine.styles.StylePackRepository
@@ -46,7 +48,13 @@ data class CreateState(
     val glossary: List<String> = emptyList(),
     /** No media yet (opened without a file): the screen asks for a video or an audio. */
     val hasMedia: Boolean = true,
+    /** «سریع / متعادل / حرفه‌ای» on this device: the installed director each one runs. */
+    val speeds: SpeedPlan = SpeedPlan.None,
+    val speed: SpeedMode = speeds.default,
 ) {
+    /** The on-device director the chosen speed runs (null: none installed, the engine decides). */
+    val speedModel: String? get() = speeds.of(speed).model?.id
+
     val canCreate: Boolean get() = info != null && !creating
 
     /** The text the engine reads: prompt, glossary and attachment captions together. */
@@ -65,7 +73,11 @@ class CreateViewModel(
     private val attachmentPicker: AttachmentPicker = AttachmentPicker.None,
     /** Words to start the brief with (an idea from home, or the composer's wish). */
     initialPrompt: String? = null,
+    /** The installed models and this device, for the three speeds; none in previews. */
+    private val speeds: SpeedSource? = null,
 ) : ViewModel() {
+    /** Whether the creator picked a speed (a later plan, with the card's memory known, keeps it). */
+    private var picked = false
 
     private val _state = MutableStateFlow(
         CreateState(
@@ -82,10 +94,24 @@ class CreateViewModel(
         }
         viewModelScope.launch { _state.update { it.copy(packs = styles.all()) } }
         viewModelScope.launch { thermal.level.collect { level -> _state.update { it.copy(hot = level >= ThermalLevel.Hot) } } }
+        speeds?.let { source -> viewModelScope.launch { source.plans(settings.settings.value.localModelId).collect(::plan) } }
         viewModelScope.launch {
             val connected = cloud.firstAvailable() != null
             _state.update { it.copy(cloudConnected = connected, director = if (connected) it.director else DirectorBackend.OnDevice) }
         }
+    }
+
+    private fun plan(plan: SpeedPlan) = _state.update { s ->
+        val keep = picked && plan.of(s.speed).available
+        s.copy(speeds = plan, speed = if (keep) s.speed else plan.default)
+    }
+
+    /** Runs the next edit at [mode]; false when its model is not installed (the screen offers the download). */
+    fun setSpeed(mode: SpeedMode): Boolean {
+        if (!_state.value.speeds.of(mode).available) return false
+        picked = true
+        _state.update { it.copy(speed = mode) }
+        return true
     }
 
     fun setPrompt(text: String) = _state.update { it.copy(prompt = text, brief = BriefParser.parse(text)) }

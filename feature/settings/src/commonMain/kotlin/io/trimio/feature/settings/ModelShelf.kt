@@ -22,6 +22,23 @@ data class ModelRow(
     val state: ModelState,
     val active: Boolean,
     val experimental: Boolean,
+    /** Generated tokens per second this model measured on this device (latest build), when it ran here. */
+    val measuredTokensPerSecond: Float? = null,
+)
+
+/**
+ * The «موتور: …» line: where the models run on this device, as the latest build measured it (the
+ * GPU, the engine build, the layers it took, the CPU threads); before any build only the threads.
+ */
+data class HardwareLine(
+    val gpu: String? = null,
+    /** "vulkan", "opencl", "cpu"… */
+    val backend: String? = null,
+    val gpuLayers: Int? = null,
+    val totalLayers: Int? = null,
+    val threads: Int? = null,
+    /** False until a build has run a model here (the GPU is not known yet). */
+    val measured: Boolean = false,
 )
 
 /** The model manager's whole view: the device, the recommendation, and the two shelves. */
@@ -34,6 +51,8 @@ data class ModelsUi(
     val recommended: ModelRow?,
     /** Free storage, when the platform reports it. */
     val freeBytes: Long? = null,
+    /** Where models run here ([HardwareLine]); null hides the line. */
+    val hardware: HardwareLine? = null,
 ) {
     val installedBytes: Long get() = (directors + speech).filter { it.installed }.sumOf { it.sizeBytes }
 }
@@ -52,6 +71,9 @@ object ModelShelf {
         activeDirector: String?,
         activeSpeech: String?,
         freeBytes: Long? = null,
+        hardware: HardwareLine? = null,
+        /** Model id → generated tokens per second measured on this device. */
+        speeds: Map<String, Float> = emptyMap(),
     ): ModelsUi {
         val byId = catalog.associateBy { it.id }
         fun row(spec: ModelSpec, active: String?): ModelRow {
@@ -60,7 +82,7 @@ object ModelShelf {
             val (fa, en) = NAMES[spec.id] ?: (spec.titleFa to spec.titleEn)
             return ModelRow(
                 spec.id, fa, en, tierOf(spec), spec.sizeBytes + companions, report.footprintBytes, report.fit,
-                states[spec.id] ?: ModelState.NotInstalled, spec.id == active, spec.experimental,
+                states[spec.id] ?: ModelState.NotInstalled, spec.id == active, spec.experimental, speeds[spec.id],
             )
         }
         val speechRows = catalog.filter { it.kind == ModelKind.Speech }.map { row(it, activeSpeech) }.sortedBy { it.sizeBytes }
@@ -75,7 +97,7 @@ object ModelShelf {
             directors.firstOrNull { it.id == id }?.takeIf { (!it.experimental || device.desktop) && ok(DeviceFit.rate(it.footprintBytes, device)) }
         }
         val recommended = pick { it == ModelFit.Recommended } ?: pick { it.comfortable }
-        return ModelsUi(device.ramGb, device.desktop, directors, speechRows, recommended, freeBytes)
+        return ModelsUi(device.ramGb, device.desktop, directors, speechRows, recommended, freeBytes, hardware)
     }
 
     /** "4B", "9B", "8B-A1B", "35B-A3B" from the catalogue id, or the size class for speech models. */

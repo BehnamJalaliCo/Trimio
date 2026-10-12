@@ -27,13 +27,28 @@ sealed interface Paint {
 /** One layer: an SVG path in the icon's viewport, filled (or stroked when [strokeWidth] > 0). */
 data class VectorLayer(val d: String, val paint: Paint, val opacity: Float, val evenOdd: Boolean, val strokeWidth: Float)
 
-/** A flattened vector icon from the visual vocabulary. */
-data class VectorIcon(val name: String, val set: String, val width: Float, val height: Float, val layers: List<VectorLayer>, val keywords: List<String>) {
+/**
+ * A flattened vector icon from the visual vocabulary. With [motion] it is an animated picture
+ * (Lottie or animated SVG, see [io.trimio.engine.motion.art]): every node that shows it plays it,
+ * and [layers] (possibly empty) are only its still form.
+ */
+data class VectorIcon(
+    val name: String,
+    val set: String,
+    val width: Float,
+    val height: Float,
+    val layers: List<VectorLayer>,
+    val keywords: List<String>,
+    val motion: io.trimio.engine.motion.art.MotionArt? = null,
+) {
     /** "set:name", unique across the vocabulary. */
     val id: String get() = "$set:$name"
 
     /** Colourful icons carry their own palette; others take the look's ink. */
-    val colourful: Boolean get() = layers.any { it.paint !is Paint.Current }
+    val colourful: Boolean get() = motion?.colourful ?: layers.any { it.paint !is Paint.Current }
+
+    /** It moves by itself (see [motion]). */
+    val animated: Boolean get() = motion != null
 }
 
 /**

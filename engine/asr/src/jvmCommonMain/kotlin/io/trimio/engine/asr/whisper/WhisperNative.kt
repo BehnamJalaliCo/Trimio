@@ -15,14 +15,16 @@ interface WhisperCallback {
 
 /** JNI entry points of `libtrimio_whisper` (native/whisper/trimio_whisper_jni.cpp). */
 internal object WhisperNative {
-    init {
-        NativeLibraries.load("trimio_whisper")
-    }
+    /** The build that loaded: "vulkan", "cpu", … ("" for the flat directory or the APK). */
+    val variant: String = NativeLibraries.load("trimio_whisper")
 
     external fun init(modelPath: String, useGpu: Boolean, flashAttention: Boolean): Long
     external fun free(handle: Long)
     external fun isMultilingual(handle: Long): Boolean
-    external fun transcribe(handle: Long, pcm: FloatArray, language: String, initialPrompt: String?, threads: Int, callback: WhisperCallback): Int
+    external fun transcribe(handle: Long, pcm: FloatArray, language: String, initialPrompt: String?, threads: Int, beamSize: Int, callback: WhisperCallback): Int
+
+    /** How the last model loaded: devices, GPU, flash attention, as key=value lines. */
+    external fun runtimeInfo(): String
     external fun detectedLanguage(handle: Long): String
     external fun systemInfo(): String
 

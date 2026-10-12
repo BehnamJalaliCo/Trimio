@@ -155,12 +155,14 @@ object RulesUnderstander {
 
     /** The brief, read by keywords in Persian and English. */
     fun brief(prompt: String): BriefRead {
-        val p = prompt.lowercase()
-        fun has(vararg k: String) = k.any { it in p }
+        val p = prompt.lowercase().replace("ٔ", "")
+        val latin = p.split(Regex("[^a-z0-9-]+")).toSet()
+        // Latin keys are whole words ("light" is not in "highlight"); Persian ones are stems.
+        fun has(vararg k: String) = k.any { key -> if (key.all { it.code < 128 }) (' ' in key && key in p) || key in latin else key in p }
         return BriefRead(
             look = when {
                 has("نوآر", "noir", "تیره", "dark") -> "noir"
-                has("کاغذ", "paper", "روشن", "light", "مینیمال") -> "paper"
+                has("کاغذ", "paper", "تم روشن", "پس زمینه روشن", "پس‌زمینه روشن", "light theme", "مینیمال") -> "paper"
                 has("لومن", "lumen", "لوکس", "luxury", "آرام") -> "lumen"
                 else -> "auto"
             },

@@ -100,6 +100,14 @@ object BundledTools {
         }
     }
 
+    /**
+     * Engine state kept in the app's cache: the GPU render guard (a render that crashed the
+     * process inside the graphics driver leaves it, and later exports draw on the CPU).
+     */
+    fun state(dirs: DesktopDirs) {
+        setDefault("trimio.render.gpu.marker", File(dirs.cache, "gpu-render.state").absolutePath)
+    }
+
     private fun setDefault(key: String, value: String) {
         if (System.getProperty(key).isNullOrBlank()) System.setProperty(key, value)
     }

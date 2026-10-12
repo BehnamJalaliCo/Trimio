@@ -18,6 +18,8 @@ import io.trimio.engine.motion.export.Delivery
 import io.trimio.engine.motion.export.FfmpegFootage
 import io.trimio.engine.motion.export.MotionExporter
 import io.trimio.engine.motion.export.UserMediaFiles
+import io.trimio.engine.production.diagnostics.Fact
+import io.trimio.engine.production.diagnostics.MemoryUse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import java.io.File
@@ -35,6 +37,10 @@ class JvmProductionPlatform(
     private val directors: suspend (DirectorChoice) -> Director = { Director.None },
     private val delivery: Delivery = Delivery(),
     private val device: () -> DeviceState = { DeviceState() },
+    /** The next lighter director after a model id ([LocalDirectors.lighter]). */
+    private val lighter: suspend (String?) -> DirectorChoice = { DirectorChoice.Rules },
+    /** The speech model recognition uses now ([LocalDirectors.speechModel]). */
+    private val speech: () -> String? = { null },
 ) : ProductionPlatform {
 
     override suspend fun audio(media: String, rate: Int): PcmAudio = io { Media.audio(File(media), rate) }
@@ -59,6 +65,27 @@ class JvmProductionPlatform(
     override suspend fun director(choice: DirectorChoice): Director = directors(choice)
 
     override fun device(): DeviceState = device.invoke()
+
+    override fun about(): List<Fact> {
+        val os = java.lang.management.ManagementFactory.getOperatingSystemMXBean()
+        val ram = (os as? com.sun.management.OperatingSystemMXBean)?.let { "${it.totalMemorySize / MB} MB total · ${it.freeMemorySize / MB} MB free now" }
+        return listOfNotNull(
+            Fact("os", "${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})"),
+            ram?.let { Fact("memory", it) },
+            Fact("cores", "${Runtime.getRuntime().availableProcessors()}"),
+            Fact("java", "${System.getProperty("java.vendor")} ${System.getProperty("java.version")} · heap max ${Runtime.getRuntime().maxMemory() / MB} MB"),
+            System.getProperty("trimio.native.variants")?.let { Fact("native builds offered", it) },
+        )
+    }
+
+    override fun memory(): MemoryUse? = ProcessMemory.read {
+        val pools = java.lang.management.ManagementFactory.getMemoryPoolMXBeans().filter { it.type == java.lang.management.MemoryType.HEAP }
+        (pools.sumOf { it.peakUsage?.used ?: 0L } / MB).toInt().takeIf { it > 0 }
+    }
+
+    override fun speechModel(): String? = speech()
+
+    override suspend fun lighter(current: String?): DirectorChoice = lighter.invoke(current)
 
     override suspend fun render(
         composition: Composition,
@@ -121,4 +148,8 @@ class JvmProductionPlatform(
 
     /** Blocking ffmpeg and Skia work, interruptible so a cancelled run stops waiting on it. */
     private suspend fun <T> io(block: () -> T): T = runInterruptible(Dispatchers.IO, block)
+
+    private companion object {
+        const val MB = 1024L * 1024L
+    }
 }

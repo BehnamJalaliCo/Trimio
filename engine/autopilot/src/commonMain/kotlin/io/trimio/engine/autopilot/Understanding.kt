@@ -34,7 +34,7 @@ data class Understanding(
         val SHOWS = listOf(
             "headline", "counter", "logos", "terminal", "network", "meter", "chart", "object", "objects", "list", "comment", "lower-third", "stamp",
             "countdown", "stats", "progress", "voucher", "message", "none",
-        )
+        ) + Shows.OFFERED
         val ROLES = listOf("hook", "claim", "problem", "solution", "insight", "number", "list", "steps", "comparison", "warning", "benefit", "proof", "question", "cta", "punchline", "dialogue")
         val KINDS = listOf("brand", "product", "app", "person", "place", "organization", "object", "concept")
     }
@@ -55,7 +55,25 @@ data class BriefRead(
     val music: String = "auto",
     /** Lead with the payoff before the setup. */
     val payoffFirst: Boolean = true,
-)
+) {
+    /**
+     * This reading (the brief's own words, read by rule: «پرانرژی», «کلمه‌به‌کلمه», «بدون موسیقی»)
+     * over [model]'s: what the brief says in so many words is never left to a model's guess, the
+     * model fills only what the words leave open.
+     */
+    fun over(model: BriefRead) = BriefRead(
+        look = look.takeIf { it != AUTO } ?: model.look,
+        energy = if (energy >= 0f) energy else model.energy,
+        pace = pace.takeIf { it != AUTO } ?: model.pace,
+        captions = captions.takeIf { it != AUTO } ?: model.captions,
+        music = music.takeIf { it != AUTO } ?: model.music,
+        payoffFirst = model.payoffFirst,
+    )
+
+    private companion object {
+        const val AUTO = "auto"
+    }
+}
 
 @Serializable
 data class Fix(val at: Int, val text: String)

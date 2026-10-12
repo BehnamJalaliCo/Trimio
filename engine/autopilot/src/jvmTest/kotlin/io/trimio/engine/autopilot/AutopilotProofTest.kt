@@ -83,6 +83,8 @@ class AutopilotProofTest {
                     for (t in times) File(out, "seed-$seed-at-$t.png").writeBytes(frames.draw(t).encodeToData(org.jetbrains.skia.EncodedImageFormat.PNG)!!.bytes)
                 }
             }
+            // -Pauto.sheet=true: a contact sheet of the edit, one frame at every graphic once it has landed (the art director's look).
+            if (System.getProperty("auto.sheet") == "true") Sheet.draw(production, video, File(out, "seed-$seed-sheet.png"))
             val planned = (System.nanoTime() - t0) / 1e9
             File(out, "seed-$seed-report.txt").writeText(production.report.joinToString("\n") + "\n\nplanned in ${planned}s\n")
             File(out, "seed-$seed-score.json").writeText(Score.encode(production.score))

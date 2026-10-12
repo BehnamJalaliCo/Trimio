@@ -98,6 +98,9 @@ class Autopilot(
 
         /** What to keep of this production to make it again without the director ([restore]); null without its [bench]. */
         fun delivery(): Delivery? = Delivery.of(this)
+
+        /** Credits the video must carry for the animated pictures it shows (CC BY), for its share text or description ([ArtShelf.credits]). */
+        val credits: List<String> get() = ArtShelf.credits(score)
     }
 
     /** A compiler and the input it compiled the delivered edit from. */
@@ -118,9 +121,11 @@ class Autopilot(
             "${round1(analysis.duration)}s → ${round1(analysis.edit.duration)}s"
 
         onStage("understand", 0.1f)
-        val understanding = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report) { done, total ->
+        val read = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report) { done, total ->
             onStage("understand $done/$total", UNDERSTAND_FROM + (UNDERSTAND_TO - UNDERSTAND_FROM) * done / total.coerceAtLeast(1))
         }
+        // What the brief says in so many words («پرانرژی», «کلمه‌به‌کلمه») wins over the model's reading of it.
+        val understanding = read.copy(brief = RulesUnderstander.brief(request.prompt).over(read.brief))
         // The director's line-by-line spelling, aligned word for word to what was heard.
         val texts = analysis.transcript.words.map { it.text }
         val lexicon = PersianSpelling.load()
@@ -229,6 +234,8 @@ class Autopilot(
         val music: io.trimio.engine.assets.MusicArrangement? = null,
         /** Pictures fetched from the web for this draft (already in [compiler]'s vocabulary). */
         val icons: List<VectorIcon> = emptyList(),
+        /** How well each picture shown shows what its moment is about (by picture id, 0..1). */
+        val pictures: Map<String, Float> = emptyMap(),
     )
 
     /** Plans, pictures, compiles and critiques the edit of [seed]; the eyes look only when [look] (they are slow). */
@@ -281,7 +288,8 @@ class Autopilot(
                 log("eyes: edit revised from what was seen")
             }
         }
-        return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music, picked.second.found)
+        val relevance = picked.second.let { p -> p.picks.mapNotNull { (q, id) -> id?.let { i -> p.relevance[q]?.let { i to it } } }.toMap() }
+        return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music, picked.second.found, relevance)
     }
 
     /**
@@ -316,8 +324,11 @@ class Autopilot(
         compiled = d.compiled, score = d.score, words = d.output, lines = r.lines, understanding = r.understanding, prompt = r.request.prompt,
         music = d.plan.music, arrangement = d.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.transcript), subject = r.request.subject,
         footage = r.request.footage != null, sound = sound, levels = levels, looks = d.looks, lexicon = r.lexicon, measure = measure, voice = r.request.voice,
-        brand = { r.brands.find(it)?.isMonogram == false }, assets = r.request.assets.map { it.id },
+        brand = { r.brands.find(it)?.isMonogram == false }, assets = r.request.assets.map { it.id }, geometry = geometry, pictures = d.pictures,
     )
+
+    /** Where each graphic really lands, frame by frame (drawn alone, small): the placement judge reads it. */
+    private val geometry by lazy { io.trimio.engine.motion.score.Geometry(text.measurer, text.fonts) }
 
     private val measure = LineMeasure { s, type, maxWidth, rtl -> text.layout(s, type, maxWidth, TextAlign.Center, rtl).lines.size }
 
@@ -368,13 +379,15 @@ class Autopilot(
             (listOfNotNull(b.visual) + b.visuals).filter { it.isNotBlank() }.forEach { context.getOrPut(it) { line } }
         }
         if (context.isEmpty()) return score to VisualPicker.Result(visuals, emptyMap())
-        val result = VisualPicker(visuals, knowledge, model).pick(context)
-        result.picks.forEach { (q, id) -> log("picture: \"$q\" → ${id ?: "none"}") }
+        // The style decides which animated pictures it speaks (emoji, or line icons in its ink).
+        val result = VisualPicker(visuals, knowledge, model, look = score.look).pick(context)
+        result.picks.forEach { (q, id) -> log("picture: \"$q\" → ${id ?: "none"}${result.relevance[q]?.let { " (relevance ${round1(it)})" }.orEmpty()}") }
+        result.credits.forEach { log("credit: $it") }
         fun BeatScore.resolved() = copy(
             visual = visual?.let { result.picks[it] ?: if (it in result.picks) null else it },
             visuals = visuals.map { result.picks[it] ?: it },
         )
-        val resolved = score.copy(scenes = score.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> b.resolved().takeIf { r -> !(b.recipe == "object" && r.visual == null) } }) })
+        val resolved = score.copy(scenes = score.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> b.resolved().takeIf { r -> !(b.recipe in PICTURE_BEATS && r.visual == null) } }) })
         return resolved to result
     }
 
@@ -411,6 +424,9 @@ class Autopilot(
         /** Variation k of seed s is seed s × 1000 + k: far from the next seeds a creator asks for. */
         const val VARIATION_STRIDE = 1000L
         val BRAND_KINDS = setOf("brand", "app", "product", "organization")
+
+        /** Beats that are only their picture: without one they are dropped. */
+        val PICTURE_BEATS = setOf("object", "animated", "live-reaction")
 
         fun round1(v: Float) = kotlin.math.round(v * 10f) / 10f
     }

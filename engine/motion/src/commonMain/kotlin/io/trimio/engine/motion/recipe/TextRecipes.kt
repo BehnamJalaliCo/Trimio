@@ -59,6 +59,7 @@ internal object Craft {
 
     /** Emphasis marks on the words that matter, each when it is spoken (or after the entrance). */
     fun marks(cue: Cue, look: Look, starts: List<Float>, settle: Float): List<Decoration> {
+        hand(cue, look, starts, settle)?.let { return it }
         val style = when (cue.mark?.lowercase()) {
             "ink", "color", "colour" -> Look.Mark.Ink
             "underline", "line" -> Look.Mark.Underline
@@ -76,6 +77,32 @@ internal object Craft {
             }
         }
     }
+
+    /**
+     * The hand-drawn marks beyond the look's four: a wavy «scribble», a «double» rule, a «strike»,
+     * and a «half» highlighter over the lower half of the words (only where the ink reads on the
+     * accent; elsewhere it becomes a thick rule). Null for any other mark.
+     */
+    private fun hand(cue: Cue, look: Look, starts: List<Float>, settle: Float): List<Decoration>? {
+        val kind = cue.mark?.lowercase() ?: return null
+        if (kind !in HAND_MARKS) return null
+        return groups(cue.emphasis).map { range ->
+            val at = maxOf(starts.getOrElse(range.first) { cue.at } + settle, cue.at + settle)
+            when (kind) {
+                "scribble", "wave" -> Decoration.Scribble(range, at, look.accent)
+                "double" -> Decoration.Scribble(range, at, look.accent, Decoration.Scribble.Kind.Double, thickness = 0.05f)
+                "strike" -> Decoration.Scribble(range, at, look.hot, Decoration.Scribble.Kind.Strike, thickness = 0.09f)
+                else -> if (io.trimio.engine.motion.Contrast.ratio(io.trimio.engine.motion.Contrast.luminance(look.ink), io.trimio.engine.motion.Contrast.luminance(look.accent)) >= 4.5f) {
+                    Decoration.Block(range, at, look.accent, look.ink, duration = 0.4f, padTop = -0.42f, padBottom = 0.04f, radius = 0.02f, skew = -8f)
+                } else {
+                    Decoration.Underline(range, at, look.accent, thickness = 0.16f, offset = 0.06f)
+                }
+            }
+        }
+    }
+
+    /** Marks drawn by hand ([hand]). */
+    val HAND_MARKS = setOf("scribble", "wave", "double", "strike", "half")
 
     /** Adjacent emphasised words merge into one mark. */
     private fun groups(indices: Set<Int>): List<IntRange> {

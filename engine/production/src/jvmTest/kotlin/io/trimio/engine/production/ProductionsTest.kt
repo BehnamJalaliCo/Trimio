@@ -9,6 +9,9 @@ import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.asr.SpeechRecognizer
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.motion.export.Delivery
+import io.trimio.engine.production.diagnostics.Death
+import io.trimio.engine.production.diagnostics.RunOutcome
+import io.trimio.engine.production.diagnostics.RunReport
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -18,6 +21,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -86,6 +90,32 @@ class ProductionsTest {
         val saved = assertNotNull(checkpoints.load(request.key))
         assertNotNull(saved.understanding)
         assertEquals(words.size, saved.transcript.words.size)
+
+        // The technical report rode along in the states and was kept beside the checkpoint.
+        val report = assertNotNull(checkpoints.reports.load(request.key))
+        assertEquals(report.outcome, assertNotNull(last.technical).outcome)
+        assertEquals(RunOutcome.Done, report.outcome)
+        val steps = report.steps.map { it.name }
+        listOf("prepare", "transcribe", "direct", "listen", "plan", "jury", "render").forEach { assertTrue(it in steps, "step $it in $steps") }
+        assertTrue(report.steps.all { it.endMs != null }, "every step closed")
+        assertEquals(words.size, report.speech?.words)
+        assertTrue((report.render?.fps ?: 0f) > 0f && (report.render?.frames ?: 0) > 0, "render: ${report.render}")
+        assertTrue(report.jury.isNotEmpty() && report.jury.first().marks.size == 10, "the jury's sittings: ${report.jury.size}")
+        assertTrue(report.device.any { it.name == "os" })
+        assertNull(checkpoints.reports.marker(request.key), "a clean end leaves no death marker")
+    }
+
+    @Test
+    fun aRunThatDiedTwiceInOneStepSaysSo() = runBlocking {
+        val checkpoints = Checkpoints(Path(File(dir, "died").path))
+        val request = ProductionRequest(File(dir, "never-read.mp4").path, prompt = "test", seed = 5)
+        // An earlier process died in whisper once; the one before this died there again (its marker is left).
+        checkpoints.reports.save(RunReport(request.key, attempt = 2, deaths = listOf(Death(1, "transcribe", 0))))
+        checkpoints.reports.mark(request.key, "entering transcribe@another-process#1")
+        val last = editor(checkpoints).produce(request).toList().last()
+        assertEquals(ProductionStatus.Failed, last.status)
+        assertEquals("transcribe", ProductionState.diedIn(last.error))
+        assertEquals(2, checkpoints.reports.load(request.key)?.deaths?.size)
     }
 
     @Test

@@ -8,6 +8,9 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.encodeURLQueryComponent
 import io.ktor.http.isSuccess
+import io.trimio.engine.assets.art.AssetCache
+import io.trimio.engine.assets.art.DiskAssetCache
+import io.trimio.engine.motion.art.ArtFlavour
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.visual.Paint
 import io.trimio.engine.motion.visual.VectorIcon
@@ -38,9 +41,25 @@ interface Knowledge {
     /** Price in USD and 24 h change in percent for a crypto asset named or symbolised [name]. */
     suspend fun price(name: String): Price? = null
 
+    /**
+     * Animated pictures (an emoji that moves, a line icon that draws itself on) for an English
+     * [query] and the Persian [line] it illustrates, in the style's [flavour] first, best first,
+     * each with its relevance 0..1 ([ArtShelf]).
+     */
+    suspend fun animations(query: String, line: String = "", flavour: ArtFlavour = ArtFlavour.Emoji, limit: Int = 2): List<ArtShelf.Found> = emptyList()
+
     data class Price(val symbol: String, val usd: Double, val change24h: Double)
 
     object Offline : Knowledge
+}
+
+/**
+ * [base] plus the bundled animated pictures (the starter pack, and whatever [cache] already holds
+ * from earlier edits): animations with no network at all.
+ */
+class BundledArt(private val base: Knowledge = Knowledge.Offline, private val cache: AssetCache? = null) : Knowledge by base {
+    override suspend fun animations(query: String, line: String, flavour: ArtFlavour, limit: Int): List<ArtShelf.Found> =
+        ArtShelf.bundled(cache).find(query, line, flavour, limit, fetch = null)
 }
 
 /** Small string cache so a piece edited twice does not fetch twice (memory, or disk on desktop). */
@@ -53,32 +72,48 @@ interface KnowledgeCache {
         override fun get(key: String) = map[key]
         override fun put(key: String, value: String) { map[key] = value }
     }
+
+    /** Look-ups kept in an [AssetCache] (on disk: they survive the app). */
+    class Of(private val store: AssetCache) : KnowledgeCache {
+        override fun get(key: String) = store.get(key)
+        override fun put(key: String, value: String) = store.put(key, value)
+    }
 }
 
 /**
  * [Knowledge] from open sources: Simple Icons (CC0 brand marks, through jsDelivr), Iconify (open
- * icon sets), Wikipedia summaries and CoinGecko prices. Failures are silent: a missing answer only
- * means the bundled packs decide.
+ * icon sets), Wikipedia summaries, CoinGecko prices, and animated pictures (Noto Animated Emoji,
+ * CC BY 4.0; Material Line Icons, MIT — see [ArtShelf]). Failures are silent: a missing answer
+ * only means the bundled packs decide. Every request has [FETCH_MS] at most; the edit's callers
+ * hold all look-ups of one edit to 20 s together.
+ *
+ * [assets] keeps fetched animation documents (on disk in the apps, see [cached]).
  */
 class WebKnowledge(
     private val http: HttpClient,
     private val cache: KnowledgeCache = KnowledgeCache.Memory(),
     private val iconSets: List<String> = listOf("noto", "fluent-emoji-flat", "healthicons", "mdi", "tabler"),
+    private val assets: AssetCache? = null,
 ) : Knowledge {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private suspend fun fetch(url: String): String? {
         cache.get(url)?.let { return it.ifEmpty { null } }
-        // One request may not hang (DNS on a filtered network has no timeout of its own).
-        val text = runCatching {
-            kotlinx.coroutines.withTimeout(FETCH_MS) {
-                val r = http.get(url) { header("User-Agent", "Trimio/1.0 (video editor)") }
-                if (r.status.isSuccess()) r.bodyAsText() else ""
-            }
-        }.getOrNull() ?: return null // network errors and timeouts are not cached
+        val text = get(url) ?: return null // network errors and timeouts are not cached
         cache.put(url, text)
         return text.ifEmpty { null }
     }
+
+    /** One GET, [FETCH_MS] at most (DNS on a filtered network has no timeout of its own); "" for an error status, null for no answer. */
+    private suspend fun get(url: String): String? = runCatching {
+        kotlinx.coroutines.withTimeout(FETCH_MS) {
+            val r = http.get(url) { header("User-Agent", "Trimio/1.0 (video editor)") }
+            if (r.status.isSuccess()) r.bodyAsText() else ""
+        }
+    }.getOrNull()
+
+    override suspend fun animations(query: String, line: String, flavour: ArtFlavour, limit: Int): List<ArtShelf.Found> =
+        runCatching { ArtShelf.bundled(assets).find(query, line, flavour, limit) { url -> get(url)?.ifEmpty { null } } }.getOrDefault(emptyList())
 
     override suspend fun brand(name: String): BrandLibrary.Entry? = answer {
         val index = json.parseToJsonElement(fetch("$SIMPLE_ICONS/_data/simple-icons.json").need())
@@ -147,14 +182,25 @@ class WebKnowledge(
 
     private class NoAnswer : RuntimeException()
 
-    private companion object {
+    companion object {
+        /**
+         * Web knowledge whose look-ups and animation documents are kept on disk under [dir] (they
+         * survive the app; the documents folder is held to [DiskAssetCache.DEFAULT_MAX]).
+         */
+        fun cached(http: HttpClient, dir: String): WebKnowledge = WebKnowledge(
+            http,
+            cache = KnowledgeCache.Of(DiskAssetCache("$dir/lookups", LOOKUPS_MAX)),
+            assets = DiskAssetCache("$dir/art"),
+        )
+
         /** One web request at most (DNS on a filtered network has no timeout of its own). */
         const val FETCH_MS = 6_000L
-        const val SIMPLE_ICONS = "https://cdn.jsdelivr.net/npm/simple-icons@13.21.0"
-        const val ICONIFY = "https://api.iconify.design"
-        const val COINGECKO = "https://api.coingecko.com/api/v3"
+        private const val LOOKUPS_MAX = 16L * 1024 * 1024
+        private const val SIMPLE_ICONS = "https://cdn.jsdelivr.net/npm/simple-icons@13.21.0"
+        private const val ICONIFY = "https://api.iconify.design"
+        private const val COINGECKO = "https://api.coingecko.com/api/v3"
 
-        fun slugOf(title: String) = title.lowercase().replace("+", "plus").replace(".", "dot").replace("&", "and").filter { it.isLetterOrDigit() }
+        private fun slugOf(title: String) = title.lowercase().replace("+", "plus").replace(".", "dot").replace("&", "and").filter { it.isLetterOrDigit() }
     }
 }
 

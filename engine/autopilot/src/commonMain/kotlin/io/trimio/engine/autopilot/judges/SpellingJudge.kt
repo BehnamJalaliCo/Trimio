@@ -42,6 +42,8 @@ class SpellingJudge : Judge {
         val captions = Bench.captions(c).map { it.at to it.text }
         f += captions.flatMap { (t, s) -> halfSpaces(s, lex).map { (w, fix) -> Bench.finding(t, Severity.Minor, "caption «$w»", "spell the transcript «$fix»") } }.distinctBy { it.what }.capped()
         f += english(c, graphics, captions)
+        f += Script(c).foreign().map { (p, w) -> Bench.finding(p.at, Severity.Major, "English «$w» on ${p.recipe} in a Persian video", "Persian words, or a name the brief gives in Latin") }
+            .distinctBy { it.what }.capped(MAX_WORDS)
         f += digits(graphics + captions)
         f += counters(c)
         return Verdict.of(this, f)
@@ -141,7 +143,13 @@ class SpellingJudge : Judge {
             return if (Bench.persian(out)) Numerals.toPersian(out) else out
         }
         fun BeatScore.fixed() = copy(text = text?.let(::fix), label = label?.let(::fix), items = items.map(::fix), emphasis = emphasis.map(::fix))
-        val score = checked.copy(scenes = checked.scenes.map { s -> s.copy(beats = s.beats.map { it.fixed() }) })
+        var score = checked.copy(scenes = checked.scenes.map { s -> s.copy(beats = s.beats.map { it.fixed() }) })
+        // English on a Persian piece: the words go, or the graphic takes a plain Persian form, or it goes.
+        val script = Script(c)
+        for (p in script.foreign().map { it.first }.distinct()) {
+            val at = Bench.locate(score, c.words, p) ?: continue
+            score = Bench.mapBeat(score, at) { b -> script.persian(b) }
+        }
         return score.takeIf { it != c.score }
     }
 

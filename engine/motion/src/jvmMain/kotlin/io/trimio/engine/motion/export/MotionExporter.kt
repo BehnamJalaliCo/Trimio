@@ -2,6 +2,7 @@ package io.trimio.engine.motion.export
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asComposeCanvas
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.scale
@@ -22,9 +23,13 @@ import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
 import org.jetbrains.skia.Surface
+import org.jetbrains.skia.impl.BufferUtil
 import java.io.File
+import java.io.OutputStream
+import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
@@ -39,16 +44,16 @@ data class Delivery(
     val maxrateMbps: Int = 20,
     val audioKbps: Int = 320,
     /** Parallel renderers; each encodes its own run of frames, joined losslessly at the end. */
-    // Each worker holds a half-float frame, a footage stream and its own caches (~1 GB native):
-    // two keep a phone-class or 16 GB machine safe next to a loaded director model.
-    val workers: Int = (Runtime.getRuntime().availableProcessors() - 1).coerceIn(1, 2),
+    val workers: Int = defaultWorkers(),
+    /** Draw frames on the graphics card where it can ([GpuCanvas]); false keeps the CPU raster. */
+    val gpu: Boolean = true,
 ) {
     fun videoArgs(fps: Int, width: Int = HD_SHORT, height: Int = HD_LONG): List<String> = videoArgs(fps, Level.of(width, height, fps))
 
     private fun videoArgs(fps: Int, level: Level): List<String> = listOf(
         // 16-bit RGB in, converted once to 8-bit 4:2:0 with the BT.709 matrix and dithering.
         "-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp,format=yuv420p",
-    ) + MediaTools.h264(
+    ) + Encoders.args(
         listOf(
             "-c:v", "libx264", "-preset", preset, "-crf", "$crf", "-maxrate", "${maxrateMbps * level.rate}M", "-bufsize", "${maxrateMbps * level.rate * 2}M",
             "-profile:v", "high", "-level:v", level.label, "-g", "${fps * 2}", "-keyint_min", "$fps", "-sc_threshold", "0",
@@ -85,6 +90,15 @@ data class Delivery(
         /** Quick review renders: same colour pipeline, faster encode. */
         val Draft = Delivery(crf = 20, preset = "veryfast")
 
+        /**
+         * Workers: about one per two hardware threads, at most three. Each holds two 16-bit frames,
+         * a footage stream and its text caches (~150 MB with the footage decoder), so three stay
+         * well inside a 16 GB machine; past that the encoder and the decoders share the same cores.
+         */
+        fun defaultWorkers(cores: Int = Runtime.getRuntime().availableProcessors()): Int = (cores / 2).coerceIn(1, MAX_WORKERS)
+
+        private const val MAX_WORKERS = 3
+
         private const val HD_SHORT = 1080
         private const val HD_LONG = 1920
     }
@@ -98,6 +112,9 @@ data class Delivery(
  * [scale] sets the output size against the composition's own (1080 on the short side): 2 renders
  * a 4K file, 2/3 a 720p one. Everything is drawn at the output size (text, shapes and footage
  * stay sharp), not rendered small and stretched.
+ *
+ * Each worker draws its run of frames (on the GPU where [Delivery.gpu] and [GpuCanvas] allow)
+ * while its own thread hands the previous frame to the encoder; [profile] says where the time went.
  */
 class MotionExporter(
     private val composition: Composition,
@@ -110,76 +127,85 @@ class MotionExporter(
     val width: Int = even(composition.width * scale)
     val height: Int = even(composition.height * scale)
 
+    /** The last export's timings (frames, stages, encoder, CPU or GPU drawing). */
+    val profile = RenderProfile()
+
     /**
      * One worker's renderer: its own surface, text engine and caches. [transparent] draws over
-     * nothing (the graphics layer: clear canvas, straight alpha out).
+     * nothing (the graphics layer: clear canvas, straight alpha out). [gpu] draws on the graphics
+     * card when it can ([onGpu] tells); otherwise on a CPU raster.
      */
-    class Frames(val composition: Composition, media: MediaSource, scale: Float = 1f, private val transparent: Boolean = false) {
+    class Frames(
+        val composition: Composition,
+        media: MediaSource,
+        scale: Float = 1f,
+        private val transparent: Boolean = false,
+        gpu: Boolean = false,
+    ) : AutoCloseable {
         val width: Int = even(composition.width * scale)
         val height: Int = even(composition.height * scale)
         private val info = ImageInfo(width, height, ColorType.RGBA_F16, ColorAlphaType.PREMUL, ColorSpace.sRGB)
-        private val surface = Surface.makeRaster(info)
+        private val timed = TimedMedia(media)
+        private val gpuCanvas: GpuCanvas? = if (gpu) GpuCanvas.open(info) else null
+        private val surface = gpuCanvas?.surface ?: Surface.makeRaster(info)
         private val scope = CanvasDrawScope()
         private val measurer = TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr)
-        val renderer = MotionRenderer(composition, measurer, runBlocking { MotionFonts.load() }, media)
-        private val half = Bitmap().apply { allocPixels(info) }
+        val renderer = MotionRenderer(composition, measurer, runBlocking { MotionFonts.load() }, timed)
 
-        fun draw(t: Float): Image {
+        /** 16-bit RGBA as the encoder takes it; Skia converts (and un-premultiplies the graphics layer). */
+        private val out16 = Bitmap().apply {
+            allocPixels(ImageInfo(width, height, ColorType.R16G16B16A16_UNORM, if (transparent) ColorAlphaType.UNPREMUL else ColorAlphaType.PREMUL, ColorSpace.sRGB))
+        }
+        private val pixels: ByteBuffer = BufferUtil.getByteBufferFromPointer(out16.peekPixels()!!.addr, frameBytes)
+
+        val frameBytes: Int get() = width * height * PIXEL
+        val onGpu: Boolean get() = gpuCanvas != null
+
+        /** Nanoseconds spent waiting for footage frames so far. */
+        val footageNs: Long get() = timed.ns
+
+        /** Draws the frame at [t] into the surface. */
+        fun paint(t: Float) {
             surface.canvas.clear(if (transparent) 0 else 0xFF000000.toInt())
             val sx = width / composition.width.toFloat()
             val sy = height / composition.height.toFloat()
             scope.draw(Density(1f), LayoutDirection.Ltr, surface.canvas.asComposeCanvas(), Size(width.toFloat(), height.toFloat())) {
                 scale(sx, sy, pivot = Offset.Zero) { renderer.render(this, t) }
             }
+        }
+
+        fun draw(t: Float): Image {
+            paint(t)
             return surface.makeImageSnapshot()
         }
 
+        /** The painted frame into [into] ([frameBytes]) as little-endian 16-bit RGBA, straight alpha. */
+        fun read(into: ByteArray) {
+            check(surface.readPixels(out16, 0, 0)) { "frame read failed" }
+            pixels.rewind()
+            pixels.get(into, 0, frameBytes)
+        }
+
         /** The frame at [t] as little-endian 16-bit RGBA, straight (not premultiplied) alpha. */
-        fun rgba64(t: Float): ByteArray {
-            draw(t).use { check(it.readPixels(half)) { "frame read failed" } }
-            val bytes = half.readPixels()!!
-            val px = IntArray(CHANNELS)
-            for (p in bytes.indices step PIXEL) {
-                for (c in 0 until CHANNELS) px[c] = HALF_TO_U16[(bytes[p + c * 2].toInt() and 0xFF) or ((bytes[p + c * 2 + 1].toInt() and 0xFF) shl 8)]
-                // Opaque frames: premultiplied equals straight. Over nothing, the colour is divided back out.
-                if (transparent) unpremultiply(px)
-                for (c in 0 until CHANNELS) {
-                    bytes[p + c * 2] = px[c].toByte()
-                    bytes[p + c * 2 + 1] = (px[c] ushr 8).toByte()
-                }
-            }
-            return bytes
+        fun rgba64(t: Float): ByteArray = ByteArray(frameBytes).also {
+            paint(t)
+            read(it)
         }
 
-        private fun unpremultiply(px: IntArray) {
-            val a = px[ALPHA]
-            if (a == 0) {
-                px[0] = 0; px[1] = 0; px[2] = 0
-                return
-            }
-            if (a == U16) return
-            for (c in 0 until ALPHA) px[c] = ((px[c].toLong() * U16 + a / 2) / a).toInt().coerceAtMost(U16)
+        override fun close() {
+            gpuCanvas?.close()
+            if (gpuCanvas == null) surface.close()
+            out16.close()
         }
+    }
 
-        private companion object {
-            const val CHANNELS = 4
-            const val ALPHA = 3
-            const val PIXEL = 8
-            const val U16 = 65535
+    /** Counts the time the renderer waits for footage frames (decoding and scaling in ffmpeg). */
+    private class TimedMedia(private val inner: MediaSource) : MediaSource {
+        var ns = 0L
 
-            /** Every half-float bit pattern → 16-bit unsigned, clamped to [0, 1]. */
-            val HALF_TO_U16 = IntArray(1 shl 16) { h ->
-                val sign = h ushr 15
-                val exp = (h ushr 10) and 0x1F
-                val mant = h and 0x3FF
-                val v = when {
-                    sign == 1 -> 0.0
-                    exp == 0 -> mant / 1024.0 / 16384.0
-                    exp == 31 -> 1.0
-                    else -> (1 + mant / 1024.0) * Math.pow(2.0, exp - 15.0)
-                }
-                (v.coerceIn(0.0, 1.0) * 65535.0 + 0.5).toInt()
-            }
+        override fun frame(source: String, time: Float): ImageBitmap? {
+            val a = System.nanoTime()
+            return inner.frame(source, time).also { ns += System.nanoTime() - a }
         }
     }
 
@@ -197,25 +223,35 @@ class MotionExporter(
 
     private fun render(file: File, audio: File?, from: Float, to: Float, graphics: Boolean, onProgress: (Int, Int) -> Unit) {
         file.absoluteFile.parentFile.mkdirs()
+        val started = System.nanoTime()
         val fps = composition.fps
         val first = (from * fps).toInt()
         val last = (to * fps).toInt()
         val total = last - first
         val workers = delivery.workers.coerceAtMost(maxOf(1, total / MIN_FRAMES_PER_WORKER))
+        val gpu = delivery.gpu && GpuCanvas.wanted
+        profile.workers = workers
+        profile.encoder = if (graphics) "prores_ks" else Encoders.name
+        profile.width = width
+        profile.height = height
         val ext = if (graphics) "mov" else "mp4"
         // Work files have plain names: ffmpeg's arguments may not survive a non-UTF-8 locale; only Java renames to the real name.
         val stem = ".trimio-" + Integer.toHexString(file.absolutePath.hashCode()) + "-" + System.nanoTime()
         val parts = (0 until workers).map { File(file.absoluteFile.parentFile, "$stem.part$it.$ext") }
         val done = AtomicInteger()
         val errors = mutableListOf<Throwable>()
-        val threads = parts.mapIndexed { k, part ->
-            val a = first + total * k / workers
-            val b = first + total * (k + 1) / workers
-            thread(name = "motion-export-$k") {
-                runCatching { encode(part, a, b, graphics) { onProgress(done.incrementAndGet(), total) } }.onFailure { synchronized(errors) { errors += it } }
+        val run = {
+            val threads = parts.mapIndexed { k, part ->
+                val a = first + total * k / workers
+                val b = first + total * (k + 1) / workers
+                thread(name = "motion-export-$k") {
+                    runCatching { encode(part, a, b, graphics, gpu) { onProgress(done.incrementAndGet(), total) } }.onFailure { synchronized(errors) { errors += it } }
+                }
             }
+            threads.forEach { it.join() }
         }
-        threads.forEach { it.join() }
+        if (gpu) GpuCanvas.guarded(run) else run()
+        profile.wallNs = System.nanoTime() - started
         errors.firstOrNull()?.let { parts.forEach(File::delete); throw it }
         val joined = File(file.absoluteFile.parentFile, "$stem.$ext")
         try {
@@ -225,27 +261,121 @@ class MotionExporter(
             parts.forEach(File::delete)
             joined.delete()
         }
+        profile.wallNs = System.nanoTime() - started
+        System.err.println("trimio " + profile.summary())
     }
 
-    private fun encode(part: File, a: Int, b: Int, graphics: Boolean, onFrame: () -> Unit) {
+    /**
+     * One worker: frames [a, b) drawn and read on this thread, written to ffmpeg by a second one
+     * (two frame buffers between them), so drawing never waits for the pipe unless the encoder
+     * is the slower side.
+     */
+    private fun encode(part: File, a: Int, b: Int, graphics: Boolean, gpu: Boolean, onFrame: () -> Unit) {
         val fps = composition.fps
-        val frames = Frames(if (graphics) composition.transparent() else composition, media(), scale, transparent = graphics)
+        val scene = if (graphics) composition.transparent() else composition
+        val source = media()
+        val frames = trusted(Frames(scene, source, scale, transparent = graphics, gpu = gpu), scene, a, graphics)
+            ?: Frames(scene, source, scale, transparent = graphics)
+        profile.canvas = if (frames.onGpu) "gpu" else "raster"
         val codec = if (graphics) prores() else delivery.videoArgs(fps, width, height)
         val process = ProcessBuilder(
             listOf(MediaTools.ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba64le", "-s", "${width}x$height", "-r", "$fps", "-i", "-") +
                 codec + listOf("-threads", "2", "-an", part.absolutePath),
         ).redirectErrorStream(true).start()
-        val stdin = process.outputStream.buffered(1 shl 22)
+        val log = StringBuilder()
+        val logger = thread(isDaemon = true, name = "motion-export-log") { runCatching { log.append(process.inputStream.bufferedReader().readText()) } }
+        val writer = Writer(process.outputStream, frames.frameBytes)
         try {
             for (f in a until b) {
-                stdin.write(frames.rgba64(f.toFloat() / fps))
+                val waited = System.nanoTime()
+                val buffer = writer.free()
+                val drawn = System.nanoTime()
+                val cpu = cpuClock.currentThreadCpuTime
+                frames.paint(f.toFloat() / fps)
+                profile.drawCpuNs.addAndGet(cpuClock.currentThreadCpuTime - cpu)
+                val read = System.nanoTime()
+                frames.read(buffer)
+                profile.encodeWaitNs.addAndGet(drawn - waited)
+                profile.drawNs.addAndGet(read - drawn)
+                profile.readNs.addAndGet(System.nanoTime() - read)
+                profile.frames.incrementAndGet()
+                writer.send(buffer)
                 onFrame()
             }
         } finally {
-            stdin.close()
+            writer.finish()
+            profile.footageNs.addAndGet(frames.footageNs)
+            frames.close()
+            (source as? AutoCloseable)?.close()
         }
-        val log = process.inputStream.bufferedReader().readText()
-        check(process.waitFor() == 0) { "ffmpeg failed: $log" }
+        val code = process.waitFor()
+        logger.join(LOG_WAIT_MS)
+        writer.failure?.let { throw IllegalStateException("ffmpeg stopped taking frames: $log", it) }
+        check(code == 0) { "ffmpeg failed: $log" }
+    }
+
+    /**
+     * [frames] when it draws on the CPU, or when its GPU picture of frame [at] matches the CPU's
+     * (a driver that draws wrong, or black, is caught here); null after a mismatch, which also
+     * keeps later exports in this process on the CPU.
+     */
+    private fun trusted(frames: Frames, scene: Composition, at: Int, graphics: Boolean): Frames? {
+        if (!frames.onGpu) return frames
+        val t = at.toFloat() / composition.fps
+        val gpu = runCatching { frames.rgba64(t) }.getOrNull()
+        val cpu = media().let { m ->
+            try {
+                Frames(scene, m, scale, transparent = graphics).use { it.rgba64(t) }
+            } finally {
+                (m as? AutoCloseable)?.close()
+            }
+        }
+        val difference = gpu?.let { meanDifference(it, cpu) } ?: 1f
+        if (difference <= GPU_TOLERANCE) return frames
+        System.err.println("trimio render: the GPU frame differs from the CPU one by ${(difference * PERCENT).toInt()}%; drawing on the CPU")
+        GpuCanvas.distrust()
+        frames.close()
+        return null
+    }
+
+    /** Hands painted frames to ffmpeg on its own thread; two buffers go back and forth. */
+    private class Writer(private val out: OutputStream, size: Int) {
+        private val free = ArrayBlockingQueue<ByteArray>(BUFFERS).apply { repeat(BUFFERS) { add(ByteArray(size)) } }
+        private val full = ArrayBlockingQueue<ByteArray>(BUFFERS + 1)
+
+        @Volatile var failure: Throwable? = null
+            private set
+
+        private val thread = thread(name = "motion-export-write") {
+            try {
+                while (true) {
+                    val buffer = full.take()
+                    if (buffer === END) break
+                    // After a failure the frames are dropped, not written, so the drawing side never blocks.
+                    if (failure == null) runCatching { out.write(buffer) }.onFailure { failure = it }
+                    free.put(buffer)
+                }
+            } finally {
+                runCatching { out.close() }
+            }
+        }
+
+        fun free(): ByteArray {
+            failure?.let { throw IllegalStateException("ffmpeg stopped taking frames", it) }
+            return free.take()
+        }
+
+        fun send(buffer: ByteArray) = full.put(buffer)
+
+        fun finish() {
+            full.put(END)
+            thread.join()
+        }
+
+        private companion object {
+            const val BUFFERS = 2
+            val END = ByteArray(0)
+        }
     }
 
     /** ProRes 4444 with a 16-bit alpha, BT.709 tagged: every intra frame, so parts join losslessly. */
@@ -273,7 +403,30 @@ class MotionExporter(
     }
 
     private companion object {
+        /** Mean difference (0..1) of two 16-bit frames, over a sample of their pixels. */
+        fun meanDifference(a: ByteArray, b: ByteArray): Float {
+            var sum = 0L
+            var n = 0
+            var i = 0
+            while (i + 1 < minOf(a.size, b.size)) {
+                val x = (a[i].toInt() and 0xFF) or ((a[i + 1].toInt() and 0xFF) shl 8)
+                val y = (b[i].toInt() and 0xFF) or ((b[i + 1].toInt() and 0xFF) shl 8)
+                sum += kotlin.math.abs(x - y)
+                n++
+                i += SAMPLE_STRIDE
+            }
+            return if (n == 0) 1f else sum / (n * U16)
+        }
+
+        /** Antialiasing and filtering differ a little between GPU and CPU; a wrong picture differs a lot. */
+        const val GPU_TOLERANCE = 0.03f
+        const val SAMPLE_STRIDE = 8 * 7 + 2
+        const val U16 = 65535f
+        const val PERCENT = 100
+        val cpuClock: java.lang.management.ThreadMXBean = java.lang.management.ManagementFactory.getThreadMXBean()
         const val MIN_FRAMES_PER_WORKER = 45
+        const val PIXEL = 8
+        const val LOG_WAIT_MS = 5_000L
     }
 }
 

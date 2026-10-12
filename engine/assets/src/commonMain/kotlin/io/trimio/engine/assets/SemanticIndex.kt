@@ -22,6 +22,14 @@ class SemanticIndex<T>(entries: List<Pair<T, List<String>>>, private val dims: I
         return vectors.map { (item, v) -> item to queries.maxOf { dot(it, v) } }.maxByOrNull { it.second }?.takeIf { it.second >= minScore }
     }
 
+    /** Every item with its best similarity to [query] (whole query or any of its words), best first. */
+    fun ranked(query: String): List<Pair<T, Float>> {
+        val words = query.split(' ').filter { it.isNotBlank() }
+        val queries = (listOf(query) + words).distinct().map(::embed)
+        return vectors.groupBy({ it.first }, { it.second }).map { (item, vs) -> item to vs.maxOf { v -> queries.maxOf { dot(it, v) } } }
+            .sortedByDescending { it.second }
+    }
+
     fun embed(text: String): FloatArray = normalise(embedRaw(text))
 
     private fun embedRaw(text: String): FloatArray {

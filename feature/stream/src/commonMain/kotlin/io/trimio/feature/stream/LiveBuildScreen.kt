@@ -52,6 +52,7 @@ import io.trimio.core.designsystem.signature.Sig
 import io.trimio.core.designsystem.signature.SigAdaptive
 import io.trimio.core.designsystem.signature.SigGlass
 import io.trimio.core.designsystem.signature.SigNoir
+import io.trimio.core.designsystem.signature.SigOptionRow
 import io.trimio.core.designsystem.signature.SigScreen
 import io.trimio.core.designsystem.signature.SigSpace
 import io.trimio.core.designsystem.signature.SigTextButton
@@ -69,7 +70,16 @@ import kotlin.math.roundToInt
  * ten judges lighting up as each gives 10, and the words heard so far. Cancel is always one tap.
  */
 @Composable
-fun LiveBuildScreen(build: LiveBuild, onCancel: () -> Unit) {
+fun LiveBuildScreen(
+    build: LiveBuild,
+    /** «جزئیات فنی»: the run's technical report so far; null hides the entry. */
+    onDetails: (() -> Unit)? = null,
+    /** The watchdog's three ways on: keep waiting, go on with a smaller model (cancel is [onCancel]). */
+    onWait: () -> Unit = {},
+    onLighter: () -> Unit = {},
+    onCancel: () -> Unit,
+) {
+    val stalled: @Composable () -> Unit = { build.stall?.let { StallCard(it, onWait, onLighter, onCancel) } }
     SigScreen {
         SigAdaptive { width ->
             if (width.wide) {
@@ -79,15 +89,17 @@ fun LiveBuildScreen(build: LiveBuild, onCancel: () -> Unit) {
                         FrameStrip(build.previews)
                     }
                     Column(Modifier.weight(1f).widthIn(max = 600.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
-                        BuildTop(build, onCancel, Modifier)
+                        BuildTop(build, onCancel, onDetails, Modifier)
+                        stalled()
                         Readout(build, showFrame = false)
                         Details(build)
                     }
                 }
             } else {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                    BuildTop(build, onCancel, Modifier.gutter())
+                    BuildTop(build, onCancel, onDetails, Modifier.gutter())
                     Column(Modifier.gutter()) {
+                        stalled()
                         Readout(build, showFrame = true)
                         Details(build)
                     }
@@ -98,13 +110,47 @@ fun LiveBuildScreen(build: LiveBuild, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun BuildTop(build: LiveBuild, onCancel: () -> Unit, modifier: Modifier) {
+private fun BuildTop(build: LiveBuild, onCancel: () -> Unit, onDetails: (() -> Unit)?, modifier: Modifier) {
     Row(modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             listOfNotNull(tr("در حال ساخت", "Building"), build.styleName).joinToString(" · "),
-            style = Sig.type.meta, color = Sig.colors.muted, modifier = Modifier.weight(1f),
+            style = Sig.type.meta, color = Sig.colors.muted, modifier = Modifier.weight(1f), maxLines = 1,
         )
+        onDetails?.let { SigTextButton(tr("جزئیات فنی", "Technical details"), it) }
         SigTextButton(tr("لغو", "Cancel"), onCancel)
+    }
+}
+
+/**
+ * The watchdog spoke: nothing has moved for a while. Said plainly, with the three ways on: keep
+ * waiting (the director recommends it the first time), a smaller model (the words and the reading
+ * so far are kept), or cancel.
+ */
+@Composable
+private fun StallCard(stall: BuildStall, onWait: () -> Unit, onLighter: () -> Unit, onCancel: () -> Unit) {
+    val c = Sig.colors
+    val shape = RoundedCornerShape(SigSpace.radiusLg)
+    Column(
+        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp).clip(shape).background(c.action.copy(alpha = 0.09f)).border(1.dp, c.action.copy(alpha = 0.5f), shape).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            LiveDot(size = 7.dp)
+            Text(
+                localizedNumber(tr("${stall.minutes} دقیقه است در «${stall.stage.fa}» پیشرفتی نیست", "No progress in ${stall.stage.en.lowercase()} for ${stall.minutes} min")),
+                style = Sig.type.bodyStrong, color = c.ink,
+            )
+        }
+        Text(
+            tr(
+                "مدل روی این دستگاه کند کار می‌کند یا حافظه کم آورده. می‌توانی صبر کنی، با مدل کوچک‌تر ادامه بدهی (کلمه‌ها و برداشت تا این‌جا حفظ می‌شود) یا لغو کنی.",
+                "The model is slow on this device or short of memory. Keep waiting, go on with a smaller model (the words and the reading so far are kept), or cancel.",
+            ),
+            style = Sig.type.meta.copy(fontSize = 12.5.sp, lineHeight = 20.sp), color = c.muted,
+        )
+        SigOptionRow(1, tr("صبر می‌کنم", "Keep waiting"), tr("همین مدل ادامه می‌دهد", "The same model carries on"), onWait, director = true)
+        SigOptionRow(2, tr("ادامه با مدل کوچک‌تر", "Continue with a smaller model"), tr("سریع‌تر و سبک‌تر؛ اگر نبود، با قواعد", "Faster and lighter; the rules if there is none"), onLighter)
+        SigOptionRow(3, tr("لغو ساخت", "Cancel the build"), tr("هر چه تا این‌جا انجام شده ذخیره می‌ماند", "What is done so far stays saved"), onCancel)
     }
 }
 
@@ -126,7 +172,8 @@ private fun Readout(build: LiveBuild, showFrame: Boolean) {
             else -> stageName(build.stage)
         }
         Text(localizedNumber(frames), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted, modifier = Modifier.weight(1f))
-        build.etaSeconds?.let { Text(localizedNumber(tr("حدود $it ثانیه", "about $it s")), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted) }
+        // No estimate while the watchdog says nothing moves: it would be a guess.
+        build.etaSeconds?.takeIf { build.stall == null }?.let { Text(localizedNumber(tr("حدود $it ثانیه", "about $it s")), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted) }
     }
 }
 

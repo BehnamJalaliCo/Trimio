@@ -46,6 +46,8 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.koin.android)
             implementation(libs.androidx.core.ktx)
+            // The result screen's player (already in the app through the editor).
+            implementation(libs.media3.exoplayer)
         }
         jvmMain.dependencies { implementation(libs.ktor.client.okhttp) }
         iosMain.dependencies { implementation(libs.ktor.client.darwin) }

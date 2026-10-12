@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,7 +62,15 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val states by viewModel.models.states.collectAsStateWithLifecycle()
     val device = viewModel.device
     val desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) }
-    val ui = ModelShelf.build(viewModel.models.catalog, states, DeviceMemory(device.ramGb, desktop), settings.localModelId, settings.speechModelId)
+    // The engine as the latest build measured it (read once per visit: it changes only when a build ends).
+    val engine = remember { viewModel.engine?.latest() }
+    val hardware = HardwareLine(
+        engine?.gpu, engine?.backend, engine?.gpuLayers, engine?.totalLayers, engine?.threads ?: viewModel.threads, measured = engine != null,
+    )
+    val ui = ModelShelf.build(
+        viewModel.models.catalog, states, DeviceMemory(device.ramGb, desktop), settings.localModelId, settings.speechModelId,
+        hardware = hardware, speeds = engine?.speeds.orEmpty(),
+    )
     val byId = viewModel.models.catalog.associateBy { it.id }
     ModelManagerScreen(
         ui,
@@ -107,6 +116,7 @@ private fun Header(ui: ModelsUi, actions: ModelActions) {
     Column(Modifier.gutter().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         SigHeroTitle(tr("مدل‌ها", "Models"))
         Storage(ui)
+        ui.hardware?.let { Hardware(it) }
         Recommended(ui, actions)
         if (ui.directors.none { it.installed }) {
             Text(
@@ -140,6 +150,35 @@ private fun Storage(ui: ModelsUi) {
             Legend(c.live, tr("گفتار", "Speech"))
             Text(localizedNumber(tr("این دستگاه · ${ui.ramGb} گیگ رم", "This device · ${ui.ramGb} GB RAM")), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted)
         }
+    }
+}
+
+/** «موتور: …»: the GPU (its name as the driver gives it) and the layers it takes, or the CPU threads; measured by the latest build. */
+@Composable
+private fun Hardware(line: HardwareLine) {
+    val c = Sig.colors
+    val (device, detail) = engineLine(line)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+        TrimioIcon(TrimioIcons.Layers, null, tint = if ((line.gpuLayers ?: 0) > 0) c.action else c.muted, size = 16.dp, modifier = Modifier.padding(top = 2.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // The device's own name stays as written (digits included); the numbers after it are the reader's.
+            Text(device, style = Sig.type.meta.copy(fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight(600)), color = c.ink)
+            Text(localizedNumber(detail), style = Sig.type.meta.copy(fontSize = 11.5.sp, lineHeight = 18.sp), color = c.muted)
+        }
+    }
+}
+
+/** The line's two halves: where models run ("موتور: ⁦Adreno 830⁩ · opencl"), then layers and threads. */
+@Composable
+internal fun engineLine(line: HardwareLine): Pair<String, String> {
+    val cpu = line.threads?.let { tr("$it رشتهٔ CPU", "$it CPU threads") } ?: "CPU"
+    val layers = line.gpuLayers ?: 0
+    val gpu = line.gpu
+    return when {
+        !line.measured -> tr("موتور: CPU", "Engine: CPU") to tr("$cpu · کارت گرافیک در اولین ساخت سنجیده می‌شود", "$cpu · the GPU is measured on the first build")
+        gpu != null && layers > 0 -> tr("موتور: ⁦$gpu · ${line.backend ?: "gpu"}⁩", "Engine: $gpu · ${line.backend ?: "gpu"}") to
+            tr("$layers از ${line.totalLayers ?: "?"} لایه روی GPU · $cpu", "$layers of ${line.totalLayers ?: "?"} layers on the GPU · $cpu")
+        else -> tr("موتور: فقط CPU (⁦${line.backend ?: "cpu"}⁩)", "Engine: CPU only (${line.backend ?: "cpu"})") to cpu
     }
 }
 
@@ -277,7 +316,12 @@ private fun Progress(fraction: Float) {
 private fun subtitle(row: ModelRow): String = when (val s = row.state) {
     is ModelState.Failed -> tr("دانلود ناموفق؛ دوباره تلاش کن", "Download failed; try again")
     is ModelState.UpdateAvailable -> localizedNumber(tr("نسخهٔ تازه · ${s.to.notesFa ?: "بهتر و دقیق‌تر"}", "New version · ${s.to.notesEn ?: "better and more accurate"}"))
-    else -> localizedNumber(tr("${gbFa(row.footprintBytes)} گیگ رم · ${speed(row)}", "${gb(row.footprintBytes)} RAM · ${speedEn(row)}"))
+    else -> localizedNumber(
+        row.measuredTokensPerSecond?.let { tps ->
+            val v = (tps * 10).toInt().let { "${it / 10}٫${it % 10}" }
+            tr("${gbFa(row.footprintBytes)} گیگ رم · $v توکن/ث", "${gb(row.footprintBytes)} RAM · ${v.replace('٫', '.')} tok/s here")
+        } ?: tr("${gbFa(row.footprintBytes)} گیگ رم · ${speed(row)}", "${gb(row.footprintBytes)} RAM · ${speedEn(row)}"),
+    )
 }
 
 private fun speed(row: ModelRow) = when {

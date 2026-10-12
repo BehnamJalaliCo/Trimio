@@ -70,8 +70,36 @@ Loading (`NativeLibraries` in engine/asr, `LlamaNative` in engine/llm): `-Dtrimi
 folder, `-Dtrimio.native.variants` the subfolders best first. `BundledTools` sets
 `vulkan,cpu` on Windows and `metal,cpu` on macOS. A variant whose DLL fails to load (no Vulkan
 driver) falls through to the next; the flat folder and finally `System.loadLibrary` come last, so
-development and Android are unchanged. With a GPU variant loaded, llama.cpp offloads all layers
-(`-Dtrimio.llama.gpuLayers=N` overrides; 0 forces CPU).
+development and Android are unchanged. With a GPU variant loaded, llama.cpp offloads as many
+layers as the dedicated GPU's free memory holds (the cache counted from the model's own header: a
+hybrid Qwen3.5 caches only its attention layers), the rest on the CPU
+(`-Dtrimio.llama.gpuLayers=N` overrides; 0 forces CPU). A model the GPU can run less than 90% of
+(by weight size, e.g. Q3_K/IQ quants on Adreno OpenCL) stays on the CPU altogether
+(`-Dtrimio.llama.minGpuCoverage`). Whisper runs on the same dedicated GPU (`-Dtrimio.whisper.gpu=off`
+for the CPU), beam 3 (`-Dtrimio.whisper.beam=N`, 1 is greedy).
+
+Speed knobs (`-Dtrimio.llama.*`): `kv` (`q8_0` default, `f16`), `flash` (`auto`, `on`, `off`),
+`batch`/`ubatch` (512), `prefixCache` (on: the head a request shares with the previous one is read
+once; a hybrid model restores a snapshot of its state there), `lazyGrammar` (on: the grammar checks
+the sampled token and masks the whole vocabulary only when it rejects it), `log=calls` (one line per
+call on stderr). Every engine reports where it ran: `LanguageModel.runtime` (backend, GPU, layers on
+the GPU, threads, cache, tokens and speed), `SpeechRecognizer.runtime` (backend, GPU, beam, real-time
+factor), `MotionExporter.profile` (frames per second; per-frame draw, footage, read-out and encoder
+wait). Each also prints one `trimio …` line on stderr.
+
+## Rendering
+
+`MotionExporter` draws frames in half-float, reads them out as 16-bit RGBA (Skia converts) and
+pipes them to ffmpeg; each of its workers (about one per two hardware threads, at most three)
+draws its run of frames while a second thread writes the previous one. On Windows the frames are
+drawn by the GPU through Skia's Direct3D 12 backend (`GpuCanvas`, dedicated GPU first); each
+worker first compares its first GPU frame with the CPU's and keeps the CPU on a mismatch, and a
+process that dies inside a GPU render leaves `cache/gpu-render.state`, after which exports stay on
+the CPU (`-Dtrimio.render.gpu=on|off`). The H.264 encoder is the graphics card's own when ffmpeg can
+open it here (`h264_nvenc`, `h264_qsv`, `h264_amf`, all in the LGPL build; tried once per process
+on a tiny clip, `-Dtrimio.h264.hw=off` to skip), else the software one below. Footage is decoded
+with `-hwaccel auto` on Windows (`-Dtrimio.ffmpeg.hwaccel`). Unverified on real Windows hardware so
+far: the GPU canvas, NVENC/QSV/AMF and hardware decoding (this repo's CI has no GPU).
 
 ## ffmpeg and licensing (decision)
 
@@ -85,7 +113,8 @@ development and Android are unchanged. With a GPU variant loaded, llama.cpp offl
   pinned in `desktopApp/ffmpeg/windows.properties`. CI checks the sha256 against the pin and the
   release's checksums, fails if `-buildconf` contains `--enable-gpl`/`--enable-nonfree` or libx264
   is present, and requires `h264_mf` and `aac` encoders.
-- Encoder selection is one place, `MediaTools.h264(...)`: libx264 with the existing tuning when
+- Software encoder selection is one place, `MediaTools.h264(...)` (a hardware encoder, see
+  Rendering, comes first when one works): libx264 with the existing tuning when
   `trimio.h264.encoder` is unset (development, Linux CI, servers); `h264_mf` with unconstrained VBR
   (¾ of the delivery's max rate on average, the max rate as ceiling, closed GOPs) when the packaged
   Windows app sets it. Media Foundation's software encoder is part of every desktop Windows

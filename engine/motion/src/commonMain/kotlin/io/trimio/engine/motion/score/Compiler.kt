@@ -33,6 +33,7 @@ import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.Stages
 import io.trimio.engine.motion.recipe.SfxKind
 import io.trimio.engine.motion.recipe.TextRecipes
+import io.trimio.engine.motion.recipe.Variety
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -47,7 +48,10 @@ class Compiler(
     private val text: TextLayoutEngine,
     private val brands: BrandLibrary = BrandLibrary.Empty,
     private val visuals: io.trimio.engine.motion.visual.VisualLibrary = io.trimio.engine.motion.visual.VisualLibrary.Empty,
+    /** Keep every landed graphic inside the frame's safe area, measured by drawing it ([Geometry]); off only for raw layout tests. */
+    private val inside: Boolean = true,
 ) {
+    private val geometry by lazy { Geometry(text.measurer, text.fonts) }
 
     data class Input(
         val score: Score,
@@ -73,7 +77,11 @@ class Compiler(
         val variant: Int = 0,
     )
 
-    data class Output(val composition: Composition, val sfx: List<Sfx>, val beats: List<Placed>, val notes: List<String>)
+    data class Output(
+        val composition: Composition, val sfx: List<Sfx>, val beats: List<Placed>, val notes: List<String>,
+        /** Each placed beat's own layers in the composition (same order as [beats]): what [Geometry] draws alone. */
+        val layers: List<List<Node>> = emptyList(),
+    )
 
     private class Beat(
         val id: Int,
@@ -173,8 +181,10 @@ class Compiler(
             // Occupants that had to leave early.
             for (b in beats) b.out = layout.outOf(b.id) ?: b.out
             holdStages(beats)
+            // Graphics first, kept inside the frame: the captions then yield to where each one really rests.
+            val graphics = keepInside(beats.associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) })
             val captionBeats = if (score.captions.show && words.isNotEmpty()) captions(this, beats) else emptyList()
-            val built = (beats + captionBeats).associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }
+            val built = graphics + captionBeats.associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }
             // Text over footage keeps the look's contrast floor whatever the picture does behind it.
             for ((b, out) in built) if (b.cue.overMedia) out.nodes.forEach { guard(it, look.guard) }
 
@@ -192,14 +202,74 @@ class Compiler(
             val root = Group(picture(base(), "footage") + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx)
-            val placed = (beats + captionBeats).sortedBy { it.cue.at }.map {
+            val order = (beats + captionBeats).sortedBy { it.cue.at }
+            val placed = order.map {
                 val c = it.cue
+                // A recipe that knows where it landed (tighter than its slot) reports that box.
+                val box = built.getValue(it).box
                 Placed(
                     it.recipe.name, it.zone.name.lowercase(), c.at, it.out, c.text,
-                    c.x - c.width / 2f, c.y - c.height / 2f, c.x + c.width / 2f, c.y + c.height / 2f, c.overMedia,
+                    box?.left ?: (c.x - c.width / 2f), box?.top ?: (c.y - c.height / 2f), box?.right ?: (c.x + c.width / 2f), box?.bottom ?: (c.y + c.height / 2f),
+                    c.overMedia, c.variant,
                 )
             }
-            return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes)
+            return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes, order.map { built.getValue(it).nodes })
+        }
+
+        /**
+         * Every graphic, once it has landed, inside the frame's safe area — the platform's bars and
+         * buttons kept clear: drawn alone where it rests ([Geometry.rest]) and, when its ink (or, for
+         * a band across the frame, its words) reaches past the safe area, moved in, and shrunk when
+         * it is larger than the area. Its entrance and exit move with it. Full-frame stages and
+         * captions (placed in their own band) are left as they are.
+         */
+        /** Where each graphic rests once kept inside (frame px), by beat id: the captions keep off it. */
+        val rests = mutableMapOf<Int, Geometry.Ink>()
+
+        private fun keepInside(built: Map<Beat, Built>): Map<Beat, Built> {
+            if (!inside) return built
+            return built.mapValues { (b, out) ->
+                if (b.id >= CAPTION_ID_BASE || out.nodes.isEmpty()) return@mapValues out
+                val end = b.out - REST_EXIT
+                val from = minOf(b.cue.at + REST_ENTRANCE, end)
+                val times = listOf(from, (from + end) / 2f, end).distinct()
+                val (ink, type) = geometry.rest(out.nodes, w, h, times)
+                ink?.let { rests[b.id] = it }
+                val move = ink?.let { safely(it, type) } ?: return@mapValues out
+                rests[b.id] = move.third
+                notes += "kept ${b.recipe.name} inside the frame"
+                out.copy(nodes = listOf(Group(out.nodes, transform = move.first, name = "keep-inside")), box = out.box?.let(move.second))
+            }
+        }
+
+        /** The move that brings [ink] (its letters [type]) inside the safe area, and what it does to a box; null when it is inside. */
+        private fun safely(ink: Geometry.Ink, type: Geometry.Ink?): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
+            val fw = w.toFloat()
+            val fh = h.toFloat()
+            // A full-frame stage fills the frame on purpose; a band across it may run off the sides, its words may not.
+            if (ink.width >= fw * FULL && ink.height >= fh * FULL) return null
+            val band = ink.width >= fw * FULL
+            val box = if (band) Geometry.Ink((type ?: ink).left, ink.top, (type ?: ink).right, ink.bottom) else ink
+            val tall = h > w
+            val top = fh * SAFE_TOP
+            val bottom = fh * if (tall) SAFE_BOTTOM_TALL else SAFE_BOTTOM
+            val left = fw * SAFE_SIDE
+            // The platform's buttons run down the right of a vertical video, from about the middle.
+            val right = fw * if (tall && box.bottom > fh * BUTTONS_FROM) SAFE_BUTTONS else 1f - SAFE_SIDE
+            val k = minOf(1f, (right - left) / box.width.coerceAtLeast(1f), (bottom - top) / box.height.coerceAtLeast(1f))
+            val bw = box.width * k
+            val bh = box.height * k
+            val cx = (box.left + box.right) / 2f
+            val cy = (box.top + box.bottom) / 2f
+            val nx = cx.coerceIn(left + bw / 2f, maxOf(left + bw / 2f, right - bw / 2f))
+            val ny = cy.coerceIn(top + bh / 2f, maxOf(top + bh / 2f, bottom - bh / 2f))
+            if (k > 1f - SHRINK_TOL && abs(nx - cx) < NUDGE_TOL && abs(ny - cy) < NUDGE_TOL) return null
+            val t = Transform(x = nx.anim, y = ny.anim, anchorX = cx / fw, anchorY = cy / fh, scale = k.anim)
+            val map = { r: io.trimio.engine.motion.recipe.Box ->
+                io.trimio.engine.motion.recipe.Box(nx + (r.left - cx) * k, ny + (r.top - cy) * k, nx + (r.right - cx) * k, ny + (r.bottom - cy) * k)
+            }
+            val moved = Geometry.Ink(nx + (ink.left - cx) * k, ny + (ink.top - cy) * k, nx + (ink.right - cx) * k, ny + (ink.bottom - cy) * k)
+            return Triple(t, map, moved)
         }
 
         /**
@@ -240,9 +310,22 @@ class Compiler(
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items, itemTimes = b.items.map { item -> locate(item.removePrefix(">"), norm, range)?.let { start(it.first) } },
                 rtl = rtlOf(beatText, b.label), seed = id * 7 + 3,
-                media = b.media, aspect = b.aspect ?: 1f, frameWidth = w.toFloat(), frameHeight = h.toFloat(),
+                media = b.media, aspect = b.aspect ?: 1f, frameWidth = w.toFloat(), frameHeight = h.toFloat(), variety = score.variety,
             )
-            return Beat(id, recipe, pictured(cue, b), zone, k, minOut)
+            return Beat(id, recipe, treated(recipe, pictured(cue, b), b, id), zone, k, minOut)
+        }
+
+        /** The last treatment each recipe got: the same device twice in a row takes another form. */
+        private val lastVariant = mutableMapOf<String, Int>()
+
+        /** The beat's treatment ([Variety]): the score's wish, else the edit's variety over what it says. */
+        private fun treated(recipe: Recipe, cue: Cue, b: BeatScore, id: Int): Cue {
+            if (recipe.variants <= 1) return cue
+            val salt = Variety.salt(cue.text, b.label, b.items) * 31 + id
+            var v = Variety.pick(recipe, look, cue, score.variety, b.variant, salt)
+            if (b.variant == null && score.variety != 0 && lastVariant[recipe.name] == v) v = Variety.next(recipe, look, cue, v)
+            lastVariant[recipe.name] = v
+            return cue.copy(variant = v)
         }
 
         /**
@@ -263,8 +346,9 @@ class Compiler(
         /** Brand marks and pictures from the visual vocabulary for what the beat names. */
         private fun pictured(cue: Cue, b: BeatScore) = cue.copy(
             marks = b.items.map { brands.mark(it) }.ifEmpty { listOfNotNull(b.brand?.let { brands.find(it) }) },
-            visual = b.visual?.let { visuals.find(it) },
-            itemVisuals = b.items.indices.map { i -> visuals.find(b.visuals.getOrNull(i) ?: b.items[i]) },
+            // Animated pictures take the look's colours and face the reading direction; stills are unchanged.
+            visual = b.visual?.let { visuals.find(it) }?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl) },
+            itemVisuals = b.items.indices.map { i -> visuals.find(b.visuals.getOrNull(i) ?: b.items[i])?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl) } },
         )
 
         /** Elements not tied to words stay for the scene; spoken text stays while it is said. */
@@ -313,7 +397,7 @@ class Compiler(
             built.filterKeys { it.scene == k }.values.forEach { nodes += it.nodes }
             val enter = entering(k)
             val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat(), look.settle)
-            transitionOverlay(enter, s, look, transitions, sfx)
+            transitionOverlay(enter, s, look, transitions, sfx, w.toFloat(), h.toFloat())
             val t = Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim + tx, y = (h / 2f).anim, scale = sc, opacity = op)
             return Group(nodes, transform = t, start = s - 0.6f, end = e + 0.3f, name = "scene-$k")
         }
@@ -442,8 +526,13 @@ class Compiler(
             val stage = session.sceneStarts.indices.firstOrNull { k -> session.sceneStarts[k] in (at + MIN_CAPTION)..natural && !session.overFootage(session.scenes[k]) }
             val end = stage?.let { session.sceneStarts[it] - 0.02f } ?: natural
             val headline = beats.any { b -> b.recipe.kind == Recipe.Kind.Text && overlap(b.cue.at, b.out, at, end) > (end - at) * 0.35f }
+            // A graphic that really rests over the caption's band (whatever band it was given) is up: the caption yields.
+            val band = layout.slot(zone, recipe.preferredHeight)
+            val covered = beats.any { b ->
+                overlap(b.cue.at, b.out, at, end) > MIN_CAPTION && session.rests[b.id]?.let { r -> r.width < w(session) * FULL_WIDTH && r.bottom > band.y - band.h / 2f && r.top < band.y + band.h / 2f } == true
+            }
             // A graphic leaving the zone is still on screen through its exit: give it that time.
-            if (headline || layout.busy(zone, at - EXIT_TAIL, end)) { skipped++; continue }
+            if (headline || covered || layout.busy(zone, at - EXIT_TAIL, end)) { skipped++; continue }
             val lineWords = line.map { it.text }
             // One highlight per line: the strongest word (prosody, a number, or the director's pick).
             val strongest = line.indices.filter { Words.isContent(lineWords[it]) }.maxByOrNull { j ->
@@ -457,7 +546,7 @@ class Compiler(
             val cue = Cue(
                 text = clean(lineWords.joinToString(" ")), at = at, out = end, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = 0.5f, emphasis = setOfNotNull(strong), wordTimes = line.map { it.range.startMs / 1000f },
-                overMedia = over, rtl = lineWords.any(::isRtl), seed = i,
+                overMedia = over, rtl = lineWords.any(::isRtl), seed = i, variety = score.variety, mark = score.captions.mark,
             )
             out += Beat(CAPTION_ID_BASE + i, recipe, cue, zone, -1, end)
         }
@@ -466,6 +555,8 @@ class Compiler(
     }
 
     // ------------------------------------------------------------------ helpers
+
+    private fun w(session: Session) = session.layout.width.toFloat()
 
     /** Gives every piece of text in [node] that is not on a body of its own the look's [Guard]. */
     private fun guard(node: Node, g: io.trimio.engine.motion.Guard) {
@@ -612,7 +703,7 @@ class Compiler(
         sfx += Sfx(r, SfxKind.Hit, 0.5f)
     }
 
-    private fun transitionOverlay(kind: String?, s: Float, look: Look, overlays: MutableList<Node>, sfx: MutableList<Sfx>) {
+    private fun transitionOverlay(kind: String?, s: Float, look: Look, overlays: MutableList<Node>, sfx: MutableList<Sfx>, width: Float, height: Float) {
         when (kind) {
             "whip" -> sfx += Sfx(s - 0.12f, SfxKind.Whoosh, 0.9f)
             "zoom" -> sfx += Sfx(s - 0.15f, SfxKind.Whoosh, 0.8f)
@@ -628,6 +719,8 @@ class Compiler(
                 overlays += EffectNode(Effect.LightLeak(look.hot, Anim.tween(0f, 1f, s - 0.35f, s + 0.8f, Easing.SineInOut), strength), start = s - 0.4f, end = s + 0.9f)
                 sfx += Sfx(s - 0.3f, SfxKind.Shimmer, 0.7f)
             }
+            // Film burn, glitch slices, a dip, a cool leak: drawn by the recipes' own cuts.
+            else -> io.trimio.engine.motion.recipe.Transitions.overlay(kind, s, look, width, height, overlays, sfx)
         }
     }
 
@@ -690,6 +783,21 @@ class Compiler(
 
     companion object {
         private const val FIT_STEPS = 28
+        /** Where a graphic rests: from this long after it lands to this long before it leaves. */
+        private const val REST_ENTRANCE = 0.8f
+        private const val REST_EXIT = 0.35f
+        /** The safe area, as shares of the frame: the status bar, the caption and handle, the side margins, the buttons. */
+        private const val SAFE_TOP = 0.05f
+        private const val SAFE_BOTTOM_TALL = 0.88f
+        private const val SAFE_BOTTOM = 0.95f
+        private const val SAFE_SIDE = 0.04f
+        private const val SAFE_BUTTONS = 0.9f
+        private const val BUTTONS_FROM = 0.55f
+        private const val FULL = 0.97f
+        /** A graphic as wide as the frame is a stage, not something over the caption band. */
+        private const val FULL_WIDTH = 0.97f
+        private const val NUDGE_TOL = 3f
+        private const val SHRINK_TOL = 0.01f
         private const val FOOTAGE_TEXTURE = 0.35f
         private const val MIN_READ = 1.0f
         private const val MAX_HOLD = 7f

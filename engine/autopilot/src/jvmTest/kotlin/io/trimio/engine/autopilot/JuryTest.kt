@@ -321,9 +321,9 @@ class JuryTest {
 
     @Test
     fun theBudgetFollowsTheDevice() {
-        assertEquals(Jury.Budget(rounds = 2, variations = 1), Jury.Budget.forDevice(io.trimio.engine.models.DeviceTier.High))
-        assertEquals(Jury.Budget(rounds = 3, variations = 2), Jury.Budget.forDevice(io.trimio.engine.models.DeviceTier.Ultra))
-        assertEquals(Jury.Budget(rounds = 3, variations = 3), Jury.Budget.forDevice(null))
+        assertEquals(Jury.Budget(rounds = 3, variations = 1), Jury.Budget.forDevice(io.trimio.engine.models.DeviceTier.High))
+        assertEquals(Jury.Budget(rounds = 4, variations = 2), Jury.Budget.forDevice(io.trimio.engine.models.DeviceTier.Ultra))
+        assertEquals(Jury.Budget(rounds = 6, variations = 3), Jury.Budget.forDevice(null))
         assertEquals(Jury.Budget.forDevice(null), Jury.Default.budget)
     }
 

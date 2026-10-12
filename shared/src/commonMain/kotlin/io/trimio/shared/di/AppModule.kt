@@ -42,6 +42,7 @@ import io.trimio.feature.studio.StudioViewModel
 import io.trimio.shared.navigation.HomeFeed
 import io.trimio.shared.navigation.ProductionProjects
 import io.trimio.shared.navigation.ProjectEdits
+import io.trimio.shared.navigation.TechnicalUi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -125,11 +126,28 @@ val appModule: Module = module {
     viewModel { (args: CreateArgs) ->
         // A platform's own attachment chooser (desktop) wins over the system media chooser.
         val attachments = getOrNull<io.trimio.feature.create.AttachmentPicker>() ?: io.trimio.shared.navigation.mediaAttachments(get())
-        CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), args.styleId, get(), attachments, args.prompt)
+        // «سریع / متعادل / حرفه‌ای»: the installed directors this device runs (desktops name theirs and their graphics card).
+        val device = get<DeviceInfo>()
+        val desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) }
+        val speeds = io.trimio.feature.create.SpeedSource(
+            get(), io.trimio.engine.models.DeviceMemory(device.ramGb, desktop),
+            getOrNull<io.trimio.engine.models.DirectorOffer>() ?: io.trimio.engine.models.DirectorOffer.All, getOrNull<io.trimio.engine.models.GraphicsProbe>(),
+        )
+        CreateViewModel(args.uri, args.kind, get(), get(), get(), get(), args.styleId, get(), attachments, args.prompt, speeds)
     }
     viewModel { (projectId: String) -> EditorViewModel(projectId, get(), get(), get()) }
     // Exports need the platform's encoder; platforms without the production engine (web previews) have none.
     viewModel { (args: ExportArgs) -> ExportViewModel(args, get(), getOrNull<ProductionPlatform>()?.let(::EditExports), get(), getOrNull(), getOrNull()) }
-    viewModel { SettingsViewModel(get(), get(), get(), get(), getOrNull(), get(), get()) }
+    viewModel {
+        SettingsViewModel(
+            get(), get(), get(), get(), getOrNull(), get(), get(),
+            engine = getOrNull(), threads = getOrNull<io.trimio.core.data.DeviceProfile>()?.threads,
+        )
+    }
+    // The engine as the latest build on this device measured it (GPU, layers, threads, model speeds).
+    single<io.trimio.core.data.EngineFacts> {
+        val checkpoints = get<io.trimio.engine.production.Checkpoints>()
+        io.trimio.core.data.EngineFacts { checkpoints.reports.engine()?.let(TechnicalUi::engine) }
+    }
     viewModel { GalleryViewModel() }
 }

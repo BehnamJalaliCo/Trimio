@@ -29,6 +29,9 @@ import io.trimio.engine.motion.score.Words
 internal class UserMedia(private val assets: List<UserAsset>, private val readings: List<AssetReading>, brief: String) {
 
     private val glossary = Glossary.read(brief)
+
+    /** The brief asks for the site on screen («کارت آدرس سایت», "show the website"), said or not. */
+    private val cardAsked = brief.lowercase().let { b -> CARD_WORDS.any { it in b } }
     private val byId = assets.associateBy { it.id }
 
     /** One asset's moment: its line, the word it lands on, the recipe and why. */
@@ -207,7 +210,13 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
     /** The address-bar card where a site is first said, spelled as the brief writes it. */
     private fun sites(score: Score, words: List<Word>, lines: List<Lines.Line>, log: (String) -> Unit): Score {
         var s = score
-        val firsts = words.indices.mapNotNull { i -> glossary.site(words[i].text)?.let { it to i } }.distinctBy { it.first.lowercase() }
+        val said = words.indices.mapNotNull { i -> glossary.site(words[i].text)?.let { it to i } }.distinctBy { it.first.lowercase() }
+        // Asked for and never said: on the speaker's own mention of a site or link, else on the line before the last.
+        val firsts = said.ifEmpty {
+            val domain = glossary.sites.firstOrNull()?.takeIf { cardAsked } ?: return@ifEmpty emptyList()
+            val mention = words.indices.firstOrNull { key(words[it].text) in MENTIONS }
+            listOfNotNull((mention ?: lines.getOrNull(lines.size - 2)?.first)?.let { domain to it })
+        }
         for ((domain, i) in firsts) {
             val line = lines.firstOrNull { i in it.range }
             val k = sceneOf(s, i)
@@ -259,6 +268,8 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
         private const val CARD_HOLD = 2.6f
         private const val PIP_HOLD = 2.2f
         private const val URL_HOLD = 2.8f
+        private val CARD_WORDS = listOf("آدرس سایت", "کارت سایت", "سایت رو", "سایت را", "لینک سایت", "website", "site card", "url")
+        private val MENTIONS = setOf("سایت", "سایتمون", "سایتم", "وبسایت", "آدرس", "لینک", "site", "website", "link")
         private const val TERM_HOLD = 3.2f
         private const val MIN_CUT_IN = 1.2f
         private const val CLIP_SLACK = 0.15f
@@ -277,7 +288,7 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
         private val KEEP = ASKS + setOf("message", "voucher", "countdown", "stats", "progress", "counter", "meter", "chart", "bars", "ticker", "terminal", "network")
 
         /** What makes room for an asset on its line. */
-        private val REPLACEABLE = TEXT + setOf("object", "objects", "icon", "stamp", "chips", "list", "logos", "lower-third")
+        private val REPLACEABLE = TEXT + setOf("object", "objects", "icon", "animated", "live-reaction", "stamp", "chips", "list", "logos", "lower-third")
 
         fun key(w: String) = NumberWords.normalize(w).trim { !it.isLetterOrDigit() }
 

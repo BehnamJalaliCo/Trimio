@@ -234,7 +234,7 @@ object StyleBook {
     private val RHYTHM = 0.6f..1.4f
     val TONES = setOf("noir", "paper", "lumen")
     val ENTRANCES = setOf("mask-rise", "slam", "stack", "spread", "flip", "type-on", "blur-in", "glitch")
-    val TRANSITIONS = setOf("cut", "whip", "zoom", "flash", "leak", "glitch", "ripple")
-    val MARKS = setOf("block", "ink", "underline", "circle")
+    val TRANSITIONS = setOf("cut", "whip", "zoom", "flash", "leak", "glitch", "ripple") + io.trimio.engine.motion.recipe.Transitions.KINDS
+    val MARKS = setOf("block", "ink", "underline", "circle") + io.trimio.engine.motion.recipe.Craft.HAND_MARKS
     val STAGES = setOf("aurora", "grid", "plain")
 }

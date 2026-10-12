@@ -63,7 +63,8 @@ internal class CallToAction(
     private fun endCard(line: Lines.Line, action: String): BeatScore {
         val question = action == "comment"
         val at = early(line.first, line)
-        val reason = Phrases.title(words, line).takeIf { ' ' in it }
+        // The brief's handle (a Telegram bot, a page) is where the ask sends viewers: it heads the card, as written.
+        val reason = Glossary.read(brief).handles.firstOrNull() ?: Phrases.title(words, line).takeIf { ' ' in it }
         return BeatScore(
             recipe = "endcard", at = at, text = if (question) (if (rtl) "نظرت رو کامنت کن" else "Tell me in the comments") else label(action),
             icon = action, label = reason, hold = tail(at), energy = 0.8f, place = "top",

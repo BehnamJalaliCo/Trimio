@@ -48,7 +48,8 @@ class DirectorGate internal constructor(
     private val connectivity: Connectivity,
     private val scope: CoroutineScope,
 ) {
-    private class Pending(val request: ProductionRequest, val mediaSeconds: Float, val go: (ProductionRequest) -> Unit)
+    /** [device] is the on-device director the order had before it went to the cloud (the chosen speed). */
+    private class Pending(val request: ProductionRequest, val mediaSeconds: Float, val go: (ProductionRequest) -> Unit, val device: DirectorChoice = DirectorChoice.Auto)
 
     private var asked by mutableStateOf<Pending?>(null)
     private var waiting by mutableStateOf<Pending?>(null)
@@ -58,7 +59,7 @@ class DirectorGate internal constructor(
     fun start(request: ProductionRequest, mediaSeconds: Float, go: (ProductionRequest) -> Unit) {
         if (settings.settings.value.director != DirectorBackend.Cloud) return go(request)
         val cloud = request.copy(director = DirectorChoice.Cloud)
-        scope.launch { if (online()) go(cloud) else asked = Pending(cloud, mediaSeconds, go) }
+        scope.launch { if (online()) go(cloud) else asked = Pending(cloud, mediaSeconds, go, request.director) }
     }
 
     private suspend fun online() = runCatching { connectivity.online() }.getOrDefault(false)
@@ -66,7 +67,7 @@ class DirectorGate internal constructor(
     private fun onDevice() {
         val p = asked ?: return
         asked = null
-        p.go(p.request.copy(director = DirectorChoice.Auto))
+        p.go(p.request.copy(director = p.device))
     }
 
     private fun waitForNetwork() {

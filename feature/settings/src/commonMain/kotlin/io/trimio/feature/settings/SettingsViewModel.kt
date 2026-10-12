@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import io.trimio.core.data.AppSettings
 import io.trimio.core.data.CrashLog
 import io.trimio.core.data.DeviceInfo
+import io.trimio.core.data.EngineFacts
 import io.trimio.core.data.Entitlements
 import io.trimio.core.data.PurchaseResult
 import io.trimio.core.data.SettingsRepository
@@ -29,6 +30,10 @@ class SettingsViewModel(
     private val crashLog: CrashLog? = null,
     private val sharer: Sharer? = null,
     private val entitlements: Entitlements? = null,
+    /** The engines as the latest build measured them, for the models screen's hardware line. */
+    val engine: EngineFacts? = null,
+    /** The CPU threads models run on here, shown before any build has measured the engine. */
+    val threads: Int? = null,
 ) : ViewModel() {
     private val _offer = MutableStateFlow<ProOffer?>(null)
 

@@ -3,6 +3,7 @@
 package io.trimio.shared.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -12,6 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.trimio.core.data.GallerySaver
 import io.trimio.core.data.MediaKind
@@ -22,6 +25,7 @@ import io.trimio.core.data.Sharer
 import io.trimio.core.designsystem.theme.Trimio
 import io.trimio.core.model.text.Language
 import io.trimio.engine.production.AttachedMedia
+import io.trimio.engine.production.DirectorChoice
 import io.trimio.engine.production.ProducedEdits
 import io.trimio.engine.production.ProductionRequest
 import io.trimio.engine.production.ProductionRunner
@@ -35,11 +39,13 @@ import io.trimio.feature.stream.BuildFailureScreen
 import io.trimio.feature.stream.BuildFailures
 import io.trimio.feature.stream.BuildResult
 import io.trimio.feature.stream.BuildStage
+import io.trimio.feature.stream.BuildStall
 import io.trimio.feature.stream.JudgeScore
 import io.trimio.feature.stream.LiveBuild
 import io.trimio.feature.stream.LiveBuildScreen
 import io.trimio.feature.stream.ResultActions
 import io.trimio.feature.stream.ResultScreen
+import io.trimio.feature.stream.VideoPlayers
 import kotlinx.coroutines.launch
 import org.koin.compose.getKoin
 import org.koin.compose.koinInject
@@ -60,6 +66,8 @@ object ProductionUi {
         assets = s.attachments.map { AttachedMedia(it.uri, it.caption.trim().ifEmpty { null }) },
         style = s.styleId,
         seed = seed,
+        // The chosen speed's installed director; without one the engine picks (the settings' choice or what fits).
+        director = s.speedModel?.let { io.trimio.engine.production.DirectorChoice.Local(it) } ?: io.trimio.engine.production.DirectorChoice.Auto,
     )
 
     fun styleName(id: String?, persian: Boolean): String? = ProductionStyles.of(id)?.let { if (persian) it.nameFa else it.nameEn }
@@ -117,6 +125,7 @@ object ProductionUi {
             framesDone = done, framesTotal = total, linesDone = read, linesTotal = lines, etaSeconds = eta,
             directorNote = s.report.lastOrNull()?.takeIf { stage >= BuildStage.Jury } ?: note(stage, persian),
             judges = judges(s),
+            stall = s.stall?.let { BuildStall(it.minutes, it.step, stage) },
         )
     }
 
@@ -214,8 +223,30 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
         project?.status == ProjectStatus.Failed -> stoppedAs(project.error) to project.error
         else -> null
     }
+    // «جزئیات فنی»: the run's technical report, live or kept with the project.
+    var technical by remember(route) { mutableStateOf(false) }
+    val report = rememberReport(key, s?.technical)
+    val details: (() -> Unit)? = report?.let { { technical = true } }
+    val cloud = koinInject<io.trimio.engine.llm.CloudModels>()
+    // The order this screen runs: the project's saved one, else the route's.
+    val order = project?.let(productions::requestOf) ?: route.request
     when {
+        technical && report != null -> TechnicalOverlay(report, persian) { technical = false }
         s?.status == ProductionStatus.Done -> LaunchedEffect(s.key) { onResult(elapsed.toInt()) }
+        stopped?.first == ProductionStatus.Failed && ProductionState.diedIn(stopped.second) != null -> BuildFailureScreen(
+            BuildFailures.of(stopped.second, current, persian),
+            // A smaller model, the cloud (when a key is connected, else the models), or the rules.
+            onOption = { i ->
+                when (i) {
+                    0 -> runner.lighter(order)
+                    1 -> scope.launch { if (cloud.firstAvailable() != null) runner.redirect(DirectorChoice.Cloud, order) else onModels() }
+                    else -> runner.redirect(DirectorChoice.Rules, order)
+                }
+            },
+            onPrimary = { runner.lighter(order) },
+            onClose = onClose,
+            onDetails = details,
+        )
         stopped?.first == ProductionStatus.Failed -> {
             val failure = BuildFailures.of(stopped.second, current, persian)
             val missingModel = failure.primary == BuildFailures.of("no model", current, persian).primary
@@ -224,6 +255,7 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
                 onOption = { i -> if (i == 0) (if (missingModel) onModels() else retry()) else onClose() },
                 onPrimary = { if (missingModel) onModels() else retry() },
                 onClose = onClose,
+                onDetails = details,
             )
         }
         stopped != null -> BuildFailureScreen(
@@ -231,10 +263,14 @@ internal fun ProduceEntry(route: Route.Produce, onResult: (seconds: Int) -> Unit
             onOption = { i -> if (i == 0) retry() else onClose() },
             onPrimary = { retry() },
             onClose = onClose,
+            onDetails = details,
         )
         else -> LiveBuildScreen(
             s?.let { ProductionUi.live(it, route.styleName, seconds.toMap(), elapsed, persian) } ?: LiveBuild(styleName = route.styleName),
             onCancel = runner::cancel,
+            onDetails = details,
+            onWait = runner::keepWaiting,
+            onLighter = { runner.lighter() },
         )
     }
 }
@@ -277,6 +313,11 @@ internal fun ResultEntry(
         return
     }
     LaunchedEffect(project?.id) { project?.let { productions.markSeen(it.id) } }
+    // The finished file plays in the app where the platform has a player; it stops when the screen goes or the app leaves the front.
+    val video = remember(output) { koin.getOrNull<VideoPlayers>()?.let { runCatching { it.open(output) }.getOrNull() } }
+    DisposableEffect(video) { onDispose { video?.close() } }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { video?.pause() }
+    val leaving: (() -> Unit) -> () -> Unit = { go -> { video?.pause(); go() } }
     val edits = koinInject<ProducedEdits>()
     // The editor and the export open the edit held in memory, or make it again from what its run kept (after a restart).
     val editId = project?.id ?: edit?.request?.key
@@ -300,19 +341,28 @@ internal fun ResultEntry(
         }
         request?.let { onProduce(it, project?.id, result.version + 1) }
     }
+    // «جزئیات فنی»: this version's technical report (live, or kept with the project).
+    var technical by remember(route) { mutableStateOf(false) }
+    val report = rememberReport(live?.key ?: project?.production?.key, live?.technical)
+    if (technical && report != null) {
+        TechnicalOverlay(report, persian) { technical = false }
+        return
+    }
     ResultScreen(
         result,
         ResultActions(
-            onClose = onClose,
-            onFeedback = { text -> next(text) },
-            onVariation = { next(null) },
+            onClose = leaving(onClose),
+            onFeedback = { text -> video?.pause(); next(text) },
+            onVariation = leaving { next(null) },
             onSave = { saving = true },
-            onShare = { sharer?.share(output, result.title) },
+            onShare = leaving { sharer?.share(output, result.title) },
             // Other frames, sizes and rates, captions and the pro package: while the edit itself is held.
-            onExport = exportId?.let { id -> { onExport(id) } },
+            onExport = exportId?.let { id -> leaving { onExport(id) } },
             // The editor works on the edit when the director's workbench came with it (a kept edit always has it).
-            onEdit = exportId?.takeIf { edits.find(it)?.editable != false }?.let { id -> { onEdit(id) } },
+            onEdit = exportId?.takeIf { edits.find(it)?.editable != false }?.let { id -> leaving { onEdit(id) } },
+            onDetails = report?.let { leaving { technical = true } },
         ),
+        video = video,
     )
 }
 

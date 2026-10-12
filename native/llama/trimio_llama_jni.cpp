@@ -1,8 +1,13 @@
 // JNI bridge between io.trimio.engine.llm.local.LlamaNative and llama.cpp.
 //
-// One handle owns a model and a context. Generation is single-sequence: the KV cache is cleared
-// for every request, the prompt is decoded in n_batch chunks, then tokens are sampled one at a time
-// through a chain of (optional GBNF grammar) -> temperature/top-p/min-p -> seeded dist.
+// One handle owns a model and a context. Generation is single-sequence: the prompt is decoded in
+// n_batch chunks, then tokens are sampled one at a time through (optional GBNF grammar) ->
+// temperature/top-p/min-p -> seeded dist.
+//
+// Prompt reuse: consecutive requests usually share a long head (the system prompt, the brief).
+// That head is decoded once: a plain attention model keeps it in its KV cache and only the tail
+// is decoded again; a recurrent or hybrid model (Qwen3.5's gated delta net) cannot cut its state
+// back, so its state is snapshotted at the shared head and restored for the next request.
 //
 // Output is streamed as UTF-8 *bytes*: a byte-level BPE token can end in the middle of a Persian
 // letter, so only complete UTF-8 sequences are handed to Kotlin and the tail waits for the next token.
@@ -10,7 +15,11 @@
 #include <jni.h>
 
 #include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -22,13 +31,53 @@
 
 namespace {
 
+/** What a call cost, read by Kotlin right after it (LlamaNative.lastCall). */
+struct CallStats {
+    int prompt_tokens = 0;
+    int reused_tokens = 0;
+    int generated = 0;
+    double prompt_ms = 0;
+    double generate_ms = 0;
+    int grammar_resamples = 0;
+};
+
+/** Options from Kotlin (LlamaNative.Options, in this order). */
+struct Options {
+    int kv_type = GGML_TYPE_F16;   // a ggml_type: 1 = f16, 8 = q8_0
+    int flash = -1;                // llama_flash_attn_type: -1 auto, 0 off, 1 on
+    int n_batch = 512;
+    int n_ubatch = 512;
+    bool prefix_cache = true;
+    bool lazy_grammar = true;
+    double min_gpu_coverage = 0.9; // share of the weights the GPU must be able to run
+};
+
 struct Engine {
     llama_model * model = nullptr;
     llama_context * ctx = nullptr;
     const llama_vocab * vocab = nullptr;
     // The model's eyes (vision projector), when loaded.
     mtmd_context * vision = nullptr;
+    Options options;
+    /** How the model was placed (devices, layers, cache), as key=value lines. */
+    std::string info;
+    /** Recurrent or hybrid memory cannot drop a tail: it reuses a head through [snapshot]. */
+    bool recurrent = false;
+    /** Tokens whose state is in the context's memory right now (plain attention models). */
+    std::vector<llama_token> held;
+    /** The previous text prompt: where the next one diverges from it is where a head ends. */
+    std::vector<llama_token> previous;
+    /** The sequence state after [snapshot_tokens] (recurrent/hybrid models). */
+    std::vector<uint8_t> snapshot;
+    std::vector<llama_token> snapshot_tokens;
+    CallStats last;
 };
+
+using Clock = std::chrono::steady_clock;
+
+double ms_since(Clock::time_point t0) {
+    return std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
+}
 
 std::string to_string(JNIEnv * env, jstring s) {
     if (s == nullptr) return {};
@@ -83,12 +132,68 @@ std::string piece(const llama_vocab * vocab, llama_token token) {
     return big;
 }
 
+/** Log lines worth keeping for the runtime report while a model loads; the rest is dropped. */
+std::mutex log_mutex;
+std::string load_log;
+
 void quiet_log(ggml_log_level level, const char * text, void *) {
     // Keep logcat clean in release; errors still surface through return codes.
+    if (text == nullptr) return;
+    const std::string line(text);
+    static const char * keep[] = {"offloaded", "model buffer size", "KV buffer size", "compute buffer size", "flash_attn", "graph splits", "using device"};
+    for (const char * k : keep) {
+        if (line.find(k) != std::string::npos) {
+            std::lock_guard<std::mutex> lock(log_mutex);
+            if (load_log.size() < 8192) load_log += "log=" + line.substr(0, line.find_last_not_of("\n") + 1) + "\n";
+            break;
+        }
+    }
     (void) level;
-    (void) text;
 }
 
+size_t common_prefix(const std::vector<llama_token> & a, const std::vector<llama_token> & b) {
+    size_t n = std::min(a.size(), b.size());
+    size_t i = 0;
+    while (i < n && a[i] == b[i]) ++i;
+    return i;
+}
+
+/** Fills [cur] with the last position's logits. */
+llama_token_data_array candidates(Engine * engine, std::vector<llama_token_data> & cur) {
+    const float * logits = llama_get_logits_ith(engine->ctx, -1);
+    const int n_vocab = llama_vocab_n_tokens(engine->vocab);
+    cur.resize(static_cast<size_t>(n_vocab));
+    for (llama_token t = 0; t < n_vocab; t++) cur[t] = llama_token_data{t, logits[t], 0.0f};
+    return llama_token_data_array{cur.data(), cur.size(), -1, false};
+}
+
+/**
+ * The next token. The grammar is checked against the token the sampler picks first and applied
+ * to the whole vocabulary only when it rejects it: masking ~250k candidates every step costs more
+ * than the rest of sampling, and the picked token is almost always already valid. When the
+ * grammar is applied first ([lazy] off) the result is the same for greedy decoding.
+ */
+llama_token next_token(Engine * engine, llama_sampler * chain, llama_sampler * grammar, std::vector<llama_token_data> & cur, bool lazy) {
+    llama_token_data_array arr = candidates(engine, cur);
+    if (grammar != nullptr && !lazy) llama_sampler_apply(grammar, &arr);
+    llama_sampler_apply(chain, &arr);
+    llama_token token = arr.data[arr.selected].id;
+    if (grammar != nullptr && lazy) {
+        llama_token_data single{token, 1.0f, 0.0f};
+        llama_token_data_array one{&single, 1, -1, false};
+        llama_sampler_apply(grammar, &one);
+        if (std::isinf(single.logit) && single.logit < 0) {
+            engine->last.grammar_resamples++;
+            arr = candidates(engine, cur);
+            llama_sampler_apply(grammar, &arr);
+            llama_sampler_apply(chain, &arr);
+            token = arr.data[arr.selected].id;
+        }
+    }
+    if (grammar != nullptr) llama_sampler_accept(grammar, token);
+    llama_sampler_accept(chain, token);
+    return token;
+}
 
 /** The sampling loop shared by text and image prompts; [n_past] tokens are already decoded. */
 jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback) {
@@ -96,16 +201,13 @@ jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint ma
     jmethodID on_text = env->GetMethodID(cls, "onText", "([B)Z");
     env->DeleteLocalRef(cls);
     const int n_ctx = static_cast<int>(llama_n_ctx(engine->ctx));
-    llama_sampler * chain = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    const std::string grammar = to_string(env, jgrammar);
-    if (!grammar.empty()) {
-        llama_sampler * g = llama_sampler_init_grammar(engine->vocab, grammar.c_str(), "root");
-        if (g == nullptr) {
-            llama_sampler_free(chain);
-            return -3;
-        }
-        llama_sampler_chain_add(chain, g);
+    llama_sampler * grammar = nullptr;
+    const std::string grammar_text = to_string(env, jgrammar);
+    if (!grammar_text.empty()) {
+        grammar = llama_sampler_init_grammar(engine->vocab, grammar_text.c_str(), "root");
+        if (grammar == nullptr) return -3;
     }
+    llama_sampler * chain = llama_sampler_chain_init(llama_sampler_chain_default_params());
     if (temperature <= 0.0f) {
         llama_sampler_chain_add(chain, llama_sampler_init_greedy());
     } else {
@@ -115,10 +217,13 @@ jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint ma
         llama_sampler_chain_add(chain, llama_sampler_init_dist(static_cast<uint32_t>(seed)));
     }
 
+    const auto t0 = Clock::now();
+    std::vector<llama_token_data> cur;
     int status = 1;
     std::string pending;
     for (int i = 0; i < max_tokens; ++i) {
-        llama_token token = llama_sampler_sample(chain, engine->ctx, -1);
+        llama_token token = next_token(engine, chain, grammar, cur, engine->options.lazy_grammar);
+        engine->last.generated++;
         if (llama_vocab_is_eog(engine->vocab, token)) {
             status = 0;
             break;
@@ -140,37 +245,189 @@ jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint ma
             status = -2;
             break;
         }
+        engine->held.push_back(token);
     }
+    engine->last.generate_ms = ms_since(t0);
     if (!pending.empty() && status >= 0 && status != 2) {
         jbyteArray chunk = to_bytes(env, pending);
         env->CallBooleanMethod(callback, on_text, chunk);
         env->DeleteLocalRef(chunk);
     }
     llama_sampler_free(chain);
+    if (grammar != nullptr) llama_sampler_free(grammar);
     return status;
 }
 
-
-/** Transformer blocks in the GGUF at [path] (0 when unreadable), without loading any weights. */
-int block_count(const std::string & path) {
-    gguf_init_params gp = {/* no_alloc */ true, /* ctx */ nullptr};
-    gguf_context * g = gguf_init_from_file(path.c_str(), gp);
-    if (g == nullptr) return 0;
-    int blocks = 0;
-    const int64_t arch = gguf_find_key(g, "general.architecture");
-    if (arch >= 0) {
-        const int64_t key = gguf_find_key(g, (std::string(gguf_get_val_str(g, arch)) + ".block_count").c_str());
-        if (key >= 0) blocks = static_cast<int>(gguf_get_val_u32(g, key));
+/** Decodes tokens [from, to) of [prompt] in n_batch chunks; false when a decode fails. */
+bool decode_range(Engine * engine, const std::vector<llama_token> & prompt, size_t from, size_t to) {
+    const auto batch = static_cast<size_t>(std::max(1, engine->options.n_batch));
+    for (size_t i = from; i < to; i += batch) {
+        const auto n = static_cast<int32_t>(std::min(batch, to - i));
+        if (llama_decode(engine->ctx, llama_batch_get_one(const_cast<llama_token *>(prompt.data()) + i, n)) != 0) return false;
     }
-    gguf_free(g);
-    return blocks;
+    return true;
+}
+
+/** Brings the context's memory to the longest reusable head of [prompt]; returns its length. */
+size_t reuse_head(Engine * engine, const std::vector<llama_token> & prompt) {
+    llama_memory_t mem = llama_get_memory(engine->ctx);
+    if (!engine->options.prefix_cache) {
+        llama_memory_clear(mem, true);
+        engine->held.clear();
+        return 0;
+    }
+    // At least the last prompt token is decoded again: its logits start the reply.
+    const size_t limit = prompt.size() - 1;
+    if (!engine->recurrent) {
+        const size_t keep = std::min(common_prefix(engine->held, prompt), limit);
+        if (keep > 0 && llama_memory_seq_rm(mem, 0, static_cast<llama_pos>(keep), -1)) {
+            engine->held.resize(keep);
+            return keep;
+        }
+        llama_memory_clear(mem, true);
+        engine->held.clear();
+        return 0;
+    }
+    llama_memory_clear(mem, true);
+    engine->held.clear();
+    const size_t n = engine->snapshot_tokens.size();
+    if (n == 0 || n > limit || common_prefix(engine->snapshot_tokens, prompt) != n) return 0;
+    if (llama_state_seq_set_data(engine->ctx, engine->snapshot.data(), engine->snapshot.size(), 0) == 0) {
+        llama_memory_clear(mem, true);
+        return 0;
+    }
+    engine->held.assign(prompt.begin(), prompt.begin() + static_cast<long>(n));
+    return n;
+}
+
+/** Shared heads shorter than this are not worth a snapshot. */
+constexpr size_t MIN_HEAD = 64;
+
+/** Decodes [prompt] reusing what it can; false when a decode fails. */
+bool decode_prompt(Engine * engine, const std::vector<llama_token> & prompt) {
+    const auto t0 = Clock::now();
+    const size_t start = reuse_head(engine, prompt);
+    // Recurrent/hybrid: snapshot where this prompt leaves the previous one (the shared head), so
+    // the next request with the same head starts there.
+    size_t head = 0;
+    if (engine->recurrent && engine->options.prefix_cache) {
+        head = std::min(common_prefix(engine->previous, prompt), prompt.size() - 1);
+        if (head < MIN_HEAD || head <= start) head = 0;
+    }
+    bool ok = true;
+    if (head > 0) {
+        ok = decode_range(engine, prompt, start, head);
+        if (ok) {
+            engine->snapshot.resize(llama_state_seq_get_size(engine->ctx, 0));
+            const size_t written = llama_state_seq_get_data(engine->ctx, engine->snapshot.data(), engine->snapshot.size(), 0);
+            engine->snapshot.resize(written);
+            if (written > 0) engine->snapshot_tokens.assign(prompt.begin(), prompt.begin() + static_cast<long>(head));
+            else engine->snapshot_tokens.clear();
+        }
+        ok = ok && decode_range(engine, prompt, head, prompt.size());
+    } else {
+        ok = decode_range(engine, prompt, start, prompt.size());
+    }
+    engine->held = ok ? prompt : std::vector<llama_token>{};
+    engine->previous = prompt;
+    engine->last.prompt_tokens = static_cast<int>(prompt.size());
+    engine->last.reused_tokens = static_cast<int>(start);
+    engine->last.prompt_ms = ms_since(t0);
+    if (!ok) llama_memory_clear(llama_get_memory(engine->ctx), true);
+    return ok;
+}
+
+/** What the layer fit needs from a GGUF's header (read without loading any weights). */
+struct Shape {
+    int blocks = 0;
+    /** Context cache bytes per token for the whole model at f16; 0 when the header does not say. */
+    size_t cache_per_token = 0;
+};
+
+/** A u32 key, or the largest entry of a per-layer u32/i32 array; 0 when missing. */
+uint32_t u32_or_max(const gguf_context * g, const std::string & key) {
+    const int64_t id = gguf_find_key(g, key.c_str());
+    if (id < 0) return 0;
+    const auto type = gguf_get_kv_type(g, id);
+    if (type == GGUF_TYPE_UINT32) return gguf_get_val_u32(g, id);
+    if (type == GGUF_TYPE_INT32) return static_cast<uint32_t>(std::max(0, gguf_get_val_i32(g, id)));
+    if (type != GGUF_TYPE_ARRAY) return 0;
+    const auto arr = gguf_get_arr_type(g, id);
+    if (arr != GGUF_TYPE_UINT32 && arr != GGUF_TYPE_INT32) return 0;
+    const auto * v = static_cast<const int32_t *>(gguf_get_arr_data(g, id));
+    uint32_t best = 0;
+    for (size_t i = 0; i < gguf_get_arr_n(g, id); i++) best = std::max(best, static_cast<uint32_t>(std::max(0, v[i])));
+    return best;
 }
 
 /**
- * Layers to offload when the caller asks for "as many as fit" (-1): the free memory of the largest
- * GPU, less a reserve for the context and compute buffers, over the size of one layer. The rest
- * runs on the CPU from RAM, so a 9B or 35B model works on any graphics card, fast where it fits.
+ * Blocks and context-cache size of the GGUF at [path]. Only attention layers keep a cache: a
+ * hybrid model (Qwen3.5: one attention layer in four, the others a fixed-size recurrent state)
+ * needs a fraction of what a plain transformer of its size does.
  */
+Shape shape_of(const std::string & path) {
+    Shape out;
+    gguf_init_params gp = {/* no_alloc */ true, /* ctx */ nullptr};
+    gguf_context * g = gguf_init_from_file(path.c_str(), gp);
+    if (g == nullptr) return out;
+    const int64_t arch_id = gguf_find_key(g, "general.architecture");
+    if (arch_id >= 0) {
+        const std::string arch = gguf_get_val_str(g, arch_id);
+        out.blocks = static_cast<int>(u32_or_max(g, arch + ".block_count"));
+        const uint32_t heads = u32_or_max(g, arch + ".attention.head_count");
+        const uint32_t kv_heads = u32_or_max(g, arch + ".attention.head_count_kv");
+        const uint32_t embd = u32_or_max(g, arch + ".embedding_length");
+        uint32_t key = u32_or_max(g, arch + ".attention.key_length");
+        uint32_t value = u32_or_max(g, arch + ".attention.value_length");
+        if (key == 0 && heads > 0) key = embd / heads;
+        if (value == 0) value = key;
+        const uint32_t interval = u32_or_max(g, arch + ".full_attention_interval");
+        const int attention = interval > 1 ? out.blocks / static_cast<int>(interval) : out.blocks;
+        if (kv_heads > 0 && key > 0) out.cache_per_token = size_t(attention) * kv_heads * (key + value) * 2;
+    }
+    gguf_free(g);
+    return out;
+}
+
+/**
+ * The share (0..1) of the model's matrix weights, by size, that [dev] can multiply itself, tested
+ * the way llama.cpp places weights (a 512-token batch). A weight the GPU cannot run stays on the
+ * CPU and every layer then bounces between the two: on a phone's OpenCL that is slower than the
+ * CPU alone (the Adreno backend has no Q3_K / IQ kernels, which the UD-Q3_K_XL quants use).
+ */
+double gpu_coverage(const std::string & path, ggml_backend_dev_t dev) {
+    ggml_context * meta = nullptr;
+    gguf_init_params gp = {/* no_alloc */ true, /* ctx */ &meta};
+    gguf_context * g = gguf_init_from_file(path.c_str(), gp);
+    if (g == nullptr || meta == nullptr) {
+        if (g != nullptr) gguf_free(g);
+        return 1.0;
+    }
+    ggml_init_params params = {ggml_tensor_overhead() * 8, nullptr, true};
+    double total = 0;
+    double supported = 0;
+    for (ggml_tensor * w = ggml_get_first_tensor(meta); w != nullptr; w = ggml_get_next_tensor(meta, w)) {
+        const std::string name = ggml_get_name(w);
+        // Matrices only (norms and conv kernels are tiny); the token embedding is a lookup on the CPU.
+        if (ggml_n_dims(w) < 2 || w->ne[0] < 64 || w->ne[1] < 64 || name.rfind("token_embd", 0) == 0) continue;
+        if (name.find(".weight") == std::string::npos) continue;
+        ggml_context * ctx = ggml_init(params);
+        ggml_tensor * b = ggml_new_tensor_4d(ctx, GGML_TYPE_F32, w->ne[0], 512, w->ne[2], w->ne[3]);
+        ggml_tensor * op = ggml_mul_mat(ctx, w, b);
+        const auto bytes = static_cast<double>(ggml_nbytes(w));
+        total += bytes;
+        // A dummy buffer of the device's own type, as llama.cpp does: some backends check it.
+        w->buffer = ggml_backend_buft_alloc_buffer(ggml_backend_dev_buffer_type(dev), 0);
+        if (ggml_backend_dev_supports_op(dev, op)) supported += bytes;
+        if (w->buffer != nullptr) ggml_backend_buffer_free(w->buffer);
+        w->buffer = nullptr;
+        ggml_free(ctx);
+    }
+    ggml_free(meta);
+    gguf_free(g);
+    return total > 0 ? supported / total : 1.0;
+}
+
 /**
  * The GPUs the model runs on: the dedicated ones when there are any (a laptop's integrated GPU
  * would otherwise take a share of the layers, from system memory, and slow the dedicated one
@@ -190,7 +447,12 @@ std::vector<ggml_backend_dev_t> gpus() {
     return chosen;
 }
 
-int fitting_layers(const std::string & path, int n_ctx, const std::vector<ggml_backend_dev_t> & devices) {
+/**
+ * Layers to offload when the caller asks for "as many as fit" (-1): the free memory of the GPUs,
+ * less a reserve for the compute buffers, over the size of one layer. The rest runs on the CPU
+ * from RAM, so a 9B or 35B model works on any graphics card, fast where it fits.
+ */
+int fitting_layers(const std::string & path, int n_ctx, const std::vector<ggml_backend_dev_t> & devices, bool quantized_cache) {
     // Several cards (a workstation's two or three) pool their memory: llama.cpp spreads the
     // layers over them by free memory. Each card keeps its own compute reserve.
     size_t best = 0;
@@ -203,17 +465,82 @@ int fitting_layers(const std::string & path, int n_ctx, const std::vector<ggml_b
         best += free;
         cards++;
     }
-    const int blocks = block_count(path);
+    const Shape shape = shape_of(path);
+    const int blocks = shape.blocks;
     std::error_code error;
     const auto bytes = std::filesystem::file_size(path, error);
     if (best == 0 || blocks <= 0 || error) return 0;
     // A layer on the GPU brings its weights and its share of the context cache; the compute
-    // buffers are a fixed reserve. (Cache per token: a generous 160 KB for the whole model.)
+    // buffers (and a recurrent model's state) are a fixed reserve. The cache is the model's own
+    // (attention layers × KV heads × head size), a q8_0 cache about half of f16; a header that
+    // does not say gets a generous 160 KB per token.
+    size_t per_token = shape.cache_per_token > 0 ? shape.cache_per_token : (size_t(160) << 10);
+    if (quantized_cache) per_token = per_token * 17 / 32;
     const size_t layer = bytes / static_cast<size_t>(blocks + 1)
-        + static_cast<size_t>(n_ctx) * (size_t(160) << 10) / static_cast<size_t>(blocks);
+        + static_cast<size_t>(n_ctx) * per_token / static_cast<size_t>(blocks);
     const size_t reserve = (size_t(768) << 20) * std::max<size_t>(cards, 1);
     if (best <= reserve + layer) return 0;
     return std::min(blocks + 1, static_cast<int>((best - reserve) / layer));
+}
+
+const char * device_kind(ggml_backend_dev_t dev) {
+    switch (ggml_backend_dev_type(dev)) {
+        case GGML_BACKEND_DEVICE_TYPE_GPU: return "gpu";
+        case GGML_BACKEND_DEVICE_TYPE_IGPU: return "igpu";
+        case GGML_BACKEND_DEVICE_TYPE_ACCEL: return "accel";
+        default: return "cpu";
+    }
+}
+
+/** Every device ggml sees, one line each: kind, name, description, free/total MiB. */
+std::string device_lines() {
+    std::string out;
+    for (size_t i = 0; i < ggml_backend_dev_count(); i++) {
+        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        size_t free = 0;
+        size_t total = 0;
+        ggml_backend_dev_memory(dev, &free, &total);
+        char line[512];
+        std::snprintf(line, sizeof(line), "device=%s|%s|%s|%zu|%zu\n", device_kind(dev), ggml_backend_dev_name(dev),
+            ggml_backend_dev_description(dev), free >> 20, total >> 20);
+        out += line;
+    }
+    return out;
+}
+
+Options read_options(JNIEnv * env, jintArray joptions) {
+    Options o;
+    if (joptions == nullptr) return o;
+    const jsize n = env->GetArrayLength(joptions);
+    std::vector<jint> v(static_cast<size_t>(n));
+    if (n > 0) env->GetIntArrayRegion(joptions, 0, n, v.data());
+    if (n > 0) o.kv_type = v[0];
+    if (n > 1) o.flash = v[1];
+    if (n > 2 && v[2] > 0) o.n_batch = v[2];
+    if (n > 3 && v[3] > 0) o.n_ubatch = v[3];
+    if (n > 4) o.prefix_cache = v[4] != 0;
+    if (n > 5) o.lazy_grammar = v[5] != 0;
+    if (n > 6) o.min_gpu_coverage = v[6] / 100.0;
+    return o;
+}
+
+llama_context * make_context(llama_model * model, int n_ctx, int n_threads, const Options & o, bool gpu) {
+    llama_context_params cp = llama_context_default_params();
+    cp.n_ctx = static_cast<uint32_t>(n_ctx);
+    cp.n_batch = static_cast<uint32_t>(o.n_batch);
+    cp.n_ubatch = static_cast<uint32_t>(std::min(o.n_ubatch, o.n_batch));
+    cp.n_threads = n_threads;
+    cp.n_threads_batch = n_threads;
+    cp.flash_attn_type = static_cast<llama_flash_attn_type>(o.flash);
+    cp.type_k = static_cast<ggml_type>(o.kv_type);
+    cp.type_v = static_cast<ggml_type>(o.kv_type);
+    // CPU only: no device to hand host weights to for big batches.
+    cp.op_offload = gpu;
+    // Only the last position's logits are ever read: reserving them for a whole batch would cost
+    // ~0.5 GB with a 248k vocabulary (the difference between fitting an 8 GB phone or not).
+    cp.n_outputs_max = 1;
+    cp.no_perf = true;
+    return llama_init_from_model(model, cp);
 }
 
 }  // namespace
@@ -221,43 +548,78 @@ int fitting_layers(const std::string & path, int n_ctx, const std::vector<ggml_b
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring jpath, jint n_ctx, jint n_threads, jint gpu_layers) {
+Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring jpath, jint n_ctx, jint n_threads, jint gpu_layers, jintArray joptions) {
     static bool backend_ready = false;
     if (!backend_ready) {
         llama_log_set(quiet_log, nullptr);
         llama_backend_init();
         backend_ready = true;
     }
+    {
+        std::lock_guard<std::mutex> lock(log_mutex);
+        load_log.clear();
+    }
     const std::string path = to_string(env, jpath);
+    Options options = read_options(env, joptions);
+    std::string info = device_lines();
 
     llama_model_params mp = llama_model_default_params();
     std::vector<ggml_backend_dev_t> devices = gpus();
-    if (!devices.empty()) mp.devices = devices.data();
-    mp.n_gpu_layers = gpu_layers < 0 ? fitting_layers(path, n_ctx, devices) : gpu_layers;
+    std::vector<ggml_backend_dev_t> cpu_only = {nullptr};
+    double coverage = 1.0;
+    if (!devices.empty()) coverage = gpu_coverage(path, devices.front());
+    // "As many as fit" keeps a model the GPU can only partly run on the CPU altogether.
+    const bool gated = gpu_layers < 0 && !devices.empty() && coverage < options.min_gpu_coverage;
+    if (gated) devices.clear();
+    mp.devices = devices.empty() ? cpu_only.data() : devices.data();
+    mp.n_gpu_layers = devices.empty() ? 0 : gpu_layers < 0 ? fitting_layers(path, n_ctx, devices, options.kv_type != GGML_TYPE_F16) : gpu_layers;
+    const int requested = mp.n_gpu_layers;
     llama_model * model = llama_model_load_from_file(path.c_str(), mp);
     // A GPU that runs out of memory (or a driver that fails) leaves the model to the CPU.
+    bool fell_back = false;
     if (model == nullptr && mp.n_gpu_layers > 0) {
         mp.n_gpu_layers = 0;
+        mp.devices = cpu_only.data();
         model = llama_model_load_from_file(path.c_str(), mp);
+        fell_back = model != nullptr;
     }
     if (model == nullptr) return 0;
+    const bool on_gpu = mp.n_gpu_layers > 0;
 
-    llama_context_params cp = llama_context_default_params();
-    cp.n_ctx = static_cast<uint32_t>(n_ctx);
-    cp.n_batch = 512;
-    cp.n_ubatch = 512;
-    cp.n_threads = n_threads;
-    cp.n_threads_batch = n_threads;
-    // Only the last position's logits are ever read: reserving them for a whole batch would cost
-    // ~0.5 GB with a 248k vocabulary (the difference between fitting an 8 GB phone or not).
-    cp.n_outputs_max = 1;
-    cp.no_perf = true;
-    llama_context * ctx = llama_init_from_model(model, cp);
+    llama_context * ctx = make_context(model, n_ctx, n_threads, options, on_gpu);
+    // A quantized cache needs flash attention; where the device cannot do it, the plain cache.
+    if (ctx == nullptr && options.kv_type != GGML_TYPE_F16) {
+        options.kv_type = GGML_TYPE_F16;
+        options.flash = LLAMA_FLASH_ATTN_TYPE_AUTO;
+        ctx = make_context(model, n_ctx, n_threads, options, on_gpu);
+    }
     if (ctx == nullptr) {
         llama_model_free(model);
         return 0;
     }
     auto * engine = new Engine{model, ctx, llama_model_get_vocab(model)};
+    engine->options = options;
+    engine->recurrent = llama_model_is_recurrent(model) || llama_model_is_hybrid(model);
+
+    char desc[256];
+    llama_model_desc(model, desc, sizeof(desc));
+    char line[1024];
+    std::snprintf(line, sizeof(line),
+        "model=%s\nlayers=%d\ngpu_layers=%d\nrequested_gpu_layers=%d\ngpu_coverage=%.3f\ngated=%d\nfell_back=%d\n"
+        "threads=%d\nctx=%d\nbatch=%d\nubatch=%d\nkv=%s\nflash=%d\nrecurrent=%d\nprefix_cache=%d\nlazy_grammar=%d\n",
+        desc, llama_model_n_layer(model) + 1, mp.n_gpu_layers, requested, coverage, gated ? 1 : 0, fell_back ? 1 : 0,
+        n_threads, n_ctx, options.n_batch, options.n_ubatch, ggml_type_name(static_cast<ggml_type>(options.kv_type)), options.flash,
+        engine->recurrent ? 1 : 0, options.prefix_cache ? 1 : 0, options.lazy_grammar ? 1 : 0);
+    info += line;
+    for (ggml_backend_dev_t dev : devices) {
+        if (dev != nullptr) info += std::string("gpu=") + ggml_backend_dev_description(dev) + "\n";
+    }
+    {
+        std::lock_guard<std::mutex> lock(log_mutex);
+        info += load_log;
+        load_log.clear();
+    }
+    engine->info = info;
     return reinterpret_cast<jlong>(engine);
 }
 
@@ -279,6 +641,26 @@ Java_io_trimio_engine_llm_local_LlamaNative_contextSize(JNIEnv *, jobject, jlong
 JNIEXPORT jint JNICALL
 Java_io_trimio_engine_llm_local_LlamaNative_countTokens(JNIEnv * env, jobject, jlong handle, jbyteArray text) {
     return static_cast<jint>(tokenize(reinterpret_cast<Engine *>(handle)->vocab, from_bytes(env, text), false).size());
+}
+
+/** How the model was placed, as key=value lines (devices, layers on the GPU, cache, threads). */
+JNIEXPORT jstring JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_runtimeInfo(JNIEnv * env, jobject, jlong handle) {
+    return env->NewStringUTF(reinterpret_cast<Engine *>(handle)->info.c_str());
+}
+
+/**
+ * The last call's cost: [prompt tokens, reused tokens, generated tokens, prompt µs, generate µs,
+ * grammar resamples].
+ */
+JNIEXPORT jlongArray JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_lastCall(JNIEnv * env, jobject, jlong handle) {
+    const CallStats & s = reinterpret_cast<Engine *>(handle)->last;
+    const jlong values[6] = {s.prompt_tokens, s.reused_tokens, s.generated, static_cast<jlong>(s.prompt_ms * 1000),
+        static_cast<jlong>(s.generate_ms * 1000), s.grammar_resamples};
+    jlongArray out = env->NewLongArray(6);
+    env->SetLongArrayRegion(out, 0, 6, values);
+    return out;
 }
 
 /**
@@ -325,16 +707,12 @@ Java_io_trimio_engine_llm_local_LlamaNative_generate(
         JNIEnv * env, jobject, jlong handle, jbyteArray jprompt, jstring jgrammar,
         jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback) {
     auto * engine = reinterpret_cast<Engine *>(handle);
-    llama_memory_clear(llama_get_memory(engine->ctx), true);
+    engine->last = CallStats{};
 
     std::vector<llama_token> prompt = tokenize(engine->vocab, from_bytes(env, jprompt), true);
     const int n_ctx = static_cast<int>(llama_n_ctx(engine->ctx));
     if (prompt.empty() || static_cast<int>(prompt.size()) + 8 >= n_ctx) return -1;
-
-    for (size_t i = 0; i < prompt.size(); i += 512) {
-        const auto n = static_cast<int32_t>(std::min<size_t>(512, prompt.size() - i));
-        if (llama_decode(engine->ctx, llama_batch_get_one(prompt.data() + i, n)) != 0) return -2;
-    }
+    if (!decode_prompt(engine, prompt)) return -2;
 
     return sample(env, engine, static_cast<int>(prompt.size()), jgrammar, max_tokens, temperature, top_p, min_p, seed, callback);
 }
@@ -350,7 +728,11 @@ Java_io_trimio_engine_llm_local_LlamaNative_generateWithImages(
         jstring jgrammar, jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback) {
     auto * engine = reinterpret_cast<Engine *>(handle);
     if (engine->vision == nullptr) return -4;
+    engine->last = CallStats{};
     llama_memory_clear(llama_get_memory(engine->ctx), true);
+    // The memory now holds image tokens: nothing of it is a text head to reuse (the snapshot is
+    // a copy of its own and stays valid).
+    engine->held.clear();
 
     const jsize n = env->GetArrayLength(images);
     std::vector<jint> w(static_cast<size_t>(n)), h(static_cast<size_t>(n));
@@ -381,9 +763,12 @@ Java_io_trimio_engine_llm_local_LlamaNative_generateWithImages(
         mtmd_input_chunks_free(chunks);
         return -1;
     }
+    const auto t0 = Clock::now();
     llama_pos n_past = 0;
-    const int32_t ev = mtmd_helper_eval_chunks(engine->vision, engine->ctx, chunks, 0, 0, 512, true, &n_past);
+    const int32_t ev = mtmd_helper_eval_chunks(engine->vision, engine->ctx, chunks, 0, 0, engine->options.n_batch, true, &n_past);
     mtmd_input_chunks_free(chunks);
+    engine->last.prompt_tokens = static_cast<int>(n_past);
+    engine->last.prompt_ms = ms_since(t0);
     if (ev != 0) return -2;
     return sample(env, engine, static_cast<int>(n_past), jgrammar, max_tokens, temperature, top_p, min_p, seed, callback);
 }
