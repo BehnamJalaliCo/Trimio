@@ -51,22 +51,24 @@ internal class LottiePainter(private val animation: LottieAnimation, private val
 
     private fun DrawScope.drawComp(comp: LComp, frame: Float, alpha: Float) {
         val worlds = HashMap<LLayer, M3>()
-        for (idx in comp.layers.indices.reversed()) {
-            val l = comp.layers[idx]
-            if (l.hidden || l.matte.isSource || frame < l.inPoint || frame >= l.outPoint) continue
-            val matte = if (l.matte.mode == 0) null else l.matte.source?.let { comp.byIndex[it] } ?: comp.layers.getOrNull(idx - 1)?.takeIf { it.matte.isSource }
-            if (matte == null) {
-                drawLayer(comp, l, frame, alpha, worlds)
-                continue
-            }
-            layer(Paint()) {
-                drawLayer(comp, l, frame, alpha, worlds)
-                layer(mattePaint(l.matte.mode)) {
-                    if (frame >= matte.inPoint && frame < matte.outPoint) drawLayer(comp, matte, frame, 1f, worlds)
-                }
+        for (idx in comp.layers.indices.reversed()) drawEntry(comp, idx, frame, alpha, worlds)
+    }
+
+    /** Layer [idx] of [comp], through its track matte when it has one. */
+    private fun DrawScope.drawEntry(comp: LComp, idx: Int, frame: Float, alpha: Float, worlds: HashMap<LLayer, M3>) {
+        val l = comp.layers[idx]
+        if (l.hidden || l.matte.isSource || !l.live(frame)) return
+        val matte = if (l.matte.mode == 0) null else l.matte.source?.let { comp.byIndex[it] } ?: comp.layers.getOrNull(idx - 1)?.takeIf { it.matte.isSource }
+        if (matte == null) return drawLayer(comp, l, frame, alpha, worlds)
+        layer(Paint()) {
+            drawLayer(comp, l, frame, alpha, worlds)
+            layer(mattePaint(l.matte.mode)) {
+                if (matte.live(frame)) drawLayer(comp, matte, frame, 1f, worlds)
             }
         }
     }
+
+    private fun LLayer.live(frame: Float) = frame >= inPoint && frame < outPoint
 
     private fun mattePaint(mode: Int) = Paint().apply {
         blendMode = if (mode == 2) BlendMode.DstOut else BlendMode.DstIn
@@ -309,7 +311,8 @@ internal class LottiePainter(private val animation: LottieAnimation, private val
 
     private fun colour(c: FloatArray): Color {
         val scale = if (c.take(3).any { it > 1f }) 255f else 1f
-        val col = Color((c.getOrElse(0) { 0f } / scale).coerceIn(0f, 1f), (c.getOrElse(1) { 0f } / scale).coerceIn(0f, 1f), (c.getOrElse(2) { 0f } / scale).coerceIn(0f, 1f), c.getOrElse(3) { 1f }.coerceIn(0f, 1f))
+        fun ch(i: Int) = (c.getOrElse(i) { 0f } / scale).coerceIn(0f, 1f)
+        val col = Color(ch(0), ch(1), ch(2), c.getOrElse(3) { 1f }.coerceIn(0f, 1f))
         return Colouring.map(col, paint.colouring, colourful, paint.tint)
     }
 

@@ -141,14 +141,14 @@ object CompareFamilies {
                 )
             }
             nodes += bar(startEdge, split - p.dir * 3f, look.accent, "versus-bar-a")
-            nodes += bar(endEdge, split + p.dir * 3f, look.hot, "versus-bar-b")
+            nodes += bar(endEdge, split + p.dir * 3f, Kit.readableFill(look.hot), "versus-bar-b")
             for ((i, text) in listOf(a, b).withIndex()) {
                 val edge = if (i == 0) startEdge else endEdge
                 val tf = Kit.fit(fit, text, Kit.titleVoice(look, p.typo), box.height * 0.2f, box.width * 0.46f, box.height * 0.3f)
                 val x = if (i == 0) Kit.fromStart(edge, tf.width, p.rtl) else Kit.fromEnd(edge, tf.width, p.rtl)
                 nodes += Kit.words(text, tf, ink, x, box.top + tf.height / 2f, p.at + i * 0.15f, ground, p.rtl, name = "versus-name")
                 val v = if (i == 0) va else vb
-                val bg = if (i == 0) look.accent else look.hot
+                val bg = if (i == 0) look.accent else Kit.readableFill(look.hot)
                 val sample = cue.prefix + Kit.format(v, cue.decimals, false) + cue.suffix
                 val nf = Kit.fit(fit, sample, Kit.numberVoice(look, p.typo), barH * 0.62f, box.width * 0.3f, barH * 0.8f)
                 val nx = if (i == 0) Kit.fromStart(edge, nf.width, p.rtl) + p.dir * barH * 0.4f else Kit.fromEnd(edge, nf.width, p.rtl) - p.dir * barH * 0.4f

@@ -44,6 +44,9 @@ internal class LottieAnimation(
 
 internal class Unsupported(reason: String) : RuntimeException(reason)
 
+/** Refuses a document the engine will not draw faithfully, saying why. */
+internal fun refuse(reason: String): Nothing = throw Unsupported(reason)
+
 /** A list of layers (the animation or a precomposition), indexed by their `ind`. */
 internal class LComp(val layers: List<LLayer>) {
     val byIndex: Map<Int, LLayer> = layers.mapNotNull { l -> l.ind?.let { it to l } }.toMap()
@@ -178,37 +181,37 @@ internal object LottieReader {
 
     fun read(text: String): LottieAnimation {
         val o = json.parseToJsonElement(text).jsonObject
-        if (o.int("ddd") == 1) throw Unsupported("3D layers")
+        if (o.int("ddd") == 1) refuse("3D layers")
         val assets = o["assets"]?.jsonArray.orEmpty().map { it.jsonObject }
-        assets.firstOrNull { "layers" !in it }?.let { throw Unsupported("image or font assets") }
+        assets.firstOrNull { "layers" !in it }?.let { refuse("image or font assets") }
         val comps = assets.associate { a -> a.getValue("id").jsonPrimitive.content to LComp(a.getValue("layers").jsonArray.map { layer(it.jsonObject) }) }
-        if (o["chars"] != null || o["fonts"]?.jsonObject?.get("list")?.jsonArray?.isNotEmpty() == true) throw Unsupported("text")
+        if (o["chars"] != null || o["fonts"]?.jsonObject?.get("list")?.jsonArray?.isNotEmpty() == true) refuse("text")
         val animation = LottieAnimation(
-            width = o.float("w") ?: throw Unsupported("no width"),
-            height = o.float("h") ?: throw Unsupported("no height"),
+            width = o.float("w") ?: refuse("no width"),
+            height = o.float("h") ?: refuse("no height"),
             frameRate = o.float("fr")?.takeIf { it > 0f } ?: DEFAULT_RATE,
             inPoint = o.float("ip") ?: 0f,
-            outPoint = o.float("op") ?: throw Unsupported("no out point"),
+            outPoint = o.float("op") ?: refuse("no out point"),
             root = LComp(o.getValue("layers").jsonArray.map { layer(it.jsonObject) }),
             assets = comps,
         )
         // Every precomposition a layer names must exist.
         (listOf(animation.root) + comps.values).flatMap { it.layers }.map { it.content }.filterIsInstance<LContent.Precomp>()
-            .firstOrNull { it.ref !in comps }?.let { throw Unsupported("missing precomposition ${it.ref}") }
+            .firstOrNull { it.ref !in comps }?.let { refuse("missing precomposition ${it.ref}") }
         return animation
     }
 
     private fun layer(o: JsonObject): LLayer {
         val type = o.int("ty") ?: 0
-        if (o.int("ddd") == 1) throw Unsupported("3D layer")
-        if (o["ef"]?.jsonArray?.isNotEmpty() == true) throw Unsupported("layer effects")
+        if (o.int("ddd") == 1) refuse("3D layer")
+        if (o["ef"]?.jsonArray?.isNotEmpty() == true) refuse("layer effects")
         val content = when (type) {
             0 -> LContent.Precomp(o.getValue("refId").jsonPrimitive.content, o.float("w") ?: 0f, o.float("h") ?: 0f, o["tm"]?.let { floats(it, ZERO) })
             1 -> LContent.Solid(hex(o["sc"]?.jsonPrimitive?.contentOrNull ?: "#000000"), o.float("sw") ?: 0f, o.float("sh") ?: 0f)
             3 -> LContent.Empty
             4 -> LContent.Shapes(shapes(o["shapes"]?.jsonArray.orEmpty()))
-            2 -> throw Unsupported("image layer")
-            5 -> throw Unsupported("text layer")
+            2 -> refuse("image layer")
+            5 -> refuse("text layer")
             else -> LContent.Empty
         }
         return LLayer(
@@ -225,14 +228,14 @@ internal object LottieReader {
     }
 
     private fun mask(o: JsonObject): LMask {
-        o["x"]?.let { x -> if (floats(x, ZERO).at(0f)[0] != 0f) throw Unsupported("mask expansion") }
+        o["x"]?.let { x -> if (floats(x, ZERO).at(0f)[0] != 0f) refuse("mask expansion") }
         return LMask(o["mode"]?.jsonPrimitive?.contentOrNull?.firstOrNull() ?: 'a', o.bool("inv"), shape(o.getValue("pt")), floats(o["o"], HUNDRED))
     }
 
     private fun transform(o: JsonObject): LTransform {
         if (o["rx"] != null || o["ry"] != null || o["or"] != null) {
             val tilted = listOf("rx", "ry").any { k -> o[k]?.let { floats(it, ZERO).at(0f)[0] != 0f } == true }
-            if (tilted) throw Unsupported("3D rotation")
+            if (tilted) refuse("3D rotation")
         }
         val p = o["p"]?.jsonObject
         val split = p?.bool("s") == true
@@ -268,7 +271,7 @@ internal object LottieReader {
             "tm" -> LShape.Trim(floats(o["s"], ZERO), floats(o["e"], HUNDRED), floats(o["o"], ZERO))
             // Merge paths: drawn unmerged, as the reference web player draws them.
             "mm", "tr" -> null
-            else -> throw Unsupported("shape item $ty")
+            else -> refuse("shape item $ty")
         }
     }
 
@@ -293,7 +296,7 @@ internal object LottieReader {
 
     private fun floats(e: JsonElement?, default: FloatArray, spatial: Boolean = false): Value<FloatArray> {
         val o = e as? JsonObject ?: return Value.Static(default)
-        if ((o["x"] as? JsonPrimitive)?.isString == true) throw Unsupported("expression")
+        if ((o["x"] as? JsonPrimitive)?.isString == true) refuse("expression")
         val k = o["k"] ?: return Value.Static(default)
         if (!keyframed(k)) return Value.Static(numbers(k))
         val keys = k.jsonArray.map { kf -> key(kf.jsonObject) { numbers(it) } }
@@ -303,7 +306,7 @@ internal object LottieReader {
 
     private fun shape(e: JsonElement): Value<ShapeData> {
         val o = e.jsonObject
-        if ((o["x"] as? JsonPrimitive)?.isString == true) throw Unsupported("expression")
+        if ((o["x"] as? JsonPrimitive)?.isString == true) refuse("expression")
         val k = o.getValue("k")
         if (!keyframed(k)) return Value.Static(shapeData(k))
         return Value.Keyed(k.jsonArray.map { kf -> key(kf.jsonObject, ::shapeData) }, Lerp::shape)

@@ -178,6 +178,8 @@ class EditGateTest {
         assertEquals("auto", RulesUnderstander.brief("highlight the numbers").look, "«light» inside «highlight» is no style word")
         assertEquals(listOf("@NobiSignal_bot"), Glossary.read(prompt).handles)
         assertEquals(emptyList(), Glossary.read("ایمیل a@b.com و robot").handles)
+        assertTrue(SpeechAnalysis.strict(prompt), "«همهٔ سکوت‌ها و مکث‌ها حذف» cuts every pause")
+        assertTrue(!SpeechAnalysis.strict("ریلز پرانرژی بساز"), "a brief that says nothing of pauses keeps the usual cut")
     }
 
     @Test

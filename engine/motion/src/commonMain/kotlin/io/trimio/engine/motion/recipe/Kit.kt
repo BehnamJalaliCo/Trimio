@@ -163,6 +163,24 @@ object Kit {
         return androidx.compose.ui.graphics.lerp(c, target, hi)
     }
 
+    /**
+     * [c] as a body for words: itself when near-black or bone reads on it at 4.5:1, else moved
+     * toward black (light text) or white (dark text) just as far as it must.
+     */
+    fun readableFill(c: Color): Color {
+        val text = Look.textOn(c)
+        if (ratio(text, c) >= FLOOR + 0.05f) return c
+        val toward = if (light(text)) Color.Black else Color.White
+        var lo = 0f
+        var hi = 1f
+        repeat(BISECT) {
+            val m = (lo + hi) / 2f
+            val f = androidx.compose.ui.graphics.lerp(c, toward, m)
+            if (ratio(Look.textOn(f), f) >= FLOOR + 0.1f) hi = m else lo = m
+        }
+        return androidx.compose.ui.graphics.lerp(c, toward, hi)
+    }
+
     /** Secondary text on [ground]: the look's muted grey when it still reads, else the ink. */
     fun quiet(look: Look, ground: Color): Color = if (ratio(look.muted, ground) >= FLOOR) look.muted else inkOn(look, ground)
 
@@ -186,7 +204,7 @@ object Kit {
         val hard = Shadow(look.ink.copy(alpha = 0.9f), 8f, 8f, 0.1f).takeIf { lightCanvas && look.roundness == 0f && !cue.overMedia }
         return when (tone) {
             Tone.Accent -> Surface(look.accent.fill(), look.accent, null, shadow, false)
-            Tone.Hot -> Surface(look.hot.fill(), look.hot, null, shadow, false)
+            Tone.Hot -> readableFill(look.hot).let { Surface(it.fill(), it, null, shadow, false) }
             Tone.Ink -> Surface(look.ink.fill(), look.ink, null, shadow, false)
             Tone.Raised -> {
                 val base = body(look, cue)

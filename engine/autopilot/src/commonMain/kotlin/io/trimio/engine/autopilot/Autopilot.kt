@@ -109,7 +109,7 @@ class Autopilot(
     suspend fun produce(request: Request, onStage: (stage: String, progress: Float) -> Unit = { _, _ -> }): Production {
         val report = mutableListOf<String>()
         onStage("listen", 0f)
-        val heard = SpeechAnalysis.of(request.voice, request.transcript)
+        val heard = SpeechAnalysis.of(request.voice, request.transcript, strict = SpeechAnalysis.strict(request.prompt))
         // Words the creator spelled in the brief win over sound-alike recognitions.
         val spelled = Proofreader.fromBrief(heard.transcript.words.map { it.text }, request.prompt, PersianSpelling.load())
         spelled.forEach { (i, w) -> report += "spelling (brief): ${heard.transcript.words[i].text} → $w" }

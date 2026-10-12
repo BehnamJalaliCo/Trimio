@@ -80,6 +80,8 @@ class Geometry(
             val nodes = output.layers.getOrNull(i)?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
             val times = if (p.recipe == CAPTIONS) listOf(minOf(p.at + CAPTION_LAND, (p.at + p.out) / 2f)) else times(p, step, c.duration)
             val keep = nodes.toIdentitySet()
+            // A caption is its words (and the mark under one of them): one look serves for both.
+            if (p.recipe == CAPTIONS) return@mapNotNull Track(i, p, look(c, isolate(c.root, keep), times).map { it.copy(type = it.ink) })
             val all = look(c, isolate(c.root, keep), times)
             // The words alone, where it rests (every other look): text out of the frame is never a design.
             val resting = times.filterIndexed { k, t -> (k % 2 == 0 || p.recipe == CAPTIONS) && t >= p.at + ENTRANCE && t <= p.out - EXIT }

@@ -55,7 +55,7 @@ internal sealed interface Value<T> {
         val start: T get() = startOrNull ?: end ?: error("keyframe without a value")
 
         // Built once when read: drawing never mutates a key, so threads may share an animation.
-        private val curves: List<Easing> = if (ox.isEmpty() || ix.isEmpty() || oy.isEmpty() || iy.isEmpty()) emptyList() else
+        private val curves: List<Easing> = if (listOf(ox, oy, ix, iy).any { it.isEmpty() }) emptyList() else
             List(maxOf(ox.size, ix.size, oy.size, iy.size)) { d ->
                 val k = { a: FloatArray -> a[minOf(d, a.size - 1)] }
                 val x1 = k(ox).coerceIn(0f, 1f)
@@ -81,10 +81,8 @@ internal class ShapeData(val closed: Boolean, val v: FloatArray, val i: FloatArr
 internal object Lerp {
     fun floats(a: FloatArray, b: FloatArray, key: Value.Key<FloatArray>, x: Float): FloatArray {
         val n = minOf(a.size, b.size)
-        val to = key.to
-        val ti = key.ti
         // A travelling point on a curved path: the eased fraction is a share of the arc length.
-        if (to != null && ti != null && n >= 2 && (to.any { it != 0f } || ti.any { it != 0f })) return spatial(a, b, key, x)
+        if (n >= 2 && curved(key.to, key.ti)) return spatial(a, b, key, x)
         return FloatArray(n) { d -> a[d] + (b[d] - a[d]) * key.ease(d, x) }
     }
 
@@ -97,15 +95,19 @@ internal object Lerp {
 
     /** Precomputes the arc-length tables of every curved segment of a position (when read). */
     fun prepareArcs(keys: List<Value.Key<FloatArray>>) {
-        for (k in 0 until keys.size - 1) {
-            val key = keys[k]
-            val a = key.start
-            val b = key.end ?: keys[k + 1].startOrNull ?: continue
-            val to = key.to
-            val ti = key.ti
-            if (to != null && ti != null && a.size >= 2 && b.size >= 2) key.arc = arcTable(a, b, to, ti)
-        }
+        for (k in 0 until keys.size - 1) keys[k].arc = arcFor(keys[k], keys[k + 1])
     }
+
+    private fun arcFor(key: Value.Key<FloatArray>, next: Value.Key<FloatArray>): FloatArray? {
+        val a = key.start
+        val b = key.end ?: next.startOrNull ?: return null
+        val to = key.to ?: return null
+        val ti = key.ti ?: return null
+        return if (minOf(a.size, b.size) >= 2) arcTable(a, b, to, ti) else null
+    }
+
+    /** Spatial tangents that actually bend the path (all-zero tangents are a straight line). */
+    private fun curved(to: FloatArray?, ti: FloatArray?) = to != null && ti != null && (to.any { it != 0f } || ti.any { it != 0f })
 
     private fun arcTable(a: FloatArray, b: FloatArray, to: FloatArray, ti: FloatArray): FloatArray {
         val p1x = a[0] + to[0]

@@ -200,7 +200,10 @@ class ArtCatalogue(entries: List<ArtEntry>) {
 
         private val SPLIT = Regex("""[^\p{L}\p{N}‌]+""")
         private val STOP = setOf("a", "an", "the", "of", "with", "and", "or", "in", "on", "for", "to", "icon", "emoji", "animated", "animation", "picture", "image")
-        private val STOP_FA = setOf("این", "آن", "برای", "که", "را", "با", "از", "به", "در", "یک", "هم", "تا", "می", "خیلی", "همه", "چون", "اگر", "باید", "کنید", "کنیم", "است", "هست", "بود", "شما", "ما", "من", "او")
+        private val STOP_FA = setOf(
+            "این", "آن", "برای", "که", "را", "با", "از", "به", "در", "یک", "هم", "تا", "می",
+            "خیلی", "همه", "چون", "اگر", "باید", "کنید", "کنیم", "است", "هست", "بود", "شما", "ما", "من", "او",
+        )
         private const val PREFIX = 4
         private const val PREFIX_MARK = "^"
         private const val MIN_FA = 3

@@ -264,18 +264,14 @@ object TalkFamilies {
         }
 
         private fun avatar(look: Look, cue: Cue, fit: Fitter, p: Kit.Plan, name: String, cx: Float, cy: Float, d: Float, at: Float): List<Node> {
+            // The accent disc with a ring of heat: the initial on it is the look's on-accent ink.
             val disc = ShapeNode(
-                ShapeSpec.Ellipse(d.anim, d.anim), fill = io.trimio.engine.motion.Fill.Linear(listOf(look.hot, look.accent), angle = 45f.anim),
+                ShapeSpec.Ellipse(d.anim, d.anim), fill = look.accent.fill(), stroke = Stroke(look.hot.fill(), d * 0.06f),
                 transform = Transform(x = cx.anim, y = cy.anim, scale = Anim.tween(0f, 1f, at, at + 0.4f, Easing.Spring(0.5f, 2.2f))), name = "bubble-avatar",
             )
             val initial = name.trim().take(1).ifEmpty { "•" }
             val f = Kit.fit(fit, initial, look.headline, d * 0.48f, d * 0.8f, d * 0.8f)
-            // The initial sits on a gradient: held to whichever end is worse for it.
-            val ink = if (Kit.ratio(Look.textOn(look.hot), look.accent) >= Kit.FLOOR) Look.textOn(look.hot) else Look.textOn(look.accent)
-            return listOf(
-                disc,
-                Kit.words(initial, f, ink, cx, cy, at + 0.1f, if (Kit.ratio(ink, look.hot) < Kit.ratio(ink, look.accent)) look.hot else look.accent, p.rtl, Kit.Reveal.Fade, name = "bubble-initial"),
-            )
+            return listOf(disc, Kit.words(initial, f, look.onAccent, cx, cy, at + 0.1f, look.accent, p.rtl, Kit.Reveal.Fade, name = "bubble-initial"))
         }
 
         private fun incoming(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan): Built {

@@ -118,14 +118,17 @@ internal object SvgMotionReader {
         val root = Raw("root", emptyMap())
         val stack = ArrayDeque<Raw>().apply { addLast(root) }
         for (m in token.findAll(body)) {
-            val (close, tag, rest, selfClose) = m.destructured
-            if (tag in refused) throw Unsupported("svg <$tag>")
+            val close = m.groupValues[1]
+            val tag = m.groupValues[2]
+            val rest = m.groupValues[3]
+            val selfClose = m.groupValues[4]
+            if (tag in refused) refuse("svg <$tag>")
             if (close == "/") {
                 if (stack.size > 1 && stack.last().tag == tag) stack.removeLast()
                 continue
             }
             val attrs = attribute.findAll(rest).associate { it.groupValues[1] to it.groupValues[2] } + style(rest)
-            if ("transform-origin" in attrs || attrs["clip-path"] != null || attrs["filter"] != null) throw Unsupported("svg attribute")
+            if ("transform-origin" in attrs || attrs["clip-path"] != null || attrs["filter"] != null) refuse("svg attribute")
             val node = Raw(tag, attrs)
             stack.last().children += node
             if (selfClose != "/") stack.addLast(node)
@@ -133,7 +136,7 @@ internal object SvgMotionReader {
         val masks = mutableMapOf<String, SNode>()
         val nodes = convert(root.children, masks)
         val anims = (nodes + masks.values).flatMap(::allAnims)
-        if (nodes.isEmpty()) throw Unsupported("empty svg")
+        if (nodes.isEmpty()) refuse("empty svg")
         val finite = anims.filter { !it.end.isInfinite() }.maxOfOrNull { it.end } ?: 0f
         val loops = anims.any { it.end.isInfinite() }
         val cycle = anims.filter { it.end.isInfinite() }.maxOfOrNull { it.begin + it.dur } ?: 0f
@@ -147,13 +150,13 @@ internal object SvgMotionReader {
                 null
             }
             "mask" -> {
-                val id = r.attrs["id"] ?: throw Unsupported("mask without id")
+                val id = r.attrs["id"] ?: refuse("mask without id")
                 masks[id] = SNode("g", emptyMap(), convert(r.children, masks), emptyList())
                 null
             }
             "animate", "set", "animateTransform", "title", "desc", "metadata" -> null
             in shapes -> SNode(r.tag, r.attrs, convert(r.children, masks), r.children.mapNotNull(::anim))
-            else -> throw Unsupported("svg <${r.tag}>")
+            else -> refuse("svg <${r.tag}>")
         }
     }
 
@@ -163,16 +166,16 @@ internal object SvgMotionReader {
         val name = a["attributeName"] ?: return null
         val values = a["values"]?.split(';')?.map { it.trim() }?.filter { it.isNotEmpty() }
             ?: listOfNotNull(a["from"] ?: if (r.tag == "set") null else SAnim.FROM_BASE, a["to"]).takeIf { a["to"] != null }
-            ?: throw Unsupported("svg animation without values")
+            ?: refuse("svg animation without values")
         val begin = time(a["begin"] ?: "0s")
-        val dur = if (r.tag == "set") a["dur"]?.let(::time) ?: 0f else time(a["dur"] ?: throw Unsupported("svg animation without dur"))
+        val dur = if (r.tag == "set") a["dur"]?.let(::time) ?: 0f else time(a["dur"] ?: refuse("svg animation without dur"))
         val repeat = when (val rc = a["repeatCount"]) {
             null -> 1f
             "indefinite" -> Float.POSITIVE_INFINITY
             else -> rc.toFloatOrNull() ?: 1f
         }
-        if (name == "transform" && r.tag != "animateTransform") throw Unsupported("svg transform animation")
-        if (name !in ANIMATABLE) throw Unsupported("svg animation of $name")
+        if (name == "transform" && r.tag != "animateTransform") refuse("svg transform animation")
+        if (name !in ANIMATABLE) refuse("svg animation of $name")
         return SAnim(
             attribute = name, transformType = a["type"] ?: if (name == "transform") "translate" else null, values = values,
             keyTimes = a["keyTimes"]?.split(';')?.mapNotNull { it.trim().toFloatOrNull() }?.toFloatArray(),
@@ -191,13 +194,13 @@ internal object SvgMotionReader {
 
     /** Seconds from "0.4s", "600ms" or "1"; timing tied to other animations is refused. */
     private fun time(s: String): Float {
-        if (listOf("begin", "end", "click", ";").any { it in s }) throw Unsupported("svg timing $s")
+        if (listOf("begin", "end", "click", ";").any { it in s }) refuse("svg timing $s")
         val v = s.trim()
         return when {
             v.endsWith("ms") -> v.removeSuffix("ms").toFloatOrNull()?.div(MS)
             v.endsWith("s") -> v.removeSuffix("s").toFloatOrNull()
             else -> v.toFloatOrNull()
-        } ?: throw Unsupported("svg timing $s")
+        } ?: refuse("svg timing $s")
     }
 
     private fun style(rest: String): Map<String, String> {
@@ -372,16 +375,18 @@ internal class SvgPainter(private val doc: SvgDoc, private val paint: ArtPaint, 
     }
 
     /** A paint: the tint for `currentColor`, through the art's colouring; masks keep their own black and white. */
-    private fun colour(v: String?, mask: Boolean): Color? {
+    private fun colour(value: String?, mask: Boolean): Color? {
+        val v = value?.takeUnless(::unpainted) ?: return null
         val halo = paint.halo
-        if (haloPass && !mask && halo != null) return if (v == null || v == "none" || v == "transparent" || v.startsWith("url(")) null else halo
+        if (haloPass && !mask && halo != null) return halo
         val raw = when {
-            v == null || v == "none" || v == "transparent" || v.startsWith("url(") -> return null
             v == "currentColor" -> if (mask) Color.White else return Colouring.map(paint.tint, Colouring.Own, doc.colourful, paint.tint)
             else -> parse(v) ?: return null
         }
         return if (mask) raw else Colouring.map(raw, paint.colouring, doc.colourful, paint.tint)
     }
+
+    private fun unpainted(v: String) = v in NONE || v.startsWith("url(")
 
     private fun parse(v: String): Color? {
         val h = v.trim().removePrefix("#")
@@ -416,6 +421,7 @@ internal class SvgPainter(private val doc: SvgDoc, private val paint: ArtPaint, 
             "fill-opacity", "stroke-opacity", "fill-rule",
         )
         val DEFAULTS = mapOf("fill" to "#000")
+        val NONE = setOf("none", "transparent")
         val NAMED = mapOf("black" to Color.Black, "white" to Color.White, "red" to Color.Red)
     }
 }
