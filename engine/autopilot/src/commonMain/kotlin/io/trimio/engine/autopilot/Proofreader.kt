@@ -42,7 +42,9 @@ object Proofreader {
         while (i < words.size) {
             val w = words[i]
             val core = w.trimEnd(*ENDS)
-            val name = names.at(words, i) { spelling?.count(it) ?: 0 }
+            // A Persian word the brief itself writes in Persian («تتر (Tether)») stays Persian: the Latin is the brief's gloss, not a correction.
+            val written = core.any { it in '\u0600'..'\u06FF' } && withoutEzafe(core) in vocabulary
+            val name = if (written) null else names.at(words, i) { spelling?.count(it) ?: 0 }
             val compound = briefCompound(core, w, words.getOrNull(i + 1), compounds)
             val span = name?.second ?: if (compound != null) 2 else 1
             val whole = name?.let { it.first + words[i + span - 1].takeLastWhile { c -> !c.isLetterOrDigit() } } ?: compound

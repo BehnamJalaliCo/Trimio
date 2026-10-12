@@ -31,7 +31,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
     /** A graphic at fault and what is wrong with it. */
     private data class Fault(val p: Compiler.Placed, val kind: Kind, val detail: String, val severity: Severity)
 
-    private enum class Kind { Clipped, Unsafe, Collides, Caption, Face, Tiny }
+    private enum class Kind { Clipped, Unsafe, Collides, Caption, Face, Tiny, Stage }
 
     override fun score(c: Jury.Context): Verdict {
         val faults = faults(c)
@@ -48,6 +48,19 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         Kind.Caption -> "captions yield while the graphic is up"
         Kind.Face -> "move it above the head or below the chin"
         Kind.Tiny -> "a larger layout, or a plain title of its words"
+        Kind.Stage -> "the graphic in the middle of its stage"
+    }
+
+    /**
+     * The only graphic on a full-frame stage, small and up in the band meant for above a head that
+     * is not there: the stage is an empty dark frame with a card in its corner.
+     */
+    private fun offStage(frame: Frame, g: Geometry.Track, graphics: List<Geometry.Track>): List<Fault> {
+        if (g.placed.overFootage) return emptyList()
+        val rest = g.rest?.takeIf { !frame.fills(it) } ?: return emptyList()
+        val alone = graphics.none { o -> o !== g && !o.placed.overFootage && Bench.overlap(o.placed.at, o.placed.out, g.placed.at, g.placed.out) > TIME_TOL }
+        val high = (rest.top + rest.bottom) / 2f < frame.h * HIGH && rest.height < frame.h * SMALL_ON_STAGE
+        return if (alone && high) listOf(Fault(g.placed, Kind.Stage, "${g.placed.recipe} sits small at the top of an empty full-frame stage", Severity.Major)) else emptyList()
     }
 
     /** A graphic too small to read on a phone held at arm's length (a sticker of a few percent of the frame). */
@@ -70,7 +83,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         val graphics = tracks.filter { it.placed.recipe != Bench.CAPTIONS }
         val captions = tracks.filter { it.placed.recipe == Bench.CAPTIONS }
         val out = mutableListOf<Fault>()
-        for (g in graphics) out += clipped(frame, g) + unsafe(frame, g) + tiny(frame, g)
+        for (g in graphics) out += clipped(frame, g) + unsafe(frame, g) + tiny(frame, g) + offStage(frame, g, graphics)
         out += graphics.indices.flatMap { i -> (i + 1 until graphics.size).mapNotNull { j -> collision(frame, graphics[i], graphics[j]) } }
         out += captions.mapNotNull { cap -> graphics.firstOrNull { g -> under(frame, cap, g) }?.let { g -> Fault(g.placed, Kind.Caption, "a caption runs under ${g.placed.recipe}", Severity.Major) } }
         out += graphics.filter { g -> g.placed.overFootage && onFace(c, frame, g) }.map { Fault(it.placed, Kind.Face, "${it.placed.recipe} covers the speaker's face", Severity.Major) }
@@ -197,6 +210,11 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         val faults = faults(c).filter { it.p.recipe != Bench.CAPTIONS }
         for ((p, kinds) in faults.groupBy { it.p }.mapValues { (_, v) -> v.map { it.kind }.toSet() }) {
             val at = Bench.locate(score, c.words, p) ?: continue
+            // On its own stage a graphic goes to the middle first.
+            if (Kind.Stage in kinds && score.scenes[at.first].beats[at.second].place != CENTER) {
+                score = Bench.mapBeat(score, at) { it.copy(place = CENTER) }
+                continue
+            }
             // Out of place (on a caption, the face, another graphic): the other band first; badly drawn: another layout first.
             score = Bench.mapBeat(score, at) { b -> Bench.Ladder.next(b, p, moveFirst = kinds.all { it in MOVABLE }, gentle = kinds == setOf(Kind.Tiny)) }
         }
@@ -222,7 +240,11 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         const val EDGE = 0.03f
         const val EDGE_FAR = 0.97f
         const val PERCENT = 100f
+        const val CENTER = "center"
         val MOVABLE = setOf(Kind.Collides, Kind.Face, Kind.Caption)
+        /** A stage graphic centred above this share of the frame and shorter than [SMALL_ON_STAGE] of it leaves the stage empty. */
+        const val HIGH = 0.3f
+        const val SMALL_ON_STAGE = 0.3f
 
         /** Under 2% of the frame a graphic is a speck on a phone. */
         const val TINY = 0.02f

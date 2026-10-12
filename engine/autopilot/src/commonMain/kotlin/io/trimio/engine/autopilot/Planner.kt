@@ -517,7 +517,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         private fun beatsFor(k: Int, line: Lines.Line, read: LineRead, takeover: Boolean, hasHook: Boolean): List<BeatScore> {
             val e = styling.lean(read.energy * 0.6f + energy * 0.4f).coerceIn(0.2f, 1f)
-            val primary = echo(k, line, e) ?: primary(line, read, e, takeover)
+            val primary = echo(k, line, e, takeover) ?: primary(line, read, e, takeover)
             val out = mutableListOf<BeatScore>()
             // The hook owns the first seconds: line 0's own graphic waits unless it is the CTA.
             val waits = hasHook && k == 0 && read.show !in setOf("comment", "lower-third", "message")
@@ -533,16 +533,17 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
          * voucher card, or a counter), or — a seeded choice on fewer than half the seeds — a short
          * slam of the figure as it is finally said.
          */
-        private fun echo(k: Int, line: Lines.Line, e: Float): BeatScore? {
+        private fun echo(k: Int, line: Lines.Line, e: Float, takeover: Boolean): BeatScore? {
             val o = opening?.takeIf { it.line == k } ?: return null
             val q = hooks.openingFigure(o)?.takeIf { it.at in line.range } ?: return null
             return when {
                 hookRng.chance(ECHO_SLAM) -> BeatScore(
-                    recipe = "slam", at = q.at, text = "${Quantities.digits(q.value, rtl)} ${q.unit}".trim(), hold = 1.6f, energy = maxOf(e, 0.85f), place = "top",
+                    recipe = "slam", at = q.at, text = "${Quantities.digits(q.value, rtl)} ${q.unit}".trim(), hold = 1.6f, energy = maxOf(e, 0.85f), place = place(takeover),
                 )
-                q.kind == Quantities.Kind.Money -> figures.voucherBeat(q, figures.voucherLabel(line, q, reads[k]), place = "top")
+                // On a full-frame stage the figure takes the middle of the frame, not the band above a head that is not there.
+                q.kind == Quantities.Kind.Money -> figures.voucherBeat(q, figures.voucherLabel(line, q, reads[k]), place = place(takeover))
                 else -> BeatScore(
-                    recipe = "counter", at = q.at, value = q.value.toFloat(), decimals = q.decimals, label = figures.unitLabel(q), energy = maxOf(e, 0.7f), place = "top",
+                    recipe = "counter", at = q.at, value = q.value.toFloat(), decimals = q.decimals, label = figures.unitLabel(q), energy = maxOf(e, 0.7f), place = place(takeover),
                 )
             }
         }
