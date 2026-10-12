@@ -135,7 +135,9 @@ class ArtCatalogue(entries: List<ArtEntry>) {
         private fun match(q: List<String>, name: String, tags: List<String>): Float {
             val texts = listOf(name) + tags
             val phrase = q.joinToString(" ")
-            if (texts.any { tokens(it).joinToString(" ") == phrase }) return EXACT
+            // Exactly its name beats exactly one of its keywords ("laughing" is the laughing face, not a face that may laugh).
+            if (tokens(name).joinToString(" ") == phrase) return EXACT
+            if (tags.any { tokens(it).joinToString(" ") == phrase }) return EXACT_TAG
             // One word or two ("lightbulb", "light bulb") name the same thing.
             val joined = q.joinToString("")
             if (q.size > 1 && texts.any { tokens(it).joinToString("") == joined }) return COMPOUND
@@ -205,6 +207,7 @@ class ArtCatalogue(entries: List<ArtEntry>) {
         private const val GRAM_DIMS = 512
         private const val GRAM_WEIGHT = 0.7f
         private const val EXACT = 1f
+        private const val EXACT_TAG = 0.97f
         private const val COMPOUND = 0.95f
         private const val HEAD = 2f
         private const val COVER = 0.85f

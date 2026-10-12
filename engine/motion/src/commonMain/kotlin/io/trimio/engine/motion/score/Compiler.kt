@@ -53,6 +53,12 @@ class Compiler(
 ) {
     private val geometry by lazy { Geometry(text.measurer, text.fonts) }
 
+    /** What a beat is, for [restMemo]: its recipe, its cue (where, when, what) and the look. */
+    private data class Rest(val recipe: String, val cue: Cue, val look: String, val w: Int, val h: Int)
+
+    /** Where beats rest, drawn once per beat as long as it does not change (oldest first out). */
+    private val restMemo = LinkedHashMap<Rest, Pair<Geometry.Ink?, Geometry.Ink?>>()
+
     data class Input(
         val score: Score,
         val transcript: Transcript?,
@@ -233,7 +239,10 @@ class Compiler(
                 val end = b.out - REST_EXIT
                 val from = minOf(b.cue.at + REST_ENTRANCE, end)
                 val times = listOf(from, (from + end) / 2f, end).distinct()
-                val (ink, type) = geometry.rest(out.nodes, w, h, times)
+                // The same beat drawn the same way rests in the same place: a jury round recompiles mostly unchanged beats.
+                val key = Rest(b.recipe.name, b.cue.copy(out = b.out), look.name, w, h)
+                val (ink, type) = restMemo.getOrPut(key) { geometry.rest(out.nodes, w, h, times) }
+                if (restMemo.size > REST_MEMO) restMemo.remove(restMemo.keys.first())
                 ink?.let { rests[b.id] = it }
                 val move = ink?.let { safely(it, type) } ?: return@mapValues out
                 rests[b.id] = move.third
@@ -347,8 +356,8 @@ class Compiler(
         private fun pictured(cue: Cue, b: BeatScore) = cue.copy(
             marks = b.items.map { brands.mark(it) }.ifEmpty { listOfNotNull(b.brand?.let { brands.find(it) }) },
             // Animated pictures take the look's colours and face the reading direction; stills are unchanged.
-            visual = b.visual?.let { visuals.find(it) }?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl) },
-            itemVisuals = b.items.indices.map { i -> visuals.find(b.visuals.getOrNull(i) ?: b.items[i])?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl) } },
+            visual = b.visual?.let { visuals.find(it) }?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl, cue.overMedia) },
+            itemVisuals = b.items.indices.map { i -> visuals.find(b.visuals.getOrNull(i) ?: b.items[i])?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl, cue.overMedia) } },
         )
 
         /** Elements not tied to words stay for the scene; spoken text stays while it is said. */
@@ -798,6 +807,7 @@ class Compiler(
         /** A graphic as wide as the frame is a stage, not something over the caption band. */
         private const val FULL_WIDTH = 0.97f
         private const val NUDGE_TOL = 3f
+        private const val REST_MEMO = 512
         private const val SHRINK_TOL = 0.01f
         private const val FOOTAGE_TEXTURE = 0.35f
         private const val MIN_READ = 1.0f

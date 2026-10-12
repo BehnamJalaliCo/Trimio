@@ -86,7 +86,8 @@ object TechnicalUi {
             ok.takeIf { it.isNotEmpty() }?.let { calls ->
                 val speed = r.tokensPerSecond()?.let { "${one(it)} tok/s" } ?: "-"
                 val read = calls.mapNotNull { it.promptTokensPerSecond }.takeIf { it.isNotEmpty() }?.let { " · read ${one(it.average().toFloat())} tok/s" }.orEmpty()
-                TechFact(t("مدل زبانی", "Language model"), "$speed$read · ${calls.size} calls · ${calls.sumOf { it.generatedTokens }} tokens out · ${one(calls.sumOf { it.seconds.toDouble() }.toFloat())} s")
+                val seconds = one(calls.sumOf { it.seconds.toDouble() }.toFloat())
+                TechFact(t("مدل زبانی", "Language model"), "$speed$read · ${calls.size} calls · ${calls.sumOf { it.generatedTokens }} tokens out · $seconds s")
             },
             r.speech?.let { TechFact(t("شنیدن", "Listening"), "RTF ${two(it.realTimeFactor)} · ${one(it.audioSeconds)} s sound in ${one(it.seconds)} s · ${it.threads} threads") },
             r.render?.let { TechFact(t("رندر", "Render"), "${one(it.fps)} fps · ${it.frames} frames ${it.width}×${it.height} in ${one(it.seconds)} s") },

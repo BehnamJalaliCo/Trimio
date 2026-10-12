@@ -152,7 +152,7 @@ class FamiliesTest {
     @Test
     fun newCutsAndMarksAreInTheVocabulary() {
         assertTrue(StyleBook.TRANSITIONS.containsAll(Transitions.KINDS))
-        assertTrue(StyleBook.all.flatMap { it.check(it) }.isEmpty(), StyleBook.all.flatMap { it.check(it) }.joinToString("\n"))
+        assertTrue(StyleBook.all.flatMap { StyleBook.check(it) }.isEmpty(), StyleBook.all.flatMap { StyleBook.check(it) }.joinToString("\n"))
         val overlays = mutableListOf<Node>()
         val sfx = mutableListOf<io.trimio.engine.motion.recipe.Sfx>()
         for (k in Transitions.KINDS) assertTrue(Transitions.overlay(k, 2f, Look.Noir, 1080f, 1920f, overlays, sfx), k)

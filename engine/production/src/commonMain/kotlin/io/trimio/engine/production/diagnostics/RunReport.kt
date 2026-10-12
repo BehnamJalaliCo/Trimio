@@ -180,7 +180,8 @@ internal object ReportText {
         jury(r)
         r.memory?.let { m ->
             section("MEMORY")
-            appendLine("  " + listOfNotNull(m.peakRssMb?.let { "peak RSS $it MB" }, m.rssMb?.let { "RSS now $it MB" }, m.heapPeakMb?.let { "JVM heap peak $it MB" }).joinToString(" · ").ifEmpty { "not readable here" })
+            val parts = listOfNotNull(m.peakRssMb?.let { "peak RSS $it MB" }, m.rssMb?.let { "RSS now $it MB" }, m.heapPeakMb?.let { "JVM heap peak $it MB" })
+            appendLine("  " + parts.joinToString(" · ").ifEmpty { "not readable here" })
         }
         if (r.deaths.isNotEmpty()) {
             section("PROCESS DEATHS")
@@ -234,7 +235,10 @@ internal object ReportText {
             val prompt = c.promptTokens?.let { "$it tok" + (c.reusedTokens?.takeIf { n -> n > 0 }?.let { n -> " ($n reused)" }.orEmpty()) + read } ?: "${c.promptChars} chars"
             val first = c.firstTokenSeconds?.let { " · first token ${f1(it)} s" }.orEmpty()
             val images = if (c.images > 0) " · ${c.images} images" else ""
-            appendLine("  #${c.attempt} ${c.step.padEnd(NAME_PAD)} ${c.model} · prompt $prompt$images · out ${c.generatedTokens} tok · ${f1(c.seconds)} s$first · ${f1(c.tokensPerSecond)} tok/s · ${c.outcome}")
+            appendLine(
+                "  #${c.attempt} ${c.step.padEnd(NAME_PAD)} ${c.model} · prompt $prompt$images · out ${c.generatedTokens} tok · " +
+                    "${f1(c.seconds)} s$first · ${f1(c.tokensPerSecond)} tok/s · ${c.outcome}",
+            )
         }
     }
 

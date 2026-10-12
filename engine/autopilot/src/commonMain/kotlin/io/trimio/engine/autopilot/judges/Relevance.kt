@@ -33,13 +33,17 @@ internal class Relevance(private val c: Jury.Context) {
     }
 
     private fun miss(p: Compiler.Placed, b: BeatScore): Miss? {
-        val window = words.indices.filter { i -> start(i) >= p.at - BEFORE && start(i) <= p.out + AFTER }
+        // Around its landing: a graphic that lands seconds before its words are said is out of its moment too.
+        val until = minOf(p.out, p.at + LANDING) + AFTER
+        val window = words.indices.filter { i -> start(i) >= p.at - BEFORE && start(i) <= until }
         b.value?.takeIf { b.recipe in FIGURES }?.let { v ->
             val said = NumberWords.findAll(window.map { words[it].text }).any { kotlin.math.abs(it.value - v) <= kotlin.math.abs(v) * TOLERANCE + 0.01 }
             if (!said && !hook(p)) return Miss(p, NumberWords.normalize(v.toString()), saidWhere(v))
         }
+        // A figure is judged by its number; its label («زمان باقی‌مانده», «هدیه») describes it and need not be said.
+        if (b.recipe in DATA) return picture(p, b)
         // A name in Latin letters on a Persian piece («Tether» for «تتر») cannot be matched by spelling: the script judge reads those.
-        for (text in Bench.shownTexts(b).filter { it.isNotBlank() && (!rtl || Bench.persian(it)) }) {
+        for (text in (listOfNotNull(b.text) + b.items.map { it.removePrefix(">") }).filter { it.isNotBlank() && (!rtl || Bench.persian(it)) }) {
             val content = text.replace(" | ", " ").split(' ').map(Phrases::key).filter { k -> k.length >= 2 && Words.isContent(k) && k !in brief }
             if (content.isEmpty()) continue
             val hits = content.count { k -> window.any { same(keys[it], k) } }
@@ -71,12 +75,17 @@ internal class Relevance(private val c: Jury.Context) {
     companion object {
         const val BEFORE = 1.5f
         const val AFTER = 0.6f
+        const val LANDING = 2.5f
         const val HOOK_S = 1.6f
         const val TOLERANCE = 0.01
         const val PICTURE_FIT = 0.4f
 
         /** Graphics that are about the piece, not a line: the ask, its end card, a thread told over lines, the speaker's name. */
         val EXEMPT = setOf("comment", "endcard", "message", "lower-third", "pop-captions", "url", "pip", "photo", "b-roll")
-        val FIGURES = setOf("counter", "meter", "voucher", "stats", "countdown", "progress")
+        /** Figures whose number is the one said (a countdown's or a progress bar's may be worked out from what is said). */
+        val FIGURES = setOf("counter", "meter", "voucher")
+
+        /** Data graphics: judged by their figure (or not at all), never by the words of their labels. */
+        val DATA = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag")
     }
 }

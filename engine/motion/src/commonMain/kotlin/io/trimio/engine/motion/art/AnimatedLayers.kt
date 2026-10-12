@@ -39,11 +39,11 @@ enum class ArtFlavour {
 }
 
 /** [this] drawn with [colouring] (and mirrored when [mirror]) whatever paint the node asks for. */
-fun MotionArt.styled(colouring: Colouring = Colouring.Auto, mirror: Boolean = false): MotionArt =
-    if (colouring == Colouring.Auto && !mirror) this else StyledArt(if (this is StyledArt) base else this, colouring, mirror)
+fun MotionArt.styled(colouring: Colouring = Colouring.Auto, mirror: Boolean = false, halo: Color? = null): MotionArt =
+    if (colouring == Colouring.Auto && !mirror && halo == null) this else StyledArt(if (this is StyledArt) base else this, colouring, mirror, halo)
 
-private class StyledArt(val base: MotionArt, private val colouring: Colouring, private val mirror: Boolean) : MotionArt by base {
-    override fun draw(scope: DrawScope, time: Float, paint: ArtPaint) = base.draw(scope, time, paint.copy(colouring = colouring, mirror = mirror))
+private class StyledArt(val base: MotionArt, private val colouring: Colouring, private val mirror: Boolean, private val halo: Color?) : MotionArt by base {
+    override fun draw(scope: DrawScope, time: Float, paint: ArtPaint) = base.draw(scope, time, paint.copy(colouring = colouring, mirror = mirror, halo = halo))
 }
 
 /**
@@ -61,19 +61,27 @@ object AnimatedLayers {
     fun paint(icon: VectorIcon, look: Look, accent: Boolean = false): Colouring = when {
         !icon.colourful -> Colouring.Tint
         ArtFlavour.forLook(look.name) == ArtFlavour.Emoji -> Colouring.Own
-        else -> Colouring.Duotone(lerp(look.canvas, look.accent, DUO_DARK), if (accent) look.accent else look.ink)
+        // The shadows deep in the accent, the lights in the ink: the emoji's modelling survives, in the look's two colours.
+        else -> Colouring.Duotone(lerp(look.accent, Color.Black, DUO_DARK), if (accent) look.accent else look.ink)
     }
 
     /** Whether [icon] points somewhere (an arrow, "next") and should face the reading direction in right-to-left text. */
     fun directional(icon: VectorIcon): Boolean =
         (listOf(icon.name) + icon.keywords).any { k -> DIRECTIONAL.any { it in k.lowercase() } }
 
-    /** [icon] styled for [look] and the reading direction. */
-    fun styled(icon: VectorIcon, look: Look, rtl: Boolean, accent: Boolean = false): VectorIcon {
+    /**
+     * [icon] styled for [look] and the reading direction; a line drawing [overMedia] gets a halo
+     * in the look's guard tone (the tone opposite its ink) so it reads over any picture.
+     */
+    fun styled(icon: VectorIcon, look: Look, rtl: Boolean, overMedia: Boolean = false, accent: Boolean = false): VectorIcon {
         val art = icon.motion ?: return icon
         val mirror = rtl && directional(icon) && icon.name.contains("right")
-        return icon.copy(motion = art.styled(paint(icon, look, accent), mirror))
+        val halo = if (overMedia && !icon.colourful) guardTone(look) else null
+        return icon.copy(motion = art.styled(paint(icon, look, accent), mirror, halo))
     }
+
+    /** The tone opposite the look's ink (its guard): dark under light ink, light under dark ink. */
+    private fun guardTone(look: Look): Color = if (look.ink.luminance() > HALF) look.guard.dark else look.guard.light
 
     /**
      * An animated sticker: it springs in at [t0] while its animation starts, floats while held
@@ -82,7 +90,7 @@ object AnimatedLayers {
      * vanish into the picture). Sized to [size] px, uniform scale (never stretched).
      */
     fun sticker(icon: VectorIcon, x: Float, y: Float, size: Float, t0: Float, out: Float, look: Look, seed: Int, overMedia: Boolean, rtl: Boolean): List<Node> {
-        val styled = styled(icon, look, rtl)
+        val styled = styled(icon, look, rtl, overMedia)
         val landed = t0 + LAND
         val bob = if (icon.animated) Anim.Zero else Anim.Noise(seed, BOB_RATE, anim(0f, landed) { by(size * BOB, 0.6f); hold(out) })
         val nodes = mutableListOf<Node>()
@@ -106,7 +114,7 @@ object AnimatedLayers {
 
     /** A soft disc in the look's guard tone behind a line drawing over footage. */
     fun backing(x: Float, y: Float, size: Float, t0: Float, look: Look): Node {
-        val tone = if (look.ink.luminance() > 0.5f) look.guard.dark else look.guard.light
+        val tone = guardTone(look)
         return ShapeNode(
             ShapeSpec.Ellipse((size * DISC).anim, (size * DISC).anim),
             fill = Fill.Radial(listOf(tone.copy(alpha = 0.72f), tone.copy(alpha = 0.5f), tone.copy(alpha = 0f)), radius = 0.5f.anim),
@@ -118,7 +126,8 @@ object AnimatedLayers {
     private fun Color.luminance(): Float = 0.2126f * red + 0.7152f * green + 0.0722f * blue
 
     private val DIRECTIONAL = listOf("arrow", "chevron", "next", "forward", "right")
-    private const val DUO_DARK = 0.35f
+    private const val DUO_DARK = 0.55f
+    private const val HALF = 0.5f
     private const val LAND = 0.7f
     private const val BOB = 0.03f
     private const val BOB_RATE = 0.45f

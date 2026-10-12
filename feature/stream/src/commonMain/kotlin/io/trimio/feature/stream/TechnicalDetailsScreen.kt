@@ -142,7 +142,9 @@ private fun Top(details: TechnicalDetails, onClose: () -> Unit, modifier: Modifi
                 container = if (details.running) c.emphasisSoft else c.ink.copy(alpha = 0.08f),
                 content = if (details.running) c.emphasisSoftContent else c.ink,
             )
-            if (details.problems.isNotEmpty()) SigChip(localizedNumber(tr("${details.problems.size} مورد", "${details.problems.size} issues")), container = c.action.copy(alpha = 0.16f), content = c.action)
+            if (details.problems.isNotEmpty()) {
+                SigChip(localizedNumber(tr("${details.problems.size} مورد", "${details.problems.size} issues")), container = c.action.copy(alpha = 0.16f), content = c.action)
+            }
         }
     }
 }

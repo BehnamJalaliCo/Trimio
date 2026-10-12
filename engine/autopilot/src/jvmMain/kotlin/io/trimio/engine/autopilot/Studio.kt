@@ -95,7 +95,9 @@ class Studio(
             // A short, well-punctuated sentence in the spoken language: better punctuation and spelling, names spelled right.
             val hint = if (names.isEmpty()) "سلام دوستان، امروز می‌خواهم یک نکته‌ی مهم را بگویم." else "در این ویدیو درباره‌ی " + names.joinToString("، ") + " صحبت می‌کنم."
             return WhisperCppRecognizer(whisperModel).use { r ->
-                r.transcribe(audio, RecognitionOptions(language = language, initialPrompt = hint, threads = Runtime.getRuntime().availableProcessors()))
+                // -Dtrimio.asr.threads: fewer threads than cores on a shared, busy machine (ggml's workers spin while they wait for each other).
+                val threads = System.getProperty("trimio.asr.threads")?.toIntOrNull() ?: Runtime.getRuntime().availableProcessors()
+                r.transcribe(audio, RecognitionOptions(language = language, initialPrompt = hint, threads = threads))
             }
         }
     }

@@ -127,8 +127,11 @@ object BuildFailures {
             title = t(persian, "ساخت دو بار در مرحلهٔ «${stage.fa}» بسته شد", "The build closed twice while ${stage.en.lowercase()}"),
             body = t(
                 persian,
-                "برنامه دو بار در همین مرحله بسته شد؛ معمولاً یعنی حافظهٔ این دستگاه برای این مدل کافی نیست. برای این‌که دوباره همان‌جا گیر نکند، خودکار تکرارش نمی‌کنم. با مدل کوچک‌تر یا کارگردان ابری ادامه بده؛ کلمه‌ها و برداشت تا این‌جا حفظ شده‌اند.",
-                "The app closed twice at this same step; usually this device does not have enough memory for this model. So it is not retried in a loop. Continue with a smaller model or the cloud director; the words and the reading so far are kept.",
+                "برنامه دو بار در همین مرحله بسته شد؛ معمولاً یعنی حافظهٔ این دستگاه برای این مدل کافی نیست. " +
+                    "برای این‌که دوباره همان‌جا گیر نکند، خودکار تکرارش نمی‌کنم. " +
+                    "با مدل کوچک‌تر یا کارگردان ابری ادامه بده؛ کلمه‌ها و برداشت تا این‌جا حفظ شده‌اند.",
+                "The app closed twice at this same step; usually this device does not have enough memory for this model. " +
+                    "So it is not retried in a loop. Continue with a smaller model or the cloud director; the words and the reading so far are kept.",
             ),
             options = listOf(
                 BuildFailure.Option(

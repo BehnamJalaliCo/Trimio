@@ -31,7 +31,8 @@ data class Runtime(
         fun of(model: ModelRuntime?, speech: SpeechRuntime?): Runtime {
             val facts = buildList {
                 model?.let { m ->
-                    add(Fact("llm", "${m.backend} · " + (m.gpu?.let { "$it · ${m.gpuLayers}/${m.totalLayers} layers on the GPU" } ?: "CPU only (${m.gpuLayers}/${m.totalLayers} layers on a GPU)") + " · ${m.threads} threads · KV ${m.kvCache}"))
+                    val placed = m.gpu?.let { "$it · ${m.gpuLayers}/${m.totalLayers} layers on the GPU" } ?: "CPU only (${m.gpuLayers}/${m.totalLayers} layers on a GPU)"
+                    add(Fact("llm", "${m.backend} · $placed · ${m.threads} threads · KV ${m.kvCache}"))
                     m.cpuReason?.let { add(Fact("llm on CPU because", it)) }
                     if (m.usage.calls > 0) add(Fact("llm calls", m.usage.summary()))
                     m.facts.filter { (k, _) -> k in RAW }.forEach { (k, v) -> add(Fact("llm.$k", v)) }

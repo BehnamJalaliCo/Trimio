@@ -63,7 +63,7 @@ class AutopilotProofTest {
         val llm = System.getProperty("auto.llm")?.let {
             LlamaLanguageModel(
                 System.getProperty("auto.llm.id") ?: "qwen3.5-4b-q4km", it, ChatFormat.ChatMl,
-                contextSize = 8192, threads = 4, visionPath = System.getProperty("auto.vision"), maxImageTokens = 96,
+                contextSize = 8192, threads = System.getProperty("auto.threads")?.toIntOrNull() ?: 4, visionPath = System.getProperty("auto.vision"), maxImageTokens = 96,
             )
         }
 

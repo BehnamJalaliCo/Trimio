@@ -173,7 +173,7 @@ class Geometry(
         /** A graphic has landed this long after it starts and starts leaving this long before it ends. */
         const val ENTRANCE = 0.7f
         const val EXIT = 0.35f
-        private const val STEP = 0.25f
+        private const val STEP = 0.4f
         private const val MEMO = 4
         private const val CAPTION_LAND = 0.25f
         private const val END_GUARD = 0.02f

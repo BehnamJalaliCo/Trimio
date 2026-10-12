@@ -38,7 +38,7 @@ kotlin {
 
 // ./gradlew :engine:autopilot:jvmTest -Pauto.video=… -Pauto.prompt=… -Pauto.seeds=1,2,3 (see AutopilotProofTest)
 tasks.withType<Test>().configureEach {
-    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.llm.id", "auto.assets", "auto.gold", "auto.transcript", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "visuals.dir", "workshop.stills", "workshop.only", "workshop.seeds", "workshop.out", "jury.benchmark", "golden.update", "golden.only", "golden.seeds", "golden.styles", "styles.sheets", "styles.only").forEach { key ->
+    listOf("auto.video", "auto.prompt", "auto.reuse", "auto.vision", "auto.image", "auto.imagetokens", "auto.bench", "auto.format", "auto.mode", "auto.seeds", "auto.llm", "auto.llm.id", "auto.assets", "auto.gold", "auto.transcript", "auto.whisper", "auto.out", "auto.frames", "auto.video.out", "auto.sheet", "auto.threads", "visuals.dir", "workshop.stills", "workshop.only", "workshop.seeds", "workshop.out", "jury.benchmark", "golden.update", "golden.only", "golden.seeds", "golden.styles", "styles.sheets", "styles.only").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
     // ArtSheetsTest: -Part.sheets=<dir> [-Part.video=<mp4>] [-Part.styles=a,b,c] (animated pictures fetched and compiled, for review)

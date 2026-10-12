@@ -178,6 +178,9 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             v.findings.map { f -> "  ${v.judge} ${f.severity.name.lowercase()} at ${fmt(f.at)}s: ${f.what} → ${f.fix}" }
         }
 
+        /** What is still wrong, briefly, for the report of a round: the findings that cost points, at most [MAX_DETAILS]. */
+        fun details(): List<String> = verdicts.flatMap { v -> v.findings.filter { it.severity.cost > 0f }.map { "    ${v.judge}: ${it.what} at ${fmt(it.at)}s" } }.take(MAX_DETAILS)
+
         /** One line per judge below 10: «چیدمان ۸ از ۱۰ — …», with its worst finding. */
         fun shortfalls(): List<String> = verdicts.filter { !it.perfect }.sortedBy { it.score }.map { v ->
             val worst = v.findings.maxByOrNull { it.severity.cost }
@@ -274,6 +277,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var ctx = context(current)
         var panel = deliberate(ctx)
         log("jury $name round 0: ${panel.summary()}")
+        panel.details().forEach(log)
         var round = 0
         while (!panel.unanimous && round < budget.rounds) {
             val options = options(ctx, panel)
@@ -289,6 +293,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
                 current = next
                 ctx = nextCtx
                 panel = nextPanel
+                panel.details().forEach(log)
                 kept = true
                 break
             }
@@ -305,6 +310,9 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             "hook" to "هوک", "rhythm" to "ریتم", "motion" to "حرکت و تنوع", "typography" to "تایپوگرافی", "spelling" to "املا و خط",
             "layout" to "چیدمان", "sound" to "صدا", "music" to "موسیقی", "brief" to "پیروی از بریف", "cta" to "دعوت به اقدام",
         )
+
+        /** Findings a round's report line lists at most. */
+        private const val MAX_DETAILS = 14
 
         /** Revisions tried in one round at most (each is a compile and a sitting). */
         private const val MAX_TRIES = 4

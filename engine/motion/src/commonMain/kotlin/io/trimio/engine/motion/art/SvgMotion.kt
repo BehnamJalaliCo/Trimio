@@ -243,7 +243,15 @@ internal class SvgPainter(private val doc: SvgDoc, private val paint: ArtPaint, 
         operator fun get(k: String) = values[k]
     }
 
+    /** The pass drawing the halo ([ArtPaint.halo]) under the drawing: every paint in the halo tone, strokes wider. */
+    private var haloPass = false
+
     fun draw(scope: DrawScope, nodes: List<SNode>) {
+        if (paint.halo != null) {
+            haloPass = true
+            nodes.forEach { scope.node(it, Style(DEFAULTS), paint.alpha * HALO_ALPHA, mask = false) }
+            haloPass = false
+        }
         nodes.forEach { scope.node(it, Style(DEFAULTS), paint.alpha, mask = false) }
     }
 
@@ -282,14 +290,16 @@ internal class SvgPainter(private val doc: SvgDoc, private val paint: ArtPaint, 
         }
         val path = shape(n) ?: return
         if (style["fill-rule"] == "evenodd") path.fillType = PathFillType.EvenOdd
+        val halo = if (haloPass && !mask) HALO_WIDTH else 0f
         colour(style["fill"], mask)?.let { c ->
             val a = opacity * (style["fill-opacity"]?.toFloatOrNull() ?: 1f).coerceIn(0f, 1f)
             if (a > MIN_ALPHA) drawPath(path, c, alpha = a, style = Fill)
+            if (a > MIN_ALPHA && halo > 0f) drawPath(path, c, alpha = a, style = Stroke(halo, join = StrokeJoin.Round))
         }
         colour(style["stroke"], mask)?.let { c ->
             val a = opacity * (style["stroke-opacity"]?.toFloatOrNull() ?: 1f).coerceIn(0f, 1f)
             val w = style["stroke-width"]?.toFloatOrNull() ?: 1f
-            if (a > MIN_ALPHA && w > 0f) drawPath(path, c, alpha = a, style = stroke(style, w))
+            if (a > MIN_ALPHA && w > 0f) drawPath(path, c, alpha = a, style = stroke(style, w + halo))
         }
     }
 
@@ -363,6 +373,8 @@ internal class SvgPainter(private val doc: SvgDoc, private val paint: ArtPaint, 
 
     /** A paint: the tint for `currentColor`, through the art's colouring; masks keep their own black and white. */
     private fun colour(v: String?, mask: Boolean): Color? {
+        val halo = paint.halo
+        if (haloPass && !mask && halo != null) return if (v == null || v == "none" || v == "transparent" || v.startsWith("url(")) null else halo
         val raw = when {
             v == null || v == "none" || v == "transparent" || v.startsWith("url(") -> return null
             v == "currentColor" -> if (mask) Color.White else return Colouring.map(paint.tint, Colouring.Own, doc.colourful, paint.tint)
@@ -395,6 +407,10 @@ internal class SvgPainter(private val doc: SvgDoc, private val paint: ArtPaint, 
     private companion object {
         val HUGE = Rect(-1e5f, -1e5f, 1e5f, 1e5f)
         const val MIN_ALPHA = 0.002f
+
+        /** How much wider (icon units, a 24 box) and how strong the halo under a drawing is. */
+        const val HALO_WIDTH = 2.4f
+        const val HALO_ALPHA = 0.55f
         val INHERITED = listOf(
             "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
             "fill-opacity", "stroke-opacity", "fill-rule",

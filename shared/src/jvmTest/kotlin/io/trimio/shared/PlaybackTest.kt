@@ -105,7 +105,10 @@ class PlaybackTest {
         val playedSeconds = heard.playedFrames / FfmpegVideoPlayer.RATE.toFloat()
         val shownFrames = player.shown - before
         val frame = assertNotNull(player.frame.value)
-        println("played ${"%.2f".format(seconds)} s: $shownFrames pictures shown, ${player.dropped} dropped, sound ${"%.2f".format(playedSeconds)} s (rms ${"%.3f".format(heard.rms)}), picture at ${frame.time} s")
+        println(
+            "played ${"%.2f".format(seconds)} s: $shownFrames pictures shown, ${player.dropped} dropped, " +
+                "sound ${"%.2f".format(playedSeconds)} s (rms ${"%.3f".format(heard.rms)}), picture at ${frame.time} s",
+        )
         assertTrue(shownFrames >= 2.5f * 30 * 0.8f, "pictures advance at the edit's rate: $shownFrames")
         assertTrue(player.soundBytes > 2L * FfmpegVideoPlayer.RATE * 4, "sound was decoded: ${player.soundBytes} bytes")
         assertTrue(heard.rms > 0.001, "the sound is not silence: ${heard.rms}")

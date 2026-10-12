@@ -104,9 +104,10 @@ class AppProductionRunner(
     private suspend fun watch(dog: Watchdog) {
         while (true) {
             delay(tickMs)
-            val s = state.value ?: continue
+            // A finished run, or one whose stall the creator has not answered yet, is not checked.
+            val s = state.value?.takeIf { !it.finished && it.stall == null }
             val silent = dog.stalled()
-            if (s.finished || s.stall != null || silent == null) continue
+            if (s == null || silent == null) continue
             val minutes = (silent / MINUTE).toInt().coerceAtLeast(1)
             state.update { it?.copy(stall = Stall(s.step, minutes)) }
             editor.stalled(s.key, s.step, minutes)

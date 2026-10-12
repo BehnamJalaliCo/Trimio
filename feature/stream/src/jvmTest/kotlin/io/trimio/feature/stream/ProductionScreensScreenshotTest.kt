@@ -129,7 +129,8 @@ class ProductionScreensScreenshotTest {
         shoot("technical-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { TechnicalDetailsScreen(technical, {}, {}) }
         // The watchdog's card on the live build, and the details one tap away.
         shoot("live-stalled-fa-noir", paper = false, height = 1100) {
-            LiveBuildScreen(live.copy(stage = BuildStage.Understand, framesTotal = 0, linesDone = 18, linesTotal = 48, stall = BuildStall(6, "understand 18/48", BuildStage.Understand)), onDetails = {}) {}
+            val stalled = BuildStall(6, "understand 18/48", BuildStage.Understand)
+            LiveBuildScreen(live.copy(stage = BuildStage.Understand, framesTotal = 0, linesDone = 18, linesTotal = 48, stall = stalled), onDetails = {}) {}
         }
         // The app ended twice in the same step: an honest failure with lighter ways on.
         shoot("failure-died-fa-noir", paper = false) { BuildFailureScreen(BuildFailures.of("died-in:llm understand 12/48", BuildStage.Plan, true), {}, {}, {}, onDetails = {}) }

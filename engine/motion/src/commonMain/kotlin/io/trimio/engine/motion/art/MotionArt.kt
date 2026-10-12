@@ -42,8 +42,12 @@ interface MotionArt {
     }
 }
 
-/** How a [MotionArt] is painted: the node's [tint], an overall [alpha], and how its colours follow the look. */
-data class ArtPaint(val tint: Color, val alpha: Float = 1f, val colouring: Colouring = Colouring.Auto, val mirror: Boolean = false)
+/**
+ * How a [MotionArt] is painted: the node's [tint], an overall [alpha], how its colours follow the
+ * look, mirrored for right-to-left reading, and a [halo] tone drawn soft and wide under a line
+ * drawing so it reads over any footage (null: none).
+ */
+data class ArtPaint(val tint: Color, val alpha: Float = 1f, val colouring: Colouring = Colouring.Auto, val mirror: Boolean = false, val halo: Color? = null)
 
 /** How an animation's colours meet the look's palette. */
 sealed interface Colouring {

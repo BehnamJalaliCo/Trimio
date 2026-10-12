@@ -111,17 +111,22 @@ internal object Bench {
     object Ladder {
         private val KEEP = setOf(COMMENT, "endcard")
 
-        fun next(b: BeatScore, p: Compiler.Placed, moveFirst: Boolean): BeatScore? {
+        fun next(b: BeatScore, p: Compiler.Placed, moveFirst: Boolean, gentle: Boolean = false): BeatScore? {
             val variants = io.trimio.engine.motion.recipe.Recipes.named(b.recipe)?.variants ?: 1
             return when {
                 b.variant == null && moveFirst && p.overFootage -> b.copy(place = otherBand(p.zone), variant = p.variant)
                 b.variant == null && variants > 1 -> b.copy(variant = (p.variant + 1) % variants)
                 b.variant == null -> b.copy(place = if (p.overFootage) otherBand(p.zone) else "center", variant = p.variant)
-                b.recipe in KEEP -> b
+                // A small flaw (a graphic on the small side) never costs the graphic: another layout is all it gets.
+                gentle || b.recipe in KEEP -> b
+                b.recipe in MARKS -> null
                 b.recipe !in TEXT -> plain(b)
                 else -> null
             }
         }
+
+        /** Devices that show brand marks: their names as a plain title would be English text, not a better graphic. */
+        private val MARKS = setOf("logos", "logo-mark", "chips")
 
         /** The same words (or figure) as a plain text treatment, or null when it says nothing in words. */
         fun plain(b: BeatScore): BeatScore? {

@@ -198,7 +198,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         for ((p, kinds) in faults.groupBy { it.p }.mapValues { (_, v) -> v.map { it.kind }.toSet() }) {
             val at = Bench.locate(score, c.words, p) ?: continue
             // Out of place (on a caption, the face, another graphic): the other band first; badly drawn: another layout first.
-            score = Bench.mapBeat(score, at) { b -> Bench.Ladder.next(b, p, moveFirst = kinds.all { it in MOVABLE }) }
+            score = Bench.mapBeat(score, at) { b -> Bench.Ladder.next(b, p, moveFirst = kinds.all { it in MOVABLE }, gentle = kinds == setOf(Kind.Tiny)) }
         }
         return score.takeIf { it != c.score }
     }

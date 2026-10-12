@@ -61,7 +61,7 @@ struct Engine {
     Options options;
     /** How the model was placed (devices, layers, cache), as key=value lines. */
     std::string info;
-    /** Recurrent or hybrid memory cannot drop a tail: it reuses a head through [snapshot]. */
+    /** Recurrent, hybrid or sliding-window memory cannot just drop a tail: it reuses a head through [snapshot]. */
     bool recurrent = false;
     /** Tokens whose state is in the context's memory right now (plain attention models). */
     std::vector<llama_token> held;
@@ -599,7 +599,9 @@ Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring 
     }
     auto * engine = new Engine{model, ctx, llama_model_get_vocab(model)};
     engine->options = options;
-    engine->recurrent = llama_model_is_recurrent(model) || llama_model_is_hybrid(model);
+    // A sliding-window cache (Gemma) has dropped the early positions a reused head would still
+    // need, so it takes the snapshot path too.
+    engine->recurrent = llama_model_is_recurrent(model) || llama_model_is_hybrid(model) || llama_model_n_swa(model) > 0;
 
     char desc[256];
     llama_model_desc(model, desc, sizeof(desc));
