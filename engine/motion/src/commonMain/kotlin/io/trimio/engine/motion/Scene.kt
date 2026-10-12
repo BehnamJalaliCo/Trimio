@@ -248,12 +248,6 @@ class TextNode(
     /** Sits on a body of its own (a card, a bubble, a pill): its contrast is designed, not guarded. */
     var onBody: Boolean = false
 
-    /**
-     * The colour of the body it was designed on (a card, a pill, a tag), when the recipe knows it:
-     * the jury holds ink against it to the contrast floor.
-     */
-    var ground: Color? = null
-
     /** Set by the compiler on text over footage; see [Guard]. */
     var guard: Guard? = null
 }
@@ -278,9 +272,6 @@ class CounterNode(
 ) : Node(transform, start, end, mask, blend, name) {
     /** See [TextNode.onBody]. */
     var onBody: Boolean = false
-
-    /** See [TextNode.ground]. */
-    var ground: Color? = null
 
     /** See [TextNode.guard]. */
     var guard: Guard? = null
