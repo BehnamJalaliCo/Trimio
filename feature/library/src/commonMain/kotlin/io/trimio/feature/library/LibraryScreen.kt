@@ -278,8 +278,8 @@ private fun status(row: PackRow): String {
             PackState.Installing -> tr("در حال نصب…", "Installing…")
             is PackState.NoSpace -> tr("فضا کم است · ${sizeFa(s.needed)} لازم، ${sizeFa(s.free)} آزاد", "Not enough room · needs ${size(s.needed)}, ${size(s.free)} free")
             is PackState.Failed -> tr("دانلود ناموفق؛ دوباره تلاش کن", "Download failed; try again")
-            is PackState.Installed -> if (s.update != null) tr("نسخهٔ تازه آماده است · ${sizeFa(s.update!!.size)}", "New version ready · ${size(s.update!!.size)}")
-            else "$count${tr(sizeFa(row.sizeBytes), size(row.sizeBytes))}"
+            is PackState.Installed -> s.update?.let { u -> tr("نسخهٔ تازه آماده است · ${sizeFa(u.size)}", "New version ready · ${size(u.size)}") }
+                ?: "$count${tr(sizeFa(row.sizeBytes), size(row.sizeBytes))}"
             is PackState.Available -> "$count${tr(sizeFa(row.sizeBytes), size(row.sizeBytes))}"
         },
     )

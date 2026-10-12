@@ -75,7 +75,7 @@ class LibraryViewModel(
         onDelete = packs::delete,
         onDownloadAll = packs::downloadAll,
         onPauseAll = { packs.all().forEach { packs.pause(it.id) } },
-        onImport = ::import,
+        onImport = ::importFiles,
         onSaveLottieKey = ::saveKey,
         onRemoveLottieKey = ::removeKey,
         onLottieSearch = ::search,
@@ -85,7 +85,7 @@ class LibraryViewModel(
     )
 
     /** «افزودن انیمیشن»: the chosen files, checked and tagged, added to the creator's local pack. */
-    fun import() {
+    fun importFiles() {
         val p = picker ?: return
         viewModelScope.launch {
             val picked = p.pick() ?: return@launch
