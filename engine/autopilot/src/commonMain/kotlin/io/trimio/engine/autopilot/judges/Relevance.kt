@@ -78,7 +78,7 @@ internal class Relevance(private val c: Jury.Context) {
         const val LANDING = 2.5f
         const val HOOK_S = 1.6f
         const val TOLERANCE = 0.01
-        const val PICTURE_FIT = 0.4f
+        const val PICTURE_FIT = 0.5f
 
         /** Graphics that are about the piece, not a line: the ask, its end card, a thread told over lines, the speaker's name. */
         val EXEMPT = setOf("comment", "endcard", "message", "lower-third", "pop-captions", "url", "pip", "photo", "b-roll")

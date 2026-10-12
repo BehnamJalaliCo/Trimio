@@ -820,7 +820,7 @@ class Compiler(
         private const val FULL_WIDTH = 0.97f
         private const val NUDGE_TOL = 3f
         /** Kept off the face: more than this share of it covered is a graphic over the face; the gap kept from it, px. */
-        private const val FACE_SHARE = 0.12f
+        private const val FACE_SHARE = 0.06f
         private const val FACE_GAP = 12f
         /** A graphic is shrunk to fit at most this much; smaller would be unreadable (the jury moves it instead). */
         private const val MIN_FIT = 0.6f

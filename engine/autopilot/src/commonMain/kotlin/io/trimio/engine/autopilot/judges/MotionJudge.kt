@@ -35,7 +35,8 @@ class MotionJudge(
             Bench.finding(b.at, Severity.Minor, "${b.recipe} enters over ${a.recipe}'s exit in the ${b.zone} band", "move it to the other band or wait for the exit")
         }.capped()
         f += repeats(c, graphics).map { (a, b) ->
-            val sev = if (a.variant == b.variant) Severity.Major else Severity.Minor
+            // The same device twice running reads as a loop, whatever its layout.
+            val sev = Severity.Major
             Bench.finding(b.at, sev, "${b.recipe} twice back to back (${Bench.r1(a.at)}s, ${Bench.r1(b.at)}s)", "another device, or at least another layout of it")
         }.capped()
         f += variety(graphics)
@@ -96,7 +97,7 @@ class MotionJudge(
 
     /** The kind of element a recipe is: titles, figures, pictures, names, cards, the ask. */
     private fun family(recipe: String): String = when (recipe) {
-        in Bench.TEXT, "stamp" -> "titles"
+        in Bench.TEXT -> "titles"
         in FIGURE_FAMILY -> "figures"
         in PICTURE_FAMILY -> "pictures"
         "logos", "logo-mark", "chips" -> "names"

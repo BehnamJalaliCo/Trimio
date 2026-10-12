@@ -24,7 +24,7 @@ import io.trimio.engine.motion.score.Score
  * Its fixes, a step further each round for a beat still at fault: another layout of the same
  * device, the other band, a plain treatment of the same words, and last, leaving it out.
  */
-class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
+class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
     override val name = "layout"
     override val dimension = "placement"
 
@@ -68,7 +68,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         if (g.placed.recipe in SMALL_BY_DESIGN) return emptyList()
         val area = g.rest?.area ?: return emptyList()
         val share = area / (frame.w * frame.h)
-        return if (share < TINY) listOf(Fault(g.placed, Kind.Tiny, "${g.placed.recipe} takes ${pct(area, frame.w * frame.h)}% of the frame: too small to read on a phone", Severity.Minor)) else emptyList()
+        return if (share < TINY) listOf(Fault(g.placed, Kind.Tiny, "${g.placed.recipe} takes ${pct(area, frame.w * frame.h)}% of the frame: too small to read on a phone", Severity.Major)) else emptyList()
     }
 
     private fun faults(c: Jury.Context): List<Fault> {
@@ -227,10 +227,10 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         /** Two looks this close in time are the same moment. */
         const val STEP_TOL = 0.2f
         /** A sliver of shared ink (anti-aliased edges, a shadow) is not a collision. */
-        const val AREA_TOL = 0.08f
+        const val AREA_TOL = 0.04f
         /** Words may graze the edge by 1% of the frame width (a glyph's overhang); a body by 2%. */
-        const val TEXT_TOL = 0.01f
-        const val BODY_TOL = 0.02f
+        const val TEXT_TOL = 0.003f
+        const val BODY_TOL = 0.01f
         const val FAR_OUT = 0.05f
         const val FULL = 0.97f
         const val RIGHT_UI = 0.92f

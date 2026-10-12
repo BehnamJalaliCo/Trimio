@@ -16,8 +16,8 @@ import io.trimio.engine.motion.score.Score
  * [maxCutsPer10s] cuts in ten seconds).
  */
 class RhythmJudge(
-    private val maxDead: Float = 2.6f,
-    private val majorDead: Float = 3.6f,
+    private val maxDead: Float = 2.2f,
+    private val majorDead: Float = 3.0f,
     private val minShot: Float = 0.3f,
     private val maxCutsPer10s: Int = 7,
 ) : Judge {

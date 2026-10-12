@@ -152,6 +152,26 @@ class EditGateTest {
     }
 
     @Test
+    fun oneKindOfElementNeverCarriesThePiece() {
+        val titles = listOf("نود درصد", "سال اول", "ضرر می‌کنن", "سایت", "سیصد نفر", "ربات تلگرام")
+        val monotone = Score(
+            look = "noir", auto = false,
+            scenes = titles.map { t -> at(t.split(' ').first()) }.distinct().sorted().mapIndexed { k, i ->
+                SceneScore(from = if (k == 0) 0 else i, beats = listOf(BeatScore(if (k % 2 == 0) "mask-rise" else "slam", at = i, text = titles.first { at(it.split(' ').first()) == i }, place = "top")))
+            },
+        )
+        val v = MotionJudge().score(context(monotone))
+        assertTrue(v.findings.any { "titles are" in it.what }, "six titles and nothing else: ${v.findings}")
+    }
+
+    @Test
+    fun aPersianWordTheBriefWritesStaysPersian() {
+        val heard = listOf("کلمه", "تتر", "رو", "کامنت", "کن")
+        val fixes = Proofreader.fromBrief(heard, "کلمهٔ «تتر» رو کامنت کنن. واژه‌نامه: تتر (Tether)", PersianSpelling.load())
+        assertTrue(fixes[1] == null, "«تتر» is not turned into Tether: $fixes")
+    }
+
+    @Test
     fun theBriefIsAChecklist() {
         val bare = Score(look = "noir", auto = false, scenes = listOf(SceneScore(from = 0)))
         val c = context(bare)
