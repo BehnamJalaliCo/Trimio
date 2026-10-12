@@ -210,13 +210,12 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
         val faults = faults(c).filter { it.p.recipe != Bench.CAPTIONS }
         for ((p, kinds) in faults.groupBy { it.p }.mapValues { (_, v) -> v.map { it.kind }.toSet() }) {
             val at = Bench.locate(score, c.words, p) ?: continue
-            // On its own stage a graphic goes to the middle first.
-            if (Kind.Stage in kinds && score.scenes[at.first].beats[at.second].place != CENTER) {
-                score = Bench.mapBeat(score, at) { it.copy(place = CENTER) }
-                continue
+            // On its own stage a graphic goes to the middle first. Out of place (on a caption, the face, another
+            // graphic): the other band first; badly drawn: another layout first.
+            val centre = Kind.Stage in kinds && score.scenes[at.first].beats[at.second].place != CENTER
+            score = Bench.mapBeat(score, at) { b ->
+                if (centre) b.copy(place = CENTER) else Bench.Ladder.next(b, p, moveFirst = kinds.all { it in MOVABLE }, gentle = kinds == setOf(Kind.Tiny))
             }
-            // Out of place (on a caption, the face, another graphic): the other band first; badly drawn: another layout first.
-            score = Bench.mapBeat(score, at) { b -> Bench.Ladder.next(b, p, moveFirst = kinds.all { it in MOVABLE }, gentle = kinds == setOf(Kind.Tiny)) }
         }
         return score.takeIf { it != c.score }
     }

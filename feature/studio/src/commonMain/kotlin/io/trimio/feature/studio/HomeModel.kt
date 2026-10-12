@@ -51,6 +51,8 @@ data class HomeState(
     val announcement: String? = null,
     /** Wall clock (ms) for the date line and "yesterday". */
     val now: Long = 0,
+    /** Suggested content libraries after setup (null: nothing to suggest, or dismissed). */
+    val library: LibraryHint? = null,
 )
 
 data class HomeActions(
@@ -65,6 +67,8 @@ data class HomeActions(
     val onGallery: () -> Unit = {},
     val onSettings: () -> Unit = {},
     val onModels: () -> Unit = {},
+    val onLibrary: () -> Unit = {},
+    val onDismissLibrary: () -> Unit = {},
 )
 
 /** A starting point on the empty home: what it makes, the brief it writes, and the style it asks for. */

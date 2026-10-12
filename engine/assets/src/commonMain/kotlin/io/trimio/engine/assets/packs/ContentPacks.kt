@@ -42,6 +42,9 @@ data class OnlineHit(val entry: ArtEntry, val document: String)
  */
 fun interface OnlineArt {
     suspend fun search(query: String, limit: Int, fetch: suspend (String) -> String?): List<OnlineHit>
+
+    /** What the service already left on this device for [query] (asked with no network at all); none by default. */
+    suspend fun local(query: String, limit: Int): List<OnlineHit> = emptyList()
 }
 
 /**

@@ -16,8 +16,16 @@ import io.trimio.engine.motion.art.MotionArt
 import io.trimio.engine.motion.art.MotionArts
 import io.trimio.feature.library.LibraryCore
 import io.trimio.feature.library.LibraryViewModel
+import io.trimio.feature.studio.LibraryHint
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
 
 /**
  * Keeps the engine's view of the content libraries in step with the app: the installed packs
@@ -26,7 +34,26 @@ import kotlinx.coroutines.launch
  * LottieFiles key (when there is one) connects LottieFiles as the online source asked after the
  * packs. Started with the app.
  */
-class ContentLibrary(private val packs: PackManager, private val secrets: SecretStore, private val http: HttpClient, scope: CoroutineScope) {
+class ContentLibrary(
+    private val packs: PackManager,
+    private val secrets: SecretStore,
+    private val http: HttpClient,
+    scope: CoroutineScope,
+    /** Where the «dismissed» mark of the home suggestion is kept (null: memory only). */
+    private val marks: Path? = null,
+) {
+    private val dismissed = MutableStateFlow(marks?.let { runCatching { SystemFileSystem.exists(Path(it, DISMISSED)) }.getOrDefault(false) } ?: false)
+
+    /** The home card's suggestion: the recommended libraries not installed yet, until dismissed. */
+    val hint: StateFlow<LibraryHint?> = combine(packs.catalog, packs.states, dismissed) { catalog, states, off ->
+        if (off) null else LibraryViewModel.suggested(catalog, states).takeIf { it.isNotEmpty() }?.let { s -> LibraryHint(s.size, s.sumOf { it.size }) }
+    }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    fun dismiss() {
+        dismissed.value = true
+        marks?.let { dir -> runCatching { SystemFileSystem.createDirectories(dir); SystemFileSystem.sink(Path(dir, DISMISSED)).close() } }
+    }
+
     init {
         scope.launch { LibraryCore.load()?.let { core -> core.catalogues.forEach(ContentPacks::addCatalogue); core.index?.let(::seed) } }
         scope.launch { packs.active.collect { list -> ContentPacks.use(list.map { PackDir(it.id, it.kind.name, it.dir) }) } }
@@ -36,6 +63,10 @@ class ContentLibrary(private val packs: PackManager, private val secrets: Secret
 
     /** The catalogue shipped with this build, until the channel's own is fetched. */
     private fun seed(index: String) = runCatching { packs.seed(PackIndexClient.parseIndex(index)) }
+
+    private companion object {
+        const val DISMISSED = ".suggestion-dismissed"
+    }
 
     /** Connects (or, with no key, drops) LottieFiles as the online picture source. */
     fun connect(key: String?) {

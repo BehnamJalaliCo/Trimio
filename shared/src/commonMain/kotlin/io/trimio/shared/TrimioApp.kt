@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -169,6 +170,9 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
         }
     }
 
+    // The home card that suggests the content libraries after setup.
+    val contentLibrary = org.koin.compose.koinInject<io.trimio.shared.di.ContentLibrary>()
+    val libraryHint by contentLibrary.hint.collectAsState()
     NavDisplay(
         backStack = backStack,
         onBack = ::back,
@@ -189,6 +193,9 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     onModels = { go(Route.Models) },
                     announcement = (if (language == Language.Persian) remoteState.config.announcementFa else remoteState.config.announcementEn)
                         ?: previewNotice.takeIf { device.previewOnly },
+                    library = libraryHint,
+                    onLibrary = { go(Route.Library) },
+                    onDismissLibrary = { contentLibrary.dismiss() },
                 )
             }
             // The chosen director goes into the order; a cloud build without internet asks first (offline sheet).

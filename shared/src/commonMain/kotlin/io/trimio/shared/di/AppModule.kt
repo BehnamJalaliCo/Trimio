@@ -123,7 +123,7 @@ val appModule: Module = module {
             onActiveChanged = { active -> getOrNull<DownloadHooks>()?.onActiveChanged(active) },
         )
     }
-    single(createdAtStart = true) { ContentLibrary(get(), get(), get(), get(AppScope)) }
+    single(createdAtStart = true) { ContentLibrary(get(), get(), get(), get(AppScope), get<AppPaths>().contentPacks) }
     // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
     single { AppProductionRunner(get(), get(AppScope), get()) }
     single<ProductionRunner> { get<AppProductionRunner>() }

@@ -101,6 +101,9 @@ fun StudioRoute(
     onSettings: () -> Unit,
     onModels: () -> Unit,
     announcement: String? = null,
+    library: LibraryHint? = null,
+    onLibrary: () -> Unit = {},
+    onDismissLibrary: () -> Unit = {},
 ) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val readiness by viewModel.readiness.collectAsStateWithLifecycle()
@@ -110,8 +113,11 @@ fun StudioRoute(
         onIdea = { idea -> viewModel.pick(idea.kind) { uri -> onCreate(uri, idea.kind, if (persian) idea.briefFa else idea.briefEn, idea.styleId) } },
         onCompose = { wish -> Idea.kindFor(wish).let { kind -> viewModel.pick(kind) { uri -> onCreate(uri, kind, wish, null) } } },
         onOpen = onOpen, onDelete = onDelete, onGallery = onGallery, onSettings = onSettings, onModels = onModels,
+        onLibrary = onLibrary, onDismissLibrary = onDismissLibrary,
     )
-    StudioScreen(HomeState(projects, readiness, announcement, viewModel.now()), actions)
+    // Suggested only after setup: once the director can work, not while the models are still coming.
+    val ready = readiness.director == HomeReadiness.Director.Ready || readiness.director == HomeReadiness.Director.Cloud
+    StudioScreen(HomeState(projects, readiness, announcement, viewModel.now(), library?.takeIf { ready }), actions)
 }
 
 /**
@@ -147,6 +153,7 @@ private fun PhoneHome(state: HomeState, actions: HomeActions, e: Entrance, modif
             item(key = "top") { TopBar(state.readiness, actions, e) }
             item(key = "hero") { Hero(state, e, Modifier.gutter().padding(top = 22.dp)) }
             item(key = "tiles") { EntryTiles(actions.onNew, e, Modifier.padding(top = 20.dp)) }
+            state.library?.let { hint -> item(key = "library") { LibraryCard(hint, actions.onLibrary, actions.onDismissLibrary, Modifier.gutter().padding(top = 18.dp)) } }
             state.announcement?.takeIf { it.isNotBlank() }?.let { item(key = "note") { Announcement(it, Modifier.gutter().padding(top = 18.dp)) } }
             listSection(state, actions, e)
             item(key = "gallery") { GalleryRow(actions.onGallery, Modifier.gutter().padding(top = 18.dp)) }
@@ -166,6 +173,7 @@ private fun WideHome(state: HomeState, actions: HomeActions, e: Entrance) {
             Column(Modifier.weight(0.95f).fillMaxHeight().verticalScroll(rememberScrollState())) {
                 Hero(state, e, Modifier.gutter().padding(top = 22.dp), size = 64)
                 EntryTiles(actions.onNew, e, Modifier.padding(top = 28.dp))
+                state.library?.let { LibraryCard(it, actions.onLibrary, actions.onDismissLibrary, Modifier.gutter().padding(top = 18.dp)) }
                 state.announcement?.takeIf { it.isNotBlank() }?.let { Announcement(it, Modifier.gutter().padding(top = 18.dp)) }
                 GalleryRow(actions.onGallery, Modifier.gutter().padding(top = 18.dp, bottom = 24.dp))
             }

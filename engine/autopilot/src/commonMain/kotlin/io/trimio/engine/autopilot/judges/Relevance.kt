@@ -45,10 +45,9 @@ internal class Relevance(private val c: Jury.Context) {
         // A name in Latin letters on a Persian piece («Tether» for «تتر») cannot be matched by spelling: the script judge reads those.
         for (text in (listOfNotNull(b.text) + b.items.map { it.removePrefix(">") }).filter { it.isNotBlank() && (!rtl || Bench.persian(it)) }) {
             val content = text.replace(" | ", " ").split(' ').map(Phrases::key).filter { k -> k.length >= 2 && Words.isContent(k) && k !in brief }
-            if (content.isEmpty()) continue
             val hits = content.count { k -> window.any { same(keys[it], k) } }
-            if (hits * 2 >= content.size || hook(p)) continue
-            return Miss(p, text, words.indices.firstOrNull { i -> content.firstOrNull()?.let { same(keys[i], it) } == true })
+            val off = content.isNotEmpty() && hits * 2 < content.size && !hook(p)
+            if (off) return Miss(p, text, words.indices.firstOrNull { i -> content.firstOrNull()?.let { same(keys[i], it) } == true })
         }
         return picture(p, b)
     }
