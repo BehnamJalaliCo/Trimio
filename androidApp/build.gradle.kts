@@ -82,6 +82,9 @@ android {
     packaging {
         // Duplicate licence metadata from the SDK's HTTP dependencies; the licences are in THIRD_PARTY_NOTICES.
         resources.excludes += listOf("META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/*.kotlin_module")
+        // The GPU engine links against the Khronos loader only to build; the phone's own driver serves it.
+        jniLibs.excludes += "**/libOpenCL.so"
+        jniLibs.pickFirsts += "**/libc++_shared.so"
     }
 
     compileOptions {
@@ -96,6 +99,7 @@ kotlin {
 
 dependencies {
     implementation(projects.shared)
+    implementation(projects.androidGpu)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.koin.android)

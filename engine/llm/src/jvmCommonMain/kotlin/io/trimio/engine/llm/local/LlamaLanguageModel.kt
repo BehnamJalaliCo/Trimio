@@ -28,7 +28,7 @@ fun interface LlamaCallback {
 internal object LlamaNative {
     // Initialised before [variant], which reads them while the object initialises.
     private val FILES = listOf("libtrimio_llama.so", "libtrimio_llama.dylib", "trimio_llama.dll")
-    private val GPU_VARIANTS = setOf("vulkan", "cuda", "metal")
+    private val GPU_VARIANTS = setOf("vulkan", "cuda", "metal", "opencl")
     /** Native side: as many layers as the GPU's free memory holds, the rest on the CPU. */
     private const val FITTING_LAYERS = -1
 
@@ -54,6 +54,12 @@ internal object LlamaNative {
             if (runCatching { System.load(file.absolutePath) }.onFailure { failure = it }.isSuccess) return variant
         }
         failure?.takeIf { dir != null }?.let { throw it }
+        // Android: the GPU (OpenCL) engine when the phone has the driver, else the CPU one.
+        if (dir == null && System.getProperty("trimio.llama.gpu") != "off" &&
+            runCatching { System.loadLibrary("trimio_llama_gpu") }.isSuccess
+        ) {
+            return "opencl"
+        }
         System.loadLibrary("trimio_llama")
         return ""
     }

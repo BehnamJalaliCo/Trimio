@@ -50,6 +50,7 @@ rootProject.name = "Trimio"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 include(":androidApp")
+include(":androidGpu")
 include(":shared")
 include(":webApp")
 include(":core:model")

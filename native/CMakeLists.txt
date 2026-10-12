@@ -18,6 +18,10 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(TRIMIO_WHISPER "Build the whisper.cpp speech engine" ON)
 option(TRIMIO_LLAMA "Build the llama.cpp language engine" ON)
+# Android GPU variant (:androidGpu): llama.cpp on the Adreno GPU through OpenCL, as its own library
+# so a phone without OpenCL simply keeps the CPU one (LlamaNative loads the GPU one when it can).
+option(TRIMIO_OPENCL "Build llama.cpp with the OpenCL (Adreno) backend" OFF)
+set(TRIMIO_LLAMA_TARGET "trimio_llama" CACHE STRING "Name of the llama.cpp JNI library")
 
 if(NOT ANDROID)
     find_package(JNI REQUIRED)
@@ -34,6 +38,30 @@ function(trimio_jni_library target)
         target_link_options(${target} PRIVATE "-Wl,--exclude-libs,ALL" "-Wl,--gc-sections")
     endif()
 endfunction()
+
+if(TRIMIO_OPENCL)
+    # Headers and the Khronos loader to link against; at run time the phone's own libOpenCL.so
+    # (the vendor driver, declared with <uses-native-library>) answers, so ours is never packaged.
+    include(FetchContent)
+    FetchContent_Declare(opencl_headers GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-Headers.git GIT_TAG v2025.07.22)
+    FetchContent_Declare(opencl_loader GIT_REPOSITORY https://github.com/KhronosGroup/OpenCL-ICD-Loader.git GIT_TAG v2025.07.22)
+    FetchContent_MakeAvailable(opencl_headers)
+    set(OPENCL_ICD_LOADER_HEADERS_DIR "${opencl_headers_SOURCE_DIR}" CACHE PATH "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(ENABLE_OPENCL_LAYERS OFF CACHE BOOL "" FORCE)
+    # Shared, so the engine needs libOpenCL.so by name and the phone's driver is the one loaded.
+    set(BUILD_SHARED_LIBS ON)
+    FetchContent_MakeAvailable(opencl_loader)
+    set(BUILD_SHARED_LIBS OFF)
+    set_target_properties(OpenCL PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opencl-loader"
+        C_VISIBILITY_PRESET default)
+    # ggml's find_package(OpenCL) then resolves to these instead of searching the NDK.
+    set(OpenCL_INCLUDE_DIR "${opencl_headers_SOURCE_DIR}" CACHE PATH "" FORCE)
+    set(OpenCL_LIBRARY OpenCL CACHE STRING "" FORCE)
+    set(GGML_OPENCL ON CACHE BOOL "" FORCE)
+    set(GGML_OPENCL_USE_ADRENO_KERNELS ON CACHE BOOL "" FORCE)
+    set(GGML_OPENCL_EMBED_KERNELS ON CACHE BOOL "" FORCE)
+endif()
 
 # One ggml for both engines, from llama.cpp (the more recent of the two): whisper.cpp and llama.cpp
 # both skip their own copy when a `ggml` target already exists, so their CMake targets never clash.
@@ -54,9 +82,9 @@ if(TRIMIO_LLAMA)
     set(MTMD_VIDEO OFF CACHE BOOL "" FORCE)
     add_subdirectory(third_party/llama.cpp llama-build EXCLUDE_FROM_ALL)
 
-    add_library(trimio_llama SHARED llama/trimio_llama_jni.cpp)
-    target_link_libraries(trimio_llama PRIVATE llama mtmd)
-    trimio_jni_library(trimio_llama)
+    add_library(${TRIMIO_LLAMA_TARGET} SHARED llama/trimio_llama_jni.cpp)
+    target_link_libraries(${TRIMIO_LLAMA_TARGET} PRIVATE llama mtmd)
+    trimio_jni_library(${TRIMIO_LLAMA_TARGET})
 endif()
 
 if(TRIMIO_WHISPER)
