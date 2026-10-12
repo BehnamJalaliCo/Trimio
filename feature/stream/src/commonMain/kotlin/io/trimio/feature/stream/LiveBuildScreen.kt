@@ -120,7 +120,11 @@ private fun Readout(build: LiveBuild, showFrame: Boolean) {
     }
     TickBar(build.progress, Modifier.padding(top = 18.dp))
     Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-        val frames = if (build.framesTotal > 0) tr("${build.framesDone} از ${build.framesTotal} فریم", "${build.framesDone} of ${build.framesTotal} frames") else stageName(build.stage)
+        val frames = when {
+            build.framesTotal > 0 -> tr("${build.framesDone} از ${build.framesTotal} فریم", "${build.framesDone} of ${build.framesTotal} frames")
+            build.linesTotal > 0 -> tr("خط ${build.linesDone} از ${build.linesTotal}", "line ${build.linesDone} of ${build.linesTotal}")
+            else -> stageName(build.stage)
+        }
         Text(localizedNumber(frames), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted, modifier = Modifier.weight(1f))
         build.etaSeconds?.let { Text(localizedNumber(tr("حدود $it ثانیه", "about $it s")), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted) }
     }

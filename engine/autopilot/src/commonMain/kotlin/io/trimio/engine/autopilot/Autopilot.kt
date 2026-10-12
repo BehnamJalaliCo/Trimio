@@ -15,6 +15,7 @@ import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Subject
 import io.trimio.engine.motion.visual.VectorIcon
 import io.trimio.engine.motion.visual.VisualLibrary
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * One tap: a transcript, the voice and a prompt in; a finished, mastered motion-graphics edit
@@ -117,7 +118,9 @@ class Autopilot(
             "${round1(analysis.duration)}s → ${round1(analysis.edit.duration)}s"
 
         onStage("understand", 0.1f)
-        val understanding = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report)
+        val understanding = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report) { done, total ->
+            onStage("understand $done/$total", UNDERSTAND_FROM + (UNDERSTAND_TO - UNDERSTAND_FROM) * done / total.coerceAtLeast(1))
+        }
         // The director's line-by-line spelling, aligned word for word to what was heard.
         val texts = analysis.transcript.words.map { it.text }
         val lexicon = PersianSpelling.load()
@@ -323,11 +326,18 @@ class Autopilot(
         musicSeed = r.request.seed.toInt(), cues = d.compiled.sfx, levels = levels, arrangement = d.music,
     )
 
-    private suspend fun understand(transcript: Transcript, prompt: String, lines: List<Lines.Line>, seed: Long, report: MutableList<String>): Understanding {
+    private suspend fun understand(
+        transcript: Transcript,
+        prompt: String,
+        lines: List<Lines.Line>,
+        seed: Long,
+        report: MutableList<String>,
+        onLine: (done: Int, total: Int) -> Unit,
+    ): Understanding {
         val m = model ?: return RulesUnderstander.understand(transcript, prompt, lines).also { report += "understand: rules (no model)" }
         // Each model family reads at its own calibrated temperature (engine/models DirectorProfile).
         val temperature = io.trimio.engine.models.DirectorProfile.forModelId(m.id)?.understandingTemperature ?: TEMPERATURE
-        return runCatching { Understander(m).understand(transcript, prompt, lines, seed = seed.toInt(), temperature = temperature) }
+        return runCatching { Understander(m).understand(transcript, prompt, lines, seed = seed.toInt(), temperature = temperature, onLine = onLine, budget = UNDERSTAND_BUDGET) }
             .onFailure { report += "understand: model failed (${it.message}); rules instead" }
             .getOrElse { RulesUnderstander.understand(transcript, prompt, lines) }
             .also { report += "understand: ${m.id}" }
@@ -387,6 +397,11 @@ class Autopilot(
 
     private companion object {
         const val CRITIC_PASSES = 2
+
+        /** Line reading by the model at most this long; the rules read the rest (a slow device still ends). */
+        val UNDERSTAND_BUDGET = 8.minutes
+        const val UNDERSTAND_FROM = 0.1f
+        const val UNDERSTAND_TO = 0.45f
 
         /** All online look-ups of one edit together. */
         const val RESEARCH_MS = 20_000L

@@ -75,6 +75,9 @@ data class LiveBuild(
     val previews: List<ImageBitmap> = emptyList(),
     val framesDone: Int = 0,
     val framesTotal: Int = 0,
+    /** Lines the director has read so far while understanding (0 of 0 outside that stage). */
+    val linesDone: Int = 0,
+    val linesTotal: Int = 0,
     val etaSeconds: Int? = null,
     /** What the director is doing now, in its voice ("«پنج درصد» را با شمارندهٔ عدد…"). */
     val directorNote: String? = null,

@@ -6,6 +6,9 @@ import io.trimio.engine.llm.ChatRole
 import io.trimio.engine.llm.GenerationRequest
 import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.llm.generateStructured
+import kotlin.time.Duration
+import kotlin.time.TimeSource
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -21,7 +24,7 @@ class Understander(private val model: LanguageModel) {
 
     /**
      * Two kinds of question, each small enough for a 4B model to answer well: one about the whole
-     * piece (brief, names, hook, call to action), then one per line about that line alone, with its
+     * piece (brief, names, hook, call to action), then a few lines at a time, each read about its line alone, with its
      * neighbours for context. A small model asked about every line at once loses its place.
      */
     suspend fun understand(
@@ -30,6 +33,8 @@ class Understander(private val model: LanguageModel) {
         lines: List<Lines.Line> = Lines.split(transcript.words),
         seed: Int = 0,
         temperature: Float = 0.3f,
+        onLine: (done: Int, total: Int) -> Unit = { _, _ -> },
+        budget: Duration? = null,
         onText: (String) -> Unit = {},
     ): Understanding {
         val global = model.generateStructured(
@@ -40,16 +45,27 @@ class Understander(private val model: LanguageModel) {
             Understanding.serializer(), onText = onText,
         )
         val g = sanitize(global, transcript.words.size, lines.size)
-        val reads = lines.indices.map { k ->
-            runCatching {
-                model.generateStructured(
-                    GenerationRequest(
-                        system = LINE_SYSTEM, messages = listOf(ChatMessage(ChatRole.User, lineMessage(transcript, prompt, lines, k, g))),
-                        schema = lineSchema, maxTokens = 320, temperature = temperature, seed = seed + k,
-                    ),
-                    LineRead.serializer(), onText = onText,
-                )
-            }.getOrElse { LineRead(show = "none") }
+        // Lines in small groups: one reply reads GROUP lines (each about itself), so a long video costs
+        // a third of the calls. Past [budget] the rest are read by the rules, so a slow device ends.
+        val clock = TimeSource.Monotonic.markNow()
+        val rules by lazy { RulesUnderstander.understand(transcript, prompt, lines).lines }
+        val reads = mutableListOf<LineRead>()
+        for (group in lines.indices.chunked(GROUP)) {
+            if (budget != null && clock.elapsedNow() > budget) {
+                group.forEach { k -> reads += rules.getOrNull(k) ?: LineRead(show = "none") }
+            } else {
+                val got = runCatching {
+                    model.generateStructured(
+                        GenerationRequest(
+                            system = LINES_SYSTEM, messages = listOf(ChatMessage(ChatRole.User, linesMessage(transcript, prompt, lines, group, g))),
+                            schema = linesSchema(group.size), maxTokens = LINE_TOKENS * group.size, temperature = temperature, seed = seed + group.first(),
+                        ),
+                        LineReads.serializer(), onText = onText,
+                    ).reads
+                }.getOrDefault(emptyList())
+                group.forEachIndexed { i, k -> reads += got.getOrNull(i) ?: rules.getOrNull(k) ?: LineRead(show = "none") }
+            }
+            onLine(reads.size, lines.size)
         }
         return sanitize(g.copy(lines = reads), transcript.words.size, lines.size)
     }
@@ -80,23 +96,44 @@ class Understander(private val model: LanguageModel) {
             visual: English picture query or "". energy: 0 calm to 1 explosive.
         """.trimIndent()
 
+        /** [LINE_SYSTEM] for a few numbered lines at once: one read per line, in order. */
+        val LINES_SYSTEM = LINE_SYSTEM.replaceFirst(
+            "You are a motion designer deciding how to picture ONE line of a talking video. Answer about that LINE only, never about other lines.",
+            "You are a motion designer deciding how to picture the numbered LINES of a talking video. Answer with one read per LINE, in the same order; " +
+                "each read is about its own LINE only, never about the others. In each read, \"the LINE\" means that read's line.",
+        )
+
+        fun linesMessage(transcript: Transcript, prompt: String, lines: List<Lines.Line>, group: List<Int>, g: Understanding): String = buildString {
+            val words = transcript.words
+            append("Brief: ").append(prompt.trim().take(BRIEF_CHARS).ifEmpty { "(none)" }).append('\n')
+            append("Video: ").append(g.title).append(" (").append(g.topic).append(", ").append(g.domain).append(")\n")
+            lines.getOrNull(group.first() - 1)?.let { append("Previous line: ").append(words.textOf(it.range)).append('\n') }
+            append("\nLINES (").append(group.size).append("):\n")
+            group.forEachIndexed { i, k ->
+                append(i + 1).append(": ").append(words.textOf(lines[k].range)).append('\n')
+                val names = g.entities.filter { it.at in lines[k].range }.map { it.name }
+                if (names.isNotEmpty()) append("   names in this line: ").append(names.joinToString(", ")).append('\n')
+                if (k == lines.lastIndex && g.cta != null) append("   this is the last line; the call to action keyword is: ").append(g.cta.keyword).append('\n')
+            }
+        }
+
+        fun linesSchema(n: Int): JsonObject = buildJsonObject {
+            put("type", "object")
+            put("properties", buildJsonObject {
+                put("reads", buildJsonObject { put("type", "array"); put("items", lineSchema); put("minItems", n); put("maxItems", n) })
+            })
+        }
+
+        /** Lines per call, and the reply budget per line. */
+        private const val GROUP = 3
+        private const val LINE_TOKENS = 320
+
         fun userMessage(transcript: Transcript, prompt: String, lines: List<Lines.Line>): String = buildString {
             append("Brief:\n").append(prompt.trim().ifEmpty { "(none: decide everything)" }).append("\n\n")
             append("Words:\n")
             transcript.words.forEachIndexed { i, w -> append(i).append(':').append(w.text).append(' ') }
             append("\n\nLines (").append(lines.size).append("):\n")
             lines.forEachIndexed { k, l -> append(k).append(": ").append(transcript.words.textOf(l.range)).append('\n') }
-        }
-
-        fun lineMessage(transcript: Transcript, prompt: String, lines: List<Lines.Line>, k: Int, g: Understanding): String = buildString {
-            val words = transcript.words
-            append("Brief: ").append(prompt.trim().take(BRIEF_CHARS).ifEmpty { "(none)" }).append('\n')
-            append("Video: ").append(g.title).append(" (").append(g.topic).append(", ").append(g.domain).append(")\n")
-            lines.getOrNull(k - 1)?.let { append("Previous line: ").append(words.textOf(it.range)).append('\n') }
-            append("\nLINE: ").append(words.textOf(lines[k].range)).append('\n')
-            val names = g.entities.filter { it.at in lines[k].range }.map { it.name }
-            if (names.isNotEmpty()) append("Names in this line: ").append(names.joinToString(", ")).append('\n')
-            if (k == lines.lastIndex && g.cta != null) append("This is the last line; the call to action keyword is: ").append(g.cta.keyword).append('\n')
         }
 
         private fun str(max: Int) = buildJsonObject { put("type", "string"); put("maxLength", max) }
@@ -159,3 +196,7 @@ class Understander(private val model: LanguageModel) {
         }
     }
 }
+
+/** A group of line reads, in the order of the lines asked about. */
+@Serializable
+data class LineReads(val reads: List<LineRead> = emptyList())

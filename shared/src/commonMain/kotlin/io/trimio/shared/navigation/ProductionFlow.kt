@@ -101,13 +101,20 @@ object ProductionUi {
         return m.groupValues[1].toInt() to m.groupValues[2].toInt()
     }
 
+    /** "understand 12/48" → (12, 48): lines the director has read. */
+    fun lines(step: String): Pair<Int, Int>? {
+        val m = UNDERSTAND.find(step) ?: return null
+        return m.groupValues[1].toInt() to m.groupValues[2].toInt()
+    }
+
     fun live(s: ProductionState, styleName: String?, seconds: Map<BuildStage, Float>, elapsed: Float, persian: Boolean): LiveBuild {
         val stage = stage(s)
         val (done, total) = frames(s.step) ?: (0 to 0)
+        val (read, lines) = lines(s.step) ?: (0 to 0)
         val eta = if (s.progress > MIN_PROGRESS_FOR_ETA) (elapsed * (1 - s.progress) / s.progress).toInt().coerceAtLeast(1) else null
         return LiveBuild(
             styleName = styleName, progress = s.progress, stage = stage, stageSeconds = seconds, previews = s.previews,
-            framesDone = done, framesTotal = total, etaSeconds = eta,
+            framesDone = done, framesTotal = total, linesDone = read, linesTotal = lines, etaSeconds = eta,
             directorNote = s.report.lastOrNull()?.takeIf { stage >= BuildStage.Jury } ?: note(stage, persian),
             judges = judges(s),
         )
@@ -147,6 +154,7 @@ object ProductionUi {
     }
 
     private val RENDER = Regex("render (\\d+)/(\\d+)")
+    private val UNDERSTAND = Regex("understand (\\d+)/(\\d+)")
     private const val MIN_PROGRESS_FOR_ETA = 0.05f
     private const val TITLE_LENGTH = 48
     private const val MS = 1000f
