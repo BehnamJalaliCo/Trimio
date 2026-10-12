@@ -337,7 +337,15 @@ class Autopilot(
     private suspend fun research(u: Understanding, report: MutableList<String>, sites: List<String> = emptyList()): Map<String, BrandLibrary.Entry> {
         val wanted = (u.entities.filter { it.kind in BRAND_KINDS }.map { it.name } + u.lines.flatMap { it.items } + sites)
             .filter { n -> n.any { it in 'A'..'Z' || it in 'a'..'z' } }.distinctBy { BrandLibrary.key(it) }
-        val found = wanted.filter { brands.find(it)?.isMonogram != false }.mapNotNull { name -> knowledge.brand(name)?.let { BrandLibrary.key(name) to it } }
+        // Online look-ups never hold the edit up: a slow or filtered connection gets RESEARCH_MS in all,
+        // and whatever arrived by then is used (the bundled pack draws the rest).
+        val found = mutableListOf<Pair<String, BrandLibrary.Entry>>()
+        val complete = kotlinx.coroutines.withTimeoutOrNull(RESEARCH_MS) {
+            for (name in wanted.filter { brands.find(it)?.isMonogram != false }) {
+                knowledge.brand(name)?.let { found += BrandLibrary.key(name) to it }
+            }
+        }
+        if (complete == null) report += "research: stopped after ${RESEARCH_MS / MS_PER_S} s (slow network); bundled marks instead"
         found.forEach { (k, e) -> report += "research: mark for ${e.t} ($k) from Simple Icons" }
         return found.associate { (k, e) -> k to e.copy(a = e.a + k) }
     }
@@ -379,6 +387,10 @@ class Autopilot(
 
     private companion object {
         const val CRITIC_PASSES = 2
+
+        /** All online look-ups of one edit together. */
+        const val RESEARCH_MS = 20_000L
+        const val MS_PER_S = 1000L
         const val COLD_OPEN_GAP = 0.25f
         const val TEMPERATURE = 0.3f
         /** Variation k of seed s is seed s × 1000 + k: far from the next seeds a creator asks for. */

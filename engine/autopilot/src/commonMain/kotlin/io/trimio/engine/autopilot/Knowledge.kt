@@ -69,10 +69,13 @@ class WebKnowledge(
 
     private suspend fun fetch(url: String): String? {
         cache.get(url)?.let { return it.ifEmpty { null } }
+        // One request may not hang (DNS on a filtered network has no timeout of its own).
         val text = runCatching {
-            val r = http.get(url) { header("User-Agent", "Trimio/1.0 (video editor)") }
-            if (r.status.isSuccess()) r.bodyAsText() else ""
-        }.getOrNull() ?: return null // network errors are not cached
+            kotlinx.coroutines.withTimeout(FETCH_MS) {
+                val r = http.get(url) { header("User-Agent", "Trimio/1.0 (video editor)") }
+                if (r.status.isSuccess()) r.bodyAsText() else ""
+            }
+        }.getOrNull() ?: return null // network errors and timeouts are not cached
         cache.put(url, text)
         return text.ifEmpty { null }
     }
@@ -145,6 +148,8 @@ class WebKnowledge(
     private class NoAnswer : RuntimeException()
 
     private companion object {
+        /** One web request at most (DNS on a filtered network has no timeout of its own). */
+        const val FETCH_MS = 6_000L
         const val SIMPLE_ICONS = "https://cdn.jsdelivr.net/npm/simple-icons@13.21.0"
         const val ICONIFY = "https://api.iconify.design"
         const val COINGECKO = "https://api.coingecko.com/api/v3"
