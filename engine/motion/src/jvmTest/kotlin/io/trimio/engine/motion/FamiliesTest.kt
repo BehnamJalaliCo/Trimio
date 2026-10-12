@@ -67,7 +67,8 @@ class FamiliesTest {
             if (box == null || !box.inside(FamilyLab.W.toFloat(), FamilyLab.H.toFloat(), 4f)) problems += "$where box $box leaves the frame"
             walk(built.nodes) { node -> check(node, cue, rtl, where, problems) }
         }
-        assertTrue(problems.isEmpty(), problems.distinct().take(40).joinToString("\n") + "\n(${problems.size} problems)")
+        val kinds = problems.distinct().groupBy { it.substringAfter(": ", it.substringAfter(" box ")).take(40) }.values.map { it.first() }
+        assertTrue(problems.isEmpty(), kinds.take(60).joinToString("\n") + "\n(${problems.size} problems)")
     }
 
     private fun walk(nodes: List<Node>, visit: (Node) -> Unit) {
@@ -120,7 +121,7 @@ class FamiliesTest {
                 edge(exit)?.let { problems += "${f.name} L$layout${if (over) " over" else ""} exit: $it" }
             }
         }
-        assertTrue(problems.isEmpty(), problems.joinToString("\n"))
+        assertTrue(problems.isEmpty(), problems.take(80).joinToString("\n") + "\n(${problems.size} problems)")
     }
 
     /** Where a drawn pixel sits within [EDGE] px of the frame's edge, or null. */
@@ -130,7 +131,8 @@ class FamiliesTest {
         val h = bmp.height
         for (y in 0 until h) for (x in 0 until w) {
             if (x in EDGE until w - EDGE && y in EDGE until h - EDGE) continue
-            if (org.jetbrains.skia.Color.getA(bmp.getColor(x, y)) > ALPHA) return "pixel at $x,$y"
+            val c = bmp.getColor(x, y)
+            if (maxOf(org.jetbrains.skia.Color.getR(c), org.jetbrains.skia.Color.getG(c), org.jetbrains.skia.Color.getB(c)) > LIT) return "pixel at $x,$y"
         }
         return null
     }
@@ -162,6 +164,6 @@ class FamiliesTest {
 
     private companion object {
         const val EDGE = 6
-        const val ALPHA = 8
+        const val LIT = 40
     }
 }

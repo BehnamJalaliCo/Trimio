@@ -74,7 +74,9 @@ abstract class Family(name: String, val moves: List<Move>, final override val la
     override fun variantWeights(look: Look, cue: Cue): List<Float> =
         List(variants) { v -> layoutWeight(look, cue, v % layouts) * Kit.moveWeight(look, moves[v / layouts]) }
 
-    final override fun build(cue: Cue, look: Look, fit: Fitter): Built = compose(cue, look, fit, Kit.plan(this, cue, look))
+    /** Built in its treatment; a signature cut that does not say where it landed reports its slot. */
+    final override fun build(cue: Cue, look: Look, fit: Fitter): Built =
+        compose(cue, look, fit, Kit.plan(this, cue, look)).let { if (it.box == null && it.nodes.isNotEmpty()) it.copy(box = Box.around(cue.x, cue.y, cue.width, cue.height)) else it }
 
     abstract fun compose(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan): Built
 }

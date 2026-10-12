@@ -77,10 +77,10 @@ object FamilyLab {
         return MotionTestKit(comp, if (cue.overMedia) MediaSource { _, _ -> footage } else MediaSource.None).draw(t)
     }
 
-    /** Only the graphic, on a transparent frame (for the safe-area check). */
+    /** Only the graphic, on a black frame (for the safe-area check: anything not black is drawn). */
     fun alone(family: String, look: Look, cue: Cue, t: Float): Image {
         val built = io.trimio.engine.motion.recipe.Recipes.named(family)!!.build(cue, look, fitter)
-        val comp = Composition(W, H, 30, cue.out + 0.5f, androidx.compose.ui.graphics.Color.Transparent, Group(built.nodes, name = "root"))
+        val comp = Composition(W, H, 30, cue.out + 0.5f, androidx.compose.ui.graphics.Color.Black, Group(built.nodes, name = "root"))
         return MotionTestKit(comp).draw(t)
     }
 

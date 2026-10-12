@@ -109,7 +109,7 @@ object ThingFamilies {
         /** One banner at a time: each slides in from the top of the slot and the next replaces it. */
         private fun banners(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, items: List<String>): Built {
             val b = Kit.box(cue, cue.width, minOf(cue.height, cue.width * 0.3f))
-            val times = items.indices.map { Kit.itemAt(cue, it, p.at, 1.1f) }
+            val times = items.indices.map { Kit.itemAt(cue, it, p.at, 1.3f) }
             val nodes = items.indices.map { i ->
                 val t0 = times[i]
                 val gone = times.getOrNull(i + 1)
