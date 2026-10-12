@@ -735,6 +735,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** A sticker of the most concrete thing the line names, if the vocabulary has one. */
         private fun pictureFor(line: Lines.Line, read: LineRead): BeatScore? {
+            // A picture is one option among every device: never two in a row, never more than a third of the graphics.
+            val pictures = usedRecipes.count { it in PICTURE_FAMILY }
+            if (usedRecipes.lastOrNull() in PICTURE_FAMILY || (pictures + 1) * PICTURE_SHARE > usedRecipes.size + 1) return null
             val entity = u.entities.firstOrNull { it.at in line.range && Rhythm.isPicture(it.visual) && it.kind in Rhythm.PICTURED && it.visual !in usedVisuals }
             if (entity != null) return BeatScore(recipe = "object", at = entity.at, visual = entity.visual, hold = 1.8f, place = "top").also { usedVisuals += entity.visual }
             // The line's own picture, when it names something concrete (a short noun phrase).
@@ -873,6 +876,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         const val EARLIEST_TAKEOVER_MS = 3500L
         const val MIN_NODES = 7
         const val PICTURE_CHANCE = 0.7f
+        /** Pictures, stickers and animated reactions: one family, at most one graphic in [PICTURE_SHARE]. */
+        val PICTURE_FAMILY = setOf("object", "objects", "icon", "animated", "live-reaction")
+        const val PICTURE_SHARE = 3
         const val MAX_NODES = 9
 
         val GROWTH = setOf("رشد", "سود", "افزایش", "بیشتر", "up", "growth", "more", "increase")

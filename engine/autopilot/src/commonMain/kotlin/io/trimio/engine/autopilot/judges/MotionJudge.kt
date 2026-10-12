@@ -82,10 +82,26 @@ class MotionJudge(
         val top = counts.maxBy { it.value }
         // A longer piece earns more devices: a third of its graphics, between three and six.
         val kinds = (graphics.size / KINDS_PER).coerceIn(MIN_KINDS, MAX_KINDS)
+        // Families (titles, figures, pictures, cards…): no one kind of element carries the piece.
+        val families = graphics.groupingBy { family(it.recipe) }.eachCount()
+        val big = families.maxBy { it.value }
+        val share = big.value / graphics.size.toFloat()
         return listOfNotNull(
+            Bench.finding(0f, if (share > HEAVY_FAMILY) Severity.Major else Severity.Minor, "${big.key} are ${big.value} of ${graphics.size} graphics", "mix in other kinds of element")
+                .takeIf { share > MAX_FAMILY },
             Bench.finding(0f, Severity.Minor, "only ${counts.size} treatments over ${graphics.size} graphics", "vary the treatments").takeIf { counts.size < kinds },
             Bench.finding(0f, Severity.Minor, "${top.key} is ${top.value} of ${graphics.size} graphics", "vary the treatments").takeIf { top.value > graphics.size * MAX_SHARE },
         )
+    }
+
+    /** The kind of element a recipe is: titles, figures, pictures, names, cards, the ask. */
+    private fun family(recipe: String): String = when (recipe) {
+        in Bench.TEXT, "stamp" -> "titles"
+        in FIGURE_FAMILY -> "figures"
+        in PICTURE_FAMILY -> "pictures"
+        "logos", "logo-mark", "chips" -> "names"
+        "comment", "endcard" -> "asks"
+        else -> recipe
     }
 
     override fun revise(c: Jury.Context, verdict: Verdict): Score? {
@@ -148,6 +164,10 @@ class MotionJudge(
         const val MAX_KINDS = 6
         const val KINDS_PER = 3
         const val MAX_SHARE = 0.4f
+        const val MAX_FAMILY = 0.5f
+        const val HEAVY_FAMILY = 0.65f
+        val FIGURE_FAMILY = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag")
+        val PICTURE_FAMILY = setOf("object", "objects", "icon", "animated", "live-reaction")
         /** The ask and a thread run on as one story; every other device twice running reads as a loop. */
         val REPEATABLE = setOf("comment", "message")
     }
