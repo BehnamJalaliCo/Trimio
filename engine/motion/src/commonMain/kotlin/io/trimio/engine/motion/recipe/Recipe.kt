@@ -19,6 +19,18 @@ abstract class Recipe(val name: String, val kind: Kind) {
     /** Seconds the choreography needs to play out and be read. */
     open val minHold: Float = 0f
 
+    /**
+     * Treatments of the same device (layouts, choreographies, materials): the compiler picks one
+     * per beat ([Variety]) and hands it over as [Cue.variant]; 0 is the recipe's signature form.
+     */
+    open val variants: Int = 1
+
+    /**
+     * How much the look wants each treatment (a Swiss look never takes a pill, a glass look
+     * prefers its frosted card); zero rules one out. One weight per variant.
+     */
+    open fun variantWeights(look: Look, cue: Cue): List<Float> = List(variants) { 1f }
+
     abstract fun build(cue: Cue, look: Look, fit: Fitter): Built
 }
 
@@ -69,6 +81,13 @@ data class Cue(
     /** The frame, in px: a full-frame cut-in fills it whatever slot it was given. */
     val frameWidth: Float = 0f,
     val frameHeight: Float = 0f,
+    /** Which of the recipe's treatments ([Recipe.variants]) to build; 0 is its signature form. */
+    val variant: Int = 0,
+    /**
+     * The edit's variety seed ([io.trimio.engine.motion.score.Score.variety]): 0 keeps every
+     * finishing touch in its signature form, any other value lets them vary ([Variety.touch]).
+     */
+    val variety: Int = 0,
 ) {
     val duration: Float get() = out - at
     val words: List<String> get() = text.split(' ').filter { it.isNotEmpty() }

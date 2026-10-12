@@ -33,6 +33,7 @@ import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.Stages
 import io.trimio.engine.motion.recipe.SfxKind
 import io.trimio.engine.motion.recipe.TextRecipes
+import io.trimio.engine.motion.recipe.Variety
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -69,6 +70,8 @@ class Compiler(
         val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f,
         /** Drawn over the speaker's footage (not on a full-frame stage). */
         val overFootage: Boolean = false,
+        /** Which treatment of the recipe was built ([Recipe.variants]). */
+        val variant: Int = 0,
     )
 
     data class Output(val composition: Composition, val sfx: List<Sfx>, val beats: List<Placed>, val notes: List<String>)
@@ -194,7 +197,7 @@ class Compiler(
                 val c = it.cue
                 Placed(
                     it.recipe.name, it.zone.name.lowercase(), c.at, it.out, c.text,
-                    c.x - c.width / 2f, c.y - c.height / 2f, c.x + c.width / 2f, c.y + c.height / 2f, c.overMedia,
+                    c.x - c.width / 2f, c.y - c.height / 2f, c.x + c.width / 2f, c.y + c.height / 2f, c.overMedia, c.variant,
                 )
             }
             return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes)
@@ -238,9 +241,25 @@ class Compiler(
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items, itemTimes = b.items.map { item -> locate(item.removePrefix(">"), norm, range)?.let { start(it.first) } },
                 rtl = rtlOf(beatText, b.label), seed = id * 7 + 3,
-                media = b.media, aspect = b.aspect ?: 1f, frameWidth = w.toFloat(), frameHeight = h.toFloat(),
+                media = b.media, aspect = b.aspect ?: 1f, frameWidth = w.toFloat(), frameHeight = h.toFloat(), variety = score.variety,
             )
-            return Beat(id, recipe, pictured(cue, b), zone, k, minOut)
+            return Beat(id, recipe, treated(recipe, pictured(cue, b), b, id), zone, k, minOut)
+        }
+
+        /** The last treatment each recipe got: the same device twice in a row takes another form. */
+        private val lastVariant = mutableMapOf<String, Int>()
+
+        /** The beat's treatment ([Variety]): the score's wish, else the edit's variety over what it says. */
+        private fun treated(recipe: Recipe, cue: Cue, b: BeatScore, id: Int): Cue {
+            val salt = Variety.salt(cue.text, b.label, b.items) * 31 + id
+            var v = Variety.pick(recipe, look, cue, score.variety, b.variant, salt)
+            if (b.variant == null && score.variety != 0 && lastVariant[recipe.name] == v) {
+                // Never the same form twice running: the next form the look allows.
+                val weights = recipe.variantWeights(look, cue)
+                v = (1 until recipe.variants).map { (v + it) % recipe.variants }.firstOrNull { weights.getOrElse(it) { 1f } > 0f } ?: v
+            }
+            lastVariant[recipe.name] = v
+            return cue.copy(variant = v)
         }
 
         /**
@@ -455,7 +474,7 @@ class Compiler(
             val cue = Cue(
                 text = clean(lineWords.joinToString(" ")), at = at, out = end, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = 0.5f, emphasis = setOfNotNull(strong), wordTimes = line.map { it.range.startMs / 1000f },
-                overMedia = over, rtl = lineWords.any(::isRtl), seed = i,
+                overMedia = over, rtl = lineWords.any(::isRtl), seed = i, variety = score.variety,
             )
             out += Beat(CAPTION_ID_BASE + i, recipe, cue, zone, -1, end)
         }

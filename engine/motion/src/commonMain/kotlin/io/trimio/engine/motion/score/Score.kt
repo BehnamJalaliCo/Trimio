@@ -33,6 +33,11 @@ data class Score(
     val scenes: List<SceneScore> = emptyList(),
     /** Fill empty scenes with automatic direction (numbers, keywords, emphasis). */
     val auto: Boolean = true,
+    /**
+     * The edit's variety seed: which treatment each device takes (layout, choreography, material;
+     * see [io.trimio.engine.motion.recipe.Variety]). 0 keeps every device in its signature form.
+     */
+    val variety: Int = 0,
 ) {
     companion object {
         private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true; explicitNulls = false }
@@ -113,4 +118,6 @@ data class BeatScore(
     val aspect: Float? = null,
     /** A brand whose mark the beat shows beside it (a site's mark in its address bar). */
     val brand: String? = null,
+    /** Which treatment of the recipe to build (its layout and choreography); null lets the score's variety pick. */
+    val variant: Int? = null,
 )
