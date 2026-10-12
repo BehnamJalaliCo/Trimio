@@ -171,11 +171,29 @@ int block_count(const std::string & path) {
  * GPU, less a reserve for the context and compute buffers, over the size of one layer. The rest
  * runs on the CPU from RAM, so a 9B or 35B model works on any graphics card, fast where it fits.
  */
-int fitting_layers(const std::string & path, int n_ctx) {
-    size_t best = 0;
+/**
+ * The GPUs the model runs on: the dedicated ones when there are any (a laptop's integrated GPU
+ * would otherwise take a share of the layers, from system memory, and slow the dedicated one
+ * down), else the integrated ones. Null-terminated, as llama_model_params.devices wants.
+ */
+std::vector<ggml_backend_dev_t> gpus() {
+    std::vector<ggml_backend_dev_t> dedicated;
+    std::vector<ggml_backend_dev_t> integrated;
     for (size_t i = 0; i < ggml_backend_dev_count(); i++) {
         ggml_backend_dev_t dev = ggml_backend_dev_get(i);
-        if (ggml_backend_dev_type(dev) != GGML_BACKEND_DEVICE_TYPE_GPU) continue;
+        const auto type = ggml_backend_dev_type(dev);
+        if (type == GGML_BACKEND_DEVICE_TYPE_GPU) dedicated.push_back(dev);
+        if (type == GGML_BACKEND_DEVICE_TYPE_IGPU) integrated.push_back(dev);
+    }
+    std::vector<ggml_backend_dev_t> chosen = dedicated.empty() ? integrated : dedicated;
+    if (!chosen.empty()) chosen.push_back(nullptr);
+    return chosen;
+}
+
+int fitting_layers(const std::string & path, int n_ctx, const std::vector<ggml_backend_dev_t> & devices) {
+    size_t best = 0;
+    for (ggml_backend_dev_t dev : devices) {
+        if (dev == nullptr) continue;
         size_t free = 0;
         size_t total = 0;
         ggml_backend_dev_memory(dev, &free, &total);
@@ -185,8 +203,11 @@ int fitting_layers(const std::string & path, int n_ctx) {
     std::error_code error;
     const auto bytes = std::filesystem::file_size(path, error);
     if (best == 0 || blocks <= 0 || error) return 0;
-    const size_t layer = bytes / static_cast<size_t>(blocks + 1);
-    const size_t reserve = (size_t(1) << 30) + static_cast<size_t>(n_ctx) * (size_t(160) << 10);
+    // A layer on the GPU brings its weights and its share of the context cache; the compute
+    // buffers are a fixed reserve. (Cache per token: a generous 160 KB for the whole model.)
+    const size_t layer = bytes / static_cast<size_t>(blocks + 1)
+        + static_cast<size_t>(n_ctx) * (size_t(160) << 10) / static_cast<size_t>(blocks);
+    const size_t reserve = size_t(768) << 20;
     if (best <= reserve + layer) return 0;
     return std::min(blocks + 1, static_cast<int>((best - reserve) / layer));
 }
@@ -206,7 +227,9 @@ Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring 
     const std::string path = to_string(env, jpath);
 
     llama_model_params mp = llama_model_default_params();
-    mp.n_gpu_layers = gpu_layers < 0 ? fitting_layers(path, n_ctx) : gpu_layers;
+    std::vector<ggml_backend_dev_t> devices = gpus();
+    if (!devices.empty()) mp.devices = devices.data();
+    mp.n_gpu_layers = gpu_layers < 0 ? fitting_layers(path, n_ctx, devices) : gpu_layers;
     llama_model * model = llama_model_load_from_file(path.c_str(), mp);
     // A GPU that runs out of memory (or a driver that fails) leaves the model to the CPU.
     if (model == nullptr && mp.n_gpu_layers > 0) {

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "whisper.h"
+#include "ggml-backend.h"
 
 namespace {
 
@@ -92,6 +93,20 @@ std::string to_string(JNIEnv * env, jstring s) {
     return out;
 }
 
+/**
+ * whisper.cpp's gpu_device counts GPUs and integrated GPUs together, in system order; a laptop
+ * lists its integrated one first. The index of the first dedicated GPU, or 0 when there is none.
+ */
+int dedicated_gpu() {
+    int index = 0;
+    for (size_t i = 0; i < ggml_backend_dev_count(); i++) {
+        const auto type = ggml_backend_dev_type(ggml_backend_dev_get(i));
+        if (type == GGML_BACKEND_DEVICE_TYPE_GPU) return index;
+        if (type == GGML_BACKEND_DEVICE_TYPE_IGPU) index++;
+    }
+    return 0;
+}
+
 }  // namespace
 
 extern "C" {
@@ -100,6 +115,7 @@ JNIEXPORT jlong JNICALL
 Java_io_trimio_engine_asr_whisper_WhisperNative_init(JNIEnv * env, jobject, jstring modelPath, jboolean useGpu, jboolean flashAttention) {
     whisper_context_params params = whisper_context_default_params();
     params.use_gpu = useGpu == JNI_TRUE;
+    params.gpu_device = dedicated_gpu();
     params.flash_attn = flashAttention == JNI_TRUE;
     const std::string path = to_string(env, modelPath);
     whisper_context * ctx = whisper_init_from_file_with_params(path.c_str(), params);
