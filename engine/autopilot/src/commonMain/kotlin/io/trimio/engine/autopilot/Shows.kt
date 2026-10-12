@@ -29,6 +29,7 @@ internal class Shows(
      * when the line allows one and the seed takes it; else [b] itself.
      */
     fun vary(b: BeatScore, texts: List<String>, line: Lines.Line, read: LineRead, sense: Quantities.Sense, takeover: Boolean): BeatScore {
+        if (!enabled) return b
         val norm = line.range.map { NumberWords.normalize(texts[it]).trimEnd('.', '،', ',', '!', '?', '؟') }
         val options = options(b, texts, line, norm, read, sense, takeover)
         val fresh = options.filter { (beat, _) -> beat.recipe !in used.takeLast(RECENT) }.ifEmpty { options }
@@ -141,6 +142,7 @@ internal class Shows(
 
     /** How the one strong word of each caption line is marked: the style's marks, the hand-drawn ones as rarer options. */
     fun captionMark(style: StyleLanguage): String? {
+        if (!enabled) return null
         val marks = style.captions.marks.toList() + HAND.map { it to HAND_WEIGHT }
         return rng.weighted(marks.map { (m, w) -> m to w })
     }
@@ -159,7 +161,10 @@ internal class Shows(
         val DATA = setOf("ranking", "timeline", "steps", "versus", "pros-cons", "before-after", "stat-stack", "ring", "social-proof", "price-tag", "candles", "order", "tape", "poll", "receipt")
 
         /** The edit's variety seed (never 0, which keeps every device in its signature form). */
-        fun variety(seed: Long): Int = (seed xor (seed ushr 32)).toInt().let { it * -0x61c88647 + 0x2545F491 }.let { if (it == 0) 1 else it }
+        /** Off for an A/B of the jury with every device in its signature form (tests only). */
+        var enabled = true
+
+        fun variety(seed: Long): Int = if (!enabled) 0 else (seed xor (seed ushr 32)).toInt().let { it * -0x61c88647 + 0x2545F491 }.let { if (it == 0) 1 else it }
 
         private const val RECENT = 2
         private const val LOUD = 0.6f

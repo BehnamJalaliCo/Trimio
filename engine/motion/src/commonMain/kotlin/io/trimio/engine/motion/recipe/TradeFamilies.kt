@@ -542,7 +542,7 @@ object TradeFamilies {
         private fun price(v: Float, cue: Cue) = cue.prefix + Kit.format(v, cue.decimals, false) + cue.suffix
 
         private fun ticket(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan): Built {
-            val b = Kit.box(cue, cue.width * 0.86f, minOf(cue.height, cue.width * 0.62f))
+            val b = Kit.box(cue, cue.width * 0.86f, minOf(cue.height, cue.width * 0.72f))
             val s = Kit.surface(look, cue)
             val ink = Kit.inkOn(look, s.ground)
             val buy = buying(cue)
@@ -571,8 +571,8 @@ object TradeFamilies {
                 val y = headY + chipH / 2f + pad * 0.8f + rowH * (i + 0.5f)
                 val t0 = p.at + 0.35f + i * 0.12f
                 if (i > 0) nodes += Kit.line(b.left + pad, y - rowH / 2f, b.right - pad, y - rowH / 2f, Kit.quiet(look, s.ground).copy(alpha = 0.25f), 2f, t0, 0.3f, "order-rule")
-                val lf = Kit.fit(fit, r.first, look.body.copy(weight = maxOf(look.body.weight, 600)), rowH * 0.42f, b.width * 0.4f, rowH * 0.8f)
-                val vf = Kit.fit(fit, r.second, Kit.numberVoice(look, Typo.Data), rowH * 0.46f, b.width * 0.5f, rowH * 0.8f)
+                val lf = Kit.fit(fit, r.first, look.body.copy(weight = maxOf(look.body.weight, 600)), rowH * 0.48f, b.width * 0.4f, rowH * 0.8f)
+                val vf = Kit.fit(fit, r.second, Kit.numberVoice(look, Typo.Data), rowH * 0.52f, b.width * 0.5f, rowH * 0.8f)
                 nodes += Kit.words(r.first, lf, Kit.quiet(look, s.ground), Kit.fromStart(Kit.startX(b, p.rtl, pad), lf.width, p.rtl), y, t0, s.ground, p.rtl, Kit.Reveal.Fade, name = "order-label")
                 nodes += Kit.words(
                     Kit.digits(r.second, p.rtl), vf, ink, Kit.fromEnd(Kit.endX(b, p.rtl, pad), vf.width, p.rtl), y, t0 + 0.05f, s.ground, p.rtl,
@@ -592,9 +592,9 @@ object TradeFamilies {
             val done = Kit.say(p.rtl, "انجام شد", "FILLED")
             val df = Kit.fit(fit, done, look.headline, b.height * 0.085f, b.width * 0.34f, b.height * 0.13f)
             val land = fillAt + 1.15f
-            // Stamped in the header's free corner, never over a figure.
-            val sx = Kit.endX(b, p.rtl, pad + df.width * 0.6f + pad * 0.3f)
-            val sy = headY
+            // Stamped over the filled bar, where no figure is.
+            val sx = b.centerX
+            val sy = barY
             val stampInk = Kit.tint(look, side, s.ground)
             val stamp = listOf(
                 ShapeNode(
