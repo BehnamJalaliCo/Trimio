@@ -1,10 +1,15 @@
 package io.trimio.engine.models
 
 import io.ktor.client.HttpClient
+import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readRemaining
+import kotlinx.coroutines.CancellationException
+import kotlinx.io.Source
 import kotlinx.io.buffered
 import kotlinx.io.files.FileSystem
 import kotlinx.io.files.Path
@@ -16,18 +21,24 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import org.kotlincrypto.hash.sha2.SHA256
 
-/** What a downloadable pack carries. */
-enum class PackKind { Style, Sound, Music, Model }
+/**
+ * What a downloadable pack carries. [Art]: animated emoji, animated icons, stickers and
+ * illustrations (Lottie / animated SVG); [Overlay]: textures, grain, light leaks; [Look]: colour
+ * looks (3D LUTs).
+ */
+enum class PackKind { Style, Sound, Music, Model, Art, Overlay, Look }
 
 /**
- * One release of a downloadable pack, as the server's index lists it. The server signs
+ * One release of a downloadable pack, as the channel's index lists it. The server signs
  * [signedBytes] — identity, version, size, payload hash, minimum app and licence — with its
  * Ed25519 key [keyId]; the payload is then bound by [sha256]. Mirrors ([urls]) are not signed: any
- * mirror is fine, since a payload that does not hash to the signed value is discarded.
+ * mirror is fine, since a payload that does not hash to the signed value is discarded. A relative
+ * URL is resolved against the channel's base ([PackChannel]), so the host can move without a
+ * re-signing. The display fields (titles, summaries, counts) are not signed: they only describe.
  */
 @Serializable
 data class PackManifest(
-    /** `<kind>.<name>`, e.g. `sound.cinematic-hits`. */
+    /** `<kind>.<name>`, e.g. `sound.cinematic-hits`, `art.noto-emoji`. */
     val id: String,
     val kind: PackKind,
     /** Increases with every release; installs never go backwards (a replayed old release is refused). */
@@ -40,15 +51,28 @@ data class PackManifest(
     val signature: String,
     /** The oldest app build that understands this pack. */
     val minApp: Int = 0,
-    /** SPDX id of the content's licence (CC0-1.0 for third-party audio, LicenseRef-Trimio for our own). */
+    /** SPDX id of the content's licence (CC0-1.0, MIT, …; LicenseRef-Trimio for our own). */
     val license: String = "LicenseRef-Trimio",
     val titleFa: String = "",
     val titleEn: String = "",
+    /** What it improves in an edit, one line each. */
+    val summaryFa: String = "",
+    val summaryEn: String = "",
+    /** Pictures, sounds or looks inside. */
+    val items: Int = 0,
+    /** Bytes on disk once unpacked (≈ [size]: the container is not compressed). */
+    val unpacked: Long = 0,
+    /** Suggested on home after setup (a small, broadly useful pack). */
+    val recommended: Boolean = false,
 ) {
     fun signedBytes(): ByteArray = listOf(FORMAT, id, kind.name, version, size, sha256.lowercase(), minApp, license).joinToString("\n").encodeToByteArray()
 
+    /** Imported on this device by its owner (not signed; never offered by a channel). */
+    val local: Boolean get() = keyId == LOCAL_KEY
+
     companion object {
         const val FORMAT = "trimio-pack/1"
+        const val LOCAL_KEY = "local"
     }
 }
 
@@ -57,6 +81,12 @@ class PackSignatureException(message: String) : Exception(message)
 
 /** The payload is not the signed one (size or hash), or its container is malformed; it was discarded. */
 class PackIntegrityException(message: String) : Exception(message)
+
+/** Not enough free space for the download and its unpacked files; nothing was written. */
+class PackSpaceException(val needed: Long, val free: Long) : Exception("needs $needed bytes, $free free")
+
+/** The transfer stopped early; the partial file is kept, and the next install resumes it. */
+class PackIncompleteException(message: String) : Exception(message)
 
 private fun untrusted(message: String): Nothing = throw PackSignatureException(message)
 
@@ -69,7 +99,7 @@ private fun broken(message: String): Nothing = throw PackIntegrityException(mess
  */
 object PackArchive {
     private val MAGIC = "TPK1".encodeToByteArray()
-    private const val MAX_FILES = 10_000
+    private const val MAX_FILES = 50_000
 
     fun write(files: Map<String, ByteArray>): ByteArray {
         val out = kotlinx.io.Buffer()
@@ -84,25 +114,39 @@ object PackArchive {
     }
 
     fun read(data: ByteArray): Map<String, ByteArray> {
-        var p = 0
-        fun need(n: Long) { if (n < 0 || p + n > data.size) broken("truncated pack") }
-        fun int(n: Int): Long { need(n.toLong()); var v = 0L; repeat(n) { v = (v shl 8) or (data[p++].toLong() and 0xff) }; return v }
-        need(4)
-        if (!data.copyOfRange(0, 4).contentEquals(MAGIC)) broken("not a pack")
-        p = 4
-        val count = int(4)
-        if (count > MAX_FILES) broken("too many files")
         val files = LinkedHashMap<String, ByteArray>()
-        repeat(count.toInt()) {
-            val len = int(2).toInt()
-            need(len.toLong())
-            val name = data.copyOfRange(p, p + len).decodeToString().also { p += len }
-            if (!safe(name)) broken("unsafe path $name")
-            val size = int(8)
-            need(size)
-            files[name] = data.copyOfRange(p, p + size.toInt()).also { p += size.toInt() }
-        }
+        val source = kotlinx.io.Buffer().apply { write(data) }
+        entries(source, data.size.toLong()) { name, size, src -> files[name] = src.readByteArray(size.toInt()) }
         return files
+    }
+
+    /** Unpacks the container in [source] ([length] bytes) file by file into [into]; returns the files written. */
+    fun unpack(source: Source, length: Long, into: Path, fs: FileSystem): Int = entries(source, length) { name, size, src ->
+        val path = Path(into, name)
+        path.parent?.let { fs.createDirectories(it) }
+        fs.sink(path).buffered().use { sink -> if (size > 0) src.readTo(sink, size) }
+    }
+
+    /** Walks the container's entries, checking every path and size against what is left of [length]. */
+    private fun entries(source: Source, length: Long, onFile: (String, Long, Source) -> Unit): Int {
+        var left = length
+        fun need(n: Long) { if (n < 0 || n > left) broken("truncated pack"); left -= n }
+        need(MAGIC.size.toLong() + 4)
+        if (!source.readByteArray(MAGIC.size).contentEquals(MAGIC)) broken("not a pack")
+        val count = source.readInt().toLong() and 0xffffffffL
+        if (count > MAX_FILES) broken("too many files")
+        repeat(count.toInt()) {
+            need(2)
+            val len = source.readShort().toInt() and 0xffff
+            need(len.toLong())
+            val name = source.readByteArray(len).decodeToString()
+            if (!safe(name)) broken("unsafe path $name")
+            need(8)
+            val size = source.readLong()
+            need(size)
+            onFile(name, size, source)
+        }
+        return count.toInt()
     }
 
     /** A relative path inside the pack: no root, no `..`, no backslashes, no empty segments. */
@@ -117,15 +161,16 @@ object PackArchive {
 data class InstalledPack(val manifest: PackManifest, val previous: PackManifest? = null)
 
 /**
- * Installs signed packs into [directory], separately from the app's own releases: styles, sound
- * palettes, music and models update on their own schedule. Order of trust: the manifest's
+ * Installs signed packs into [directory], separately from the app's own releases: styles, art,
+ * sound, music, looks and models update on their own schedule. Order of trust: the manifest's
  * signature is verified against [keys] (pinned in the app, by key id) before anything is
- * downloaded; the payload's size and SHA-256 must then match the signed values; it is unpacked into
+ * downloaded; the payload streams into a `.part` file (resumed with HTTP Range after a pause or a
+ * dropped connection); its size and SHA-256 must then match the signed values; it is unpacked into
  * a staging folder and moved into place atomically; only then does the state file switch to it.
  * A failure at any step leaves the active release untouched. The release before is kept, so an
  * update can be rolled back without a download.
  *
- * Layout: `<dir>/<id>/<version>/…files…`, `<dir>/packs.json`.
+ * Layout: `<dir>/<id>/<version>/…files…`, `<dir>/packs.json`, partial downloads in `<dir>/.downloads/`.
  */
 class PackStore(
     private val directory: Path,
@@ -135,6 +180,8 @@ class PackStore(
     private val fs: FileSystem = SystemFileSystem,
     /** This app's build: packs that need a newer one are refused. */
     private val appBuild: Int = Int.MAX_VALUE,
+    /** Free bytes where packs are kept; null when the platform cannot tell (then no check). */
+    private val freeBytes: () -> Long? = { null },
 ) {
     fun installed(): Map<String, InstalledPack> = state()
 
@@ -148,34 +195,81 @@ class PackStore(
         if (!Ed25519.verify(key, manifest.signedBytes(), sig)) untrusted("${manifest.id}: bad signature")
     }
 
-    /** Installs [manifest] (a no-op when it is already active); returns the active folder. */
-    suspend fun install(manifest: PackManifest): Path {
+    /** Bytes of [manifest] already downloaded (a paused or interrupted transfer). */
+    fun partial(manifest: PackManifest): Long = fs.metadataOrNull(partOf(manifest))?.size ?: 0L
+
+    /** Room the install of [manifest] still needs: the rest of the download, then its unpacked files. */
+    fun needed(manifest: PackManifest): Long = (manifest.size - partial(manifest)).coerceAtLeast(0) + maxOf(manifest.unpacked, manifest.size) + SPACE_MARGIN
+
+    /**
+     * Installs [manifest] (a no-op when it is already active); returns the active folder.
+     * [onProgress] gets the bytes downloaded so far and the total. Cancelling keeps the partial
+     * download, so the next call resumes it.
+     */
+    suspend fun install(manifest: PackManifest, onProgress: (Long, Long) -> Unit = { _, _ -> }): Path {
         verify(manifest)
         if (manifest.minApp > appBuild) untrusted("${manifest.id}: needs app build ${manifest.minApp}")
-        if (!PackArchive.safe(manifest.id) || '/' in manifest.id) broken("bad pack id ${manifest.id}")
+        checkId(manifest.id)
         val current = state()[manifest.id]
-        if (current != null) {
-            if (current.manifest.version == manifest.version && current.manifest.sha256.equals(manifest.sha256, true)) return activeDir(manifest.id)!!
-            if (manifest.version <= current.manifest.version) untrusted("${manifest.id}: v${manifest.version} is not newer than v${current.manifest.version}")
+        if (current != null && sameRelease(current.manifest, manifest)) {
+            activeDir(manifest.id)?.let { return it }
+        } else if (current != null && !current.manifest.local && manifest.version <= current.manifest.version) {
+            untrusted("${manifest.id}: v${manifest.version} is not newer than v${current.manifest.version}")
         }
-        val payload = fetch(manifest)
-        val files = PackArchive.read(payload)
-        val packDir = Path(directory, manifest.id)
-        val staging = Path(packDir, "${manifest.version}.staging")
-        val target = Path(packDir, manifest.version.toString())
+        checkSpace(manifest)
+        val part = fetch(manifest, onProgress)
+        val staging = Path(directory, manifest.id, "${manifest.version}.staging")
+        unpack(manifest, part, staging)
+        return commit(manifest, current, staging).also { fs.delete(part, mustExist = false) }
+    }
+
+    private fun checkSpace(manifest: PackManifest) {
+        val free = freeBytes() ?: return
+        if (free < needed(manifest)) throw PackSpaceException(needed(manifest), free)
+    }
+
+    /** Unpacks the verified payload; a malformed container is discarded with its download. */
+    private fun unpack(manifest: PackManifest, part: Path, staging: Path) {
+        val failure = try {
+            deleteTree(staging)
+            fs.createDirectories(staging)
+            fs.source(part).buffered().use { PackArchive.unpack(it, manifest.size, staging, fs) }
+            null
+        } catch (e: PackIntegrityException) {
+            e
+        } catch (e: kotlinx.io.EOFException) {
+            PackIntegrityException("${manifest.id}: truncated pack (${e.message})")
+        }
+        if (failure != null) {
+            deleteTree(staging)
+            fs.delete(part, mustExist = false)
+            throw failure
+        }
+    }
+
+    /**
+     * Installs files imported on this device (the creator's own animations) as the local pack
+     * [id]: no signature (the owner chose the files), never replaced by a channel's release.
+     */
+    fun installLocal(id: String, kind: PackKind, titleFa: String, titleEn: String, files: Map<String, ByteArray>, items: Int = files.size): Path {
+        checkId(id)
+        val current = state()[id]
+        val version = (current?.manifest?.version ?: 0) + 1
+        val bytes = files.values.sumOf { it.size.toLong() }
+        val manifest = PackManifest(
+            id, kind, version, bytes, "", emptyList(), PackManifest.LOCAL_KEY, "",
+            license = "LicenseRef-Owner", titleFa = titleFa, titleEn = titleEn, items = items, unpacked = bytes,
+        )
+        val staging = Path(directory, id, "$version.staging")
         deleteTree(staging)
+        fs.createDirectories(staging)
         for ((name, data) in files) {
+            require(PackArchive.safe(name)) { "unsafe path $name" }
             val path = Path(staging, name)
             path.parent?.let { fs.createDirectories(it) }
             fs.sink(path).buffered().use { it.write(data) }
         }
-        fs.createDirectories(staging)
-        deleteTree(target)
-        fs.atomicMove(staging, target)
-        // Switch, then forget the release two back.
-        current?.previous?.let { old -> if (old.version != manifest.version) deleteTree(Path(packDir, old.version.toString())) }
-        writeState(state() + (manifest.id to InstalledPack(manifest, previous = current?.manifest)))
-        return target
+        return commit(manifest, current, staging)
     }
 
     /** Back to the release before the active one; false when there is none. */
@@ -190,44 +284,111 @@ class PackStore(
 
     fun uninstall(id: String) {
         deleteTree(Path(directory, id))
+        discardPartial(id)
         writeState(state() - id)
     }
 
-    private suspend fun fetch(m: PackManifest): ByteArray {
+    /** Forgets every partial download of [id]. */
+    fun discardPartial(id: String) {
+        val downloads = Path(directory, DOWNLOADS)
+        if (!fs.exists(downloads)) return
+        fs.list(downloads).filter { it.name.startsWith("$id-v") }.forEach { fs.delete(it, mustExist = false) }
+    }
+
+    /** Bytes [id]'s active release takes on disk. */
+    fun diskSize(id: String): Long = activeDir(id)?.let(::treeSize) ?: 0L
+
+    private fun sameRelease(a: PackManifest, b: PackManifest) = a.version == b.version && a.sha256.equals(b.sha256, true) && a.keyId == b.keyId
+
+    private fun checkId(id: String) {
+        if (!PackArchive.safe(id) || '/' in id || id == DOWNLOADS || id.startsWith(".")) broken("bad pack id $id")
+    }
+
+    private fun commit(manifest: PackManifest, current: InstalledPack?, staging: Path): Path {
+        val packDir = Path(directory, manifest.id)
+        val target = Path(packDir, manifest.version.toString())
+        deleteTree(target)
+        fs.atomicMove(staging, target)
+        // Switch, then forget the release two back (a local pack keeps only the newest).
+        val keep = current?.manifest?.takeIf { !manifest.local && it.version != manifest.version }
+        listOfNotNull(current?.previous, current?.manifest?.takeIf { keep == null }).map { it.version }.filter { it != manifest.version }
+            .forEach { deleteTree(Path(packDir, it.toString())) }
+        writeState(state() + (manifest.id to InstalledPack(manifest, previous = keep)))
+        return target
+    }
+
+    /** Downloads (or resumes) the payload into its `.part` file and checks it against the signed size and hash. */
+    private suspend fun fetch(m: PackManifest, onProgress: (Long, Long) -> Unit): Path {
+        val part = partOf(m)
+        fs.createDirectories(Path(directory, DOWNLOADS))
         var last: Exception = PackIntegrityException("${m.id}: no URL")
         for (url in m.urls) {
             try {
-                val bytes = download(url, m.size)
-                if (bytes.size.toLong() != m.size) broken("${m.id}: size ${bytes.size}, signed ${m.size}")
-                if (!sha256Hex(bytes).equals(m.sha256, ignoreCase = true)) broken("${m.id}: checksum mismatch")
-                return bytes
+                download(url, part, m.size, onProgress)
+                checkPayload(m, part)
+                return part
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: PackIntegrityException) {
+                fs.delete(part, mustExist = false)
                 last = e
             } catch (e: IllegalStateException) {
                 last = e
             } catch (e: kotlinx.io.IOException) {
+                last = e
+            } catch (e: PackIncompleteException) {
                 last = e
             }
         }
         throw last
     }
 
-    private suspend fun download(url: String, size: Long): ByteArray = client.prepareGet(url).execute { response ->
-        check(response.status.isSuccess()) { "HTTP ${response.status.value} from $url" }
-        val channel = response.bodyAsChannel()
-        val out = ArrayList<ByteArray>()
-        var have = 0L
-        while (!channel.isClosedForRead) {
-            val chunk = channel.readRemaining(CHUNK).readByteArray()
-            have += chunk.size
-            // A server sending more than the signed size is cut off, not buffered.
-            if (have > size) broken("payload larger than signed ($size bytes)")
-            out += chunk
+    private suspend fun download(url: String, part: Path, size: Long, onProgress: (Long, Long) -> Unit) {
+        var have = fs.metadataOrNull(part)?.size ?: 0L
+        if (have > size) { fs.delete(part, mustExist = false); have = 0 }
+        if (have == size) return
+        onProgress(have, size)
+        client.prepareGet(url) { if (have > 0) header(HttpHeaders.Range, "bytes=$have-") }.execute { response ->
+            check(response.status.isSuccess()) { "HTTP ${response.status.value} from $url" }
+            // A server that ignores Range sends everything again: start over.
+            val append = have > 0 && response.status == HttpStatusCode.PartialContent
+            if (!append) have = 0
+            val channel = response.bodyAsChannel()
+            fs.sink(part, append = append).buffered().use { sink ->
+                while (!channel.isClosedForRead) {
+                    val chunk = channel.readRemaining(CHUNK).readByteArray()
+                    if (chunk.isEmpty()) continue
+                    // A server sending more than the signed size is cut off, not stored.
+                    if (have + chunk.size > size) broken("payload larger than signed ($size bytes)")
+                    sink.write(chunk)
+                    have += chunk.size
+                    onProgress(have, size)
+                }
+            }
         }
-        val all = ByteArray(have.toInt())
-        var p = 0
-        for (c in out) { c.copyInto(all, p); p += c.size }
-        all
+        if (have < size) throw PackIncompleteException("received $have of $size bytes")
+    }
+
+    private fun checkPayload(m: PackManifest, part: Path) {
+        val size = fs.metadataOrNull(part)?.size ?: 0L
+        if (size != m.size) broken("${m.id}: size $size, signed ${m.size}")
+        val digest = SHA256()
+        fs.source(part).buffered().use { source ->
+            val buffer = ByteArray(CHUNK.toInt())
+            while (true) {
+                val n = source.readAtMostTo(buffer)
+                if (n <= 0) break
+                digest.update(buffer, 0, n)
+            }
+        }
+        if (!hexOf(digest.digest()).equals(m.sha256, ignoreCase = true)) broken("${m.id}: checksum mismatch")
+    }
+
+    private fun partOf(m: PackManifest) = Path(directory, DOWNLOADS, "${m.id}-v${m.version}-${m.sha256.take(HASH_TAG)}.part")
+
+    private fun treeSize(path: Path): Long {
+        val meta = fs.metadataOrNull(path) ?: return 0L
+        return if (meta.isDirectory) fs.list(path).sumOf(::treeSize) else meta.size
     }
 
     private fun deleteTree(path: Path) {
@@ -252,10 +413,17 @@ class PackStore(
     companion object {
         private const val CHUNK = 256L * 1024
         private const val STATE = "packs.json"
+        private const val DOWNLOADS = ".downloads"
+        private const val HASH_TAG = 12
+
+        /** Kept free beyond what a pack takes, so an install never fills the disk. */
+        const val SPACE_MARGIN = 64L * 1024 * 1024
         private val StateJson = Json { ignoreUnknownKeys = true }
         private val StateSerializer = MapSerializer(String.serializer(), InstalledPack.serializer())
 
-        fun sha256Hex(bytes: ByteArray): String = SHA256().digest(bytes).joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+        fun sha256Hex(bytes: ByteArray): String = hexOf(SHA256().digest(bytes))
+
+        private fun hexOf(bytes: ByteArray): String = bytes.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
 
         fun hex(s: String): ByteArray? {
             if (s.length % 2 != 0) return null
@@ -266,9 +434,10 @@ class PackStore(
 
 /**
  * What ships inside the app (the offline core) and what is downloaded. The core is small and
- * complete: the procedural composer and SFX palettes are code, the bundled styles are resources;
- * a first edit needs no network. Everything heavier — models, recorded sound and music packs,
- * further styles — is a [PackManifest] in the server's signed index.
+ * complete: the procedural composer and SFX palettes are code, the bundled styles, the art index,
+ * its starter pictures and the core art set are resources; a first edit needs no network.
+ * Everything heavier — models, art, recorded sound and music, overlays, looks, further styles — is
+ * a [PackManifest] in a channel's signed index ([PackChannel]).
  */
 object PackCatalog {
     /** Content always available offline, by kind (descriptive: these are code and app resources, not packs). */
@@ -276,5 +445,6 @@ object PackCatalog {
         PackKind.Music to listOf("procedural composer: 6 moods × sections (intro, verse, build, drop, breakdown, outro)"),
         PackKind.Sound to listOf("procedural SFX: 15 cues × 6 palettes"),
         PackKind.Style to listOf("bundled style packs (engine/styles resources)"),
+        PackKind.Art to listOf("art index (noto, line-md and the pack sets), starter pictures, core set"),
     )
 }

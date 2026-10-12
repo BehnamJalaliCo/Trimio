@@ -167,7 +167,7 @@ object TradeFamilies {
             val vf = Kit.fit(fit, Kit.format(v, cue.decimals, false), Kit.numberVoice(look, Typo.Data), size * 0.95f, tagW * 0.9f, size * 1.5f)
             val tx = b.right - size * 0.3f - tagW / 2f
             nodes += Kit.rect(tx, lastY, tagW, vf.height + size * 0.4f, tag, size * 0.2f * look.roundness, "price-tag")
-            nodes += Kit.number(v, cs.first().c, cue.decimals, cue.prefix, "", Kit.numberVoice(look, Typo.Data), vf.type.size, Look.textOn(tag), tx, lastY, p.at + 0.3f, cs.size * gap, tag, false)
+            nodes += Kit.number(v, cs.first().c, cue.decimals, cue.prefix, "", Kit.numberVoice(look, Typo.Data), vf.type.size, Look.textOn(tag), tx, lastY, p.at + 0.3f, cs.size * gap, tag, p.rtl)
             return Kit.built(cue, look, p, b, nodes, name, cs.indices.filter { it % 3 == 0 }.map { Sfx(p.at + 0.3f + it * gap, SfxKind.Tick, 0.25f) } + Sfx(done, SfxKind.Pop, 0.5f))
         }
 
@@ -575,7 +575,7 @@ object TradeFamilies {
                 val vf = Kit.fit(fit, r.second, Kit.numberVoice(look, Typo.Data), rowH * 0.46f, b.width * 0.5f, rowH * 0.8f)
                 nodes += Kit.words(r.first, lf, Kit.quiet(look, s.ground), Kit.fromStart(Kit.startX(b, p.rtl, pad), lf.width, p.rtl), y, t0, s.ground, p.rtl, Kit.Reveal.Fade, name = "order-label")
                 nodes += Kit.words(
-                    Kit.digits(r.second, p.rtl && i > 0), vf, ink, Kit.fromEnd(Kit.endX(b, p.rtl, pad), vf.width, p.rtl), y, t0 + 0.05f, s.ground, p.rtl,
+                    Kit.digits(r.second, p.rtl), vf, ink, Kit.fromEnd(Kit.endX(b, p.rtl, pad), vf.width, p.rtl), y, t0 + 0.05f, s.ground, p.rtl,
                     Kit.Reveal.Fade, name = "order-value",
                 )
             }
@@ -658,7 +658,7 @@ object TradeFamilies {
                 )
                 val vf = Kit.fit(fit, price(lv.second, cue), Kit.numberVoice(look, Typo.Data), b.height * 0.085f, b.width * 0.4f, b.height * 0.12f)
                 nodes += Kit.words(
-                    price(lv.second, cue), vf, color, Kit.fromEnd(Kit.endX(lad, p.rtl, 0f), vf.width, p.rtl), labelY.coerceAtLeast(b.top + vf.height * 0.6f),
+                    Kit.digits(price(lv.second, cue), p.rtl), vf, color, Kit.fromEnd(Kit.endX(lad, p.rtl, 0f), vf.width, p.rtl), labelY.coerceAtLeast(b.top + vf.height * 0.6f),
                     t0 + 0.15f, s.ground, false, Kit.Reveal.Fade, name = "level-price",
                 )
             }
@@ -705,8 +705,8 @@ object TradeFamilies {
                 val pf = Kit.fit(fit, Kit.format(pr, 1, false), Kit.numberVoice(look, Typo.Data), rowH * 0.56f, b.width * 0.4f, rowH * 0.9f)
                 // The bar's tint is light: the price is held to the mix of the bar over the card.
                 val under = Kit.over(color.copy(alpha = 0.22f), s.ground)
-                nodes += Kit.words(Kit.format(pr, 1, false), pf, Kit.tint(look, color, under), b.left + pad * 1.5f + pf.width / 2f, y, t0 + 0.1f, under, false, Kit.Reveal.Fade, name = "book-price")
-                val qty = Kit.format(depth * 3.2f, 3, false)
+                nodes += Kit.words(Kit.format(pr, 1, p.rtl), pf, Kit.tint(look, color, under), b.left + pad * 1.5f + pf.width / 2f, y, t0 + 0.1f, under, false, Kit.Reveal.Fade, name = "book-price")
+                val qty = Kit.format(depth * 3.2f, 3, p.rtl)
                 val qf = Kit.fit(fit, qty, Kit.numberVoice(look, Typo.Data), rowH * 0.5f, b.width * 0.3f, rowH * 0.9f)
                 nodes += Kit.words(
                     qty, qf, Kit.inkOn(look, under).let { if (Kit.ratio(it, under) >= Kit.FLOOR) it else ink }, b.right - pad * 1.5f - qf.width / 2f, y,
@@ -717,7 +717,7 @@ object TradeFamilies {
             val mf = Kit.fit(fit, price(mid, cue), Kit.numberVoice(look, p.typo), rowH * 1.0f, b.width * 0.6f, rowH * 1.3f)
             nodes += Kit.number(
                 mid, mid * 0.995f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), mf.type.size, Kit.tint(look, look.positive, s.ground),
-                b.centerX, my, p.at + 0.3f, 1.2f, s.ground, false,
+                b.centerX, my, p.at + 0.3f, 1.2f, s.ground, p.rtl,
             )
             return Kit.built(cue, look, p, b, nodes, name, listOf(Sfx(p.at + 0.2f, SfxKind.Tick, 0.4f), Sfx(p.at + 1.5f, SfxKind.Pop, 0.5f)))
         }
