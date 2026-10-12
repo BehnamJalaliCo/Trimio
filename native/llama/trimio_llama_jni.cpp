@@ -191,13 +191,17 @@ std::vector<ggml_backend_dev_t> gpus() {
 }
 
 int fitting_layers(const std::string & path, int n_ctx, const std::vector<ggml_backend_dev_t> & devices) {
+    // Several cards (a workstation's two or three) pool their memory: llama.cpp spreads the
+    // layers over them by free memory. Each card keeps its own compute reserve.
     size_t best = 0;
+    size_t cards = 0;
     for (ggml_backend_dev_t dev : devices) {
         if (dev == nullptr) continue;
         size_t free = 0;
         size_t total = 0;
         ggml_backend_dev_memory(dev, &free, &total);
-        best = std::max(best, free);
+        best += free;
+        cards++;
     }
     const int blocks = block_count(path);
     std::error_code error;
@@ -207,7 +211,7 @@ int fitting_layers(const std::string & path, int n_ctx, const std::vector<ggml_b
     // buffers are a fixed reserve. (Cache per token: a generous 160 KB for the whole model.)
     const size_t layer = bytes / static_cast<size_t>(blocks + 1)
         + static_cast<size_t>(n_ctx) * (size_t(160) << 10) / static_cast<size_t>(blocks);
-    const size_t reserve = size_t(768) << 20;
+    const size_t reserve = (size_t(768) << 20) * std::max<size_t>(cards, 1);
     if (best <= reserve + layer) return 0;
     return std::min(blocks + 1, static_cast<int>((best - reserve) / layer));
 }
