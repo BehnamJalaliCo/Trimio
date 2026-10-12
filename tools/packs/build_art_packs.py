@@ -5,6 +5,8 @@ Builds the art packs of the content channel (signed `.tpk` + manifest) and the i
   art.noto-emoji        every Noto Animated Emoji (Google, CC BY 4.0) in its default colour — Lottie
   art.noto-emoji-tones  the same emoji in the five skin tones (and mixed-tone pairs)
   art.line-md           every animated Material Line icon (MIT), including the state morphs
+  art.emoji-stickers    Fluent Emoji Flat (Microsoft, MIT) as colourful still stickers, CLDR keywords
+  art.line-stills       Tabler (MIT) and Lucide (ISC) line icons as stills (brand marks left out)
   art.motion-icons      animated icons of other MIT Iconify sets that the engine draws (svg-spinners,
                         eos-icons' animated ones); meteocons is MIT too but uses gradients the engine
                         refuses, so it is left out until the SVG reader supports them
@@ -238,6 +240,51 @@ def build_motion_icons(work, out, key, version):
                     "لودینگ، سیگنال، پالس و نشانه‌های زنده برای لحظه‌های انتظار و پردازش", "Loaders, signals and live marks for waiting and processing moments")
 
 
+def build_stickers(work, out, key, version):
+    """Fluent Emoji (flat, MIT) as colourful still stickers, with CLDR keywords (English and Persian) matched by name."""
+    data = iconify(work, "fluent-emoji-flat")
+    assert data["info"]["license"]["spdx"] == "MIT"
+    en, fa = cldr(work, "en"), cldr(work, "fa")
+    by_name = {}
+    for ch, tags in en.items():
+        if tags:
+            by_name.setdefault(re.sub(r"[^a-z0-9]+", "-", tags[0].lower()).strip("-"), ch)
+    rows = icon_rows(data, "fluent-emoji-flat", lambda n, i: True)
+    rows, docs, refused = svg_docs(data, rows)
+    out_rows = []
+    for r in rows:
+        ch = by_name.get(r[1])
+        extra_en = en.get(ch, []) if ch else []
+        out_rows.append((r[0], r[1], r[2], list(dict.fromkeys(r[3] + extra_en))[:14], (fa.get(ch, []) if ch else [])[:10], 0, "sticker"))
+    print(f"fluent-emoji-flat: {len(out_rows)} kept, {refused} refused")
+    src = source("fluent-emoji-flat", "Fluent Emoji Flat", "Microsoft", "MIT", "https://github.com/microsoft/fluentui-emoji",
+                 "https://api.iconify.design/fluent-emoji-flat.json?icons={id}", "svg", data.get("width", 32), data.get("height", 32), False, "emoji", "art/docs/{id}.svg")
+    docs["art/LICENSE-fluent-emoji.txt"] = MIT("Microsoft Corporation")
+    return art_pack("art.emoji-stickers", version, [src], out_rows, docs, out, key, "MIT", "استیکرهای ایموجی", "Emoji stickers",
+                    "۳۰۰۰ استیکر رنگی تخت برای هر چیز و هر حسی، با کلیدواژهٔ فارسی", "3,000 flat colour stickers for every thing and feeling, with Persian keywords")
+
+
+def build_line_stills(work, out, key, version):
+    """Tabler (MIT) and Lucide (ISC) line icons as stills: thousands of things the director can name, offline."""
+    sources, rows, docs = [], [], {}
+    for sid, title, author, home, licence, holder in (("tabler", "Tabler Icons", "Paweł Kuna", "https://github.com/tabler/tabler-icons", "MIT", "2020-2024 Paweł Kuna"),
+                                                      ("lucide", "Lucide", "Lucide Contributors", "https://github.com/lucide-icons/lucide", "ISC", "Lucide Contributors 2022")):
+        data = iconify(work, sid)
+        assert data["info"]["license"]["spdx"] == licence, sid
+        r = icon_rows(data, sid, lambda n, i: not n.startswith("brand-") and not any(n == b or n.startswith(b + "-") for b in BRANDS))
+        kept, d, refused = svg_docs(data, r)
+        print(f"{sid}: {len(kept)} kept, {refused} refused")
+        rows += kept
+        docs.update({k.replace("art/docs/", f"art/docs/{sid}/"): v for k, v in d.items()})
+        sources.append(source(sid, title, author, licence, home, f"https://api.iconify.design/{sid}.json?icons={{id}}", "svg",
+                              data.get("width", 24), data.get("height", 24), False, "line", f"art/docs/{sid}/{{id}}.svg"))
+        docs[f"art/LICENSE-{sid}.txt"] = MIT(holder) if licence == "MIT" else (
+            f"ISC License\n\nCopyright (c) {holder}\n\nPermission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, "
+            "provided that the above copyright notice and this permission notice appear in all copies.\n").encode("utf-8")
+    return art_pack("art.line-stills", version, sources, rows, docs, out, key, "MIT AND ISC", "آیکون‌های خطی ثابت", "Line icons (still)",
+                    "۷۰۰۰ آیکون خطی برای هر شیء و مفهومی که گوینده نام می‌برد، بدون اینترنت", "7,000 line icons for every object and idea the speaker names, offline")
+
+
 def MIT(holder):
     return ("MIT License\n\nCopyright (c) " + holder + "\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software "
             "and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights "
@@ -305,6 +352,8 @@ def main():
         "art.motion-icons": lambda: build_motion_icons(work, out, key, version),
         "art.noto-emoji": lambda: build_noto(work, out, key, version, False),
         "art.noto-emoji-tones": lambda: build_noto(work, out, key, version, True),
+        "art.emoji-stickers": lambda: build_stickers(work, out, key, version),
+        "art.line-stills": lambda: build_line_stills(work, out, key, version),
     }
     for pid, build in builders.items():
         if not only or pid in only:

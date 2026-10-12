@@ -3,6 +3,26 @@
  "channel": "packs-v1",
  "packs": [
   {
+   "id": "art.emoji-stickers",
+   "kind": "Art",
+   "version": 1,
+   "size": 9229442,
+   "sha256": "2956727de661ee9eb89e1d3e25cda5d1b72deb39db4930d573efdeb380913037",
+   "urls": [
+    "art.emoji-stickers-v1.tpk"
+   ],
+   "keyId": "packs-2026-1",
+   "signature": "3c80ead9d942f13bc3352b0c49c95f8ca4bb4069164a25d815f8bd47dc598de55ec429fabc70f8f9813e6054f50e2c79afa5644fb3cf2ef696b4d567945f4105",
+   "minApp": 0,
+   "license": "MIT",
+   "unpacked": 9100500,
+   "titleFa": "استیکرهای ایموجی",
+   "titleEn": "Emoji stickers",
+   "summaryFa": "۳۰۰۰ استیکر رنگی تخت برای هر چیز و هر حسی، با کلیدواژهٔ فارسی",
+   "summaryEn": "3,000 flat colour stickers for every thing and feeling, with Persian keywords",
+   "items": 3124
+  },
+  {
    "id": "art.line-md",
    "kind": "Art",
    "version": 1,
@@ -22,6 +42,26 @@
    "summaryEn": "1,200 self-drawing icons for calm, technical and premium styles",
    "items": 1179,
    "recommended": true
+  },
+  {
+   "id": "art.line-stills",
+   "kind": "Art",
+   "version": 1,
+   "size": 3134268,
+   "sha256": "905a060cbaf18fa3121cbbe6cf873dd34f1ea24509679e104c8843c3271625ed",
+   "urls": [
+    "art.line-stills-v1.tpk"
+   ],
+   "keyId": "packs-2026-1",
+   "signature": "90b967195ae9cb72406a23eb008851ff24111039714b200085b1903eaf46c7f1788f4adf179dc5dd60139de475167506ee151b68094516305b8b491b5acec709",
+   "minApp": 0,
+   "license": "MIT AND ISC",
+   "unpacked": 2797784,
+   "titleFa": "آیکون‌های خطی ثابت",
+   "titleEn": "Line icons (still)",
+   "summaryFa": "۷۰۰۰ آیکون خطی برای هر شیء و مفهومی که گوینده نام می‌برد، بدون اینترنت",
+   "summaryEn": "7,000 line icons for every object and idea the speaker names, offline",
+   "items": 7817
   },
   {
    "id": "art.motion-icons",
