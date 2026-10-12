@@ -382,7 +382,6 @@ class Autopilot(
         // The style decides which animated pictures it speaks (emoji, or line icons in its ink).
         val result = VisualPicker(visuals, knowledge, model, look = score.look).pick(context)
         result.picks.forEach { (q, id) -> log("picture: \"$q\" → ${id ?: "none"}${result.relevance[q]?.let { " (relevance ${round1(it)})" }.orEmpty()}") }
-        result.credits.forEach { log("credit: $it") }
         fun BeatScore.resolved() = copy(
             visual = visual?.let { result.picks[it] ?: if (it in result.picks) null else it },
             visuals = visuals.map { result.picks[it] ?: it },
