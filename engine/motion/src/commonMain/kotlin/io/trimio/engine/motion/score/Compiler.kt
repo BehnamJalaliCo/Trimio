@@ -69,6 +69,8 @@ class Compiler(
         val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f,
         /** Drawn over the speaker's footage (not on a full-frame stage). */
         val overFootage: Boolean = false,
+        /** Which treatment of the recipe was built ([Recipe.variants]): layout, choreography and type. */
+        val variant: Int = 0,
     )
 
     data class Output(val composition: Composition, val sfx: List<Sfx>, val beats: List<Placed>, val notes: List<String>)
