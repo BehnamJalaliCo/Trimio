@@ -31,7 +31,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
     /** A graphic at fault and what is wrong with it. */
     private data class Fault(val p: Compiler.Placed, val kind: Kind, val detail: String, val severity: Severity)
 
-    private enum class Kind { Clipped, Unsafe, Collides, Caption, Face }
+    private enum class Kind { Clipped, Unsafe, Collides, Caption, Face, Tiny }
 
     override fun score(c: Jury.Context): Verdict {
         val faults = faults(c)
@@ -47,6 +47,15 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         Kind.Collides -> "move it to a free band"
         Kind.Caption -> "captions yield while the graphic is up"
         Kind.Face -> "move it above the head or below the chin"
+        Kind.Tiny -> "a larger layout, or a plain title of its words"
+    }
+
+    /** A graphic too small to read on a phone held at arm's length (a sticker of a few percent of the frame). */
+    private fun tiny(frame: Frame, g: Geometry.Track): List<Fault> {
+        if (g.placed.recipe in SMALL_BY_DESIGN) return emptyList()
+        val area = g.rest?.area ?: return emptyList()
+        val share = area / (frame.w * frame.h)
+        return if (share < TINY) listOf(Fault(g.placed, Kind.Tiny, "${g.placed.recipe} takes ${pct(area, frame.w * frame.h)}% of the frame: too small to read on a phone", Severity.Minor)) else emptyList()
     }
 
     private fun faults(c: Jury.Context): List<Fault> {
@@ -61,7 +70,7 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         val graphics = tracks.filter { it.placed.recipe != Bench.CAPTIONS }
         val captions = tracks.filter { it.placed.recipe == Bench.CAPTIONS }
         val out = mutableListOf<Fault>()
-        for (g in graphics) out += clipped(frame, g) + unsafe(frame, g)
+        for (g in graphics) out += clipped(frame, g) + unsafe(frame, g) + tiny(frame, g)
         out += graphics.indices.flatMap { i -> (i + 1 until graphics.size).mapNotNull { j -> collision(frame, graphics[i], graphics[j]) } }
         out += captions.mapNotNull { cap -> graphics.firstOrNull { g -> under(frame, cap, g) }?.let { g -> Fault(g.placed, Kind.Caption, "a caption runs under ${g.placed.recipe}", Severity.Major) } }
         out += graphics.filter { g -> g.placed.overFootage && onFace(c, frame, g) }.map { Fault(it.placed, Kind.Face, "${it.placed.recipe} covers the speaker's face", Severity.Major) }
@@ -188,7 +197,8 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         val faults = faults(c).filter { it.p.recipe != Bench.CAPTIONS }
         for ((p, kinds) in faults.groupBy { it.p }.mapValues { (_, v) -> v.map { it.kind }.toSet() }) {
             val at = Bench.locate(score, c.words, p) ?: continue
-            score = Bench.mapBeat(score, at) { b -> Bench.Ladder.next(b, p, moveFirst = Kind.Clipped !in kinds && Kind.Unsafe !in kinds) }
+            // Out of place (on a caption, the face, another graphic): the other band first; badly drawn: another layout first.
+            score = Bench.mapBeat(score, at) { b -> Bench.Ladder.next(b, p, moveFirst = kinds.all { it in MOVABLE }) }
         }
         return score.takeIf { it != c.score }
     }
@@ -212,6 +222,12 @@ class LayoutJudge(private val faceShare: Float = 0.15f) : Judge {
         const val EDGE = 0.03f
         const val EDGE_FAR = 0.97f
         const val PERCENT = 100f
+        val MOVABLE = setOf(Kind.Collides, Kind.Face, Kind.Caption)
+
+        /** Under 2% of the frame a graphic is a speck on a phone. */
+        const val TINY = 0.02f
+        /** Small on purpose: a stamp, a site's address pill, an icon, the speaker's name. */
+        val SMALL_BY_DESIGN = setOf("stamp", "url", "icon", "lower-third", "ticker")
 
         fun pct(v: Float, of: Float) = kotlin.math.round(v / of * PERCENT).toInt()
     }

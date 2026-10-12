@@ -78,7 +78,8 @@ internal class BriefChecklist(private val c: Jury.Context) {
         val bare = bare()
         val lines = c.lines.count { l -> c.words[l.last].range.endMs - c.words[l.first].range.startMs >= MIN_LINE * MS }
         if (bare.isEmpty() || bare.size <= lines * BARE_SHARE) return emptyList()
-        return listOf(Bench.finding(start(c.lines[bare.first()].first), Severity.Major, "${bare.size} of $lines lines show no element; the brief asks for the key words as graphics", "the line's key phrase on screen"))
+        val what = "${bare.size} of $lines lines show no element; the brief asks for the key words as graphics"
+        return listOf(Bench.finding(start(c.lines[bare.first()].first), Severity.Major, what, "the line's key phrase on screen"))
     }
 
     private fun site(): List<Finding> {

@@ -529,7 +529,8 @@ class Compiler(
             // A graphic that really rests over the caption's band (whatever band it was given) is up: the caption yields.
             val band = layout.slot(zone, recipe.preferredHeight)
             val covered = beats.any { b ->
-                overlap(b.cue.at, b.out, at, end) > MIN_CAPTION && session.rests[b.id]?.let { r -> r.width < w(session) * FULL_WIDTH && r.bottom > band.y - band.h / 2f && r.top < band.y + band.h / 2f } == true
+                val r = session.rests[b.id]
+                overlap(b.cue.at, b.out, at, end) > MIN_CAPTION && r != null && r.width < w(session) * FULL_WIDTH && r.bottom > band.y - band.h / 2f && r.top < band.y + band.h / 2f
             }
             // A graphic leaving the zone is still on screen through its exit: give it that time.
             if (headline || covered || layout.busy(zone, at - EXIT_TAIL, end)) { skipped++; continue }

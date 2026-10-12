@@ -27,6 +27,8 @@ import org.jetbrains.skia.impl.BufferUtil
 import java.io.File
 import java.io.OutputStream
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.ShortBuffer
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.concurrent.ArrayBlockingQueue
@@ -152,11 +154,18 @@ class MotionExporter(
         private val measurer = TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr)
         val renderer = MotionRenderer(composition, measurer, runBlocking { MotionFonts.load() }, timed)
 
-        /** 16-bit RGBA as the encoder takes it; Skia converts (and un-premultiplies the graphics layer). */
-        private val out16 = Bitmap().apply {
-            allocPixels(ImageInfo(width, height, ColorType.R16G16B16A16_UNORM, if (transparent) ColorAlphaType.UNPREMUL else ColorAlphaType.PREMUL, ColorSpace.sRGB))
+        /**
+         * The frame read out in half floats (the graphics layer un-premultiplied by Skia), then turned
+         * into 16-bit integers through a table. (Skia's own 16-bit integer read-out writes white in
+         * this Skiko build, so it is not used.)
+         */
+        private val half = Bitmap().also {
+            // (Not inside `apply`: a Bitmap has its own width and height.)
+            check(it.allocPixels(ImageInfo(width, height, ColorType.RGBA_F16, if (transparent) ColorAlphaType.UNPREMUL else ColorAlphaType.PREMUL, ColorSpace.sRGB)))
         }
-        private val pixels: ByteBuffer = BufferUtil.getByteBufferFromPointer(out16.peekPixels()!!.addr, frameBytes)
+        private val halves: ShortBuffer = BufferUtil.getByteBufferFromPointer(half.peekPixels()!!.addr, width * height * PIXEL)
+            .order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        private val scratch = ShortArray(width * height * CHANNELS)
 
         val frameBytes: Int get() = width * height * PIXEL
         val onGpu: Boolean get() = gpuCanvas != null
@@ -181,9 +190,12 @@ class MotionExporter(
 
         /** The painted frame into [into] ([frameBytes]) as little-endian 16-bit RGBA, straight alpha. */
         fun read(into: ByteArray) {
-            check(surface.readPixels(out16, 0, 0)) { "frame read failed" }
-            pixels.rewind()
-            pixels.get(into, 0, frameBytes)
+            check(surface.readPixels(half, 0, 0)) { "frame read failed" }
+            halves.rewind()
+            halves.get(scratch)
+            val table = HALF_TO_U16
+            for (i in scratch.indices) scratch[i] = table[scratch[i].toInt() and 0xFFFF]
+            ByteBuffer.wrap(into, 0, frameBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(scratch)
         }
 
         /** The frame at [t] as little-endian 16-bit RGBA, straight (not premultiplied) alpha. */
@@ -195,7 +207,25 @@ class MotionExporter(
         override fun close() {
             gpuCanvas?.close()
             if (gpuCanvas == null) surface.close()
-            out16.close()
+            half.close()
+        }
+
+        private companion object {
+            const val CHANNELS = 4
+
+            /** Every half-float bit pattern → 16-bit unsigned, clamped to [0, 1]. */
+            val HALF_TO_U16 = ShortArray(1 shl 16) { h ->
+                val sign = h ushr 15
+                val exp = (h ushr 10) and 0x1F
+                val mant = h and 0x3FF
+                val v = when {
+                    sign == 1 -> 0.0
+                    exp == 0 -> mant / 1024.0 / 16384.0
+                    exp == 31 -> 1.0
+                    else -> (1 + mant / 1024.0) * Math.pow(2.0, exp - 15.0)
+                }
+                (v.coerceIn(0.0, 1.0) * 65535.0 + 0.5).toInt().toShort()
+            }
         }
     }
 

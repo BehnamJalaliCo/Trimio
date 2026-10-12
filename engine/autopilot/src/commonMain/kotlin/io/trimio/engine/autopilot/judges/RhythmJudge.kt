@@ -34,7 +34,25 @@ class RhythmJudge(
         f += clutter(graphics).map { g -> Bench.finding(g.at, Severity.Major, "three graphics share the screen around ${g.recipe}", "drop or shorten one of them") }
         f += midWord(c)
         f += density(c)
+        f += emptyStages(c, graphics).map { (k, a, b) ->
+            Bench.finding(a, Severity.Major, "a full-frame stage with nothing on it for ${Bench.r1(b - a)}s (scene ${k + 1})", "a graphic on the stage, or back to the speaker")
+        }.capped()
         return Verdict.of(this, f)
+    }
+
+    /**
+     * Full-frame stages (the speaker hidden) that show nothing but captions for most of their time:
+     * the viewer loses the speaker and gets nothing for it. (scene, from, to).
+     */
+    private fun emptyStages(c: Jury.Context, graphics: List<Compiler.Placed>): List<Triple<Int, Float, Float>> {
+        if (!c.footage) return emptyList()
+        val starts = Bench.sceneStarts(c.score, c.words)
+        return c.score.scenes.indices.filter { k -> !Bench.overFootage(c, k) }.mapNotNull { k ->
+            val a = starts[k]
+            val b = (starts.getOrNull(k + 1) ?: c.duration).coerceAtMost(c.duration)
+            val shown = graphics.sumOf { g -> Bench.overlap(g.at, g.out, a, b).toDouble() }.toFloat().coerceAtMost(b - a)
+            Triple(k, a, b).takeIf { b - a > EMPTY_STAGE && b - a - shown > EMPTY_STAGE }
+        }
     }
 
     /** Stretches over footage with no change and no graphic on screen. */
@@ -90,6 +108,9 @@ class RhythmJudge(
             val parts = kotlin.math.ceil((b - a) / (maxDead * SPLIT)).toInt().coerceAtLeast(2)
             for (k in 1 until parts) score = Bench.punchAt(score, c.words, a + (b - a) * k / parts) ?: score
         }
+        // An empty stage goes back to the speaker.
+        val empty = emptyStages(c, graphics).map { it.first }.toSet()
+        if (empty.isNotEmpty()) score = score.copy(scenes = score.scenes.mapIndexed { k, s -> if (k in empty) s.copy(bg = null, transition = null) else s })
         // Clutter: the latest arrival of each crowd leaves, unless it is the call to action or a figure the piece hangs on.
         for (g in clutter(graphics)) {
             val crowd = graphics.filter { o -> Bench.overlap(o.at, o.out, g.at, g.out) > OVERLAP }.filter { it.recipe !in PROTECTED }
@@ -102,6 +123,8 @@ class RhythmJudge(
     private companion object {
         const val OVERLAP = 0.1f
         const val SPLIT = 0.8f
+        /** A stage may stand bare this long (a transition, a breath before its graphic lands). */
+        const val EMPTY_STAGE = 1.2f
         val PROTECTED = setOf("comment", "message", "voucher", "stats", "countdown", "progress")
     }
 }

@@ -41,7 +41,8 @@ class MotionJudge(
         f += variety(graphics)
         // The right element for the moment: a graphic shows what is being said while it is up.
         f += Relevance(c).misses().map { m ->
-            Bench.finding(m.placed.at, Severity.Major, "${m.placed.recipe} shows «${m.shown}» while something else is said", if (m.saidAt != null) "land it where it is said" else "show what this line says")
+            val fix = if (m.saidAt != null) "land it where it is said" else "show what this line says"
+            Bench.finding(m.placed.at, Severity.Major, "${m.placed.recipe} shows «${m.shown}» while something else is said", fix)
         }.capped(MAX_SHORT)
         return Verdict.of(this, f)
     }
