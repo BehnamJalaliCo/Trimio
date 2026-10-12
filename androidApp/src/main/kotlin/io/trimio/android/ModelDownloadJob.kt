@@ -36,7 +36,13 @@ class ModelDownloadJob : JobService() {
                     }
                 }
             }
-            models.awaitIdle()
+            // Content libraries («کتابخانه‌ها») download under the same job.
+            val packs = GlobalContext.get().getOrNull<io.trimio.engine.models.PackManager>()
+            while (models.hasActiveDownloads || packs?.hasActiveDownloads == true) {
+                models.awaitIdle()
+                packs?.awaitIdle()
+                kotlinx.coroutines.delay(250)
+            }
             jobFinished(params, false)
             scope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.cancel() }
         }
@@ -46,7 +52,8 @@ class ModelDownloadJob : JobService() {
     override fun onStopJob(params: JobParameters): Boolean {
         scope.cancel()
         // Reschedule if downloads are still running when the system stops us.
-        return GlobalContext.get().get<ModelManager>().hasActiveDownloads
+        return GlobalContext.get().get<ModelManager>().hasActiveDownloads ||
+            GlobalContext.get().getOrNull<io.trimio.engine.models.PackManager>()?.hasActiveDownloads == true
     }
 
     companion object {

@@ -58,8 +58,11 @@ fun desktopPlatformModule(
             models = Path(dirs.models.absolutePath),
             packs = Path(dirs.packs.absolutePath),
             remoteCache = Path(dirs.remoteCache.absolutePath),
+            // Content libraries: %APPDATA%\Trimio\packs\content (the style packs keep the folder's own files).
+            contentPacks = Path(java.io.File(dirs.packs, "content").absolutePath),
         )
     }
+    single<io.trimio.feature.library.AnimationFilePicker> { DesktopAnimationPicker() }
     single<SecretStore> { FileSecretStore(dirs.secretsFile) }
     single<MediaPicker> { picker }
     single<AttachmentPicker> { picker }

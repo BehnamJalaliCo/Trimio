@@ -119,6 +119,8 @@ val appModule: Module = module {
         PackManager(
             PackStore(dir, get(), PackKeys.content, appBuild = get<DeviceInfo>().versionCode.takeIf { it > 0 } ?: Int.MAX_VALUE, freeBytes = { free?.freeBytes() }),
             PackIndexClient(get(), PackChannel(), Path(dir, "index.json")), get(AppScope),
+            // The same platform hook as models (Android: the user-initiated transfer job keeps the download alive).
+            onActiveChanged = { active -> getOrNull<DownloadHooks>()?.onActiveChanged(active) },
         )
     }
     single(createdAtStart = true) { ContentLibrary(get(), get(), get(), get(AppScope)) }

@@ -146,6 +146,8 @@ class PackManager(
     /** Bytes the installed packs take. */
     fun usedBytes(): Long = store.installed().keys.sumOf(store::diskSize)
 
+    val hasActiveDownloads: Boolean get() = line.value.let { it.running != null || it.queue.isNotEmpty() }
+
     /** Suspends until no download is running. */
     suspend fun awaitIdle() {
         while (true) {
