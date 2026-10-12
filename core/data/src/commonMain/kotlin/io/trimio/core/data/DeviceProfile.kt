@@ -42,14 +42,20 @@ data class DeviceProfile(
     }
 
     companion object {
-        fun of(ramGb: Int, cores: Int): DeviceProfile {
+        private const val MAX_PHONE_THREADS = 8
+
+        /**
+         * [fastCores] is the measured count of cores near the top clock (Android reads cpufreq): newer
+         * flagships have no slow cores at all (all 8 fast), so half the cores would waste half the chip.
+         */
+        fun of(ramGb: Int, cores: Int, fastCores: Int? = null): DeviceProfile {
             val tier = when {
                 ramGb >= 16 -> Tier.Ultra
                 ramGb >= 12 -> Tier.High
                 else -> Tier.Standard
             }
             // Flagship SoCs pair 2–4 performance cores with efficiency cores; half the cores ≈ the big ones.
-            val threads = (cores / 2).coerceIn(2, 6)
+            val threads = fastCores?.coerceIn(2, MAX_PHONE_THREADS) ?: (cores / 2).coerceIn(2, 6)
             return DeviceProfile(
                 tier = tier,
                 threads = threads,

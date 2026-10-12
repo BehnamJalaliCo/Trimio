@@ -29,7 +29,8 @@ internal object LlamaNative {
     // Initialised before [variant], which reads them while the object initialises.
     private val FILES = listOf("libtrimio_llama.so", "libtrimio_llama.dylib", "trimio_llama.dll")
     private val GPU_VARIANTS = setOf("vulkan", "cuda", "metal")
-    private const val ALL_LAYERS = 999
+    /** Native side: as many layers as the GPU's free memory holds, the rest on the CPU. */
+    private const val FITTING_LAYERS = -1
 
     /**
      * The build that loaded. `-Dtrimio.native.variants` lists subdirectories of `trimio.native.dir`
@@ -38,8 +39,11 @@ internal object LlamaNative {
      */
     val variant: String = load()
 
-    /** Layers offloaded to the GPU: all of them with a GPU build, unless `-Dtrimio.llama.gpuLayers` says otherwise. */
-    val gpuLayers: Int get() = System.getProperty("trimio.llama.gpuLayers")?.toIntOrNull() ?: if (variant in GPU_VARIANTS) ALL_LAYERS else 0
+    /**
+     * Layers offloaded to the GPU: with a GPU build, as many as fit in its free memory (the rest run
+     * on the CPU from RAM), unless `-Dtrimio.llama.gpuLayers` says otherwise.
+     */
+    val gpuLayers: Int get() = System.getProperty("trimio.llama.gpuLayers")?.toIntOrNull() ?: if (variant in GPU_VARIANTS) FITTING_LAYERS else 0
 
     private fun load(): String {
         val dir = System.getProperty("trimio.native.dir")
@@ -186,8 +190,10 @@ class LlamaLanguageModel(
     }
 
     companion object {
-        /** Big cores only: little cores slow the whole decode down to their pace. */
-        fun defaultThreads(): Int = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 6)
+        /** Big cores only: little cores slow the whole decode down to their pace ([FastCores] where measurable). */
+        fun defaultThreads(): Int = FastCores.count()?.coerceIn(2, MAX_THREADS) ?: (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 6)
+
+        private const val MAX_THREADS = 8
 
         fun systemInfo(): String = LlamaNative.systemInfo()
 

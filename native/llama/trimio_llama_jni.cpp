@@ -10,10 +10,13 @@
 #include <jni.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <string>
 #include <vector>
 
 #include "llama.h"
+#include "gguf.h"
+#include "ggml-backend.h"
 #include "mtmd.h"
 #include "mtmd-helper.h"
 
@@ -147,6 +150,47 @@ jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint ma
     return status;
 }
 
+
+/** Transformer blocks in the GGUF at [path] (0 when unreadable), without loading any weights. */
+int block_count(const std::string & path) {
+    gguf_init_params gp = {/* no_alloc */ true, /* ctx */ nullptr};
+    gguf_context * g = gguf_init_from_file(path.c_str(), gp);
+    if (g == nullptr) return 0;
+    int blocks = 0;
+    const int64_t arch = gguf_find_key(g, "general.architecture");
+    if (arch >= 0) {
+        const int64_t key = gguf_find_key(g, (std::string(gguf_get_val_str(g, arch)) + ".block_count").c_str());
+        if (key >= 0) blocks = static_cast<int>(gguf_get_val_u32(g, key));
+    }
+    gguf_free(g);
+    return blocks;
+}
+
+/**
+ * Layers to offload when the caller asks for "as many as fit" (-1): the free memory of the largest
+ * GPU, less a reserve for the context and compute buffers, over the size of one layer. The rest
+ * runs on the CPU from RAM, so a 9B or 35B model works on any graphics card, fast where it fits.
+ */
+int fitting_layers(const std::string & path, int n_ctx) {
+    size_t best = 0;
+    for (size_t i = 0; i < ggml_backend_dev_count(); i++) {
+        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        if (ggml_backend_dev_type(dev) != GGML_BACKEND_DEVICE_TYPE_GPU) continue;
+        size_t free = 0;
+        size_t total = 0;
+        ggml_backend_dev_memory(dev, &free, &total);
+        best = std::max(best, free);
+    }
+    const int blocks = block_count(path);
+    std::error_code error;
+    const auto bytes = std::filesystem::file_size(path, error);
+    if (best == 0 || blocks <= 0 || error) return 0;
+    const size_t layer = bytes / static_cast<size_t>(blocks + 1);
+    const size_t reserve = (size_t(1) << 30) + static_cast<size_t>(n_ctx) * (size_t(160) << 10);
+    if (best <= reserve + layer) return 0;
+    return std::min(blocks + 1, static_cast<int>((best - reserve) / layer));
+}
+
 }  // namespace
 
 extern "C" {
@@ -162,8 +206,13 @@ Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring 
     const std::string path = to_string(env, jpath);
 
     llama_model_params mp = llama_model_default_params();
-    mp.n_gpu_layers = gpu_layers;
+    mp.n_gpu_layers = gpu_layers < 0 ? fitting_layers(path, n_ctx) : gpu_layers;
     llama_model * model = llama_model_load_from_file(path.c_str(), mp);
+    // A GPU that runs out of memory (or a driver that fails) leaves the model to the CPU.
+    if (model == nullptr && mp.n_gpu_layers > 0) {
+        mp.n_gpu_layers = 0;
+        model = llama_model_load_from_file(path.c_str(), mp);
+    }
     if (model == nullptr) return 0;
 
     llama_context_params cp = llama_context_default_params();

@@ -94,8 +94,12 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.vulkan
         continue-on-error: true
         run: |
+          # ggml-vulkan needs SPIRV-Headers' CMake package, which the SDK action does not provide.
+          git clone --depth 1 -b "vulkan-sdk-$VULKAN_VERSION" https://github.com/KhronosGroup/SPIRV-Headers build/spirv-src
+          cmake -S build/spirv-src -B build/spirv -G Ninja -DSPIRV_HEADERS_ENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX="$PWD/build/spirv-install"
+          cmake --install build/spirv
           cmake -S native -B build/native-vulkan -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_PREFIX_PATH="$PWD/build/spirv-install" \
             -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF -DGGML_VULKAN=ON
           cmake --build build/native-vulkan --target trimio_llama trimio_whisper
           mkdir -p "$NATIVE_OUT/vulkan"

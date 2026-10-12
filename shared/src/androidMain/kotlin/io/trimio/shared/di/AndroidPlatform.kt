@@ -84,7 +84,7 @@ fun androidPlatformModule(
     single<MediaProbe> { AndroidMediaProbe(app) }
     single<ThermalMonitor> { AndroidThermalMonitor(app) }
     single { io.trimio.core.data.CrashLog(Path(File(app.filesDir, "crashes").absolutePath)) }
-    single { DeviceProfile.of(ramGb(app), Runtime.getRuntime().availableProcessors()) }
+    single { DeviceProfile.of(ramGb(app), Runtime.getRuntime().availableProcessors(), io.trimio.engine.llm.local.FastCores.count()) }
     single { HttpClient(OkHttp) }
     single { ClaudeFactory { key, model -> ClaudeLanguageModel(key, model) } }
     single { DownloadHooks { active -> if (active) onDownloadsStarted() } }
@@ -222,3 +222,4 @@ private class AndroidConnectivity(private val context: Context) : Connectivity {
             caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 }
+
