@@ -169,7 +169,7 @@ internal class Shows(
         private const val RECENT = 2
         private const val LOUD = 0.6f
         private const val HAND_WEIGHT = 0.25f
-        private val QUOTE_WORDS = 4..12
+        private val QUOTE_WORDS = 4..8
         private val HAND = listOf("scribble", "half", "double")
         private val TRADING = setOf("crypto", "finance")
         private val PLAYFUL = setOf("playful", "energetic")

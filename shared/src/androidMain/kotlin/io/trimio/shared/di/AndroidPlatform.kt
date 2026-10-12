@@ -68,6 +68,8 @@ fun androidPlatformModule(
             remoteCache = Path(File(app.filesDir, "remote.json").absolutePath),
             // Content libraries can reach gigabytes: no-backup storage, like the models.
             contentPacks = Path(File(app.noBackupFilesDir, "packs").absolutePath),
+            // The on-demand animations: app data, «LottieFiles».
+            animations = Path(File(app.filesDir, "LottieFiles").absolutePath),
         )
     }
     single<SecretStore> { KeystoreSecretStore(app) }

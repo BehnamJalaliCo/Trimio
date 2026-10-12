@@ -72,6 +72,8 @@ data class AppPaths(
     val remoteCache: Path? = null,
     /** Downloaded content libraries (art, sound, overlays, looks; not backed up on Android). */
     val contentPacks: Path? = null,
+    /** «LottieFiles»: single animations fetched on demand for an edit, reused by every later one. */
+    val animations: Path? = null,
 )
 
 /** The official Claude client where the platform has one (Android/desktop: the Java SDK). */
@@ -123,7 +125,14 @@ val appModule: Module = module {
             onActiveChanged = { active -> getOrNull<DownloadHooks>()?.onActiveChanged(active) },
         )
     }
-    single(createdAtStart = true) { ContentLibrary(get(), get(), get(), get(AppScope), get<AppPaths>().contentPacks) }
+    // Animations the director fetches on demand (when «جستجوی انیمیشن آنلاین» is on), kept in the «LottieFiles» folder.
+    single {
+        val settings = get<SettingsRepository>()
+        io.trimio.engine.autopilot.KtorWebPort.animations(get(), (get<AppPaths>().animations ?: Path("LottieFiles")).toString()) { settings.settings.value.onlineAnimations }
+    }
+    single(createdAtStart = true) {
+        ContentLibrary(get(), get(), get(), get(AppScope), get<AppPaths>().contentPacks, animations = get<io.trimio.engine.assets.art.LottieFilesSource>())
+    }
     // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
     single { AppProductionRunner(get(), get(AppScope), get()) }
     single<ProductionRunner> { get<AppProductionRunner>() }
@@ -160,9 +169,11 @@ val appModule: Module = module {
     // Exports need the platform's encoder; platforms without the production engine (web previews) have none.
     viewModel { (args: ExportArgs) -> ExportViewModel(args, get(), getOrNull<ProductionPlatform>()?.let(::EditExports), get(), getOrNull(), getOrNull()) }
     viewModel {
+        val animations = get<io.trimio.engine.assets.art.LottieFilesSource>()
         SettingsViewModel(
             get(), get(), get(), get(), getOrNull(), get(), get(),
             engine = getOrNull(), threads = getOrNull<io.trimio.core.data.DeviceProfile>()?.threads,
+            animationBytes = animations::bytes, clearAnimations = animations::clear,
         )
     }
     // The engine as the latest build on this device measured it (GPU, layers, threads, model speeds).
@@ -178,6 +189,7 @@ val appModule: Module = module {
             get(), get(), get(), validate = { doc -> io.trimio.engine.motion.art.MotionArts.readOrWhy(io.trimio.engine.motion.art.MotionArt.FORMAT_LOTTIE, doc).second },
             picker = getOrNull<AnimationFilePicker>(), freeBytes = { free?.freeBytes() },
             desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) }, onLottieKey = { get<ContentLibrary>().connect(it) },
+            animationBytes = get<io.trimio.engine.assets.art.LottieFilesSource>()::bytes,
         )
     }
 }

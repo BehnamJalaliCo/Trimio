@@ -15,12 +15,14 @@ import io.trimio.core.pipeline.DirectorBackend
 import io.trimio.engine.llm.CloudModels
 import io.trimio.engine.llm.CloudProvider
 import io.trimio.engine.models.ModelManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsViewModel(
     private val settings: SettingsRepository,
@@ -34,7 +36,29 @@ class SettingsViewModel(
     val engine: EngineFacts? = null,
     /** The CPU threads models run on here, shown before any build has measured the engine. */
     val threads: Int? = null,
+    /** What the on-demand animations folder holds on disk, in bytes. */
+    private val animationBytes: () -> Long = { 0L },
+    /** «پاک کردن کش انیمیشن‌ها». */
+    private val clearAnimations: suspend () -> Unit = {},
 ) : ViewModel() {
+    private val _animations = MutableStateFlow<Long?>(null)
+
+    /** The animations folder's size (null until measured). */
+    val animations: StateFlow<Long?> = _animations.asStateFlow()
+
+    /** Measures the animations folder again (off the main thread). */
+    fun refreshAnimations() {
+        viewModelScope.launch { _animations.value = withContext(Dispatchers.Default) { animationBytes() } }
+    }
+
+    /** Empties the animations folder; the director fetches again only what a later edit needs. */
+    fun clearAnimationCache() {
+        viewModelScope.launch {
+            withContext(Dispatchers.Default) { clearAnimations() }
+            _animations.value = withContext(Dispatchers.Default) { animationBytes() }
+        }
+    }
+
     private val _offer = MutableStateFlow<ProOffer?>(null)
 
     /** The paid tier as the store sells it; null while the paywall is off (everything is free). */
@@ -70,6 +94,7 @@ class SettingsViewModel(
     val keys: StateFlow<Map<CloudProvider, Boolean>> = _keys.asStateFlow()
 
     init {
+        refreshAnimations()
         models.refresh()
         viewModelScope.launch { refreshKeys() }
         entitlements?.let { e ->

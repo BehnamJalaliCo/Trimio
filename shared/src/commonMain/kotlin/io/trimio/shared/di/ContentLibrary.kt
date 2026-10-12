@@ -41,6 +41,8 @@ class ContentLibrary(
     scope: CoroutineScope,
     /** Where the «dismissed» mark of the home suggestion is kept (null: memory only). */
     private val marks: Path? = null,
+    /** The on-demand animations (no key; the «LottieFiles» folder first), the online source when the creator connected no key of their own. */
+    private val animations: OnlineArt? = null,
 ) {
     private val dismissed = MutableStateFlow(marks?.let { runCatching { SystemFileSystem.exists(Path(it, DISMISSED)) }.getOrDefault(false) } ?: false)
 
@@ -68,9 +70,9 @@ class ContentLibrary(
         const val DISMISSED = ".suggestion-dismissed"
     }
 
-    /** Connects (or, with no key, drops) LottieFiles as the online picture source. */
+    /** Connects LottieFiles with the creator's key as the online picture source, or (no key) the on-demand animations. */
     fun connect(key: String?) {
-        ContentPacks.online = key?.takeIf { it.isNotBlank() }?.let { LottieFilesOnline(LottieFilesApi(http, it)) }
+        ContentPacks.online = key?.takeIf { it.isNotBlank() }?.let { LottieFilesOnline(LottieFilesApi(http, it)) } ?: animations
     }
 }
 

@@ -135,6 +135,11 @@ private fun Storage(ui: LibraryUi) {
             Legend(c.live, tr("صدا", "Sound"))
             Legend(c.emphasis, tr("بافت و رنگ", "Texture & look"))
         }
+        // The folder of animations the director fetched on demand (emptied from Settings).
+        Text(
+            localizedNumber(tr("انیمیشن‌های ذخیره‌شده از جستجوی آنلاین: ${size(ui.animationBytes)}", "Animations kept from online search: ${size(ui.animationBytes)}")),
+            style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted,
+        )
     }
 }
 

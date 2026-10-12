@@ -187,6 +187,7 @@ class PackManager(
                 set(m.id, if (bytes >= total) PackState.Installing else PackState.Downloading(bytes, total))
             }
             recompute()
+            set(m.id, initial(m.id))
         } catch (e: PackSpaceException) {
             set(m.id, PackState.NoSpace(e.needed, e.free))
         } catch (e: CancellationException) {

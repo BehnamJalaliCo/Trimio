@@ -44,6 +44,8 @@ class LibraryViewModel(
     private val desktop: Boolean = false,
     /** Called after the LottieFiles key changes (the app connects or drops the online picture source). */
     private val onLottieKey: (String?) -> Unit = {},
+    /** What the folder of animations fetched on demand holds, in bytes. */
+    private val animationBytes: () -> Long = { 0L },
 ) : ViewModel() {
     private val lottie = MutableStateFlow(LottieUi())
     private val note = MutableStateFlow<Words?>(null)
@@ -65,6 +67,7 @@ class LibraryViewModel(
         return LibraryUi(
             packs = LibraryUi.rows(all, states, sizes), usedBytes = packs.usedBytes(), freeBytes = freeBytes(), remainingBytes = packs.remainingBytes(),
             catalogueKnown = all.any { !it.local } || fetched.value, desktop = desktop, canImport = picker != null, lottie = l, importNote = n,
+            animationBytes = animationBytes(),
         )
     }
 

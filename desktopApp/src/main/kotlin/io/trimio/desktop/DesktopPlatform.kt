@@ -60,6 +60,8 @@ fun desktopPlatformModule(
             remoteCache = Path(dirs.remoteCache.absolutePath),
             // Content libraries: %APPDATA%\Trimio\packs\content (the style packs keep the folder's own files).
             contentPacks = Path(java.io.File(dirs.packs, "content").absolutePath),
+            // The on-demand animations: %APPDATA%\Trimio\LottieFiles.
+            animations = Path(java.io.File(dirs.data, "LottieFiles").absolutePath),
         )
     }
     single<io.trimio.feature.library.AnimationFilePicker> { DesktopAnimationPicker() }

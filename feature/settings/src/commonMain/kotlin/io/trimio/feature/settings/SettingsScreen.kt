@@ -84,6 +84,8 @@ data class SettingsUi(
     val director: DirectorLine? = null,
     val crashReports: Int = 0,
     val offer: ProOffer? = null,
+    /** What the on-demand animations folder holds, in bytes (null: unknown). */
+    val animationBytes: Long? = null,
 ) {
     val connected: List<CloudProvider> get() = keys.filterValues { it }.keys.toList()
 }
@@ -101,6 +103,8 @@ data class SettingsActions(
     val onShareCrash: () -> Unit = {},
     val onBuyPro: () -> Unit = {},
     val onRestore: () -> Unit = {},
+    /** «پاک کردن کش انیمیشن‌ها». */
+    val onClearAnimations: () -> Unit = {},
 )
 
 @Composable
@@ -109,16 +113,18 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit, onModels: ((
     val states by viewModel.models.states.collectAsStateWithLifecycle()
     val keys by viewModel.keys.collectAsStateWithLifecycle()
     val offer by viewModel.offer.collectAsStateWithLifecycle()
+    val animations by viewModel.animations.collectAsStateWithLifecycle()
     val device = viewModel.device
     val desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) }
     val shelf = ModelShelf.build(viewModel.models.catalog, states, DeviceMemory(device.ramGb, desktop), settings.localModelId, settings.speechModelId)
     val director = (shelf.directors.firstOrNull { it.active } ?: shelf.recommended)?.let { DirectorLine(it.tier, it.state, it.installed) }
     SettingsScreen(
-        SettingsUi(settings, keys, device, director, viewModel.crashReports, offer),
+        SettingsUi(settings, keys, device, director, viewModel.crashReports, offer, animations),
         SettingsActions(
             onBack = onBack, onUpdate = { viewModel.update(it) }, onModels = onModels, onLibrary = onLibrary,
             onSaveKey = { p, k -> viewModel.saveKey(p, k) }, onRemoveKey = { viewModel.removeKey(it) },
             onShareCrash = viewModel::shareLatestCrash, onBuyPro = viewModel::buyPro, onRestore = viewModel::restorePurchases,
+            onClearAnimations = viewModel::clearAnimationCache,
         ),
     )
 }
@@ -240,6 +246,7 @@ private fun DirectorSection(ui: SettingsUi, actions: SettingsActions, keysOpen: 
                 Lead(tr("مدیریت", "Manage"))
             }
         }
+        AnimationRows(ui, actions)
         SettingRow(tr("کلیدهای API", "API keys"), keysHint(ui), onClick = onKeys, last = keysOpen) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (canCloud) {
@@ -259,6 +266,36 @@ private fun DirectorSection(ui: SettingsUi, actions: SettingsActions, keysOpen: 
         }
     }
 }
+
+/** «جستجوی انیمیشن آنلاین» (the director may fetch a free animation for a moment) and emptying the folder it keeps them in. */
+@Composable
+private fun AnimationRows(ui: SettingsUi, actions: SettingsActions) {
+    val on = ui.settings.onlineAnimations
+    SettingRow(
+        tr("جستجوی انیمیشن آنلاین", "Online animation search"),
+        tr("کارگردان برای هر لحظه چند انیمیشن رایگان پیدا و روی دستگاه نگه می‌دارد", "The director finds a few free animations for a moment and keeps them on this device"),
+        minHeight = 58,
+    ) {
+        SigToggle(on, { v -> actions.onUpdate { it.copy(onlineAnimations = v) } }, label = tr("جستجوی انیمیشن آنلاین", "Online animation search"))
+    }
+    val bytes = ui.animationBytes ?: 0L
+    SettingRow(
+        tr("پاک کردن کش انیمیشن‌ها", "Clear animation cache"),
+        localizedNumber(tr("${megabytes(bytes)} مگابایت روی دستگاه", "${megabytes(bytes)} MB on this device")),
+        onClick = if (bytes > 0) actions.onClearAnimations else null,
+    ) {
+        if (bytes > 0) TrimioIcon(TrimioIcons.Trash, null, tint = Sig.colors.muted, size = 18.dp)
+    }
+}
+
+/** Bytes as megabytes with one decimal ("3.4"). */
+private fun megabytes(bytes: Long): String {
+    val tenths = (bytes * TENTHS + MB / 2) / MB
+    return "${tenths / TENTHS}.${tenths % TENTHS}"
+}
+
+private const val MB = 1024L * 1024L
+private const val TENTHS = 10
 
 /** One provider: connected (its model, remove) or a field to paste a key. */
 @Composable

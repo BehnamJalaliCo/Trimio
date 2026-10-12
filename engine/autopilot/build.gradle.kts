@@ -42,7 +42,7 @@ tasks.withType<Test>().configureEach {
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
     // ArtSheetsTest: -Part.sheets=<dir> [-Part.video=<mp4>] [-Part.styles=a,b,c] (animated pictures fetched and compiled, for review)
-    listOf("art.sheets", "art.video", "art.styles").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
+    listOf("art.sheets", "art.video", "art.styles", "lottie.live").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
     // ColdOpenAudioTest: -Pcoldopen.wav=voice.wav -Pcoldopen.transcript=transcript.json [-Pcoldopen.out=dir]
     listOf("coldopen.wav", "coldopen.transcript", "coldopen.out").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
     // Host builds of libtrimio_llama and libtrimio_whisper (:engine:llm/:engine:asr buildHostNative).

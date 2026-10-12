@@ -55,7 +55,8 @@ class ArtShelf(
             icon(hit.entry, fetch)?.let { out += Found(it, hit.relevance, hit.entry) }
         }
         // Packs first, online second: a connected animation service is asked only when nothing here shows the query well.
-        if ((out.firstOrNull()?.relevance ?: 0f) < GOOD && fetch != null) out += online(query, limit, fetch, out.firstOrNull()?.relevance ?: 0f)
+        // With no network (fetch == null) the service still answers from what it keeps on the device.
+        if ((out.firstOrNull()?.relevance ?: 0f) < GOOD) out += online(query, limit, fetch, out.firstOrNull()?.relevance ?: 0f)
         return out.sortedByDescending { it.relevance }.take(limit)
     }
 
@@ -63,10 +64,10 @@ class ArtShelf(
     private fun sources(flavour: ArtFlavour): Set<String> =
         SOURCES.getValue(flavour) + ContentPacks.artSources(if (flavour == ArtFlavour.Emoji) "emoji" else "line")
 
-    /** Pictures from [ContentPacks.online] (the creator's own LottieFiles key), better than [floor]; documents kept in the cache. */
-    private suspend fun online(query: String, limit: Int, fetch: suspend (String) -> String?, floor: Float): List<Found> {
+    /** Pictures from [ContentPacks.online] (offline: [io.trimio.engine.assets.packs.OnlineArt.local]), better than [floor]; documents kept in the cache. */
+    private suspend fun online(query: String, limit: Int, fetch: (suspend (String) -> String?)?, floor: Float): List<Found> {
         val service = ContentPacks.online ?: return emptyList()
-        val hits = runCatching { service.search(query, limit, fetch) }.getOrDefault(emptyList())
+        val hits = runCatching { if (fetch == null) service.local(query, limit) else service.search(query, limit, fetch) }.getOrDefault(emptyList())
         return hits.mapNotNull { hit ->
             val relevance = ArtCatalogue.relevance(query, hit.entry.name, hit.entry.tags)
             if (relevance <= floor || relevance < ArtCatalogue.MIN_RELEVANCE) return@mapNotNull null

@@ -34,6 +34,8 @@ data class AppSettings(
     val shareCrashReports: Boolean = false,
     /** تیره / روشن / سیستم: the dark (noir) look by default. */
     val theme: ThemeMode = ThemeMode.Dark,
+    /** «جستجوی انیمیشن آنلاین»: the director may fetch single free animations on demand (kept in the animations folder). */
+    val onlineAnimations: Boolean = true,
 )
 
 /** The app's look: dark (noir), light (paper) or following the system. */

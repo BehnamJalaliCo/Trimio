@@ -57,6 +57,8 @@ data class LibraryUi(
     val lottie: LottieUi = LottieUi(),
     /** The last import's outcome («۱۲ انیمیشن اضافه شد، ۲ رد شد: لایهٔ متن»). */
     val importNote: Words? = null,
+    /** What the folder of animations fetched on demand holds, in bytes. */
+    val animationBytes: Long = 0,
 ) {
     val downloading: Boolean get() = packs.any { it.state is PackState.Downloading || it.state == PackState.Queued || it.state == PackState.Installing }
     val allInstalled: Boolean get() = packs.filter { !it.local }.all { it.installed && (it.state as PackState.Installed).update == null }

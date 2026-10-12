@@ -57,10 +57,10 @@ class LottieImport(
             val key = uniqueKey(keyOf(item.name), keys)
             val tags = (item.tags + tagsOf(item.name) + layerWords(item.json)).map { it.lowercase().trim() }.filter { it.length > 1 }.distinct().take(MAX_TAGS)
             val name = tagsOf(item.name).joinToString(" ").ifEmpty { key }
-            rows += buildJsonArray {
+            rows.add(buildJsonArray {
                 add(JsonPrimitive(source)); add(JsonPrimitive(key)); add(JsonPrimitive(name))
                 add(JsonArray(tags.map(::JsonPrimitive))); add(JsonArray(item.tagsFa.map(::JsonPrimitive))); add(JsonPrimitive(0)); add(JsonPrimitive("imported"))
-            }
+            })
             files["$DOCS$key.json"] = item.json.encodeToByteArray()
             added += key
         }
