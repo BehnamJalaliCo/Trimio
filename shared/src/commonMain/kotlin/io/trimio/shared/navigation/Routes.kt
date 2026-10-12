@@ -33,4 +33,7 @@ sealed interface Route {
     data class Result(val buildSeconds: Int, val version: Int = 1, val styleName: String? = null, val projectId: String? = null) : Route
 
     data object Models : Route
+
+    /** «کتابخانه‌ها»: downloadable content libraries and the creator's own animations. */
+    data object Library : Route
 }

@@ -24,6 +24,7 @@ kotlin {
             api(projects.feature.editor)
             api(projects.feature.settings)
             api(projects.feature.gallery)
+            api(projects.feature.library)
             api(projects.engine.media)
             api(projects.engine.audio)
             api(projects.engine.asr)

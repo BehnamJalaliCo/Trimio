@@ -82,6 +82,13 @@ class PackManager(
         return fresh != null
     }
 
+    /** Adopts the catalogue shipped with the app when none was fetched or cached yet (first run offline). */
+    fun seed(shipped: List<PackManifest>) {
+        if (_catalog.value.isNotEmpty() || shipped.isEmpty()) return
+        _catalog.value = shipped
+        recompute()
+    }
+
     /** Every pack: the channel's, then installed ones it no longer lists (and local imports). */
     fun all(): List<PackManifest> {
         val listed = _catalog.value

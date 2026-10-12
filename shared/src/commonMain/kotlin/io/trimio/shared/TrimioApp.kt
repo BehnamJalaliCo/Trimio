@@ -226,6 +226,7 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                 )
             }
             entry<Route.Models> { ModelsRoute(koinViewModel(), onBack = ::back) }
+            entry<Route.Library> { io.trimio.feature.library.LibraryRoute(koinViewModel(), onBack = ::back) }
             entry<Route.Editor> { route ->
                 EditorEntry(
                     route,
@@ -246,7 +247,7 @@ private fun AppNavigation(backStack: SnapshotStateList<Route>, language: Languag
                     scope.launch { picker.pick(MediaKind.Video)?.let { go(Route.Create(it.value, MediaKind.Video, styleId)) } }
                 })
             }
-            entry<Route.Settings> { SettingsRoute(koinViewModel(), onBack = ::back, onModels = { go(Route.Models) }) }
+            entry<Route.Settings> { SettingsRoute(koinViewModel(), onBack = ::back, onModels = { go(Route.Models) }, onLibrary = { go(Route.Library) }) }
         },
     )
     // Projects are loaded once at start; keep the reference so the graph is warm.

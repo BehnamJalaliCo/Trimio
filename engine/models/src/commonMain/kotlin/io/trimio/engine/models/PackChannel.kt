@@ -88,16 +88,19 @@ class PackIndexClient(
     }
 
     /** The manifests of an index document, URLs resolved against the channel. */
-    fun parse(text: String): List<PackManifest> {
-        val root = json.parseToJsonElement(text).jsonObject
-        val format = root["format"]?.jsonPrimitive?.content
-        require(format == null || format == PackChannel.FORMAT) { "unknown index format $format" }
-        val packs = root["packs"] as? JsonArray ?: return emptyList()
-        return packs.mapNotNull { runCatching { json.decodeFromJsonElement(PackManifest.serializer(), it) }.getOrNull() }
-            .filter { !it.local }.map(channel::resolve)
-    }
+    fun parse(text: String): List<PackManifest> = parseIndex(text, channel)
 
-    private companion object {
-        val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+        /** The manifests of an index document (unknown kinds and malformed entries skipped), URLs resolved against [channel]. */
+        fun parseIndex(text: String, channel: PackChannel = PackChannel()): List<PackManifest> {
+            val root = json.parseToJsonElement(text).jsonObject
+            val format = root["format"]?.jsonPrimitive?.content
+            require(format == null || format == PackChannel.FORMAT) { "unknown index format $format" }
+            val packs = root["packs"] as? JsonArray ?: return emptyList()
+            return packs.mapNotNull { runCatching { json.decodeFromJsonElement(PackManifest.serializer(), it) }.getOrNull() }
+                .filter { !it.local }.map(channel::resolve)
+        }
     }
 }

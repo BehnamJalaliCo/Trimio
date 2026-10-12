@@ -186,7 +186,7 @@ class PackStore(
     fun installed(): Map<String, InstalledPack> = state()
 
     /** The folder of [id]'s active release, or null when it is not installed. */
-    fun activeDir(id: String): Path? = state()[id]?.let { Path(directory, id, it.manifest.version.toString()) }?.takeIf { fs.exists(it) }
+    fun activeDir(id: String): Path? = state()[id]?.let { Path(directory, id, it.manifest.version.toString()) }?.takeIf { runCatching { fs.exists(it) }.getOrDefault(false) }
 
     /** Verifies [manifest] without touching the network or the disk. */
     fun verify(manifest: PackManifest) {
@@ -196,7 +196,7 @@ class PackStore(
     }
 
     /** Bytes of [manifest] already downloaded (a paused or interrupted transfer). */
-    fun partial(manifest: PackManifest): Long = fs.metadataOrNull(partOf(manifest))?.size ?: 0L
+    fun partial(manifest: PackManifest): Long = runCatching { fs.metadataOrNull(partOf(manifest))?.size }.getOrNull() ?: 0L
 
     /** Room the install of [manifest] still needs: the rest of the download, then its unpacked files. */
     fun needed(manifest: PackManifest): Long = (manifest.size - partial(manifest)).coerceAtLeast(0) + maxOf(manifest.unpacked, manifest.size) + SPACE_MARGIN
@@ -397,11 +397,11 @@ class PackStore(
         fs.delete(path, mustExist = false)
     }
 
-    private fun state(): Map<String, InstalledPack> {
+    /** What is installed; empty when nothing is, or where the platform has no file system (web previews). */
+    private fun state(): Map<String, InstalledPack> = runCatching {
         val file = Path(directory, STATE)
-        if (!fs.exists(file)) return emptyMap()
-        return runCatching { StateJson.decodeFromString(StateSerializer, fs.source(file).buffered().use { it.readByteArray().decodeToString() }) }.getOrDefault(emptyMap())
-    }
+        if (!fs.exists(file)) emptyMap() else StateJson.decodeFromString(StateSerializer, fs.source(file).buffered().use { it.readByteArray().decodeToString() })
+    }.getOrDefault(emptyMap())
 
     private fun writeState(entries: Map<String, InstalledPack>) {
         fs.createDirectories(directory)

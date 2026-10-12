@@ -22,6 +22,11 @@ import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.models.ModelCatalog
 import io.trimio.engine.models.ModelManager
 import io.trimio.engine.models.ModelStore
+import io.trimio.engine.models.PackChannel
+import io.trimio.engine.models.PackIndexClient
+import io.trimio.engine.models.PackKeys
+import io.trimio.engine.models.PackManager
+import io.trimio.engine.models.PackStore
 import io.trimio.engine.production.AppProductionRunner
 import io.trimio.engine.production.AutoEditor
 import io.trimio.engine.production.Checkpoints
@@ -37,6 +42,8 @@ import io.trimio.feature.editor.EditorViewModel
 import io.trimio.feature.editor.ExportArgs
 import io.trimio.feature.editor.ExportViewModel
 import io.trimio.feature.gallery.GalleryViewModel
+import io.trimio.feature.library.AnimationFilePicker
+import io.trimio.feature.library.LibraryViewModel
 import io.trimio.feature.settings.SettingsViewModel
 import io.trimio.feature.studio.StudioViewModel
 import io.trimio.shared.navigation.HomeFeed
@@ -63,6 +70,8 @@ data class AppPaths(
     val packs: Path? = null,
     /** Last good remote config and catalogue. */
     val remoteCache: Path? = null,
+    /** Downloaded content libraries (art, sound, overlays, looks; not backed up on Android). */
+    val contentPacks: Path? = null,
 )
 
 /** The official Claude client where the platform has one (Android/desktop: the Java SDK). */
@@ -103,6 +112,16 @@ val appModule: Module = module {
             onActiveChanged = { hooks?.onActiveChanged(it) },
         )
     }
+    // Content libraries («کتابخانه‌ها»): signed packs from the channel, the creator's imports, and their link to the engine.
+    single {
+        val free = getOrNull<io.trimio.core.data.StorageInfo>()
+        val dir = get<AppPaths>().contentPacks ?: Path("packs-preview")
+        PackManager(
+            PackStore(dir, get(), PackKeys.content, appBuild = get<DeviceInfo>().versionCode.takeIf { it > 0 } ?: Int.MAX_VALUE, freeBytes = { free?.freeBytes() }),
+            PackIndexClient(get(), PackChannel(), Path(dir, "index.json")), get(AppScope),
+        )
+    }
+    single(createdAtStart = true) { ContentLibrary(get(), get(), get(), get(AppScope)) }
     // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
     single { AppProductionRunner(get(), get(AppScope), get()) }
     single<ProductionRunner> { get<AppProductionRunner>() }
@@ -150,4 +169,13 @@ val appModule: Module = module {
         io.trimio.core.data.EngineFacts { checkpoints.reports.engine()?.let(TechnicalUi::engine) }
     }
     viewModel { GalleryViewModel() }
+    viewModel {
+        val device = get<DeviceInfo>()
+        val free = getOrNull<io.trimio.core.data.StorageInfo>()
+        LibraryViewModel(
+            get(), get(), get(), validate = { doc -> io.trimio.engine.motion.art.MotionArts.readOrWhy(io.trimio.engine.motion.art.MotionArt.FORMAT_LOTTIE, doc).second },
+            picker = getOrNull<AnimationFilePicker>(), freeBytes = { free?.freeBytes() },
+            desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) }, onLottieKey = { get<ContentLibrary>().connect(it) },
+        )
+    }
 }

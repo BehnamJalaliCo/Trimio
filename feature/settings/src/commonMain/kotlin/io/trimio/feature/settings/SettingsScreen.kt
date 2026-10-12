@@ -94,6 +94,8 @@ data class SettingsActions(
     val onUpdate: ((AppSettings) -> AppSettings) -> Unit = {},
     /** Opens the model manager; null hides the row's way in. */
     val onModels: (() -> Unit)? = null,
+    /** Opens «کتابخانه‌ها» (content libraries and the LottieFiles key); null hides the row. */
+    val onLibrary: (() -> Unit)? = null,
     val onSaveKey: (CloudProvider, String) -> Unit = { _, _ -> },
     val onRemoveKey: (CloudProvider) -> Unit = {},
     val onShareCrash: () -> Unit = {},
@@ -102,7 +104,7 @@ data class SettingsActions(
 )
 
 @Composable
-fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit, onModels: (() -> Unit)? = null) {
+fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit, onModels: (() -> Unit)? = null, onLibrary: (() -> Unit)? = null) {
     val settings by viewModel.state.collectAsStateWithLifecycle()
     val states by viewModel.models.states.collectAsStateWithLifecycle()
     val keys by viewModel.keys.collectAsStateWithLifecycle()
@@ -114,7 +116,7 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit, onModels: ((
     SettingsScreen(
         SettingsUi(settings, keys, device, director, viewModel.crashReports, offer),
         SettingsActions(
-            onBack = onBack, onUpdate = { viewModel.update(it) }, onModels = onModels,
+            onBack = onBack, onUpdate = { viewModel.update(it) }, onModels = onModels, onLibrary = onLibrary,
             onSaveKey = { p, k -> viewModel.saveKey(p, k) }, onRemoveKey = { viewModel.removeKey(it) },
             onShareCrash = viewModel::shareLatestCrash, onBuyPro = viewModel::buyPro, onRestore = viewModel::restorePurchases,
         ),
@@ -232,6 +234,11 @@ private fun DirectorSection(ui: SettingsUi, actions: SettingsActions, keysOpen: 
         )
         SettingRow(tr("مدل کارگردان", "Director model"), directorHint(ui.director), onClick = actions.onModels) {
             if (actions.onModels != null) Lead(tr("مدیریت", "Manage"))
+        }
+        actions.onLibrary?.let { open ->
+            SettingRow(tr("کتابخانه‌ها", "Libraries"), tr("ایموجی و آیکون متحرک، صدا، بافت و کلید LottieFiles", "Animated emoji and icons, sound, textures, LottieFiles key"), onClick = open) {
+                Lead(tr("مدیریت", "Manage"))
+            }
         }
         SettingRow(tr("کلیدهای API", "API keys"), keysHint(ui), onClick = onKeys, last = keysOpen) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
