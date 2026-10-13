@@ -43,3 +43,10 @@ ggml-large-v3-q5_0.bin). Proof runs: engine/autopilot AutopilotProofTest (-Pauto
   brand/brand.key, models or user videos. No new brand logos beyond licensed packs.
 - Do NOT git commit or push — the supervisor does. Do not stop other agents' Gradle daemons.
 - Be honest in your final report: measured vs estimated, what is verified, what is not.
+
+## Owner's standing rule (13 Oct 2026)
+Work continues until the app is truly ultra-professional. The ONLY acceptance is the owner's real videos
+(scratchpad/jurybug: the 154.7 s owner video 73521fe5-… and long.mp4), never short workshop scenarios alone:
+0 unknown on-screen words, 0 fragment texts, 0 cuts inside words, every judge >= 9.5 with the rules director and
+the 9B director. The app itself must detect and fix these on ANY video (no video-specific hacks). Write a PROGRESS.md
+in your scratchpad folder after each milestone so a container restart loses nothing.
