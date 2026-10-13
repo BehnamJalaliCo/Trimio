@@ -270,7 +270,8 @@ internal object NewsPieces {
     /** The numbers shown, each with when its page peels away (null: it stays). */
     private fun countdown(s: Spec, t: Track): List<Pair<Int, Float?>> {
         val start = (s.value ?: s.items.size.takeIf { it > 1 }?.toDouble() ?: 3.0).toInt().coerceIn(1, 31)
-        val targets = t.fills.mapNotNull { f -> f.to?.let { f.at to it.toInt().coerceIn(0, 99) } }
+        // A day count is a whole number of at least one; a share (≤ 1) says nothing to a calendar.
+        val targets = t.fills.mapNotNull { f -> f.to?.takeIf { it >= 1.0 }?.let { f.at to it.toInt().coerceAtMost(99) } }
         val out = ArrayList<Pair<Int, Float?>>()
         if (targets.isEmpty()) {
             // A countdown by itself: one page every half second, from just after it lands.

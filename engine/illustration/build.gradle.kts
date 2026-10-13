@@ -24,9 +24,12 @@ kotlin {
     }
 }
 
-// -Pillustration.sheets=<dir>: the contact-sheet test writes its PNGs there (docs/screenshots by default).
+// -Pillustration.sheets=<dir>: the contact-sheet tests write their PNGs there. -Pillustration.generated=<dir>: generator
+// output to style for review; -Pillustration.templates=<dir>: write the library's sketches (GeneratorSheetTest).
 tasks.withType<Test>().configureEach {
-    providers.gradleProperty("illustration.sheets").orNull?.let { systemProperty("illustration.sheets", it) }
+    listOf("illustration.sheets", "illustration.generated", "illustration.templates").forEach { key ->
+        providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
+    }
     systemProperty("illustration.root", rootProject.layout.projectDirectory.asFile.absolutePath)
     maxHeapSize = "2g"
 }

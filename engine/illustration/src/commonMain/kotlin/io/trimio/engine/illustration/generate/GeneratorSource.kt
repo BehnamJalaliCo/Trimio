@@ -95,8 +95,9 @@ class GeneratorSource(
                 references = if (recipe.references) listOfNotNull(styleReference) else emptyList(),
             )
             val raw = engine.generate(job) ?: return null
-            if (TextArtefacts.find(raw).textLike) continue
             val image = PhotoStyler.style(raw, look, size)
+            // Checked before and after styling: the styler's lines can sharpen faint pseudo-letters into readable marks.
+            if (TextArtefacts.find(raw).textLike || TextArtefacts.find(image).textLike) continue
             if (styleReference == null && recipe.references) styleReference = raw
             return Illustration(
                 image = image,

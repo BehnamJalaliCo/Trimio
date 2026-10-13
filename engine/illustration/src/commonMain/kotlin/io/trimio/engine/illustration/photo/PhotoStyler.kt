@@ -50,40 +50,32 @@ object PhotoStyler {
         return SketchStyler(look).style(StyleInput(Raster(w, h, grey), edges = edges, accent = accent))
     }
 
-    /** Border flood fill on colour distance to the border's median; falls back to a soft oval when the border is busy. */
+    /**
+     * Border flood fill on colour distance to the border's median (the distance is smoothed first, so paper
+     * grain and generator noise do not stop the fill), small leftover islands dropped; falls back to a soft
+     * oval when the border is busy or the fill takes too little or too much of the frame.
+     */
     fun cutout(img: Raster, unit: Float): Cutout {
         val w = img.width
         val h = img.height
         val border = ArrayList<Int>()
-        for (x in 0 until w) { border += img[x, 0]; border += img[x, h - 1] }
-        for (y in 0 until h) { border += img[0, y]; border += img[w - 1, y] }
+        for (x in 0 until w) {
+            border += img[x, 0]
+            border += img[x, h - 1]
+        }
+        for (y in 0 until h) {
+            border += img[0, y]
+            border += img[w - 1, y]
+        }
         val ref = median(border)
         val spread = border.map { dist(it, ref) }.sorted()[border.size * 3 / 4]
-        if (spread < PLAIN_BORDER) {
-            val bg = BooleanArray(w * h)
-            val stack = IntArray(w * h)
-            var top = 0
-            fun push(i: Int) {
-                if (!bg[i] && (Colors.a(img.argb[i]) < CLEAR_ALPHA || dist(img.argb[i], ref) < FLOOD_TOLERANCE)) {
-                    bg[i] = true; stack[top++] = i
-                }
-            }
-            for (x in 0 until w) { push(x); push((h - 1) * w + x) }
-            for (y in 0 until h) { push(y * w); push(y * w + w - 1) }
-            while (top > 0) {
-                val i = stack[--top]
-                val x = i % w
-                val y = i / w
-                if (x > 0) push(i - 1)
-                if (x < w - 1) push(i + 1)
-                if (y > 0) push(i - w)
-                if (y < h - 1) push(i + w)
-            }
-            val share = bg.count { it }.toFloat() / bg.size
-            if (share in MIN_BACKGROUND..MAX_BACKGROUND) {
-                val hard = FloatArray(w * h) { if (bg[it]) 0f else 1f }
-                return Cutout(Fields.blur(hard, w, h, max(1, unit.roundToInt()), passes = 1), true)
-            }
+        val far = FloatArray(w * h) { i -> if (Colors.a(img.argb[i]) < CLEAR_ALPHA) 0f else dist(img.argb[i], ref) }
+        val bg = if (spread < PLAIN_BORDER) flood(Fields.blur(far, w, h, max(1, (unit * NOISE_RADIUS).roundToInt()), passes = 2), w, h) else null
+        val share = bg?.let { b -> b.count { it }.toFloat() / b.size } ?: 0f
+        if (bg != null && share in MIN_BACKGROUND..MAX_BACKGROUND) {
+            val fg = withoutIslands(BooleanArray(w * h) { !bg[it] }, w, h)
+            val hard = FloatArray(w * h) { if (fg[it]) 1f else 0f }
+            return Cutout(Fields.blur(hard, w, h, max(1, unit.roundToInt()), passes = 1), true)
         }
         val alpha = FloatArray(w * h)
         for (y in 0 until h) {
@@ -94,6 +86,72 @@ object PhotoStyler {
             }
         }
         return Cutout(alpha, false)
+    }
+
+    /** Pixels reachable from the border through [far] below the tolerance. */
+    private fun flood(far: FloatArray, w: Int, h: Int): BooleanArray {
+        val bg = BooleanArray(w * h)
+        val stack = IntArray(w * h)
+        var top = 0
+        fun push(i: Int) {
+            if (!bg[i] && far[i] < FLOOD_TOLERANCE) {
+                bg[i] = true
+                stack[top++] = i
+            }
+        }
+        for (x in 0 until w) {
+            push(x)
+            push((h - 1) * w + x)
+        }
+        for (y in 0 until h) {
+            push(y * w)
+            push(y * w + w - 1)
+        }
+        while (top > 0) {
+            val i = stack[--top]
+            val x = i % w
+            if (x > 0) push(i - 1)
+            if (x < w - 1) push(i + 1)
+            if (i >= w) push(i - w)
+            if (i + w < w * h) push(i + w)
+        }
+        return bg
+    }
+
+    /** The foreground without its specks: components smaller than a share of the largest are dropped. */
+    private fun withoutIslands(fg: BooleanArray, w: Int, h: Int): BooleanArray {
+        val label = IntArray(w * h) { -1 }
+        val sizes = ArrayList<Int>()
+        val stack = IntArray(w * h)
+        for (start in fg.indices) {
+            if (fg[start] && label[start] < 0) sizes += component(start, sizes.size, fg, label, stack, w, h)
+        }
+        val keep = (sizes.maxOrNull() ?: 0) * ISLAND_SHARE
+        return BooleanArray(w * h) { i -> label[i] >= 0 && sizes[label[i]] >= keep }
+    }
+
+    /** Labels the foreground component of [start] with [id]; returns its size. */
+    @Suppress("LongParameterList")
+    private fun component(start: Int, id: Int, fg: BooleanArray, label: IntArray, stack: IntArray, w: Int, h: Int): Int {
+        var top = 0
+        var n = 0
+        stack[top++] = start
+        label[start] = id
+        while (top > 0) {
+            val i = stack[--top]
+            n++
+            for (j in neighbours(i, w, h)) {
+                if (j < 0 || !fg[j] || label[j] >= 0) continue
+                label[j] = id
+                stack[top++] = j
+            }
+        }
+        return n
+    }
+
+    private fun neighbours(i: Int, w: Int, h: Int): IntArray {
+        val x = i % w
+        return intArrayOf(if (x > 0) i - 1 else -1, if (x < w - 1) i + 1 else -1, if (i >= w) i - w else -1, if (i + w < w * h) i + w else -1)
     }
 
     /** Where the cut-out's alpha changes: the subject's silhouette as a line. */
@@ -160,7 +218,9 @@ object PhotoStyler {
     private const val HALF = 0.5f
     private const val UNIT_SIZE = 384f
     private const val PLAIN_BORDER = 0.12f
-    private const val FLOOD_TOLERANCE = 0.16f
+    private const val FLOOD_TOLERANCE = 0.14f
+    private const val NOISE_RADIUS = 1.5f
+    private const val ISLAND_SHARE = 0.08f
     private const val CLEAR_ALPHA = 16
     private const val MIN_BACKGROUND = 0.12f
     private const val MAX_BACKGROUND = 0.9f
