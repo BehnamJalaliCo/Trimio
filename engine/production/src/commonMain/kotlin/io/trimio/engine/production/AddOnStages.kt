@@ -40,3 +40,14 @@ internal suspend fun AddOnPass?.refined(transcript: Transcript, voice: PcmAudio,
 
 /** Which add-ons ran and how long each took, for the technical report. */
 internal fun AddOnPass?.facts(): List<Fact> = this?.report.orEmpty().map { Fact("add-on", it) }
+
+/** The marker the add-on steps run under: a death there names them. */
+internal const val ADD_ONS = "add-ons"
+
+/**
+ * True when an earlier attempt of this run died inside an add-on (or, from 1.0.15, right after
+ * decoding frames, where the face add-on ran unmarked): native code there can take the whole app
+ * down, so the retry goes on without the add-ons instead of dying in the same place again.
+ */
+internal fun addOnDeath(recorder: io.trimio.engine.production.diagnostics.RunRecorder): Boolean =
+    recorder.report.value.deaths.any { d -> d.step.startsWith(ADD_ONS) || d.step == "after decode frames" }

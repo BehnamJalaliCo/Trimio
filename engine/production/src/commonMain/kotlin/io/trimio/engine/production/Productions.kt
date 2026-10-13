@@ -260,15 +260,18 @@ class Productions(
         val video = request.kind == SourceKind.Video
         val frames = if (video) recorder.native("decode frames") { platform.frames(request.media, SUBJECT_FRAMES, LOOK_W) } else emptyList()
         // Installed perception add-ons only (none installed: null, and every hook below returns its input).
-        val addOns = platform.perception()?.let(::AddOnPass)
-        val found = addOns.located(frames, SubjectFinder.locate(frames))
+        // Each runs under its own marker; an attempt after a death inside one runs without them.
+        val skipAddOns = addOnDeath(recorder)
+        val addOns = if (skipAddOns) null else recorder.native(ADD_ONS) { platform.perception()?.let(::AddOnPass) }
+        val pixels = recorder.native("subject") { SubjectFinder.locate(frames) }
+        val found = recorder.native(ADD_ONS) { addOns.located(frames, pixels) }
         r.at(Stage.Prepare, HALF, "attachments")
         val assets = recorder.native("attachments") { request.assets.mapIndexed { i, a -> platform.asset(a.source, "asset-$i", a.caption) } }
 
         // The words: the previous edit's, the checkpoint's, or whisper's (unloaded before the director loads: phones hold one model).
         val saved = if (r.previous == null) checkpoints.load(request.key) else null
         val heard = r.previous?.transcript ?: saved?.transcript
-        val transcript = heard ?: addOns.refined(transcribe(r, voice), voice, WHISPER_RATE).also {
+        val transcript = heard ?: transcribe(r, voice).let { t -> recorder.native(ADD_ONS) { addOns.refined(t, voice, WHISPER_RATE) } }.also {
             checkpoints.save(request.key, Checkpoints.Saved(it))
         }
 
@@ -278,7 +281,10 @@ class Productions(
             val model = d.model?.let(recorder::instrument)
             Director(model, d.eyes?.let { eyes -> if (eyes === d.model) model else recorder.instrument(eyes) })
         }
-        recorder.models(modelFacts(director, if (heard == null) platform.speechModel() else null, request.director) + addOns.facts())
+        recorder.models(
+            modelFacts(director, if (heard == null) platform.speechModel() else null, request.director) + addOns.facts() +
+                listOfNotNull(Fact("add-on", "skipped: the app ended inside an add-on on an earlier attempt").takeIf { skipAddOns }),
+        )
         val subject = director.eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
         r.at(Stage.Direct, 0f, "direct")
         val taste = r.feedback?.let { r.taste.adjust(Collaborator(director.model).read(it)) } ?: r.taste

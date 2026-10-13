@@ -1,0 +1,21 @@
+{
+ "id": "sound.kenney-sfx",
+ "kind": "Sound",
+ "version": 1,
+ "size": 16530913,
+ "sha256": "4ccd796df97d19e8eadf42679f8f74d2f1ab59c4c727faf44b24cb80a5d4afeb",
+ "urls": [
+  "sound.kenney-sfx-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "89ac448883240a621ad33bd62652ee6e0b21f616f7da51f0cd44c3af18b2d2152a880fcb2b34ff3937b970f33da04a62d36b99c411d32f7dc1307e172f1dcb00",
+ "minApp": 0,
+ "license": "CC0-1.0",
+ "unpacked": 16517422,
+ "titleFa": "افکت‌های صوتی ضبط‌شده",
+ "titleEn": "Recorded sound effects",
+ "summaryFa": "ضربه، ووش، کلیک و درخشش واقعی به‌جای صدای ساختگی، برای هر سبک",
+ "summaryEn": "Real hits, whooshes, clicks and chimes instead of synthesised ones, per style",
+ "items": 306,
+ "recommended": true
+}

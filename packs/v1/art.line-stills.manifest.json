@@ -1,0 +1,20 @@
+{
+ "id": "art.line-stills",
+ "kind": "Art",
+ "version": 1,
+ "size": 3134268,
+ "sha256": "905a060cbaf18fa3121cbbe6cf873dd34f1ea24509679e104c8843c3271625ed",
+ "urls": [
+  "art.line-stills-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "90b967195ae9cb72406a23eb008851ff24111039714b200085b1903eaf46c7f1788f4adf179dc5dd60139de475167506ee151b68094516305b8b491b5acec709",
+ "minApp": 0,
+ "license": "MIT AND ISC",
+ "unpacked": 2797784,
+ "titleFa": "آیکون‌های خطی ثابت",
+ "titleEn": "Line icons (still)",
+ "summaryFa": "۷۰۰۰ آیکون خطی برای هر شیء و مفهومی که گوینده نام می‌برد، بدون اینترنت",
+ "summaryEn": "7,000 line icons for every object and idea the speaker names, offline",
+ "items": 7817
+}

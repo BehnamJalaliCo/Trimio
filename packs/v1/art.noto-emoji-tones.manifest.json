@@ -1,0 +1,20 @@
+{
+ "id": "art.noto-emoji-tones",
+ "kind": "Art",
+ "version": 1,
+ "size": 17451020,
+ "sha256": "66f9e5ee1de05ef59c3a044ffc520b616329e4de34c559b2c5664bfa6d4982d3",
+ "urls": [
+  "art.noto-emoji-tones-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "76b95c6b57cbcfea9c2a9269a4487aa782f7db8160b3164ff78fa3a6c1fec91498288d4e38608e5a255d1093a035b886ee95a4cb324ea313e8cc1f54fda57b05",
+ "minApp": 0,
+ "license": "CC-BY-4.0",
+ "unpacked": 17441724,
+ "titleFa": "ایموجی متحرک با رنگ پوست",
+ "titleEn": "Animated emoji · skin tones",
+ "summaryFa": "همان ایموجی‌های متحرک دست و چهره در پنج رنگ پوست",
+ "summaryEn": "The animated hand and people emoji in all five skin tones",
+ "items": 255
+}

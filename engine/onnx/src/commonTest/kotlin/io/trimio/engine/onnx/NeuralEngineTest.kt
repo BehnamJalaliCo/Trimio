@@ -9,13 +9,9 @@ import kotlin.test.assertTrue
 
 class NeuralEngineTest {
     @Test
-    fun androidPrefersXnnpackAndUsesNnapiOnlyForStaticShapes() {
-        assertEquals(listOf(Accelerator.Xnnpack, Accelerator.Cpu), AcceleratorPlan.forPlatform(Platform.Android))
-        assertEquals(
-            listOf(Accelerator.Nnapi, Accelerator.Xnnpack, Accelerator.Cpu),
-            AcceleratorPlan.forPlatform(Platform.Android, staticShapes = true),
-        )
-        assertEquals(Accelerator.Qnn, AcceleratorPlan.forPlatform(Platform.Android, staticShapes = true, qnnBundled = true).first())
+    fun androidRunsOnThePlainCpuOnly() {
+        // Vendor accelerators can crash the process natively (1.0.15 on a Snapdragon phone): the CPU always.
+        assertEquals(listOf(Accelerator.Cpu), AcceleratorPlan.forPlatform(Platform.Android))
     }
 
     @Test
@@ -28,7 +24,7 @@ class NeuralEngineTest {
         val plan = AcceleratorPlan.resolve(listOf(Accelerator.Cuda, Accelerator.DirectMl), setOf(Accelerator.Cpu))
         assertEquals(listOf(Accelerator.Cpu), plan)
         val android = AcceleratorPlan.resolve(AcceleratorPlan.forPlatform(Platform.Android), setOf(Accelerator.Xnnpack, Accelerator.Nnapi))
-        assertEquals(listOf(Accelerator.Xnnpack, Accelerator.Cpu), android)
+        assertEquals(listOf(Accelerator.Cpu), android)
     }
 
     @Test

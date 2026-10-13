@@ -1,0 +1,21 @@
+{
+ "id": "art.line-md",
+ "kind": "Art",
+ "version": 1,
+ "size": 1420443,
+ "sha256": "3a3ab03a120bbe1e56baf1db7cd2bcc1d3a3cbf0b0c417936884dd2e6c3609ba",
+ "urls": [
+  "art.line-md-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "1bf3ad78c34a188f5f3289285f12d2b6c185fc04075dbe26bb7b97e84dbbb41732c80201b019fce50eda813c1cb7e62190151f26132e7c39de28d57ec10c6f0f",
+ "minApp": 0,
+ "license": "MIT",
+ "unpacked": 1371801,
+ "titleFa": "آیکون‌های خطی متحرک",
+ "titleEn": "Animated line icons",
+ "summaryFa": "۱۲۰۰ آیکون که خودشان را می‌کشند، برای سبک‌های آرام، فنی و لوکس",
+ "summaryEn": "1,200 self-drawing icons for calm, technical and premium styles",
+ "items": 1179,
+ "recommended": true
+}

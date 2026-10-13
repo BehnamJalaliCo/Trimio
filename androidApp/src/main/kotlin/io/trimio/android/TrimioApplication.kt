@@ -37,6 +37,7 @@ class TrimioApplication : Application() {
             androidPlatformModule(this, version, info.longVersionCode.toInt(), billing, storeUrl(), onDownloadsStarted = { ModelDownloadJob.schedule(this) }),
         )
         installCrashLog(version)
+        ExitReasons.record(this, CrashLog(Path(java.io.File(filesDir, "crashes").absolutePath)), version)
         Notifications.createChannels(this)
         ModelUpdateJob.schedule(this)
 

@@ -215,6 +215,12 @@ private fun TopBar(readiness: HomeReadiness, actions: HomeActions, e: Entrance) 
         BrandMark(Modifier.fadeIn(e, 100, 500))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.rise(e, 250, 600).clip(RoundedCornerShape(14.dp)).clickable(role = Role.Button, onClick = actions.onModels)) { ReadinessChip(readiness) }
+            // With no director yet, the libraries sit right beside it: both are downloads the creator chooses.
+            if (readiness.director == HomeReadiness.Director.Missing) {
+                Box(Modifier.rise(e, 270, 600).clip(RoundedCornerShape(14.dp)).clickable(role = Role.Button, onClick = actions.onLibrary)) {
+                    SigChip(tr("کتابخانه‌ها", "Libraries"), leading = { TrimioIcon(TrimioIcons.Download, null, tint = c.ink, size = 13.dp) })
+                }
+            }
             Box(
                 Modifier.pop(e, 300, 700).size(32.dp).clip(CircleShape).border(1.dp, c.lineStrong, CircleShape)
                     .clickable(role = Role.Button, onClick = actions.onSettings),

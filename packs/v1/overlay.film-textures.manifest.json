@@ -1,0 +1,20 @@
+{
+ "id": "overlay.film-textures",
+ "kind": "Overlay",
+ "version": 1,
+ "size": 13844894,
+ "sha256": "3c8cf3f1fd3f3f0734023dcc8f7656192490c2e8461fdc6b6ac1b5d044e28072",
+ "urls": [
+  "overlay.film-textures-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "7fd93f9e0a2cb640d2c048d09d830734540b2574f694b7c91919e2a9660667bbce2fa6c26d3b14543a9ae4b98caff35cff238d20655a714351d9cf759d109b00",
+ "minApp": 0,
+ "license": "LicenseRef-Trimio",
+ "unpacked": 13843978,
+ "titleFa": "بافت و نور فیلم",
+ "titleEn": "Film textures & light",
+ "summaryFa": "دانهٔ فیلم، گردوغبار، کاغذ، هاف‌تون، نشت نور و بوکه برای حس سینمایی و چاپی",
+ "summaryEn": "Film grain, dust, paper, halftone, light leaks and bokeh for a filmic or print feel",
+ "items": 26
+}

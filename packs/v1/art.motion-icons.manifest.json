@@ -1,0 +1,20 @@
+{
+ "id": "art.motion-icons",
+ "kind": "Art",
+ "version": 1,
+ "size": 23330,
+ "sha256": "26e0d424acba19b389afa461f94881925fef7ac7bb62a0f1ffba28a333620764",
+ "urls": [
+  "art.motion-icons-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "e1437de6c7a46f30ef74cdc28f9f1c80943b48941b17042305f766467816975df469f7e42b5290a4b64d74f274e5f86fbfcc0a6140aa24a139f4f1b82bdcc30c",
+ "minApp": 0,
+ "license": "MIT",
+ "unpacked": 21955,
+ "titleFa": "آیکون‌های حرکتی",
+ "titleEn": "Motion icons",
+ "summaryFa": "لودینگ، سیگنال، پالس و نشانه‌های زنده برای لحظه‌های انتظار و پردازش",
+ "summaryEn": "Loaders, signals and live marks for waiting and processing moments",
+ "items": 27
+}

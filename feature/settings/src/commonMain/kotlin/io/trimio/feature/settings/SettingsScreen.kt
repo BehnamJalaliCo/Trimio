@@ -367,7 +367,8 @@ private fun AccessibilitySection(ui: SettingsUi, actions: SettingsActions) {
 @Composable
 private fun PrivacySection(ui: SettingsUi, actions: SettingsActions) {
     val s = ui.settings
-    val share = s.shareCrashReports && ui.crashReports > 0
+    // The newest report is always at hand once there is one: sharing it is the creator's own tap.
+    val share = ui.crashReports > 0
     Section(tr("حریم خصوصی", "Privacy"), "04") {
         SettingRow(tr("ارسال گزارش خطا", "Send crash reports"), tr("فقط با تأیید تو؛ بدون ویدیو، صدا یا متن", "Only with your consent; never video, voice or text"), last = !share, minHeight = 58) {
             SigToggle(s.shareCrashReports, { v -> actions.onUpdate { it.copy(shareCrashReports = v) } }, label = tr("ارسال گزارش خطا", "Send crash reports"))

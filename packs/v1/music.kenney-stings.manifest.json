@@ -1,0 +1,20 @@
+{
+ "id": "music.kenney-stings",
+ "kind": "Music",
+ "version": 1,
+ "size": 6105657,
+ "sha256": "921d576bd824c23db9b435755a7a379cd49aacf26ad6187aeb5ad7bc61dab27c",
+ "urls": [
+  "music.kenney-stings-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "b9023401c04d07eeb836811bf56ddb2377cfae5e2f7d8dcbb63a0d7d915093dfb9cda439a84aa6c4208aff1c775b80fe63434519bdd86f9513a089848454f505",
+ "minApp": 0,
+ "license": "CC0-1.0",
+ "unpacked": 6102306,
+ "titleFa": "استینگ‌های موسیقی",
+ "titleEn": "Music stings",
+ "summaryFa": "قطعه‌های کوتاه موسیقی برای شروع، رونمایی و پایان",
+ "summaryEn": "Short musical stings for openings, reveals and endings",
+ "items": 85
+}

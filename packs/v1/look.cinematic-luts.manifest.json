@@ -1,0 +1,20 @@
+{
+ "id": "look.cinematic-luts",
+ "kind": "Look",
+ "version": 1,
+ "size": 17255182,
+ "sha256": "833e7350f4fc58b41988db777ad82fbd4ce18810b1cb4a59d197ad537d8b2364",
+ "urls": [
+  "look.cinematic-luts-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "56a2bd537edd841fa04d06bd3669b1847f31a9aa8c18ee5841b15b5c16309d9dd1a5210b67aa3fcaa31a150f389ed79848ef767689565e2c6f4fe9f64be3d90b",
+ "minApp": 0,
+ "license": "LicenseRef-Trimio",
+ "unpacked": 17254561,
+ "titleFa": "لوک‌های رنگی سینمایی",
+ "titleEn": "Cinematic colour looks",
+ "summaryFa": "۲۰ لوک رنگی (LUT) مثل سبزآبی‌نارنجی، فیلم گرم، نوآر و ساعت طلایی",
+ "summaryEn": "20 colour looks (LUTs): teal & orange, warm film, noir, golden hour…",
+ "items": 20
+}

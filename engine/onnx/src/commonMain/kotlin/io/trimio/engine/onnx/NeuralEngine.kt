@@ -122,19 +122,15 @@ enum class Platform { Android, Windows, MacOs, Linux }
 /**
  * The accelerator order per platform. Small perception networks are cheap on a CPU, so the plan
  * prefers what is reliable over what is fastest on paper:
- *  - Android: XNNPACK, then the plain CPU. NNAPI only for static-shape networks (it rejects dynamic
- *    shapes and is deprecated since Android 15). QNN only when the QNN runtime is bundled.
+ *  - Android: the plain CPU only. NNAPI, XNNPACK and QNN run in vendor or native code that can take the
+ *    whole app down with it (a native crash no `try` can catch: 1.0.15 died on a Snapdragon phone right
+ *    after decoding frames, where the face add-on runs); these networks are small enough for the CPU.
  *  - Windows: CUDA (dedicated NVIDIA GPU, if the CUDA runtime is installed), DirectML, CPU.
  *  - Elsewhere: CUDA if present, CPU.
  */
 object AcceleratorPlan {
-    fun forPlatform(platform: Platform, staticShapes: Boolean = false, qnnBundled: Boolean = false): List<Accelerator> = when (platform) {
-        Platform.Android -> listOfNotNull(
-            Accelerator.Qnn.takeIf { qnnBundled && staticShapes },
-            Accelerator.Nnapi.takeIf { staticShapes },
-            Accelerator.Xnnpack,
-            Accelerator.Cpu,
-        )
+    fun forPlatform(platform: Platform): List<Accelerator> = when (platform) {
+        Platform.Android -> listOf(Accelerator.Cpu)
         Platform.Windows -> listOf(Accelerator.Cuda, Accelerator.DirectMl, Accelerator.Cpu)
         Platform.MacOs, Platform.Linux -> listOf(Accelerator.Cuda, Accelerator.Cpu)
     }

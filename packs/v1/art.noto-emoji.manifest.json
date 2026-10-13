@@ -1,0 +1,21 @@
+{
+ "id": "art.noto-emoji",
+ "kind": "Art",
+ "version": 1,
+ "size": 40318612,
+ "sha256": "d326fa169fbc12d5a61f3030035d0dfbbd2a6ca27d1a925a401f26f3e1ba19ae",
+ "urls": [
+  "art.noto-emoji-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "784f9e1928071894ff859a4da841c637815a7f6c31e5eff3782c30368a6fd5ad06d00349984a49edb84021cfc5ef4afb1737978bf0ac969ef369476a92141401",
+ "minApp": 0,
+ "license": "CC-BY-4.0",
+ "unpacked": 40301117,
+ "titleFa": "همهٔ ایموجی‌های متحرک",
+ "titleEn": "All animated emoji",
+ "summaryFa": "هر واکنش و حسی که گوینده می‌گوید، با ایموجی متحرک و بدون اینترنت",
+ "summaryEn": "Every reaction and feeling the speaker names, as a moving emoji, offline",
+ "items": 590,
+ "recommended": true
+}

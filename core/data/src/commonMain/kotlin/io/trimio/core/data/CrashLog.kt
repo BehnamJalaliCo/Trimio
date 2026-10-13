@@ -26,6 +26,15 @@ class CrashLog(private val directory: Path, private val fs: FileSystem = SystemF
         }
     }
 
+    /** A report written elsewhere (Android's record of a native crash or a kill), kept with the others. */
+    fun recordText(text: String, timeMs: Long) {
+        runCatching {
+            fs.createDirectories(directory)
+            fs.sink(Path(directory, "crash-$timeMs.txt")).buffered().use { it.writeString(text) }
+            reports().drop(keep).forEach { fs.delete(it, mustExist = false) }
+        }
+    }
+
     /** Newest first. */
     fun reports(): List<Path> =
         if (!fs.exists(directory)) emptyList() else fs.list(directory).filter { it.name.startsWith("crash-") }.sortedByDescending { it.name }

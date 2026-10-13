@@ -1,0 +1,20 @@
+{
+ "id": "art.emoji-stickers",
+ "kind": "Art",
+ "version": 1,
+ "size": 9229442,
+ "sha256": "2956727de661ee9eb89e1d3e25cda5d1b72deb39db4930d573efdeb380913037",
+ "urls": [
+  "art.emoji-stickers-v1.tpk"
+ ],
+ "keyId": "packs-2026-1",
+ "signature": "3c80ead9d942f13bc3352b0c49c95f8ca4bb4069164a25d815f8bd47dc598de55ec429fabc70f8f9813e6054f50e2c79afa5644fb3cf2ef696b4d567945f4105",
+ "minApp": 0,
+ "license": "MIT",
+ "unpacked": 9100500,
+ "titleFa": "استیکرهای ایموجی",
+ "titleEn": "Emoji stickers",
+ "summaryFa": "۳۰۰۰ استیکر رنگی تخت برای هر چیز و هر حسی، با کلیدواژهٔ فارسی",
+ "summaryEn": "3,000 flat colour stickers for every thing and feeling, with Persian keywords",
+ "items": 3124
+}

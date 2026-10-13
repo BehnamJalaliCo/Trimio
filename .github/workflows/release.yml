@@ -36,6 +36,28 @@ jobs:
           echo "name=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "code=$((1000000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
 
+  # The content libraries («کتابخانه‌ها»): the signed packs in packs/v1 are the GitHub release packs-v1
+  # the app downloads from (PackChannel.DEFAULT_BASE). Uploaded when the release is missing or its
+  # index differs from the repository's; otherwise nothing is sent.
+  packs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: packs/v1
+      - name: Publish packs-v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view packs-v1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download packs-v1 --repo "$GITHUB_REPOSITORY" -p index.json -D /tmp/live || true
+            if cmp -s /tmp/live/index.json packs/v1/index.json; then echo "packs-v1 is current"; exit 0; fi
+          else
+            gh release create packs-v1 --repo "$GITHUB_REPOSITORY" --title "Trimio content packs v1" \
+              --notes "Signed content packs for the app's libraries screen." --latest=false
+          fi
+          gh release upload packs-v1 packs/v1/* --clobber --repo "$GITHUB_REPOSITORY"
+
   android:
     needs: version
     runs-on: ubuntu-latest

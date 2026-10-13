@@ -42,7 +42,7 @@ class OrtEngine(private val platform: Platform = detectPlatform()) : NeuralEngin
 
     override fun load(path: String, config: SessionConfig): Network {
         val environment = env ?: throw NeuralEngineException("ONNX Runtime did not load on this device")
-        val preferred = config.accelerators ?: AcceleratorPlan.forPlatform(platform, config.staticShapes, qnnBundled = Accelerator.Qnn in accelerators())
+        val preferred = config.accelerators ?: AcceleratorPlan.forPlatform(platform)
         val plan = AcceleratorPlan.resolve(preferred, accelerators())
         val skipped = ArrayList<String>()
         for (accelerator in plan) {
