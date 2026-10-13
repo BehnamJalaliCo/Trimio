@@ -99,7 +99,7 @@ class PersianSpelling(
      * never «تو کن»). A known word is split in two only when it is unknown and said once.
      */
     private fun word(w: Parts, prev: String?, next: Parts?, third: Parts?, heard: Map<String, Int>, doc: Set<String>, settled: Set<String>): String? {
-        Loanwords.alias(w.core)?.let { return it }
+        if (count(w.core) == 0) Loanwords.alias(w.core)?.let { return it }
         if (Loanwords.protected(w.core)) return null
         // A word heard twice the same way is taken as meant (a name, a brand) unless a sound-alike fixes it.
         val soundOnly = (heard[w.core] ?: 0) > 1 && count(w.core) == 0
@@ -107,10 +107,18 @@ class PersianSpelling(
         val split = { joins.unmerge(w.core)?.takeIf { count(w.core) == 0 && (heard[w.core] ?: 0) < 2 } }
         return confusion(w.core, prev, next?.core, doc, settled) ?: joins.misspelling(w.core) ?: numeral(w.core, around)
             ?: joins.halfSpace(w.core) ?: joins.prefixed(w.core) ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) }
-            ?: repairs.written(w.core) ?: split() ?: repairs.repair(w.core, next?.core)
+            ?: repairs.written(w.core) ?: split() ?: repairs.repair(w.core, next?.core) ?: halfSpaced(w.core)
     }
 
     private val repairs by lazy { PersianRepairs(this) }
+
+    /** A word already half-spaced whose first part lost its own half-space: «سختترین‌ها» → «سخت‌ترین‌ها». */
+    private fun halfSpaced(core: String): String? {
+        val parts = core.split(ZWNJ)
+        if (parts.size < 2) return null
+        val first = joins.halfSpace(parts[0]) ?: return null
+        return (listOf(first) + parts.drop(1)).joinToString(ZWNJ_S)
+    }
 
     /**
      * Whether the director's [fixed] spelling of a recognised word is a real word one or two slips away
@@ -454,7 +462,6 @@ class PersianSpelling(
             Confusion("نسب", "نصب", after = DO + setOf("شد", "شده", "شدن", "میشه", "بشه"), sticky = true),
             // In a talk about code, the fertiliser is the code: «کلمه کود رو بفرست».
             Confusion("کود", "کد", topic = TECH),
-            Confusion("تذکیر", "تسک", topic = TECH),
         )
 
         /** Number words whisper writes as another word, or as none. */

@@ -6,7 +6,7 @@ package io.trimio.engine.autopilot
  * «ووچر», «کامنت»…) and product names as they are written in Persian («کلاد», «اوپس», «جمینای»).
  * They are protected: a spelling fix never changes or splits one («توکن» is never «تو کن», «اوپس»
  * never «او پس»), they count as correct on screen, and the recogniser's usual slips of a few of
- * them are put back as the term ([ALIASES]: «کلادکود» → «کلاد کد»).
+ * them are put back as the term ([alias]: «کلادکود» → «کلاد کد»).
  */
 internal object Loanwords {
 
@@ -36,21 +36,12 @@ internal object Loanwords {
         "آیفون", "اندروید", "سامسونگ", "انویدیا", "متا", "ایکس", "لاما", "میدجرنی", "کپ‌کات", "کپکات",
     )
 
-    /** The recogniser's spellings of terms, as the term is written. */
-    val ALIASES: Map<String, String> = mapOf(
-        "کلادکود" to "کلاد کد", "کلادکد" to "کلاد کد", "کودکس" to "کدکس", "اوپنکود" to "اوپن‌کد", "اوپن‌کود" to "اوپن‌کد", "اوپنکد" to "اوپن‌کد",
-        "ریپور" to "ریپو", "پرامپ" to "پرامپت",
-    )
 
-    /** Two heard words that are one term («چچی پیتیت» is ChatGPT). */
-    val PAIRS: Map<Pair<String, String>, String> = mapOf(
-        ("چچی" to "پیتیت") to "چت‌جی‌پی‌تی", ("چت" to "جی‌پی‌تی") to "چت‌جی‌پی‌تی", ("چت" to "جیپیتی") to "چت‌جی‌پی‌تی", ("کلاد" to "کود") to "کلاد کد",
-    )
+    /** The term two heard words stand for when they are a term written as one: «چت جی‌پی‌تی» → «چت‌جی‌پی‌تی». */
+    fun pair(a: String, b: String): String? = ALL_WRITTEN.firstOrNull { plain(it) == plain(a) + plain(b) && ZWNJ in it }
 
-    /** The term two heard words stand for, or null. */
-    fun pair(a: String, b: String): String? = PAIRS[plain(a) to plain(b)] ?: PAIRS.entries.firstOrNull { (k, _) -> plain(k.first) == plain(a) && plain(k.second) == plain(b) }?.value
-
-    private val ALL: Set<String> = (TECH + CRYPTO + SOCIAL + PRODUCTS).map(::plain).toSet()
+    private val ALL_WRITTEN: Set<String> = TECH + CRYPTO + SOCIAL + PRODUCTS
+    private val ALL: Set<String> = ALL_WRITTEN.map(::plain).toSet()
 
     /** Endings a protected term may carry and stay itself («توکن‌ها», «ریپوتو», «کامنتاتون»). */
     private val ENDINGS = listOf(
@@ -66,8 +57,28 @@ internal object Loanwords {
         return ENDINGS.any { e -> p.endsWith(e) && p.length - e.length >= MIN_STEM && p.dropLast(e.length) in ALL }
     }
 
-    /** The term a recognised spelling stands for (several words when the term is: «کلاد کد»), or null. */
-    fun alias(word: String): String? = ALIASES[plain(word.trim { !it.isLetterOrDigit() && it != ZWNJ })]
+    /**
+     * The term an unknown heard word stands for: the term written without its half-spaces
+     * («اوپنکد» → «اوپن‌کد»), or with a long vowel the term does not have («کودکس» → «کدکس»,
+     * «اوپنکود» → «اوپن‌کد»), or two terms run together («کلادکود» → «کلاد کد»); null otherwise.
+     */
+    fun alias(word: String): String? {
+        val p = plain(word.trim { !it.isLetterOrDigit() && it != ZWNJ })
+        if (p.length < MIN_ALIAS || protected(p)) return null
+        return term(p) ?: (MIN_STEM + 1..p.length - MIN_STEM).firstNotNullOfOrNull { k ->
+            val a = term(p.substring(0, k)) ?: return@firstNotNullOfOrNull null
+            term(p.substring(k))?.let { "$a $it" }
+        }
+    }
+
+    /** The written term [p] (half-spaces aside) is, or is with one long vowel too many. */
+    private fun term(p: String): String? {
+        if (p.length < MIN_STEM) return null
+        val options = listOf(p) + (1 until p.length).filter { p[it] in "وای" }.map { p.removeRange(it, it + 1) }
+        return options.firstNotNullOfOrNull { o -> ALL_WRITTEN.firstOrNull { plain(it) == o && it.length >= MIN_ALIAS - 1 } }
+    }
+
+    private const val MIN_ALIAS = 4
 
     private const val ZWNJ = '‌'
     private const val MIN_STEM = 2

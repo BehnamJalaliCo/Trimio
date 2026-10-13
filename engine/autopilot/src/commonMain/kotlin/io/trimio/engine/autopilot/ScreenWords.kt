@@ -27,7 +27,7 @@ internal class ScreenWords(private val lexicon: PersianSpelling, names: Collecti
     fun respelled(token: String, next: String? = null): String? {
         val c = core(token)
         if (c.isEmpty() || !persian(c) || plain(c) in names) return null
-        Loanwords.alias(c)?.let { return token.replace(c, it) }
+        if (lexicon.count(c) == 0) Loanwords.alias(c)?.let { return token.replace(c, it) }
         val fixed = repairs.written(c) ?: if (known(c)) null else repairs.repair(c, next?.let(::core))
         return fixed?.let { token.replace(c, it) }
     }

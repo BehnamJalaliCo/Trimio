@@ -59,6 +59,8 @@ internal object Fragments {
         w in ADVERBS || w in QUANTIFIERS || w in MODALS || w in OPENERS || w in CLOSERS -> "«$w» alone says nothing"
         Phrases.verb(key(w)) || w in LIGHT || w in COMPLEMENTS -> "«$w» alone is half a verb"
         Loanwords.protected(w) -> null
+        // «سخت‌ترین» alone: the hardest what?
+        w.replace("\u200C", "").endsWith("ترین") || w.endsWith("\u200Cتر") -> "«$w» alone: a degree of what?"
         !Phrases.nounish(w) -> "«$w» alone says nothing"
         dangling(w) || CLITIC_ENDS.any { w.endsWith(it) && w.length - it.length >= 2 } -> "«$w» points at something not shown"
         else -> null

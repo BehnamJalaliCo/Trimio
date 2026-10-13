@@ -114,7 +114,8 @@ class LlamaEmbedder(
 class LlamaReranker(
     override val id: String,
     private val modelPath: String,
-    private val contextSize: Int = 4096,
+    /** Cache cells shared by the head and a group of documents (2048 × 112 KB = 235 MB for the 0.6B in f16). */
+    private val contextSize: Int = 2048,
     private val sequences: Int = 16,
     private val threads: Int = LlamaLanguageModel.defaultThreads(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
