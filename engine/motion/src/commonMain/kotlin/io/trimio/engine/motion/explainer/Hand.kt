@@ -87,7 +87,9 @@ internal class Hand(
     fun readable(c: Color, on: Color): Color {
         val toward = if (ExplainerPalette.ratio(ink, on) >= ExplainerPalette.FLOOR) ink else Look.textOn(on)
         // Moving toward the far side can pass through grey; when that cannot clear the floor, take the far side itself.
-        return ExplainerPalette.readable(c, on, toward).takeIf { ExplainerPalette.ratio(it, on) >= ExplainerPalette.FLOOR } ?: Look.textOn(on)
+        return ExplainerPalette.readable(c, on, toward).takeIf { ExplainerPalette.ratio(it, on) >= ExplainerPalette.FLOOR }
+            ?: Look.textOn(on).takeIf { ExplainerPalette.ratio(it, on) >= ExplainerPalette.FLOOR }
+            ?: if (ExplainerPalette.ratio(Color.Black, on) >= ExplainerPalette.ratio(Color.White, on)) Color.Black else Color.White
     }
 
     // ------------------------------------------------------------------ type

@@ -101,4 +101,18 @@ class BenchProbeTest {
         }
         File(out.parentFile, "probe-before.txt").writeText(log.toString())
     }
+
+    @Test
+    fun goldenWords() {
+        if (System.getProperty("auto.mode") != "golden-words") return
+        val out = File(System.getProperty("auto.out"))
+        val log = StringBuilder()
+        val ids = listOf("fa-testimonial-ielts", "fa-tutorial-english", "fa-fitness-abs", "fa-news-inflation", "fa-launch-perfume-assets", "fa-flash-sale-15s", "en-tutorial-excel")
+        for (s in io.trimio.engine.autopilot.workshop.Scenarios.all.filter { it.id in ids }) {
+            val p = io.trimio.engine.autopilot.workshop.Workshop.run(s, 1L)
+            log.appendLine("== ${s.id}: " + io.trimio.engine.autopilot.golden.GoldenArchive.accuracy(s, p).let { "${it.first} wrong ${it.second}" })
+            p.report.filter { it.startsWith("screen") || it.startsWith("spelling") }.forEach { log.appendLine("  $it") }
+        }
+        File(out, "probe-golden-words.txt").writeText(log.toString())
+    }
 }

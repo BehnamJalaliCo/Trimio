@@ -36,11 +36,11 @@ class LlamaMtpTest {
         val plain = GenerationRequest(
             system = "You are a helpful assistant.",
             messages = listOf(ChatMessage(ChatRole.User, "List the planets of the solar system, one per line, then say done.")),
-            maxTokens = 120, temperature = 0f,
+            maxTokens = 160, temperature = 0f,
         )
         val (a, _) = run(0, plain)
-        val (b, _) = run(3, plain)
-        assertEquals(a, b)
+        assertEquals(a, run(1, plain).first)
+        assertEquals(a, run(3, plain).first)
         // With a grammar too (the director's structured answers).
         val schema = kotlinx.serialization.json.Json.parseToJsonElement(
             """{"type":"object","properties":{"title":{"type":"string","maxLength":40},"items":{"type":"array","maxItems":5,"items":{"type":"string","maxLength":20}}}}""",

@@ -17,7 +17,18 @@ internal class ScreenWords(private val lexicon: PersianSpelling, names: Collecti
         val c = core(token)
         if (c.isEmpty() || !persian(c)) return true
         if (plain(c) in names) return true
-        return known(c) && repairs.written(c) == null
+        return (known(c) && repairs.written(c) == null) || probableName(c)
+    }
+
+    /**
+     * An unknown word no repair reaches and no listed word is one slip from («رایتینگ», «آیلتس»):
+     * a name or a loanword the list lacks, shown as said. A slip of a word has a word next to it
+     * («تذکیر» … «تذکر», «پیتیت» … «پیتی») and is not shown.
+     */
+    private fun probableName(c: String): Boolean {
+        val p = plain(c)
+        if (p.length < NAME_LENGTH || repairs.repair(c, null) != null || lexicon.slip(p) != null) return false
+        return !lexicon.near(p)
     }
 
     /** The Persian words of [text] that may not be shown as spelled. */
@@ -37,9 +48,11 @@ internal class ScreenWords(private val lexicon: PersianSpelling, names: Collecti
         // The half-spaces as the list writes them, or not at all («می‌کنه», «میکنه»).
         val joined = c.replace(ZWNJ.toString(), "")
         if (lexicon.count(joined) > 0 || repairs.known(joined)) return true
-        // A verb prefix before a known form: «می‌رسونه».
+        // Half-spaced parts, each a word or a verb prefix («می‌رسونه», «نقطه‌به‌نقطه», «سی‌تایی»); a degree only of a stem
+        // written in it (never «قبیل‌ترین»).
         val parts = c.split(ZWNJ).filter { it.isNotEmpty() }
-        return parts.size == 2 && parts[0] in PREFIXES && (lexicon.count(parts[1]) > 0 || repairs.known(parts[1]))
+        val degree = parts.size > 1 && parts.last() in PersianRepairs.GRADES && !repairs.known(parts.dropLast(1).joinToString("") + parts.last())
+        return parts.size > 1 && !degree && parts.withIndex().all { (i, p) -> lexicon.count(p) > 0 || repairs.known(p) || (i == 0 && p in PREFIXES) }
     }
 
     companion object {
@@ -68,6 +81,7 @@ internal class ScreenWords(private val lexicon: PersianSpelling, names: Collecti
         }
 
         private const val MIN_NAME = 3
+        private const val NAME_LENGTH = 5
 
         fun core(w: String) = w.trim { !it.isLetterOrDigit() && it != ZWNJ }.trim(ZWNJ)
         fun plain(w: String) = PersianSpelling.normalize(w).replace(ZWNJ.toString(), "")

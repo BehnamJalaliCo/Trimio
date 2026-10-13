@@ -40,6 +40,18 @@ class PersianSpelling(
     /** One recogniser slip of an unknown [core] put right ([fix] with no other evidence), for a stem under its endings. */
     internal fun slip(core: String): String? = if (count(core) > 0) null else fix(core, emptySet(), soundOnly = false)
 
+    /**
+     * Whether a listed word ([KNOWN_IN_DOC] or more) is one sound slip from [core]: a letter more,
+     * a letter less or one letter swapped. An unknown word with none near is likelier a name or a
+     * loanword than a slip of a word.
+     */
+    internal fun near(core: String): Boolean {
+        val k = soundKey(core)
+        fun hit(v: String) = v.length >= 2 && bySound[v].orEmpty().any { count(it) >= KNOWN_IN_DOC && it.replace(ZWNJ_S, "") != core.replace(ZWNJ_S, "") }
+        if (k.indices.any { hit(k.removeRange(it, it + 1)) }) return true
+        return (0..k.length).any { i -> ALPHABET.any { ch -> hit(k.substring(0, i) + ch + k.substring(i)) || (i < k.length && hit(k.substring(0, i) + ch + k.substring(i + 1))) } }
+    }
+
     /** Listed words that sound like [w] (sound-alike letters merged, half-spaces ignored). */
     internal fun sounding(w: String): List<String> = bySound[soundKey(w)].orEmpty()
 

@@ -202,10 +202,9 @@ class LlamaLanguageModel(
                 else -> throw LanguageModelException(LanguageModelException.Kind.Other, "llama.cpp decode failed ($status)")
             }
             val c = LlamaNative.lastCall(engine)
-            val usage = Usage(1, c[0].toInt(), c[1].toInt(), c[2].toInt(), c[3] / US, c[4] / US)
+            val usage = Usage(1, c[0].toInt(), c[1].toInt(), c[2].toInt(), c[3] / US, c[4] / US, c.getOrElse(DRAFTED) { 0 }.toInt(), c.getOrElse(DRAFTED + 1) { 0 }.toInt())
             total += usage
-            val mtp = c.getOrNull(DRAFTED)?.takeIf { it > 0 }?.let { ", MTP kept ${c[DRAFTED + 1]}/$it" }.orEmpty()
-            if (log) System.err.println("trimio llm: ${usage.summary()}, grammar resamples ${c[RESAMPLES]}$mtp")
+            if (log) System.err.println("trimio llm: ${usage.summary()}, grammar resamples ${c[RESAMPLES]}")
             Generation(out.toString(), stop, servedBy = id, usage = usage)
         }
     }

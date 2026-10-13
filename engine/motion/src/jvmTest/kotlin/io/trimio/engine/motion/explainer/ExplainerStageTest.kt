@@ -163,7 +163,7 @@ class ExplainerStageTest {
                 val color = (fill as? Fill.Solid)?.color ?: fail("$palette $lang: '$label' is not a solid ink")
                 for (c in ends(color)) {
                     val ratio = ExplainerPalette.ratio(c, ground)
-                    assertTrue(ratio >= ExplainerPalette.FLOOR, "$palette $lang: '$label' reads at ${"%.2f".format(ratio)}:1 on its ground")
+                    assertTrue(ratio >= ExplainerPalette.FLOOR, "$palette $lang: '$label' (${node.name}) reads at ${"%.2f".format(ratio)}:1 on its ground $ground")
                 }
                 count++
             }

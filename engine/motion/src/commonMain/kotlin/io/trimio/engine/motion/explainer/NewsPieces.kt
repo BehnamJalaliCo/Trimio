@@ -81,7 +81,7 @@ internal object NewsPieces {
             pf?.let { f ->
                 val n = punch.split(' ').count { it.isNotEmpty() }
                 val block = Decoration.Block(0 until n, mainEnd + 0.2f, h.ink, h.ground, duration = 0.4f, padX = boxPad, padTop = 0.1f, padBottom = 0.12f, radius = 0.1f)
-                nodes += line(h, punch, f, h.ink, lineX(h, w, f.width), ys[i++], slide(h, mainEnd, 0.08f), listOf(block), "punch")
+                nodes += line(h, punch, f, h.ink, lineX(h, w, f.width + f.type.size * boxPad * 2f), ys[i++], slide(h, mainEnd, 0.08f), listOf(block), "punch")
             }
             sf?.let { nodes += h.words(second, it, h.muted, lineX(h, w, it.width), ys[i], h.ground, mainEnd + 0.5f, Kit.Reveal.Fade, align = h.align, name = "second-line") }
             nodes + TextPieces.underline(h, t, mf.width, (kf?.let { it.height + gap } ?: 0f) + mf.height, mf.type.size)
@@ -243,7 +243,9 @@ internal object NewsPieces {
         Laid(w, ht, listOf(Slot(0f, 0f, w, band, 22f * h.u, h.accent), Slot(0f, band, w, page, 22f * h.u, h.ink))) { t ->
             val pages = countdown(s, t)
             val ink = ExplainerPalette.readable(h.accent, h.ink, h.ground)
-            val bandInk = h.readable(h.ink, h.accent)
+            // The band is the accent made readable for words (a mid-tone accent darkens just enough).
+            val bandColor = h.accentBody
+            val bandInk = h.onAccent
             val nodes = ArrayList<Node>()
             nodes += h.rect(w / 2f, ht / 2f + 3f * h.u, w, ht, 24f * h.u, ColorAnim.of(h.ink.copy(alpha = 0.18f)), name = "calendar-shadow")
             // Pages from the last (bottom) up to the first: each peels away to show the next.
@@ -258,9 +260,9 @@ internal object NewsPieces {
                 )
                 nodes += if (end == null) Group(body, name = "page") else peel(h, body, w, band, page, end)
             }
-            nodes += h.rect(w / 2f, band / 2f, w, band, 22f * h.u, h.accent, "calendar-band")
-            nodes += h.rect(w / 2f, band - 11f * h.u, w, 22f * h.u, 0f, h.accent, "calendar-band-foot")
-            lf?.let { nodes += h.words(label, it, bandInk, w / 2f, band / 2f, h.accent, t.enter + 0.1f, Kit.Reveal.Fade, name = "calendar-label") }
+            nodes += h.rect(w / 2f, band / 2f, w, band, 22f * h.u, bandColor, "calendar-band")
+            nodes += h.rect(w / 2f, band - 11f * h.u, w, 22f * h.u, 0f, bandColor, "calendar-band-foot")
+            lf?.let { nodes += h.words(label, it, bandInk, w / 2f, band / 2f, bandColor, t.enter + 0.1f, Kit.Reveal.Fade, name = "calendar-label") }
             listOf(h.pop(nodes, Box(0f, 0f, w, ht), t.enter, "calendar"))
         }
     }

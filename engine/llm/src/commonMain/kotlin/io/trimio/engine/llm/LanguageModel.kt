@@ -58,6 +58,9 @@ data class Usage(
     val generatedTokens: Int = 0,
     val promptMs: Long = 0,
     val generateMs: Long = 0,
+    /** Tokens the model's own MTP head guessed, and how many of them it kept (self-speculation). */
+    val drafted: Int = 0,
+    val accepted: Int = 0,
 ) {
     /** Prompt tokens actually read per second (reused ones cost nothing). */
     val promptTokensPerSecond: Float get() = perSecond(promptTokens - reusedTokens, promptMs)
@@ -66,12 +69,13 @@ data class Usage(
     operator fun plus(other: Usage) = Usage(
         calls + other.calls, promptTokens + other.promptTokens, reusedTokens + other.reusedTokens,
         generatedTokens + other.generatedTokens, promptMs + other.promptMs, generateMs + other.generateMs,
+        drafted + other.drafted, accepted + other.accepted,
     )
 
     /** "12 calls, read 9800 tokens at 85/s (6100 reused), wrote 3100 at 9.2/s". */
     fun summary(): String =
         "$calls calls, read $promptTokens tokens at ${one(promptTokensPerSecond)}/s ($reusedTokens reused), " +
-            "wrote $generatedTokens at ${one(generatedTokensPerSecond)}/s"
+            "wrote $generatedTokens at ${one(generatedTokensPerSecond)}/s" + if (drafted > 0) ", MTP kept $accepted of $drafted guesses" else ""
 
     private fun perSecond(tokens: Int, ms: Long) = if (ms <= 0) 0f else tokens * MS / ms
 

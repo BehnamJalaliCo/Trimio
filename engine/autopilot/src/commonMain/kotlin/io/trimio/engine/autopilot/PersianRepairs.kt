@@ -107,13 +107,17 @@ internal class PersianRepairs(private val lex: PersianSpelling) {
             val e = ending(w, single) ?: break
             single = single || e.length == 1
             w = w.dropLast(e.length).trimEnd(ZWNJ)
-            val enough = if (single) KNOWN_ONE else KNOWN_STEM
+            // A one-letter ending on a less common stem stands when no word sounds like the whole («آیلتسم»), not when one does («حوشه», «هوشه»).
+            val enough = if (single && homophone(core)) KNOWN_ONE else KNOWN_STEM
             // A verb's prefix counts too: «میرسید» is «می» + «رسید».
             val verb = VERB_PREFIXES.any { w.startsWith(it) && count(w.removePrefix(it).trimStart(ZWNJ)) >= enough }
             if (count(w) >= enough || Loanwords.protected(w) || verb) return w
         }
         return null
     }
+
+    /** Another word the list has that sounds exactly like [core]. */
+    private fun homophone(core: String) = lex.sounding(core).any { it.replace(ZWNJ_S, "") != core.replace(ZWNJ_S, "") && count(it) >= KNOWN_IN_DOC }
 
     /** The ending [w] may lose: never a second one-letter ending, never a degree its stem is not written in. */
     private fun ending(w: String, single: Boolean): String? {

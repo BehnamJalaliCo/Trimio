@@ -36,7 +36,9 @@ class AestheticHarvestTest {
         val text = TextLayoutEngine(TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr), runBlocking { MotionFonts.load() })
         val brands = runBlocking { BrandLibrary.load() }
         val raw = Autopilot(text, brands, VisualLibrary.Empty, jury = Jury(budget = Jury.Budget(rounds = 0, variations = 0)))
-        val runs = Workshop.scenarios().map { it to null } + StyleAxis.runs().map { (s, style) -> s to style.id }
+        // Every scenario in its own style; the 28-style axis adds `-Pgolden.styles=true` worth of variety when wanted.
+        val axis = if (System.getProperty("golden.styles") == "true") StyleAxis.runs().map { (s, style) -> s to style.id } else emptyList()
+        val runs = Workshop.scenarios().map { it to null } + axis
         val labels = File(out, "labels.jsonl").bufferedWriter()
         var frames = 0
         for ((scenario, style) in runs) {
@@ -54,13 +56,13 @@ class AestheticHarvestTest {
                 for ((t, what) in Workshop.keyTimes(production)) {
                     val near = findings.filter { abs(it.second.at - t) <= WINDOW }
                     val score = (10f - near.sumOf { it.second.severity.cost.toDouble() }.toFloat()).coerceIn(0f, 10f)
-                    val name = "${scenario.id}${style?.let { "~$it" } ?: ""}-$kind-${"%05.1f".format(t)}.png".replace('/', '_')
+                    val name = "${scenario.id}${style?.let { "~$it" } ?: ""}-$kind-${"%05.1f".format(t)}.jpg".replace('/', '_')
                     val img = render.draw(t)
                     val w = WIDTH
                     val h = (c.height * WIDTH / c.width.toFloat()).toInt()
                     val small = Surface.makeRasterN32Premul(w, h)
                     small.canvas.drawImageRect(img, Rect.makeXYWH(0f, 0f, w.toFloat(), h.toFloat()))
-                    File(out, name).writeBytes(small.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                    File(out, name).writeBytes(small.makeImageSnapshot().encodeToData(EncodedImageFormat.JPEG, JPEG_QUALITY)!!.bytes)
                     val judges = near.groupBy { it.first }.mapValues { (_, f) -> f.sumOf { it.second.severity.cost.toDouble() } }
                     labels.appendLine("""{"file":"$name","score":$score,"kind":"$kind","what":"$what","t":$t,"costs":{${judges.entries.joinToString(",") { "\"${it.key}\":${it.value}" }}}}""")
                     frames++
@@ -75,5 +77,6 @@ class AestheticHarvestTest {
     private companion object {
         const val WINDOW = 1.0f
         const val WIDTH = 180
+        const val JPEG_QUALITY = 90
     }
 }
