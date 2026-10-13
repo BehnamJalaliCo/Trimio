@@ -2,6 +2,7 @@ package io.trimio.engine.autopilot
 
 import io.trimio.engine.assets.art.ArtCatalogue
 import io.trimio.engine.assets.art.ArtEntry
+import io.trimio.engine.assets.art.ArtHit
 import io.trimio.engine.assets.art.AssetCache
 import io.trimio.engine.assets.packs.ContentPacks
 import io.trimio.engine.autopilot.resources.Res
@@ -44,7 +45,7 @@ class ArtShelf(
      * Documents come from the starter pack, then the cache, then [fetch] (null: offline).
      */
     suspend fun find(query: String, line: String, flavour: ArtFlavour, limit: Int, fetch: (suspend (String) -> String?)?): List<Found> {
-        val own = catalogue.search(query, line, limit * 2, sources(flavour))
+        val own = recalled(query, line, limit * 2, sources(flavour), catalogue.search(query, line, limit * 2, sources(flavour)))
         val best = own.firstOrNull()?.relevance ?: 0f
         val other = if (best >= GOOD) emptyList() else catalogue.search(query, line, limit, sources(flavour.other()))
             .map { it.copy(relevance = it.relevance - OTHER_FLAVOUR) }
@@ -58,6 +59,26 @@ class ArtShelf(
         // With no network (fetch == null) the service still answers from what it keeps on the device.
         if ((out.firstOrNull()?.relevance ?: 0f) < GOOD) out += online(query, limit, fetch, out.firstOrNull()?.relevance ?: 0f)
         return out.sortedByDescending { it.relevance }.take(limit)
+    }
+
+    /**
+     * [lexical] widened by [recall] (the retrieval add-on: meaning, not only words, above its
+     * relevance floor) when one is set and answers; else [lexical] itself, unchanged.
+     */
+    private suspend fun recalled(query: String, line: String, limit: Int, sources: Set<String>, lexical: List<ArtHit>): List<ArtHit> {
+        val r = recall ?: return lexical
+        val found = try {
+            r.search(query, line, limit, sources)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            null
+        } ?: return lexical
+        val semantic = found.mapNotNull { (id, rel) ->
+            catalogue.entry(id)?.takeIf { it.source.id in sources }?.let { ArtHit(it, maxOf(rel, ArtCatalogue.relevance(query, it.name, it.tags))) }
+        }
+        if (semantic.isEmpty()) return lexical
+        return (lexical + semantic).groupBy { it.entry.id }.map { (_, hits) -> hits.maxBy { it.relevance } }.sortedByDescending { it.relevance }.take(limit)
     }
 
     /** The style's picture sets: the bundled one of its flavour and every installed pack's set of that flavour. */
@@ -106,7 +127,18 @@ class ArtShelf(
 
     private fun ArtFlavour.other() = if (this == ArtFlavour.Emoji) ArtFlavour.Line else ArtFlavour.Emoji
 
+    /** Picture ids with their relevance 0..1 for a query and its line, above a relevance floor; null: no answer (the words alone decide). */
+    fun interface Recall {
+        suspend fun search(query: String, line: String, limit: Int, sources: Set<String>): List<Pair<String, Float>>?
+    }
+
     companion object {
+        /** The retrieval add-on, set by the app when it is installed; null (the default) keeps the word search alone. */
+        var recall: Recall? = null
+
+        /** The bundled catalogue's index as shipped (the retrieval add-on's vector pack is built from this same text). */
+        suspend fun indexJson(): String = Res.readBytes("files/art/index.json").decodeToString()
+
         private val SOURCES = mapOf(ArtFlavour.Emoji to setOf("noto"), ArtFlavour.Line to setOf("line-md"))
 
         /** A hit in the style's own flavour this good ends the search there. */

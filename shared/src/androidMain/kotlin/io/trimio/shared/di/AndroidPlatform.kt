@@ -104,6 +104,8 @@ fun androidPlatformModule(
             store, device, models.catalog, preferred = { settings.settings.value.localModelId }, cloud = { get<CloudModels>().firstAvailable() },
         )
         val recognizer = directors().recognizer { settings.settings.value.speechModelId }
+        // The retrieval add-on widens the picture search only while its embedder is installed (else the word search alone).
+        io.trimio.engine.autopilot.ArtShelf.recall = directors().pictureRecall()
         AndroidProductionPlatform(
             app, { recognizer }, { choice -> directors().director(choice) }, device.tier,
             lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },

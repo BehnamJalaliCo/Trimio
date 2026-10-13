@@ -1,7 +1,10 @@
 package io.trimio.engine.production
 
 import io.trimio.engine.asr.whisper.InstalledWhisperRecognizer
+import io.trimio.engine.autopilot.ArtShelf
 import io.trimio.engine.llm.LanguageModel
+import io.trimio.engine.llm.local.LlamaEmbedder
+import io.trimio.engine.llm.local.LocalEncoders
 import io.trimio.engine.llm.local.LocalModels
 import io.trimio.engine.models.DeviceFit
 import io.trimio.engine.models.DeviceMemory
@@ -14,6 +17,9 @@ import io.trimio.engine.models.ModelStore
 import io.trimio.engine.onnx.OrtEngine
 import io.trimio.engine.perception.ModelFiles
 import io.trimio.engine.perception.Perception
+import io.trimio.engine.retrieval.Corpora
+import io.trimio.engine.retrieval.PictureRecall
+import io.trimio.engine.retrieval.Retrieval
 
 /**
  * Directors from the installed on-device models (llama.cpp through JNI), shared by Android and
@@ -76,6 +82,20 @@ class LocalDirectors(
         if (PERCEPTION.none { files.pathOf(it) != null }) return null
         return runCatching { Perception(OrtEngine(), files) }.getOrNull()
     }
+
+    /**
+     * The picture search's retrieval add-on ([io.trimio.engine.autopilot.ArtShelf.recall]): answers
+     * only while the embedder is installed (the vector pack ships; the reranker joins when installed).
+     */
+    fun pictureRecall(): ArtShelf.Recall = PictureRecall {
+        val encoders = LocalEncoders(store, device)
+        (encoders.embedder() as? LlamaEmbedder)?.let { e ->
+            runCatching {
+                e.load()
+                Retrieval.open(Corpora.pictures(ArtShelf.indexJson()), e, encoders.reranker())
+            }.onFailure { e.close() }.getOrNull()
+        }
+    }.let { r -> ArtShelf.Recall(r::search) }
 
     private fun installed(spec: ModelSpec): Boolean = runCatching { store.isInstalled(spec) }.getOrDefault(false)
 

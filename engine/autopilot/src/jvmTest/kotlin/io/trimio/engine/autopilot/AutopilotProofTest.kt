@@ -6,9 +6,13 @@ import io.trimio.core.model.text.Language
 import io.trimio.core.model.time.TimeRange
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
+import io.trimio.engine.llm.local.LlamaEmbedder
 import io.trimio.engine.llm.local.LlamaLanguageModel
+import io.trimio.engine.llm.local.LlamaReranker
+import io.trimio.engine.llm.local.LocalEncoders
 import io.trimio.engine.models.ChatFormat
 import io.trimio.engine.models.MediaAddOns
+import io.trimio.engine.models.TextAddOns
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Subject
@@ -18,6 +22,9 @@ import io.trimio.engine.perception.AddOnPass
 import io.trimio.engine.perception.Frame
 import io.trimio.engine.perception.ModelFiles
 import io.trimio.engine.perception.Perception
+import io.trimio.engine.retrieval.Corpora
+import io.trimio.engine.retrieval.PictureRecall
+import io.trimio.engine.retrieval.Retrieval
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -49,6 +56,8 @@ class AutopilotProofTest {
 
         // -Pauto.addons=<dir>[,<dir>]: the add-ons installed there run as in the app (Silero VAD, AddOnPass); absent: none.
         val addOns = AddOns(System.getProperty("auto.addons")?.split(',')?.map(::File)?.filter { it.isDirectory }.orEmpty())
+        // -Pauto.embedder=<dir>: the retrieval add-on (bge-m3, plus the reranker when it is there) widens the picture search.
+        System.getProperty("auto.embedder")?.let(::File)?.takeIf { it.isDirectory }?.let { ArtShelf.recall = recall(it) }
 
         // 1. Speech, recognised by the app's own whisper.cpp (cached: it does not change between seeds).
         val transcriptFile = File(out, "transcript.json")
@@ -113,6 +122,16 @@ class AutopilotProofTest {
             }
         }
         llm?.close()
+    }
+
+    private fun recall(dir: File): ArtShelf.Recall {
+        val embedder = TextAddOns.embedder.let { LlamaEmbedder(it.id, File(dir, it.fileName).path, LocalEncoders.familyOf(it)) }
+        val reranker = TextAddOns.reranker06b.let { s -> File(dir, s.fileName).takeIf { it.isFile }?.let { LlamaReranker(s.id, it.path) } }
+        val r = PictureRecall {
+            embedder.load()
+            Retrieval.open(Corpora.pictures(ArtShelf.indexJson()), embedder, reranker)
+        }
+        return ArtShelf.Recall(r::search)
     }
 
     /** The add-ons found in [dirs], run as the app runs them; with no dirs, none (the plain path). */

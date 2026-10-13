@@ -19,6 +19,7 @@ kotlin {
             api(projects.engine.llm)
             // Perception add-ons on ONNX Runtime (faces, shots, beats, punctuation, alignment, speakers, text): ships the runtime.
             api(projects.engine.perception)
+            implementation(projects.engine.retrieval)
             // Music moods and beat grids for the editor's sound and cut tools.
             implementation(projects.engine.assets)
             // Hero pictures of explainer films (the CC0 library in the film's look).
