@@ -146,7 +146,9 @@ class ArtTest {
     @Test
     fun svgMasksAndMorphsFollowTheirAnimations() {
         // A disc that grows (r 0 → 10) inside a mask that hides its right half.
-        val doc = """<mask id="m"><rect width="12" height="24" fill="#fff"/></mask><g mask="url(#m)"><circle cx="12" cy="12" r="0" fill="currentColor"><animate fill="freeze" attributeName="r" dur="1s" values="0;10"/></circle></g>"""
+        val doc = """<mask id="m"><rect width="12" height="24" fill="#fff"/></mask>""" +
+            """<g mask="url(#m)"><circle cx="12" cy="12" r="0" fill="currentColor">""" +
+            """<animate fill="freeze" attributeName="r" dur="1s" values="0;10"/></circle></g>"""
         val art = assertNotNull(MotionArts.read(MotionArt.FORMAT_SVG, doc))
         val img = render(art, 1f, px = 96)
         assertTrue(img.at(30, 48).alpha > 0.9f, "left half of the grown disc")

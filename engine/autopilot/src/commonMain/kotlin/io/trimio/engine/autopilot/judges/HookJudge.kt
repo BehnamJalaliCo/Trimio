@@ -123,10 +123,15 @@ class HookJudge(
         // The brief wants the payoff first and the opening is only words: the payoff's figure takes its place.
         if (verdict.findings.any { "payoff first" in it.what }) figureFirst(c, graphics.minByOrNull { it.at })?.let { return it }
         val missing = graphics.none { it.at <= hookBy } || verdict.findings.any { "empty stage" in it.what }
-        if (!missing && verdict.findings.any { "only the speaker" in it.what }) return earlier(c, graphics)
-        if (!missing || c.score.scenes.isEmpty()) return null
-        val text = phrase(c) ?: return null
-        return Bench.addBeat(c.score, 0, BeatScore(recipe = "slam", text = text, time = HOOK_AT, hold = HOOK_HOLD, energy = 0.9f, place = "top"))
+        return when {
+            !missing && verdict.findings.any { "only the speaker" in it.what } -> earlier(c, graphics)
+            // A soft opening with words: the same words, opening hard.
+            !missing -> if (verdict.findings.any { "the hook is a soft" in it.what }) harder(c, graphics) else null
+            c.score.scenes.isEmpty() -> null
+            else -> phrase(c)?.let { text ->
+                Bench.addBeat(c.score, 0, BeatScore(recipe = "slam", text = text, time = HOOK_AT, hold = HOOK_HOLD, energy = 0.9f, place = "top"))
+            }
+        }
     }
 
     /** The hook is there, just late for the first frame: bring it forward to land on it. */
@@ -136,6 +141,17 @@ class HookJudge(
         val quoted = c.score.scenes.firstOrNull()?.beats?.indexOfFirst { it.recipe == first.recipe && it.text?.let(::clean) == clean(first.text) }
         val at = Bench.locate(c.score, c.words, first) ?: quoted?.takeIf { it >= 0 }?.let { 0 to it } ?: return null
         return Bench.mapBeat(c.score, at) { it.copy(time = HOOK_AT, at = null) }.takeIf { it != c.score }
+    }
+
+    /** A soft opening with words opens hard: the same words as a slam (or another hard title when the next graphic is one). */
+    private fun harder(c: Jury.Context, graphics: List<Compiler.Placed>): Score? {
+        val sorted = graphics.sortedBy { it.at }
+        val first = sorted.firstOrNull() ?: return null
+        val next = sorted.getOrNull(1)?.recipe
+        val at = Bench.locate(c.score, c.words, first) ?: return null
+        val recipe = HARD.firstOrNull { it != next } ?: return null
+        return Bench.mapBeat(c.score, at) { b -> b.takeIf { !it.text.isNullOrBlank() }?.copy(recipe = recipe, variant = null) ?: b }
+            .takeIf { it != c.score }
     }
 
     private fun clean(s: String) = s.replace("\u200C", "").trim()
@@ -151,6 +167,8 @@ class HookJudge(
 
     companion object {
         private val SOFT = setOf("blur-in", "type-on", "lower-third", "icon")
+        /** Titles that open hard, in order of preference. */
+        private val HARD = listOf("slam", "stack", "mask-rise")
         private const val EMPTY_FRAME = 0.25f
         private const val AIR = 0.35f
         private const val HOOK_AT = 0.25f

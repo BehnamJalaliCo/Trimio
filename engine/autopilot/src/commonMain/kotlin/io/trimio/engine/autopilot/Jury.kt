@@ -264,7 +264,10 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
 
     /**
      * One candidate through up to [Budget.rounds] revisions. Each round tries the [options] in
-     * turn and keeps the first that improves the panel; a round where none does ends it.
+     * turn and keeps the first that improves the panel. When none does, one that scores the same
+     * may still be taken ([MAX_SIDEWAYS] times, never back to an edit already tried): a fix that
+     * climbs a ladder (the other band, then a stage of its own) can need a level step before the
+     * one that pays. The best panel seen wins; a round with no step ends it.
      */
     private suspend fun <T> polish(
         first: T,
@@ -278,41 +281,62 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var panel = deliberate(ctx)
         log("jury $name round 0: ${panel.summary()}")
         panel.details().forEach(log)
+        var best = current to panel
+        val tried = mutableSetOf(ctx.score)
+        var sideways = 0
         var round = 0
         while (!panel.unanimous && round < budget.rounds) {
-            val options = options(ctx, panel)
+            val options = options(ctx, panel).filter { it.second.score !in tried || it.second.outro != null }
             if (options.isNotEmpty()) round++
-            val better = if (options.isEmpty()) null else firstBetter(current, panel, options, context, revise) { what, p -> log("jury $name round $round ($what): ${p.summary()}") }
-            if (better == null) break
-            current = better.first
-            ctx = better.second
-            panel = better.third
+            val step = if (options.isEmpty()) {
+                null
+            } else {
+                nextStep(current, panel, options, context, revise, sideways < MAX_SIDEWAYS) { what, p -> log("jury $name round $round ($what): ${p.summary()}") }
+            }
+            if (step == null) break
+            if (!step.better) sideways++
+            current = step.next
+            ctx = step.context
+            panel = step.panel
+            tried += ctx.score
+            if (panel.betterThan(best.second)) best = current to panel
             panel.details().forEach(log)
         }
-        return Triple(current, panel, round)
+        return Triple(best.first, best.second, round)
     }
 
-    /** The first of [options] whose revision of [current] the panel prefers to [panel], with its context and panel; null when none is. */
-    private suspend fun <T> firstBetter(
+    private class Step<T>(val next: T, val context: Context, val panel: Panel, val better: Boolean)
+
+    /**
+     * The first of [options] whose revision of [current] the panel prefers to [panel]; else, when
+     * [level] allows, the first that scores the same; null when neither is there.
+     */
+    private suspend fun <T> nextStep(
         current: T,
         panel: Panel,
         options: List<Pair<String, Revision>>,
         context: suspend (T) -> Context,
         revise: suspend (T, Revision) -> T,
+        level: Boolean,
         log: (String, Panel) -> Unit,
-    ): Triple<T, Context, Panel>? {
+    ): Step<T>? {
+        var same: Step<T>? = null
         for ((what, fix) in options) {
             val next = revise(current, fix)
             val nextCtx = context(next)
             val nextPanel = deliberate(nextCtx)
             log(what, nextPanel)
-            if (nextPanel.betterThan(panel)) return Triple(next, nextCtx, nextPanel)
+            if (nextPanel.betterThan(panel)) return Step(next, nextCtx, nextPanel, better = true)
+            if (level && same == null && !panel.betterThan(nextPanel)) same = Step(next, nextCtx, nextPanel, better = false)
         }
-        return null
+        return same
     }
 
     companion object {
         private const val EPS = 1e-3f
+
+        /** Level steps one candidate may take while it finds no better one. */
+        private const val MAX_SIDEWAYS = 2
 
         /** The judges as the creator reads them. */
         val PERSIAN_NAMES = mapOf(

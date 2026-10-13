@@ -34,8 +34,9 @@ class RhythmJudge(
         f += clutter(graphics).map { g -> Bench.finding(g.at, Severity.Major, "three graphics share the screen around ${g.recipe}", "drop or shorten one of them") }
         f += midWord(c)
         f += density(c)
-        f += emptyStages(c, graphics).map { (k, a, b) ->
-            Bench.finding(a, Severity.Major, "a full-frame stage with nothing on it for ${Bench.r1(b - a)}s (scene ${k + 1})", "a graphic on the stage, or back to the speaker")
+        f += emptyStages(c, graphics).map { s ->
+            val what = if (s.bare >= s.to - s.from - EMPTY_STAGE) "with nothing on it for ${Bench.r1(s.to - s.from)}s" else "bare for ${Bench.r1(s.bare)}s of its ${Bench.r1(s.to - s.from)}s"
+            Bench.finding(s.from, Severity.Major, "a full-frame stage $what (scene ${s.scene + 1})", "a graphic on the stage, or back to the speaker")
         }.capped()
         return Verdict.of(this, f)
     }
@@ -44,14 +45,18 @@ class RhythmJudge(
      * Full-frame stages (the speaker hidden) that show nothing but captions for most of their time:
      * the viewer loses the speaker and gets nothing for it. (scene, from, to).
      */
-    private fun emptyStages(c: Jury.Context, graphics: List<Compiler.Placed>): List<Triple<Int, Float, Float>> {
+    private data class Stage(val scene: Int, val from: Float, val to: Float, val bare: Float)
+
+    private fun emptyStages(c: Jury.Context, graphics: List<Compiler.Placed>): List<Stage> {
         if (!c.footage) return emptyList()
         val starts = Bench.sceneStarts(c.score, c.words)
         return c.score.scenes.indices.filter { k -> !Bench.overFootage(c, k) }.mapNotNull { k ->
-            val a = starts[k]
             val b = (starts.getOrNull(k + 1) ?: c.duration).coerceAtMost(c.duration)
+            // The compiler raises a stage just before its first graphic lands (not at the scene's nominal start).
+            val lands = c.score.scenes[k].beats.minOfOrNull { Bench.beatStart(it, k, c.score, c.words, starts) }
+            val a = lands?.let { (it - STAGE_LEAD).coerceIn(starts[k], maxOf(starts[k], b - MIN_STAGE)) } ?: starts[k]
             val shown = graphics.sumOf { g -> Bench.overlap(g.at, g.out, a, b).toDouble() }.toFloat().coerceAtMost(b - a)
-            Triple(k, a, b).takeIf { b - a > EMPTY_STAGE && b - a - shown > EMPTY_STAGE }
+            Stage(k, a, b, b - a - shown).takeIf { b - a > EMPTY_STAGE && it.bare > EMPTY_STAGE }
         }
     }
 
@@ -111,7 +116,7 @@ class RhythmJudge(
         // An empty stage goes back to the speaker, with a punch-in halfway so the stretch it leaves is not dead air.
         val empty = emptyStages(c, graphics)
         if (empty.isNotEmpty()) {
-            val stages = empty.map { it.first }.toSet()
+            val stages = empty.map { it.scene }.toSet()
             score = score.copy(scenes = score.scenes.mapIndexed { k, s -> if (k in stages) s.copy(bg = null, transition = null) else s })
             for ((_, a, b) in empty.filter { (_, a, b) -> b - a > maxDead }) score = Bench.punchAt(score, c.words, (a + b) / 2f) ?: score
         }
@@ -129,6 +134,9 @@ class RhythmJudge(
         const val SPLIT = 0.8f
         /** A stage may stand bare this long (a transition, a breath before its graphic lands). */
         const val EMPTY_STAGE = 1.2f
+        /** The compiler's stage timing: raised this long before its first graphic lands, and never shorter than [MIN_STAGE]. */
+        const val STAGE_LEAD = 0.12f
+        const val MIN_STAGE = 1.2f
         val PROTECTED = setOf("comment", "message", "voucher", "stats", "countdown", "progress")
     }
 }

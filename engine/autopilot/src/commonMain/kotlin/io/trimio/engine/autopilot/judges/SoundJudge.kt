@@ -72,16 +72,26 @@ class SoundJudge(
         // A cut that lands on a deliberate hit (a transition's whoosh or boom) is that hit, not a splice click.
         val hits = c.compiled.sfx.map { it.at }
         val joins = c.edit?.played.orEmpty().map { it.outStart }.filter { t -> t > 0f && hits.none { kotlin.math.abs(it - t) < HIT_MASK_S } }
+        if (joins.isEmpty()) return emptyList()
+        // Only the voice is spliced: a step in the mix that the spliced voice does not have is the
+        // music's own attack (a kick on the beat the cut shares), not a click.
+        val voice = c.voice?.takeIf { it.sampleRate == rate }
+        val dry = c.edit?.let { e -> voice?.let { Soundtrack(rate).splice(it, e, x.size) } }
         return joins.mapNotNull { t ->
             val i = (t * rate).toInt()
-            val near = rate * NEAR_MS / 1000
-            val wide = rate * WIDE_MS / 1000
-            val jump = (i - near..i + near).filter { it in 1 until x.size }.maxOfOrNull { abs(x[it] - x[it - 1]) } ?: return@mapNotNull null
-            // The neighbourhood's own sharpest steps (its 99th percentile): noise and consonants are not clicks.
-            val around = ((i - wide..i - near) + (i + near..i + wide)).filter { it in 1 until x.size }.map { abs(x[it] - x[it - 1]) }.sorted()
-            val sharp = around.getOrNull((around.size * SHARP_PERCENTILE).toInt()) ?: 0f
-            Bench.finding(t, Severity.Minor, "a click at the cut", "a short fade at the splice").takeIf { jump > CLICK_ABS && jump > sharp * CLICK_RATIO }
+            val (jump, sharp) = step(x, i, rate) ?: return@mapNotNull null
+            val spliced = dry?.let { d -> step(d, i, rate)?.let { (j, s) -> j > s * CLICK_RATIO } } ?: true
+            Bench.finding(t, Severity.Minor, "a click at the cut", "a short fade at the splice").takeIf { jump > CLICK_ABS && jump > sharp * CLICK_RATIO && spliced }
         }.capped()
+    }
+
+    /** The sharpest sample step right at [i], and the neighbourhood's own sharpest steps (its 99th percentile): noise and consonants are not clicks. */
+    private fun step(x: FloatArray, i: Int, rate: Int): Pair<Float, Float>? {
+        val near = rate * NEAR_MS / 1000
+        val wide = rate * WIDE_MS / 1000
+        val jump = (i - near..i + near).filter { it in 1 until x.size }.maxOfOrNull { abs(x[it] - x[it - 1]) } ?: return null
+        val around = ((i - wide..i - near) + (i + near..i + wide)).filter { it in 1 until x.size }.map { abs(x[it] - x[it - 1]) }.sorted()
+        return jump to (around.getOrNull((around.size * SHARP_PERCENTILE).toInt()) ?: 0f)
     }
 
     /** RMS of the mix while words are said and in pauses of [MIN_GAP_S] or more, in dB; null when there are no pauses. */

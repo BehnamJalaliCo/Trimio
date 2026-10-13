@@ -149,6 +149,11 @@ class EditGateTest {
         )
         val v = MotionJudge().score(context(twice))
         assertTrue(v.findings.any { "twice back to back" in it.what }, "${v.findings}")
+        // The second figure becomes another figure device (not another title).
+        val fixed = assertNotNull(MotionJudge().revise(context(twice), v))
+        assertEquals("stat-stack", fixed.scenes[1].beats.single().recipe)
+        assertEquals(300f, fixed.scenes[1].beats.single().value)
+        assertTrue(MotionJudge().score(context(fixed)).findings.none { "twice back to back" in it.what })
     }
 
     @Test
@@ -213,6 +218,47 @@ class EditGateTest {
         assertTrue(outcome.rounds >= 1, "the jury sent it back")
         assertTrue(outcome.panel.min > jury.deliberate(context(bare)).min, "and it came back better: ${outcome.panel.summary()}")
         assertNotEquals(bare, outcome.best)
+    }
+
+    @Test
+    fun aPunchInTakesAlongTheGraphicsThatLandAfterIt() {
+        val late = at("سیصد")
+        val score = Score(look = "noir", auto = false, scenes = listOf(SceneScore(from = 0, beats = listOf(BeatScore("mask-rise", at = late, text = "سیصد نفر", place = "top")))))
+        val cut = assertNotNull(io.trimio.engine.autopilot.judges.Bench.punchAt(score, words, io.trimio.engine.autopilot.judges.Bench.start(words, late - 4)))
+        assertEquals(2, cut.scenes.size)
+        assertTrue(cut.scenes[0].beats.isEmpty(), "a graphic that lands after the cut is not left in a scene that ends before it")
+        assertEquals("سیصد نفر", cut.scenes[1].beats.single().text)
+        // Never just after a graphic lands: the cut would end it before it is read.
+        val landed = io.trimio.engine.autopilot.judges.Bench.start(words, late)
+        io.trimio.engine.autopilot.judges.Bench.punchAt(score, words, landed + 0.3f)?.let { s ->
+            val next = s.scenes.mapNotNull { it.from }.filter { it > late }.minOrNull()
+            next?.let { assertTrue(io.trimio.engine.autopilot.judges.Bench.start(words, it) - landed >= 0.85f, "the cut waits until the graphic is read") }
+        }
+    }
+
+    @Test
+    fun aSoftOpeningOpensHard() {
+        val soft = Score(look = "noir", auto = false, scenes = listOf(SceneScore(from = 0, beats = listOf(BeatScore("blur-in", time = 0.1f, text = "نود درصد", hold = 2f, place = "top")))))
+        val judge = io.trimio.engine.autopilot.judges.HookJudge()
+        val v = judge.score(context(soft, prompt = "ریلز بساز"))
+        assertTrue(v.findings.any { "soft" in it.what }, v.findings.joinToString())
+        val fixed = assertNotNull(judge.revise(context(soft, prompt = "ریلز بساز"), v))
+        assertEquals("slam", fixed.scenes[0].beats.single().recipe)
+        assertTrue(judge.score(context(fixed, prompt = "ریلز بساز")).findings.none { "soft" in it.what })
+    }
+
+    @Test
+    fun theCameraNeverPushesWordsOutOfTheSafeArea() {
+        // No footage: the camera pushes in on the graphics themselves (and a slam kicks it).
+        val score = Score(
+            look = "noir", auto = false,
+            scenes = listOf(SceneScore(from = 0, camera = "push-in", beats = listOf(BeatScore("slam", time = 0f, hold = 1.4f, text = "معامله‌گری حرفه‌ای درباره‌ی تریدرها", place = "lower")))),
+        )
+        val out = compiler.compile(Compiler.Input(score, transcript))
+        val w = out.composition.width.toFloat()
+        val words = probe.trace(out).first { it.placed.recipe == "slam" }.resting().mapNotNull { it.type }
+        assertTrue(words.isNotEmpty())
+        for (i in words) assertTrue(i.left >= w * 0.03f && i.right <= w * 0.97f, "words at ${i.left}..${i.right} of $w")
     }
 
     private companion object {

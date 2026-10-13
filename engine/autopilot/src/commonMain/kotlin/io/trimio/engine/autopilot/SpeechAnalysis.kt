@@ -57,19 +57,31 @@ class SpeechAnalysis(
         }
 
         /**
-         * Gaps between two words of at least [STRICT_GAP] whose middle is quiet on the voice itself
-         * ([QUIET_DB] under the speaker's level, every 20 ms of it): a pause the activity detector
-         * kept as speech (a breath, room noise) but nobody would miss.
+         * The quiet stretches of the gaps between two words, each at least [STRICT_GAP] long and
+         * quiet on the voice itself ([QUIET_DB] under the speaker's level, every 20 ms of it): a
+         * pause the activity detector kept as speech (a breath, room noise) but nobody would miss.
+         * A gap with a breath in its middle loses the quiet on either side of it.
          */
         private fun quietGaps(words: List<Word>, voice: PcmAudio): List<ClosedFloatingPointRange<Float>> {
             val cuts = io.trimio.engine.motion.score.CutPoints(voice)
-            return words.zipWithNext().mapNotNull { (a, b) ->
+            return words.zipWithNext().flatMap { (a, b) ->
                 val from = a.range.endMs / MS + EDGE
                 val to = b.range.startMs / MS - EDGE
-                if (to - from < STRICT_GAP - 2 * EDGE) return@mapNotNull null
+                if (to - from < STRICT_GAP - 2 * EDGE) return@flatMap emptyList()
                 val steps = ((to - from) / PROBE).toInt().coerceAtLeast(1)
-                val quiet = (0 until steps).all { k -> cuts.db(from + k * PROBE, from + (k + 1) * PROBE) < cuts.speechDb - QUIET_DB }
-                (a.range.endMs / MS..b.range.startMs / MS).takeIf { quiet }
+                val quiet = (0 until steps).map { k -> cuts.db(from + k * PROBE, from + (k + 1) * PROBE) < cuts.speechDb - QUIET_DB }
+                val runs = mutableListOf<ClosedFloatingPointRange<Float>>()
+                var k = 0
+                while (k < steps) {
+                    if (!quiet[k]) { k++; continue }
+                    val first = k
+                    while (k < steps && quiet[k]) k++
+                    // A run that reaches a word's edge runs to the word (the cut keeps its own breath there).
+                    val lo = if (first == 0) a.range.endMs / MS else from + first * PROBE
+                    val hi = if (k == steps) b.range.startMs / MS else from + k * PROBE
+                    if (hi - lo >= STRICT_GAP) runs += lo..hi
+                }
+                runs
             }
         }
 

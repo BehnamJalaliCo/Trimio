@@ -56,6 +56,32 @@ class Compiler(
     /** What a beat is, for [restMemo]: its recipe, its cue (where, when, what) and the look. */
     private data class Rest(val recipe: String, val cue: Cue, val look: String, val w: Int, val h: Int)
 
+    /**
+     * What the camera does to a resting graphic: its closest zoom (about the frame's centre) and
+     * how far it drifts off. A bound safe on screen is then a bound pulled that much toward the
+     * centre (and in by the drift) in the graphic's own coordinates.
+     */
+    private class Lens(val zoom: Float = 1f, val dx: Float = 0f, val dy: Float = 0f) {
+        /** [bound] (a screen x on the [near] side of the centre or the far one) as an x before the camera. */
+        fun x(bound: Float, size: Float, near: Boolean) = inward(bound, size, dx, near)
+        fun y(bound: Float, size: Float, near: Boolean) = inward(bound, size, dy, near)
+
+        private fun inward(bound: Float, size: Float, off: Float, near: Boolean): Float {
+            val c = size / 2f
+            val z = maxOf(1f, zoom)
+            return c + (bound - c) / z + if (near) off else -off
+        }
+
+        companion object {
+            private const val LOOKS = 9
+
+            fun over(camera: Camera, from: Float, to: Float): Lens {
+                val ts = (0 until LOOKS).map { from + (to - from).coerceAtLeast(0f) * it / (LOOKS - 1) }
+                return Lens(ts.maxOf { camera.zoom.at(it) }, ts.maxOf { abs(camera.x.at(it)) }, ts.maxOf { abs(camera.y.at(it)) })
+            }
+        }
+    }
+
     /** Where beats rest, drawn once per beat as long as it does not change (oldest first out). */
     private val restMemo = LinkedHashMap<Rest, Pair<Geometry.Ink?, Geometry.Ink?>>()
 
@@ -207,7 +233,7 @@ class Compiler(
             )
             val root = Group(picture(base(), "footage") + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
-            val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx)
+            val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx, duration)
             val order = (beats + captionBeats).sortedBy { it.cue.at }
             val placed = order.map {
                 val c = it.cue
@@ -234,6 +260,9 @@ class Compiler(
 
         private fun keepInside(built: Map<Beat, Built>): Map<Beat, Built> {
             if (!inside) return built
+            // The camera moves the graphics with the picture (a push-in, a slam's kick, the drift):
+            // the safe area is what stays safe at the camera's closest and furthest-off frame.
+            val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             return built.mapValues { (b, out) ->
                 if (b.id >= CAPTION_ID_BASE || out.nodes.isEmpty()) return@mapValues out
                 val end = b.out - REST_EXIT
@@ -244,7 +273,8 @@ class Compiler(
                 val (ink, type) = restMemo.getOrPut(key) { geometry.rest(out.nodes, w, h, times) }
                 if (restMemo.size > REST_MEMO) restMemo.remove(restMemo.keys.first())
                 ink?.let { rests[b.id] = it }
-                val move = ink?.let { safely(it, type, b.cue.overMedia) } ?: return@mapValues out
+                val lens = Lens.over(camera, from, end)
+                val move = ink?.let { safely(it, type, b.cue.overMedia, lens) } ?: return@mapValues out
                 rests[b.id] = move.third
                 notes += "kept ${b.recipe.name} inside the frame"
                 out.copy(nodes = listOf(Group(out.nodes, transform = move.first, name = "keep-inside")), box = out.box?.let(move.second))
@@ -258,7 +288,12 @@ class Compiler(
         }
 
         /** The move that brings [ink] (its letters [type]) inside the safe area, and what it does to a box; null when it is inside. */
-        private fun safely(ink: Geometry.Ink, type: Geometry.Ink?, overMedia: Boolean): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
+        private fun safely(
+            ink: Geometry.Ink,
+            type: Geometry.Ink?,
+            overMedia: Boolean,
+            lens: Lens = Lens(),
+        ): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
             val fw = w.toFloat()
             val fh = h.toFloat()
             // A full-frame stage fills the frame on purpose; a band across it may run off the sides, its words may not.
@@ -266,17 +301,17 @@ class Compiler(
             val band = ink.width >= fw * FULL
             val box = if (band) Geometry.Ink((type ?: ink).left, ink.top, (type ?: ink).right, ink.bottom) else ink
             val tall = h > w
-            var top = fh * SAFE_TOP
-            var bottom = fh * if (tall) SAFE_BOTTOM_TALL else SAFE_BOTTOM
+            var top = lens.y(fh * SAFE_TOP, fh, near = true)
+            var bottom = lens.y(fh * if (tall) SAFE_BOTTOM_TALL else SAFE_BOTTOM, fh, near = false)
             // Over the speaker the face is off limits too: a graphic above it stays above the brow, one below it under the chin.
             val face = input.subject?.face?.takeIf { overMedia }
             if (face != null && covers(box, face)) {
                 if ((box.top + box.bottom) / 2f < face.centerY * fh) bottom = minOf(bottom, face.top * fh - FACE_GAP) else top = maxOf(top, face.bottom * fh + FACE_GAP)
             }
             if (bottom - top < box.height * MIN_FIT) return null
-            val left = fw * SAFE_SIDE
+            val left = lens.x(fw * SAFE_SIDE, fw, near = true)
             // The platform's buttons run down the right of a vertical video, from about the middle.
-            val right = fw * if (tall && box.bottom > fh * BUTTONS_FROM) SAFE_BUTTONS else 1f - SAFE_SIDE
+            val right = lens.x(fw * if (tall && box.bottom > fh * BUTTONS_FROM) SAFE_BUTTONS else 1f - SAFE_SIDE, fw, near = false)
             val k = minOf(1f, (right - left) / box.width.coerceAtLeast(1f), (bottom - top) / box.height.coerceAtLeast(1f))
             val bw = box.width * k
             val bh = box.height * k
@@ -773,7 +808,7 @@ class Compiler(
         return Camera(zoom, x, y, r)
     }
 
-    private fun mixSfx(all: List<Sfx>): List<Sfx> {
+    private fun mixSfx(all: List<Sfx>, duration: Float): List<Sfx> {
         val out = mutableListOf<Sfx>()
         for (s in all.sortedWith(compareBy({ it.at }, { -it.gain }))) {
             val prev = out.lastOrNull()
@@ -782,7 +817,18 @@ class Compiler(
                 s.gain > prev.gain -> out[out.size - 1] = s
             }
         }
-        return thin(out)
+        return budget(thin(out), duration)
+    }
+
+    /**
+     * At most [MAX_SFX_PER_MINUTE] cues a minute over the piece (a short piece counts as a quarter
+     * of a minute): past that, the quietest go first. Sound stays an accent.
+     */
+    private fun budget(cues: List<Sfx>, duration: Float): List<Sfx> {
+        val allowed = (MAX_SFX_PER_MINUTE * maxOf(duration / 60f, MIN_SFX_MINUTES)).toInt()
+        if (cues.size <= allowed) return cues
+        val kept = cues.sortedByDescending { it.gain }.take(allowed).toSet()
+        return cues.filter { it in kept }
     }
 
     /**
@@ -830,6 +876,9 @@ class Compiler(
         private const val MIN_READ = 1.0f
         private const val MAX_HOLD = 7f
         private const val MAX_SFX_BURST = 4
+        /** The mix's accent budget (the sound judge's): cues a minute, a short piece counted as this much of a minute. */
+        private const val MAX_SFX_PER_MINUTE = 45
+        private const val MIN_SFX_MINUTES = 0.25f
         private const val SFX_WINDOW = 2f
         /** A chat thread plays as long as the story it tells; the call to action holds to the end. */
         private const val MAX_THREAD_HOLD = 24f

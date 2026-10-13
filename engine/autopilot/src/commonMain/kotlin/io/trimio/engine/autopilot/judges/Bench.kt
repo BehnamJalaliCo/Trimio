@@ -23,7 +23,7 @@ internal object Bench {
     val TEXT = setOf("slam", "mask-rise", "type-on", "blur-in", "flip", "spread", "stack", "glitch")
 
     /** Figures that need time to be read (the planner's DATA_HOLD applies to them). */
-    val DATA = setOf("counter", "voucher", "stats", "countdown", "progress", "chart", "meter", "network", "terminal", "bars")
+    val DATA = setOf("counter", "voucher", "stats", "countdown", "progress", "chart", "meter", "network", "terminal", "bars") + io.trimio.engine.autopilot.Shows.DATA
     val PICTURES = setOf("object", "objects", "icon", "animated", "live-reaction")
 
     /** The craft's alternatives for a text treatment used too often (the critic's table). */

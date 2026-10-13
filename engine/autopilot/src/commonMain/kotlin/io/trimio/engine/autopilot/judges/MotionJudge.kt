@@ -104,16 +104,16 @@ class MotionJudge(
         return s.copy(text = title, emphasis = emptyList()).takeIf { title != s.text }
     }
 
-    /** A counter as a slam of its number and unit («۵۰٬۰۰۰ بازدید»), in the piece's digits. */
-    private fun numberSlam(b: io.trimio.engine.motion.score.BeatScore): io.trimio.engine.motion.score.BeatScore {
+    /** A counter as another figure device: a ring for a share, else a stat card of the same number and unit. */
+    private fun otherFigure(b: io.trimio.engine.motion.score.BeatScore): io.trimio.engine.motion.score.BeatScore {
         val v = b.value ?: return b
         val unit = listOfNotNull(b.suffix, b.label).joinToString(" ").trim()
-        val persian = Bench.persian(unit)
-        val raw = io.trimio.engine.motion.score.NumberWords.normalize(if (v == kotlin.math.floor(v)) v.toLong().toString() else v.toString())
-        val digits = if (persian) io.trimio.core.model.text.Numerals.toPersian(raw) else raw
-        return io.trimio.engine.motion.score.BeatScore(
-            recipe = "slam", at = b.at, time = b.time, text = "${b.prefix.orEmpty()}$digits $unit".trim(), energy = 0.9f, place = b.place, hold = b.hold,
-        )
+        val share = PERCENT.any { it in unit } && v in 0f..100f
+        return if (share) {
+            b.copy(recipe = "ring", label = b.label ?: unit, variant = null)
+        } else {
+            b.copy(recipe = "stat-stack", points = listOf(v), items = listOf(unit), variant = null)
+        }
     }
 
     /** The kind of element a recipe is: titles, figures, pictures, names, cards, the ask. */
@@ -147,9 +147,9 @@ class MotionJudge(
             score = Bench.mapBeat(score, at) { s ->
                 when {
                     swap != null -> s.copy(recipe = swap)
+                    // A second figure right after the first: another figure device (not a title: titles carry enough).
+                    s.value != null && s.recipe == "counter" -> otherFigure(s)
                     s.variant == null && variants > 1 -> s.copy(variant = (b.variant + 1) % variants)
-                    // A second figure right after the first: said as a big word, not counted again.
-                    s.value != null && s.recipe == "counter" -> numberSlam(s)
                     else -> s
                 }
             }
@@ -195,6 +195,7 @@ class MotionJudge(
         const val HEAVY_FAMILY = 0.65f
         val FIGURE_FAMILY = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag")
         val PICTURE_FAMILY = setOf("object", "objects", "icon", "animated", "live-reaction")
+        val PERCENT = listOf("%", "٪", "درصد", "percent")
         /** The ask and a thread run on as one story; every other device twice running reads as a loop. */
         val REPEATABLE = setOf("comment", "message")
     }

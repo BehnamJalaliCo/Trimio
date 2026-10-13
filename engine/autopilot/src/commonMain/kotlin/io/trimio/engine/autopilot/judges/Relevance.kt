@@ -43,9 +43,12 @@ internal class Relevance(private val c: Jury.Context) {
         // A figure is judged by its number; its label («زمان باقی‌مانده», «هدیه») describes it and need not be said.
         if (b.recipe in DATA) return picture(p, b)
         // A name in Latin letters on a Persian piece («Tether» for «تتر») cannot be matched by spelling: the script judge reads those.
-        for (text in (listOfNotNull(b.text) + b.items.map { it.removePrefix(">") }).filter { it.isNotBlank() && (!rtl || Bench.persian(it)) }) {
+        // Items come in one by one and stay up: each may be said while the graphic is up.
+        val life = words.indices.filter { i -> start(i) >= p.at - BEFORE && start(i) <= p.out + AFTER }
+        val shown = listOfNotNull(b.text).map { it to window } + b.items.map { it.removePrefix(">") to life }
+        for ((text, near) in shown.filter { (t, _) -> t.isNotBlank() && (!rtl || Bench.persian(t)) }) {
             val content = text.replace(" | ", " ").split(' ').map(Phrases::key).filter { k -> k.length >= 2 && Words.isContent(k) && k !in brief }
-            val hits = content.count { k -> window.any { same(keys[it], k) } }
+            val hits = content.count { k -> near.any { same(keys[it], k) } }
             val off = content.isNotEmpty() && hits * 2 < content.size && !hook(p)
             if (off) return Miss(p, text, words.indices.firstOrNull { i -> content.firstOrNull()?.let { same(keys[i], it) } == true })
         }
@@ -82,9 +85,9 @@ internal class Relevance(private val c: Jury.Context) {
         /** Graphics that are about the piece, not a line: the ask, its end card, a thread told over lines, the speaker's name. */
         val EXEMPT = setOf("comment", "endcard", "message", "lower-third", "pop-captions", "url", "pip", "photo", "b-roll")
         /** Figures whose number is the one said (a countdown's or a progress bar's may be worked out from what is said). */
-        val FIGURES = setOf("counter", "meter", "voucher")
+        val FIGURES = setOf("counter", "meter", "voucher", "ring", "stat-stack")
 
         /** Data graphics: judged by their figure (or not at all), never by the words of their labels. */
-        val DATA = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag")
+        val DATA = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag", "ring", "stat-stack")
     }
 }
