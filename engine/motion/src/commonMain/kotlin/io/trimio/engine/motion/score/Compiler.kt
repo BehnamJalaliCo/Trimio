@@ -823,7 +823,7 @@ class Compiler(
         private const val FACE_SHARE = 0.06f
         private const val FACE_GAP = 12f
         /** A graphic is shrunk to fit at most this much; smaller would be unreadable (the jury moves it instead). */
-        private const val MIN_FIT = 0.6f
+        private const val MIN_FIT = 0.5f
         private const val REST_MEMO = 512
         private const val SHRINK_TOL = 0.01f
         private const val FOOTAGE_TEXTURE = 0.35f

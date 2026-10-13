@@ -108,9 +108,13 @@ class RhythmJudge(
             val parts = kotlin.math.ceil((b - a) / (maxDead * SPLIT)).toInt().coerceAtLeast(2)
             for (k in 1 until parts) score = Bench.punchAt(score, c.words, a + (b - a) * k / parts) ?: score
         }
-        // An empty stage goes back to the speaker.
-        val empty = emptyStages(c, graphics).map { it.first }.toSet()
-        if (empty.isNotEmpty()) score = score.copy(scenes = score.scenes.mapIndexed { k, s -> if (k in empty) s.copy(bg = null, transition = null) else s })
+        // An empty stage goes back to the speaker, with a punch-in halfway so the stretch it leaves is not dead air.
+        val empty = emptyStages(c, graphics)
+        if (empty.isNotEmpty()) {
+            val stages = empty.map { it.first }.toSet()
+            score = score.copy(scenes = score.scenes.mapIndexed { k, s -> if (k in stages) s.copy(bg = null, transition = null) else s })
+            for ((_, a, b) in empty.filter { (_, a, b) -> b - a > maxDead }) score = Bench.punchAt(score, c.words, (a + b) / 2f) ?: score
+        }
         // Clutter: the latest arrival of each crowd leaves, unless it is the call to action or a figure the piece hangs on.
         for (g in clutter(graphics)) {
             val crowd = graphics.filter { o -> Bench.overlap(o.at, o.out, g.at, g.out) > OVERLAP }.filter { it.recipe !in PROTECTED }

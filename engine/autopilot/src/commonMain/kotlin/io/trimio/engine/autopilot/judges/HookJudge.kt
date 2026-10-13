@@ -79,16 +79,49 @@ class HookJudge(
     }
 
     /** The opening shows the payoff: a figure, a number, the hook's own words, or a cold open. */
+    /**
+     * The opening graphic [first] (words) turned into a counter of the piece's payoff figure: the
+     * hook line's number, else the strongest figure said (a sum, a percent, the biggest count).
+     */
+    private fun figureFirst(c: Jury.Context, first: Compiler.Placed?): Score? {
+        val at = first?.let { Bench.locate(c.score, c.words, it) } ?: return null
+        val senses = io.trimio.engine.autopilot.Quantities.senses(c.words.map { it.text }, c.lines)
+        val hook = c.understanding.hook?.line?.let { senses.getOrNull(it) }?.quantities.orEmpty()
+        val all = senses.flatMap { it.quantities }
+        val q = hook.firstOrNull() ?: all.firstOrNull { it.kind == io.trimio.engine.autopilot.Quantities.Kind.Money }
+            ?: all.firstOrNull { it.kind == io.trimio.engine.autopilot.Quantities.Kind.Percent } ?: all.maxByOrNull { it.value } ?: return null
+        val percent = q.kind == io.trimio.engine.autopilot.Quantities.Kind.Percent
+        val money = q.kind == io.trimio.engine.autopilot.Quantities.Kind.Money && q.unit.length <= 1
+        // An opening of words keeps its device and says the figure first («$79 Launch price»): a counter here could
+        // repeat the counter that follows.
+        if (first.recipe in Bench.TEXT) return Bench.mapBeat(c.score, at) { b ->
+            val raw = NumberWords.normalize(if (q.value == kotlin.math.floor(q.value)) q.value.toLong().toString() else q.value.toString())
+            val persian = Bench.persian(b.text.orEmpty())
+            val digits = if (persian) io.trimio.core.model.text.Numerals.toPersian(raw) else raw
+            val figure = (if (money) q.unit else "") + digits + (if (percent) (if (persian) "٪" else "%") else "")
+            b.copy(text = (figure + " " + b.text.orEmpty().split(' ').take(HOOK_WORDS).joinToString(" ")).trim(), emphasis = listOf(figure))
+        }.takeIf { it != c.score }
+        return Bench.mapBeat(c.score, at) { b ->
+            BeatScore(
+                recipe = "counter", time = first.at, hold = maxOf(first.out - first.at, HOOK_HOLD), value = q.value.toFloat(), decimals = q.decimals,
+                prefix = if (money) q.unit else null, suffix = if (percent) (if (Bench.persian(b.text.orEmpty())) "٪" else "%") else null,
+                label = b.text ?: q.unit.takeIf { !money }, energy = 0.9f, place = b.place,
+            )
+        }.takeIf { it != c.score }
+    }
+
     private fun payoff(c: Jury.Context, first: Compiler.Placed): Boolean {
         if ((c.edit?.preludeLength ?: 0f) > 0f || first.recipe in Bench.DATA) return true
         val shown = first.text.split(' ').map(NumberWords::normalize)
-        if (NumberWords.findAll(first.text.split(' ')).isNotEmpty()) return true
+        if (NumberWords.findAll(first.text.split(' ')).isNotEmpty() || first.text.any { it.isDigit() }) return true
         val title = c.understanding.hook?.title.orEmpty().split(' ').map(NumberWords::normalize).filter { it.isNotEmpty() }
         return title.isNotEmpty() && title.any { it in shown }
     }
 
     override fun revise(c: Jury.Context, verdict: Verdict): Score? {
         val graphics = Bench.graphics(c)
+        // The brief wants the payoff first and the opening is only words: the payoff's figure takes its place.
+        if (verdict.findings.any { "payoff first" in it.what }) figureFirst(c, graphics.minByOrNull { it.at })?.let { return it }
         val missing = graphics.none { it.at <= hookBy } || verdict.findings.any { "empty stage" in it.what }
         if (!missing && verdict.findings.any { "only the speaker" in it.what }) return earlier(c, graphics)
         if (!missing || c.score.scenes.isEmpty()) return null
@@ -121,6 +154,8 @@ class HookJudge(
         private const val EMPTY_FRAME = 0.25f
         private const val AIR = 0.35f
         private const val HOOK_AT = 0.25f
+        /** Words of an opening title kept after the figure put before them. */
+        private const val HOOK_WORDS = 2
         private const val HOOK_HOLD = 2.2f
 
         /** Words with which a brief asks for the payoff up front. */

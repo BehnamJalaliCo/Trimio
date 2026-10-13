@@ -95,6 +95,26 @@ class MotionJudge(
         )
     }
 
+    /** A text graphic out of its moment, retitled with the key phrase of the line it lands on; null when it is not words or the line has none. */
+    private fun retitled(c: Jury.Context, s: io.trimio.engine.motion.score.BeatScore, m: Relevance.Miss): io.trimio.engine.motion.score.BeatScore? {
+        if (s.recipe !in Bench.TEXT) return null
+        val line = c.lines.firstOrNull { l -> Bench.start(c.words, l.first) <= m.placed.at + LAND && Bench.start(c.words, l.last) >= m.placed.at - LAND } ?: return null
+        val title = io.trimio.engine.autopilot.Phrases.title(c.words, line).ifBlank { return null }
+        return s.copy(text = title, at = line.first, until = null, time = null, emphasis = emptyList()).takeIf { title != s.text }
+    }
+
+    /** A counter as a slam of its number and unit («۵۰٬۰۰۰ بازدید»), in the piece's digits. */
+    private fun numberSlam(b: io.trimio.engine.motion.score.BeatScore): io.trimio.engine.motion.score.BeatScore {
+        val v = b.value ?: return b
+        val unit = listOfNotNull(b.suffix, b.label).joinToString(" ").trim()
+        val persian = Bench.persian(unit)
+        val raw = io.trimio.engine.motion.score.NumberWords.normalize(if (v == kotlin.math.floor(v)) v.toLong().toString() else v.toString())
+        val digits = if (persian) io.trimio.core.model.text.Numerals.toPersian(raw) else raw
+        return io.trimio.engine.motion.score.BeatScore(
+            recipe = "slam", at = b.at, time = b.time, text = "${b.prefix.orEmpty()}$digits $unit".trim(), energy = 0.9f, place = b.place, hold = b.hold,
+        )
+    }
+
     /** The kind of element a recipe is: titles, figures, pictures, names, cards, the ask. */
     private fun family(recipe: String): String = when (recipe) {
         in Bench.TEXT -> "titles"
@@ -127,14 +147,17 @@ class MotionJudge(
                 when {
                     swap != null -> s.copy(recipe = swap)
                     s.variant == null && variants > 1 -> s.copy(variant = (b.variant + 1) % variants)
+                    // A second figure right after the first: said as a big word, not counted again.
+                    s.value != null && s.recipe == "counter" -> numberSlam(s)
                     else -> s
                 }
             }
         }
-        // Out of its moment: landed where its words are said, or left out.
+        // Out of its moment: landed where its words are said; else it says what its own moment says (the line's key
+        // phrase, so the moment keeps a graphic); else it is left out.
         for (m in Relevance(c).misses()) {
             val at = Bench.locate(score, c.words, m.placed) ?: continue
-            score = Bench.mapBeat(score, at) { s -> m.saidAt?.takeIf { s.at != it }?.let { i -> s.copy(at = i, until = null, time = null) } }
+            score = Bench.mapBeat(score, at) { s -> m.saidAt?.takeIf { s.at != it }?.let { i -> s.copy(at = i, until = null, time = null) } ?: retitled(c, s, m) }
         }
         return score.takeIf { it != c.score }
     }
@@ -166,6 +189,8 @@ class MotionJudge(
         const val KINDS_PER = 3
         const val MAX_SHARE = 0.4f
         const val MAX_FAMILY = 0.5f
+        /** How far from a graphic's landing its line may start or end. */
+        const val LAND = 0.6f
         const val HEAVY_FAMILY = 0.65f
         val FIGURE_FAMILY = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag")
         val PICTURE_FAMILY = setOf("object", "objects", "icon", "animated", "live-reaction")

@@ -28,7 +28,8 @@ internal class Script(private val c: Jury.Context) {
         val glossary = Glossary.read(c.prompt).let { g -> g.sites + g.terms.keys + g.handles.map { it.removePrefix("@") } }
         val said = (c.prelude + c.words).map { core(it.text) }.filter(::latin)
         val coins = (c.prelude + c.words).mapNotNull { Quantities.unitOf(NumberWords.normalize(it.text))?.brand }
-        val named = c.understanding.entities.map { it.name }.filter { n -> said.any { s -> n.contains(s, ignoreCase = true) } }
+        // Names the understanding resolved as brands, apps and products keep their own spelling (the director is told so).
+        val named = c.understanding.entities.filter { e -> e.kind in BRANDS || said.any { s -> e.name.contains(s, ignoreCase = true) } }.map { it.name }
         (brief + glossary + said + coins + named).flatMap { listOf(it) + it.split(' ', '.') }.map { it.lowercase() }.filter { it.isNotEmpty() }.toSet()
     }
 
@@ -38,7 +39,10 @@ internal class Script(private val c: Jury.Context) {
         val beats = c.compiled.beats
         // Code is code: a terminal or an editor types its commands as they are (whether it belongs there is relevance's call).
         return beats.indices.filter { beats[it].recipe != Bench.CAPTIONS && beats[it].recipe !in CODE }.flatMap { i ->
-            texts(c.compiled.layers.getOrNull(i).orEmpty()).flatMap { s -> s.split(' ', '\n') }.map(::core).filter { !ok(it) }.distinct().map { beats[i] to it }
+            // A tile of marks may carry a brand's monogram («GSU» for Galaxy S24 Ultra): initials, not words.
+            val marks = beats[i].recipe in MARKS
+            texts(c.compiled.layers.getOrNull(i).orEmpty()).flatMap { s -> s.split(' ', '\n') }.map(::core)
+                .filter { !ok(it) && !(marks && monogram(it)) }.distinct().map { beats[i] to it }
         }
     }
 
@@ -47,10 +51,16 @@ internal class Script(private val c: Jury.Context) {
         // A lone letter is a monogram (a brand's initial on its tile), not a word.
         if (!latin(w) || w.count { it.isLetter() } <= 1) return true
         val low = w.lowercase()
-        if (low in allowed || c.brand(w) || TIMES.matches(low)) return true
+        val named = low in allowed || part(low)
+        if (named || c.brand(w) || TIMES.matches(low)) return true
         // A site or a dotted name made of allowed parts (nobitex.ir).
         return BriefNames.DOMAIN.matches(w) && low.split('.').all { it in allowed || it in TLDS }
     }
+
+    private fun monogram(w: String) = w.length <= MONOGRAM && w.all { it.isUpperCase() || it.isDigit() }
+
+    /** «GPT» on a tile of ChatGPT: part of an allowed name. */
+    private fun part(low: String) = low.length >= PART && allowed.any { low in it }
 
     /** [b] with its English words taken out, in a plain Persian form, or null when nothing Persian is left of it. */
     fun persian(b: BeatScore): BeatScore? {
@@ -58,6 +68,8 @@ internal class Script(private val c: Jury.Context) {
         val cleaned = b.copy(text = clean(b.text), label = clean(b.label), items = b.items.filter { ok(core(it.removePrefix(">"))) })
         val left = cleaned.text != null || cleaned.items.isNotEmpty() || cleaned.value != null
         if (cleaned != b && left) return cleaned
+        // A tile of marks says names: as a plain title they would be no better; it stays as it is.
+        if (b.recipe in MARKS) return b
         return Bench.Ladder.plain(cleaned)?.takeIf { p -> listOfNotNull(p.text, p.label).all { t -> t.split(' ').all { ok(core(it)) } } }
     }
 
@@ -75,6 +87,10 @@ internal class Script(private val c: Jury.Context) {
         /** «۲x», "10x", "x2": a multiplier, not a word. */
         val TIMES = Regex("^\\d*x\\d*$")
         val CODE = setOf("terminal", "ui-code")
+        val MARKS = setOf("logos", "logo-mark", "chips")
+        val BRANDS = setOf("brand", "app", "product", "organization")
+        const val PART = 3
+        const val MONOGRAM = 3
         val TLDS = setOf("com", "ir", "io", "net", "org", "co", "app", "ai", "dev", "me", "info")
 
         fun core(w: String) = w.trim { !it.isLetterOrDigit() && it != '.' }.trim('.')

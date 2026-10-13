@@ -135,7 +135,8 @@ internal object Bench {
                 recipe = "counter", at = b.at, until = b.until, time = b.time, value = b.value, decimals = b.decimals, prefix = b.prefix,
                 suffix = b.suffix, label = b.label, place = b.place, energy = b.energy,
             )
-            val words = (b.text ?: b.label ?: b.items.take(PLAIN_ITEMS).joinToString(" ")).replace(" | ", " ").trim()
+            // A data card's label («تکمیل», "time left») describes its figure; alone it says nothing.
+            val words = (b.text ?: b.label?.takeIf { b.recipe !in DATA } ?: b.items.take(PLAIN_ITEMS).joinToString(" ")).replace(" | ", " ").trim()
             if (words.isBlank() || words.split(' ').size > PLAIN_WORDS) return null
             return BeatScore(recipe = "mask-rise", at = b.at, time = b.time, text = words, place = b.place, energy = b.energy, mark = b.mark, hold = b.hold)
         }
