@@ -3,11 +3,13 @@ package io.trimio.feature.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,7 +24,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +50,7 @@ import io.trimio.core.designsystem.signature.SigChip
 import io.trimio.core.designsystem.signature.SigGlass
 import io.trimio.core.designsystem.signature.SigHeroTitle
 import io.trimio.core.designsystem.signature.SigScreen
+import io.trimio.core.designsystem.signature.SigSecondaryButton
 import io.trimio.core.designsystem.signature.SigSectionLabel
 import io.trimio.core.designsystem.signature.SigSpace
 import io.trimio.core.designsystem.signature.SigTopRow
@@ -54,6 +59,7 @@ import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 import io.trimio.engine.models.DeviceMemory
 import io.trimio.engine.models.ModelFit
+import io.trimio.engine.models.ModelSpec
 import io.trimio.engine.models.ModelState
 
 @Composable
@@ -72,18 +78,62 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
         hardware = hardware, speeds = engine?.speeds.orEmpty(),
     )
     val byId = viewModel.models.catalog.associateBy { it.id }
-    ModelManagerScreen(
-        ui,
-        ModelActions(
-            onBack = onBack,
-            onDownload = { id -> byId[id]?.let(viewModel.models::download) },
-            onCancel = { id -> byId[id]?.let(viewModel.models::cancel) },
-            onDelete = { id -> byId[id]?.let(viewModel.models::delete) },
-            onUpdate = { id -> (states[id] as? ModelState.UpdateAvailable)?.let { viewModel.models.download(it.to) } },
-            onUse = { id -> viewModel.update { it.copy(localModelId = id) } },
-            onDownloadAll = { ids -> ids.mapNotNull { byId[it] }.forEach(viewModel.models::download) },
-        ),
-    )
+    // Nothing downloads without the creator's yes: every download asks first, with the name and the size.
+    var asked by remember { mutableStateOf<List<ModelSpec>>(emptyList()) }
+    Box(Modifier.fillMaxSize()) {
+        ModelManagerScreen(
+            ui,
+            ModelActions(
+                onBack = onBack,
+                onDownload = { id -> asked = listOfNotNull(byId[id]) },
+                onCancel = { id -> byId[id]?.let(viewModel.models::cancel) },
+                onDelete = { id -> byId[id]?.let(viewModel.models::delete) },
+                onUpdate = { id -> asked = listOfNotNull((states[id] as? ModelState.UpdateAvailable)?.to) },
+                onUse = { id -> viewModel.update { it.copy(localModelId = id) } },
+                onDownloadAll = { ids -> asked = ids.mapNotNull { byId[it] } },
+            ),
+        )
+        if (asked.isNotEmpty()) {
+            DownloadDialog(asked, onConfirm = { asked.forEach(viewModel.models::download); asked = emptyList() }, onDismiss = { asked = emptyList() })
+        }
+    }
+}
+
+/** «دانلود شود؟»: the models and their total size; nothing starts until the creator confirms. */
+@Composable
+private fun DownloadDialog(specs: List<ModelSpec>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val c = Sig.colors
+    val shape = RoundedCornerShape(24.dp)
+    val gb = specs.sumOf { it.sizeBytes } / 1e9
+    val size = if (gb >= 1) localizedNumber(tr("${"%.1f".format(gb)} گیگابایت", "${"%.1f".format(gb)} GB"))
+    else localizedNumber(tr("${(gb * 1000).toInt()} مگابایت", "${(gb * 1000).toInt()} MB"))
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.padding(22.dp).widthIn(max = 400.dp).fillMaxWidth().clip(shape).background(c.surface).border(1.dp, c.lineStrong, shape)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(44.dp).clip(CircleShape).background(c.action.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                TrimioIcon(TrimioIcons.Download, null, tint = c.action, size = 20.dp)
+            }
+            Text(tr("دانلود شود؟", "Download?"), style = Sig.type.title.copy(fontSize = 19.sp), color = c.ink)
+            specs.forEach { Text(tr(it.titleFa, it.titleEn), style = Sig.type.body.copy(fontSize = 14.sp), color = c.ink) }
+            Text(
+                tr("حجم: $size. دانلود فقط با تأیید تو شروع می‌شود.", "Size: $size. The download starts only when you confirm."),
+                style = Sig.type.body.copy(fontSize = 13.sp), color = c.muted,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SigSecondaryButton(tr("انصراف", "Cancel"), onDismiss, Modifier.weight(1f).height(50.dp))
+                SigButton(tr("دانلود", "Download"), onConfirm, Modifier.weight(1f).height(50.dp))
+            }
+        }
+    }
 }
 
 /**
