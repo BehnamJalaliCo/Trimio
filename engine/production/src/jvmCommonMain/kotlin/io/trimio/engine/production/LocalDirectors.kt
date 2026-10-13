@@ -5,6 +5,7 @@ import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.llm.local.LocalModels
 import io.trimio.engine.models.DeviceFit
 import io.trimio.engine.models.DeviceMemory
+import io.trimio.engine.models.MediaAddOns
 import io.trimio.engine.models.ModelCatalog
 import io.trimio.engine.models.ModelFit
 import io.trimio.engine.models.ModelKind
@@ -57,9 +58,15 @@ class LocalDirectors(
      * CPU) when it is installed; else the largest that fits. Fit is the real memory check the
      * models screen shows ([DeviceFit]), not the coarse RAM tier.
      */
-    fun recognizer(preferredSpeech: () -> String? = { null }) = InstalledWhisperRecognizer {
+    fun recognizer(preferredSpeech: () -> String? = { null }) = InstalledWhisperRecognizer(
+        resolveVadPath = { vadPath() },
+    ) {
         speechSpec(preferredSpeech)?.let { store.pathOf(it).toString() }
     }
+
+    /** Silero VAD's file when that add-on is installed (decoding then skips silence); else null: unchanged. */
+    private fun vadPath(): String? =
+        MediaAddOns.vad.takeIf { runCatching { store.isInstalled(it) }.getOrDefault(false) }?.let { store.pathOf(it).toString() }
 
     private fun speechSpec(preferredSpeech: () -> String?): ModelSpec? {
         val installed = catalog.filter { it.kind == ModelKind.Speech && store.isInstalled(it) }
