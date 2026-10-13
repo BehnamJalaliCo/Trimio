@@ -21,12 +21,14 @@ object ExplainerLab {
     fun film(name: String): ExplainerFilm =
         json.decodeFromString(ExplainerFilm.serializer(), ExplainerLab::class.java.getResource("/explainer/$name.json")!!.readText())
 
-    fun stage(icons: IconResolver = IconResolver.None) = ExplainerStage(probe.renderer.text, icons)
+    fun stage(icons: IconResolver = IconResolver.None, art: IllustrationSource = IllustrationSource.None) = ExplainerStage(probe.renderer.text, icons, art)
 
-    fun compose(film: ExplainerFilm, w: Int = 1080, h: Int = 1920): ExplainerStage.Output = stage().compose(film, w, h)
+    val art = SketchArt()
+
+    fun compose(film: ExplainerFilm, w: Int = 1080, h: Int = 1920, illustrations: IllustrationSource = art): ExplainerStage.Output = stage(art = illustrations).compose(film, w, h)
 
     /** A renderer for [c] at [scale] of its size. */
-    fun frames(c: Composition, scale: Float = 1f) = MotionExporter.Frames(c, MediaSource.None, scale)
+    fun frames(c: Composition, scale: Float = 1f, media: MediaSource = IllustrationMedia(art)) = MotionExporter.Frames(c, media, scale)
 
     /** Frames at [times] tiled [columns] wide, each [scale] of the composition. */
     fun sheet(c: Composition, times: List<Float>, file: File, columns: Int, scale: Float, crop: Rect? = null) {

@@ -106,6 +106,8 @@ class Retriever(
     val embedder: TextEmbedder? = null,
     val reranker: TextReranker? = null,
     val config: RetrievalConfig = RetrievalConfig(),
+    /** This creator's taste ([TasteHead], trained on the device from jury scores): reorders what passes the floor, never lifts what does not. */
+    var taste: TasteHead? = null,
 ) {
     suspend fun search(index: CorpusIndex, query: Query, limit: Int = DEFAULT_LIMIT): Shortlist {
         val allow = allowed(index, query)
@@ -126,16 +128,16 @@ class Retriever(
                 val hits = top.mapIndexed { k, s ->
                     val p = scores[k]
                     Hit(index.docs[s.index], p, fit(p, config.rerankFloor), lexBy[s.index] ?: 0f, cosine(s.index), p, s.score)
-                }.sortedByDescending { it.relevance }.take(limit)
-                Shortlist(hits, config.rerankFloor, Signal.Reranked)
+                }
+                Shortlist(tasted(hits, index, q, config.rerankFloor).take(limit), config.rerankFloor, Signal.Reranked)
             }
             vectors != null && e != null -> {
                 val floor = config.denseFloor(e.id)
                 val hits = fused.take(config.rerankDepth).map { s ->
                     val c = cosine(s.index) ?: 0f
                     Hit(index.docs[s.index], c, fit(c, floor), lexBy[s.index] ?: 0f, c, null, s.score)
-                }.sortedByDescending { it.relevance }.take(limit)
-                Shortlist(hits, floor, Signal.Dense)
+                }
+                Shortlist(tasted(hits, index, q, floor).take(limit), floor, Signal.Dense)
             }
             else -> {
                 val hits = lexical.take(limit).map { s ->
@@ -171,6 +173,19 @@ class Retriever(
         return picked
     }
 
+    /** [hits] best first: by relevance, the taste head nudging the order among those above [floor]. */
+    private fun tasted(hits: List<Hit>, index: CorpusIndex, q: FloatArray?, floor: Float): List<Hit> {
+        val head = taste?.takeIf { q != null && it.dims == q.size } ?: return hits.sortedByDescending { it.relevance }
+        val vectors = index.vectors ?: return hits.sortedByDescending { it.relevance }
+        fun key(h: Hit): Float {
+            if (h.relevance < floor || q == null) return h.relevance
+            val i = index.indexOf(h.doc.id) ?: return h.relevance
+            val p = head.predict(q, vectors.vector(i), floatArrayOf(h.dense ?: 0f, h.lexical / (h.lexical + config.lexicalHalf), h.rerank ?: 0f))
+            return h.relevance + TASTE_WEIGHT * (p - 0.5f)
+        }
+        return hits.sortedByDescending(::key)
+    }
+
     private fun allowed(index: CorpusIndex, query: Query): ((Int) -> Boolean)? {
         if (query.kinds == null && query.exclude.isEmpty()) return null
         return { i -> index.docs[i].let { d -> (query.kinds == null || d.kind in query.kinds) && d.id !in query.exclude } }
@@ -179,6 +194,9 @@ class Retriever(
     companion object {
         const val DEFAULT_LIMIT = 8
         const val MMR_LAMBDA = 0.7f
+
+        /** How far the taste head may move a pick: at most ±0.1 of relevance. */
+        const val TASTE_WEIGHT = 0.2f
 
         /** [x] on the fit scale: [floor] maps to 0.5, 1 to 1, 0 to 0 (piecewise linear, monotone). */
         fun fit(x: Float, floor: Float): Float = when {

@@ -81,7 +81,7 @@ object TextKey {
             out += joined[i]
             if (ZWNJ in raw[i]) raw[i].split(ZWNJ).filter { it.isNotEmpty() }.forEach { out += it }
             val next = joined.getOrNull(i + 1) ?: continue
-            if (persian(joined[i]) && persian(next) && (joined[i] in PREFIXES || next in SUFFIXES)) out += joined[i] + next
+            if (affixed(joined[i], next)) out += joined[i] + next
         }
         return out
     }
@@ -95,4 +95,10 @@ object TextKey {
     )
 
     private fun persian(w: String) = w.isNotEmpty() && w.all { it in '؀'..'ۿ' }
+
+    /** Two Persian words of which one is a prefix or suffix Persian joins with a half-space. */
+    private fun affixed(first: String, second: String): Boolean {
+        val joins = first in PREFIXES || second in SUFFIXES
+        return joins && persian(first) && persian(second)
+    }
 }

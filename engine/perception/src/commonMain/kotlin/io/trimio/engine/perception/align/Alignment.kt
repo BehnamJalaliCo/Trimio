@@ -117,7 +117,9 @@ class CtcAligner(private val vocab: Map<String, Int>) {
                         best = prev[s - 1]
                         from = 1
                     }
-                    if (s >= 2 && s % 2 == 1 && targets[s / 2] != targets[s / 2 - 1] && prev[s - 2] > best) {
+                    // Skipping the blank between two different tokens.
+                    val canSkip = s >= 2 && s % 2 == 1 && targets[s / 2] != targets[s / 2 - 1]
+                    if (canSkip && prev[s - 2] > best) {
                         best = prev[s - 2]
                         from = 2
                     }

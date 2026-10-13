@@ -139,7 +139,7 @@ class RetrievalCoreTest {
         assertEquals(Signal.Lexical, lexical.signal)
         assertEquals("noto:rocket", lexical.hits.first().doc.id)
         // Dense: the floor applies.
-        val dense = Retriever(e).search(index, Query("موشک رشد"))
+        val dense = Retriever(e, config = RetrievalConfig(defaultDenseFloor = 0.2f)).search(index, Query("موشک رشد"))
         assertEquals(Signal.Dense, dense.signal)
         assertEquals("noto:rocket", dense.best?.doc?.id)
         // Reranked: only what the reranker says yes to passes; the rest is below the floor.

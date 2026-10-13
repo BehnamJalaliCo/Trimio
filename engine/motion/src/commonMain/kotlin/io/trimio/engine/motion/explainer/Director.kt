@@ -57,7 +57,12 @@ internal class Version(
  * names. Unknown elements are created when the beat says what they are; beats that name nothing
  * usable are noted and skipped.
  */
-internal class Director(private val chapter: Chapter, private val notes: MutableList<String>) {
+internal class Director(
+    private val chapter: Chapter,
+    private val notes: MutableList<String>,
+    /** Sweep the stage before the chapter ends (diagram chapters); news scenes leave with their transition instead. */
+    private val sweep: Boolean = true,
+) {
     val versions = ArrayList<Version>()
     private val live = LinkedHashMap<String, Version>()
     private val orders = HashMap<String, Int>()
@@ -67,7 +72,7 @@ internal class Director(private val chapter: Chapter, private val notes: Mutable
         for ((i, b) in beats.withIndex()) apply(b, i)
         val end = chapter.end.toFloat()
         // Whatever is still up leaves together before the next chapter, last in first out.
-        val up = versions.filter { it.leave == Float.POSITIVE_INFINITY }.sortedByDescending { it.order }
+        val up = versions.filter { it.leave == Float.POSITIVE_INFINITY && sweep }.sortedByDescending { it.order }
         for ((k, v) in up.withIndex()) {
             v.leave = maxOf(v.enter + MIN_LIFE, end - SWEEP - k * SWEEP_STAGGER)
             v.gone = v.leave + EXIT

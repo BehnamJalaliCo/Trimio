@@ -3,6 +3,7 @@ package io.trimio.engine.autopilot.explainer
 import io.trimio.engine.autopilot.Rng
 import io.trimio.engine.motion.explainer.Chapter
 import io.trimio.engine.motion.explainer.ExplainerFilm
+import io.trimio.engine.motion.explainer.FilmGrammar
 
 /**
  * Who writes the film from the narration: a language model ([LlmDirector]) or the rules
@@ -27,7 +28,11 @@ class RulesDirector(private val visuals: Visuals = Visuals.Lexicon) : FilmDirect
 
     override suspend fun direct(n: Narration, seed: Long, log: (String) -> Unit): ExplainerFilm = film(n, seed)
 
-    fun film(n: Narration, seed: Long, plans: List<Chapters.Plan> = Chapters.find(n)): ExplainerFilm {
+    /** The film in the grammar the narration wants ([Grammars]): illustrated news scenes, or diagram chapters. */
+    fun film(n: Narration, seed: Long, grammar: FilmGrammar = Grammars.choose(n)): ExplainerFilm =
+        if (grammar == FilmGrammar.IllustratedNews) NewsWriter(visuals).film(n, seed) else diagram(n, seed)
+
+    fun diagram(n: Narration, seed: Long, plans: List<Chapters.Plan> = Chapters.find(n)): ExplainerFilm {
         val art = ArtDirector.choose(n, seed)
         val accents = ArtDirector.accents(plans.size, seed)
         val memory = FilmMemory()

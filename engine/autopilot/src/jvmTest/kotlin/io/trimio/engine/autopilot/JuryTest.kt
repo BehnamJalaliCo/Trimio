@@ -82,7 +82,7 @@ class JuryTest {
                 from = 36,
                 beats = listOf(
                     BeatScore("comment", at = 37, text = "تتر", hold = 6f, label = "کامنت کن", place = "top"),
-                    BeatScore("stamp", at = 44, text = "دایرکتتو چک", hold = 1.8f, energy = 0.8f, place = "lower"),
+                    BeatScore("stamp", at = 44, text = "دایرکتتو چک کن", hold = 1.8f, energy = 0.8f, place = "lower"),
                 ),
             ),
         ),

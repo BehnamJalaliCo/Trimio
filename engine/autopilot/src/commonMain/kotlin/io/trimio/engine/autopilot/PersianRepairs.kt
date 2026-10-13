@@ -47,7 +47,8 @@ internal class PersianRepairs(private val lex: PersianSpelling) {
     private fun lostVowel(core: String): String? {
         if (count(core) > 0) return null
         val options = (1 until core.length).filter { core[it] in LONG_VOWELS }.map { core.removeRange(it, it + 1) }
-        return best(options.filter { it.length >= MIN_STEM })
+        // A written long vowel is usually heard right: only a very common word without it is taken.
+        return best(options.filter { it.length >= MIN_STEM && count(it) >= COMMON })
     }
 
     /** Two weak letters («ا», «ع», «و», «ی», «ه») lost in a long word, written back as the list writes it. */
@@ -163,7 +164,9 @@ internal class PersianRepairs(private val lex: PersianSpelling) {
      * → «صرفه‌جویی»): the compound common, and far likelier than the two words meeting by chance.
      */
     fun compound(a: String, b: String): String? {
-        if (a.length < MIN_STEM || b.length < MIN_STEM) return null
+        // Two halves the list already joins as heard («نا امید» → «ناامید») are [PersianJoins]' to join.
+        val plainJoin = maxOf(count(a + b), count(a + ZWNJ + b))
+        if (a.length < MIN_STEM || b.length < MIN_STEM || plainJoin >= KNOWN) return null
         val heads = listOf(a + "ه", a)
         val tails = listOf(b + "ی", b)
         val options = heads.flatMap { h -> tails.flatMap { t -> listOf(h + ZWNJ + t, h + t) } }.filter { it.replace(ZWNJ_S, "") != a + b }
@@ -174,6 +177,7 @@ internal class PersianRepairs(private val lex: PersianSpelling) {
 
     companion object {
         private const val COMPOUND_ODDS = 100.0
+        private const val COMMON = 2000
         private const val ZWNJ = '‌'
         private const val ZWNJ_S = "‌"
         private const val MIN_LENGTH = 3

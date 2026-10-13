@@ -66,7 +66,8 @@ object Chapters {
         if (head.any { it in STRONG_MARKS } || Enumerations.step(n.texts, Lines.Line(c.first, c.last)) != null) s += MARK
         if (head.firstOrNull() in SOFT_MARKS) s += SOFT
         // «این مدل …», "the next model": the narration turns to another of the things it walks through.
-        if (n.category != null && head.size >= 2 && head[0] in DEMONSTRATIVES && head[1] == n.category) s += MEMBER
+        val member = head.size >= 2 && head[0] in DEMONSTRATIVES
+        if (member && n.category != null && head[1] == n.category) s += MEMBER
         // Few words in common across the gap.
         val before = content(n, (maxOf(0, k - WINDOW) until k))
         val after = content(n, (k until minOf(n.clauses.size, k + WINDOW)))

@@ -83,7 +83,8 @@ class PersianSpellingTest {
         val words = listOf("دایرک", "سی", "سد", "سررافی")
         // The brief already fixed «سد» (say, to a brand): the join must not swallow it.
         val fixes = Proofreader.fromLexicon(words, brief = "", fixed = mapOf(2 to "صد"))
-        assertEquals(mapOf(3 to "صرافی"), fixes)
+        // «دایرک» is the protected term «دایرکت» with its last letter unheard (Loanwords).
+        assertEquals(mapOf(0 to "دایرکت", 3 to "صرافی"), fixes)
         // A word spelled in the brief is evidence for a slip one letter away.
         assertEquals("دایرکت", Proofreader.fromLexicon(listOf("برو", "دایرک"), brief = "بگو برو دایرکت")[1])
     }
@@ -287,7 +288,11 @@ class PersianSpellingTest {
     @Test
     fun splittingAWordThatOverlapsTheNextKeepsTheWordsInOrder() {
         // Whisper's «ساتم» runs to 2.0 s while «بیشتر» already starts at 1.2 s: the fix «ساعت هم» splits it.
-        val words = listOf(Word("چلا", TimeRange(0, 600), language = Language.Persian), Word("ساتم", TimeRange(600, 2000), language = Language.Persian), Word("بیشتر", TimeRange(1200, 2400), language = Language.Persian))
+        val words = listOf(
+            Word("چلا", TimeRange(0, 600), language = Language.Persian),
+            Word("ساتم", TimeRange(600, 2000), language = Language.Persian),
+            Word("بیشتر", TimeRange(1200, 2400), language = Language.Persian),
+        )
         val fixed = Transcript(Language.Persian, words).withSpelling(mapOf(1 to "ساعت هم")).words
         assertEquals(listOf("چلا", "ساعت", "هم", "بیشتر"), fixed.map { it.text })
         assertTrue(fixed.zipWithNext().all { (a, b) -> a.range.startMs <= b.range.startMs })

@@ -17,6 +17,7 @@ import io.trimio.engine.autopilot.explainer.judges.FilmJury.Companion.verdict
 import io.trimio.engine.motion.explainer.Beat
 import io.trimio.engine.motion.explainer.Chapter
 import io.trimio.engine.motion.explainer.ExplainerFilm
+import io.trimio.engine.motion.explainer.FilmGrammar
 import io.trimio.engine.motion.explainer.PaletteBook
 import io.trimio.engine.motion.explainer.Primitive
 import io.trimio.engine.motion.explainer.StageOp
@@ -57,14 +58,16 @@ class MetaphorJudge : FilmJudge {
     override fun score(c: FilmJury.Context): Verdict {
         val n = c.narration
         val f = mutableListOf<Finding>()
-        for (ch in c.film.chapters) for (b in ch.beats.filter(Films::creates)) f += relevance(n, ch, b)
+        // The film's own chapter names count as said (an agenda of the subjects to come is grounded).
+        val titles = c.film.chapters.flatMap { Films.keys(it.title) }
+        for (ch in c.film.chapters) for (b in ch.beats.filter(Films::creates)) f += relevance(n, ch, b, titles)
         val shown = c.film.chapters.flatMap { it.beats }
         val holes = n.clauses.filter { cl -> shown.none { it.line == cl.text || it.at in cl.start - Films.EDGE..cl.end } }
         f += holes.take(MAX_HOLES).map { finding(it.start, Severity.Minor, "no picture for «${it.text.take(SHORT)}»", "give the sentence a beat on its stage") }
         return verdict(this, f)
     }
 
-    private fun relevance(n: Narration, ch: Chapter, b: Beat): List<Finding> {
+    private fun relevance(n: Narration, ch: Chapter, b: Beat, titles: List<String>): List<Finding> {
         val p = b.primitive ?: return emptyList()
         val clause = Films.clauseOf(n, b) ?: return emptyList()
         val keys = clause.words.map { n.keys[it] }
@@ -72,18 +75,19 @@ class MetaphorJudge : FilmJudge {
         val counted = p in FIGURES && io.trimio.engine.autopilot.Quantities.sense(clause.words.map { n.texts[it] }, clause.first).quantities.isNotEmpty()
         val fits = counted || found.any { it.strength >= WEAK && it.idea.pictures.any { (q, _) -> q == p } }
         val words = (listOf(b.content.text, b.content.caption) + b.content.items.map { it.label }).flatMap(Films::keys).filter { it.length >= MIN_STEM }
-        val near = (n.clauses.filter { kotlin.math.abs(it.index - clause.index) <= 1 }.flatMap { it.words.map { i -> n.keys[i] } } + Films.keys(ch.title)).map { it.take(STEM) }.toSet()
+        val near = (n.clauses.filter { kotlin.math.abs(it.index - clause.index) <= 1 }.flatMap { it.words.map { i -> n.keys[i] } } + Films.keys(ch.title) + titles).map { it.take(STEM) }.toSet()
         val grounded = words.any { it.take(STEM) in near } || p in NEUTRAL
         val strong = found.firstOrNull { it.strength >= STRONG }
         val out = mutableListOf<Finding>()
         when {
             fits || (grounded && strong == null) -> Unit
-            strong != null && !grounded -> out += finding(b.at, Severity.Major, "${picture(p)} for «${clause.text.take(SHORT)}», which says ${strong.idea.name.lowercase()}", "draw the idea: ${strong.idea.pictures.joinToString("/") { picture(it.first) }}")
+            strong != null && !grounded -> out += finding(b.at, Severity.Major, "${picture(p)} for «${clause.text.take(SHORT)}», which says ${strong.idea.name.lowercase()}",
+                "draw the idea: ${strong.idea.pictures.joinToString("/") { picture(it.first) }}")
             strong != null -> out += finding(b.at, Severity.Minor, "${picture(p)} only loosely fits «${clause.text.take(SHORT)}»", "a picture of ${strong.idea.name.lowercase()}")
             else -> out += finding(b.at, Severity.Minor, "${picture(p)} has nothing to do with «${clause.text.take(SHORT)}»", "a picture of what the sentence says")
         }
         val printed = Films.keys(b.content.text)
-        if (printed.size >= PRINTED_WORDS && printed.count { it in keys } * 10 >= printed.size * PRINTED_SHARE) {
+        if (p !in SAID_ON_PURPOSE && printed.size >= PRINTED_WORDS && printed.count { it in keys } * 10 >= printed.size * PRINTED_SHARE) {
             out += finding(b.at, Severity.Minor, "the picture prints the sentence «${b.content.text}»", "a metaphor, not the words")
         }
         return out
@@ -92,7 +96,7 @@ class MetaphorJudge : FilmJudge {
     /** Chapters with a wrong picture or a hole, written again by the rules. */
     override fun revise(c: FilmJury.Context, verdict: Verdict): ExplainerFilm? {
         val bad = verdict.findings.filter { it.severity.cost > 0f }.map { it.at.toDouble() }
-        if (bad.isEmpty()) return null
+        if (bad.isEmpty() || news(c.film)) return null
         val plans = Films.plans(c.narration, c.film)
         val rules = RulesDirector()
         val chapters = c.film.chapters.mapIndexed { i, ch ->
@@ -110,8 +114,11 @@ class MetaphorJudge : FilmJudge {
         const val MAX_HOLES = 4
         const val PRINTED_WORDS = 5
         const val PRINTED_SHARE = 7
+        /** Pictures that carry the sentence's own words by design (a news headline, a note of terms). */
+        val SAID_ON_PURPOSE = setOf(Primitive.Headline, Primitive.Annotation, Primitive.Bubble, Primitive.Quote)
         val FIGURES = setOf(Primitive.Stat, Primitive.Ring, Primitive.Meter, Primitive.Bars, Primitive.Dots, Primitive.Timeline)
-        val NEUTRAL = setOf(Primitive.Kicker, Primitive.BigWord, Primitive.Heading, Primitive.Note, Primitive.Stat, Primitive.Badge, Primitive.Quote)
+        val NEUTRAL = setOf(Primitive.Headline, Primitive.Hero, Primitive.Bubble, Primitive.Annotation, Primitive.Calendar, Primitive.Stars, Primitive.Kicker, Primitive.BigWord,
+            Primitive.Heading, Primitive.Note, Primitive.Stat, Primitive.Badge, Primitive.Quote)
     }
 }
 
@@ -172,10 +179,11 @@ class ContinuityJudge : FilmJudge {
         while (k < ch.beats.size) {
             val b = ch.beats[k]
             val next = ch.beats.getOrNull(k + 1)
-            if (b.op == StageOp.Clear && next != null && next.op == StageOp.Add && next.at - b.at < CUT) {
+            val cut = next != null && next.op == StageOp.Add && next.at - b.at < CUT
+            if (b.op == StageOp.Clear && cut) {
                 val old = primitiveOf(ch.beats, k, b.element)
-                val op = if (old != null && next.primitive != null && Families.morphs(old, next.primitive!!)) StageOp.Morph else StageOp.Replace
-                out += next.copy(op = op, element = b.element, at = b.at)
+                val op = if (old != null && next!!.primitive != null && Families.morphs(old, next.primitive!!)) StageOp.Morph else StageOp.Replace
+                out += next!!.copy(op = op, element = b.element, at = b.at)
                 renamed[next.element] = b.element
                 k += 2
             } else {
@@ -242,16 +250,18 @@ class VarietyJudge : FilmJudge {
     override fun score(c: FilmJury.Context): Verdict {
         val f = mutableListOf<Finding>()
         val made = made(c.film)
-        val want = minOf(WANT_MAX, WANT_BASE + c.film.chapters.size, (made.size * SHARE).toInt())
+        val want = if (news(c.film)) minOf(NEWS_WANT, made.size) else minOf(WANT_MAX, WANT_BASE + c.film.chapters.size, (made.size * SHARE).toInt())
         val distinct = made.map { it.second.primitive }.distinct().size
         if (distinct < want) f += finding(0.0, if (want - distinct >= 3) Severity.Major else Severity.Minor, "$distinct kinds of picture for ${made.size} pictures", "draw on more of the vocabulary")
         runs(made).forEach { (at, p) -> f += finding(at, Severity.Major, "${picture(p)} three times in a row", "another picture of the same idea") }
         val openings = c.film.chapters.map { ch -> ch.beats.firstOrNull(Films::creates)?.primitive }
-        openings.windowed(3).filter { w -> w[0] != null && w.all { it == w[0] } }.forEach { f += finding(0.0, Severity.Minor, "three chapters open with ${picture(it[0]!!)}", "open one differently") }
+        if (!news(c.film)) openings.windowed(3).filter { w -> w[0] != null && w.all { it == w[0] } }.forEach { f += finding(0.0, Severity.Minor,
+            "three chapters open with ${picture(it[0]!!)}", "open one differently") }
         val art = c.film.art
         for (o in c.others) {
             when {
-                o.palette == art.palette && o.layout == art.layout -> f += finding(0.0, Severity.Major, "the same look as an earlier film (${art.palette}, ${art.layout})", "another palette and layout")
+                o.palette == art.palette && o.layout == art.layout -> f += finding(0.0, Severity.Major, "the same look as an earlier film (${art.palette}, ${art.layout})",
+                    "another palette and layout")
                 o.palette == art.palette -> f += finding(0.0, Severity.Minor, "the same palette as an earlier film (${art.palette})", "another palette")
             }
         }
@@ -286,6 +296,7 @@ class VarietyJudge : FilmJudge {
         const val WANT_BASE = 2
         const val WANT_MAX = 7
         const val SHARE = 0.7
+        const val NEWS_WANT = 4
         const val LOOKS = 24
         const val LOOK_STRIDE = 7919L
     }
@@ -303,9 +314,11 @@ class TimingJudge : FilmJudge {
         val n = c.narration
         val f = mutableListOf<Finding>()
         for (ch in c.film.chapters) {
-            if (ch.end - ch.start < MIN_CHAPTER) f += finding(ch.start, Severity.Minor, "chapter «${ch.title}» lasts ${fmt(ch.end - ch.start)}s", "join it to a neighbour")
+            if (ch.end - ch.start < (if (news(c.film)) MIN_SCENE else MIN_CHAPTER)) f += finding(ch.start, Severity.Minor, "chapter «${ch.title}» lasts ${fmt(ch.end - ch.start)}s",
+                "join it to a neighbour")
             for (b in ch.beats) {
-                val need = need(b)
+                // A news scene's pieces stay up together (the headline under the rising hero): only the stagger is judged there.
+                val need = if (news(c.film)) MIN_STEP else need(b)
                 if (b.until - b.at < need * SHORT && b.op != StageOp.Clear && b.op != StageOp.Dim) {
                     f += finding(b.at, Severity.Minor, "${b.op.name.lowercase()} ${b.element} on screen ${fmt(b.until - b.at)}s", "give it ${fmt(need)}s")
                 }
@@ -355,6 +368,7 @@ class TimingJudge : FilmJudge {
         const val LEAD = 0.12
         const val LATE = 1.2
         const val MIN_CHAPTER = 2.5
+        const val MIN_SCENE = 1.5
         const val MAX_TIME = 6
         const val MAX_FINDINGS = 12
     }
@@ -372,7 +386,8 @@ class ScriptJudge : FilmJudge {
         val problems = c.check.problems(c.film)
         val f = problems.filter { it.kind in MAJOR }.distinctBy { it.detail }.take(MAX).map { finding(it.at, Severity.Major, it.detail, "the spoken spelling, Persian script, or leave it out") } +
             problems.filter { it.kind in MINOR }.distinctBy { it.detail }.take(MAX).map { finding(it.at, Severity.Minor, it.detail, "shorter, and in words") }
-        val digits = if (c.narration.persian) c.film.captions.filter { s -> s.text.any { it in '0'..'9' } }.take(MAX).map { finding(it.start, Severity.Minor, "Latin digits in caption «${it.text}»", "Persian digits") } else emptyList()
+        val digits = if (c.narration.persian) c.film.captions.filter { s -> s.text.any { it in '0'..'9' } }.take(MAX).map { finding(it.start, Severity.Minor,
+            "Latin digits in caption «${it.text}»", "Persian digits") } else emptyList()
         return verdict(this, f + digits)
     }
 
@@ -409,7 +424,8 @@ class FilmBriefJudge : FilmJudge {
         if (film.language != c.narration.language) f += finding(0.0, Severity.Critical, "the film is in ${film.language}, the narration in ${c.narration.language}", "the narration's language")
         val least = (c.narration.duration / SECONDS_PER_SUBJECT).toInt()
         if (film.chapters.size < least) f += finding(0.0, Severity.Minor, "${film.chapters.size} chapters for ${c.narration.duration.toInt()}s", "a chapter per subject")
-        film.chapters.filter { it.end - it.start > LONGEST }.forEach { f += finding(it.start, Severity.Minor, "«${it.title}» runs ${(it.end - it.start).toInt()}s", "split it where the subject turns") }
+        film.chapters.filter { it.end - it.start > LONGEST }.forEach { f += finding(it.start, Severity.Minor, "«${it.title}» runs ${(it.end - it.start).toInt()}s",
+            "split it where the subject turns") }
         c.check.problems(film).filter { it.kind == FilmCheck.Kind.Accent }.forEach { f += finding(it.at, Severity.Minor, it.detail, "another accent") }
         return verdict(this, f)
     }
@@ -426,9 +442,9 @@ class FilmBriefJudge : FilmJudge {
         if (want != null && want.isNotEmpty() && film.art.palette !in want) film = film.copy(art = film.art.copy(palette = want[(film.art.seed.mod(want.size.toLong())).toInt()]))
         // Too few chapters: the rules' own cut, when it finds more subjects.
         val least = (c.narration.duration / SECONDS_PER_SUBJECT).toInt()
-        if (film.chapters.size < least) {
+        if (film.chapters.size < least && !news(film)) {
             val plans = Chapters.find(c.narration)
-            if (plans.size > film.chapters.size) film = RulesDirector().film(c.narration, film.art.seed, plans).copy(art = film.art, captions = film.captions)
+            if (plans.size > film.chapters.size) film = RulesDirector().diagram(c.narration, film.art.seed, plans).copy(art = film.art, captions = film.captions)
         }
         return c.check.repair(film).takeIf { it != c.film }
     }
@@ -438,6 +454,9 @@ class FilmBriefJudge : FilmJudge {
         const val LONGEST = 32.0
     }
 }
+
+/** Whether [f] is an illustrated news film (fast scenes, not a building stage). */
+internal fun news(f: ExplainerFilm) = FilmGrammar.named(f.art.grammar) == FilmGrammar.IllustratedNews
 
 /** A picture's name as films write it ("task-tiles"). */
 internal fun picture(p: Primitive): String = io.trimio.engine.autopilot.explainer.Drafts.serial(p)

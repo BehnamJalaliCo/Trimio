@@ -8,6 +8,7 @@ import io.trimio.engine.asr.RecognitionException
 import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.asr.RecognizedToken
 import io.trimio.engine.asr.SpeechRecognizer
+import io.trimio.engine.asr.SpeechOnly
 import io.trimio.engine.asr.SpeechRuntime
 import io.trimio.engine.asr.WordAssembler
 import kotlinx.coroutines.CancellationException
@@ -30,6 +31,8 @@ class WhisperCppRecognizer(
     private val modelPath: String,
     /** On a GPU build the encoder and decoder run on the dedicated GPU (`-Dtrimio.whisper.gpu=off`: CPU). */
     private val useGpu: Boolean = System.getProperty("trimio.whisper.gpu") != "off",
+    /** Silero VAD (ggml-silero-v6.2.0.bin) when installed: only speech is decoded, token times mapped back. */
+    private val vadModelPath: String? = null,
 ) : SpeechRecognizer, AutoCloseable {
 
     private val mutex = Mutex()
@@ -47,9 +50,12 @@ class WhisperCppRecognizer(
         onWord: suspend (index: Int, word: Word) -> Unit,
     ): Transcript = mutex.withLock {
         require(audio.sampleRate == PcmAudio.WHISPER_RATE) { "Whisper needs 16 kHz audio, got ${audio.sampleRate}" }
+        val started = System.nanoTime()
+        // Speech only (Silero VAD): long silences are cut before decoding; token times come back to the source timeline.
+        val speech = vadModelPath?.let { speechOnly(audio, it, options.threads) }
+        val input = speech?.audio ?: audio
         val ctx = ensureLoaded()
         val beam = beam()
-        val started = System.nanoTime()
         val fallback = options.language ?: Language.Persian
         val callerJob = coroutineContext.job
         val tokens = ArrayList<RecognizedToken>()
@@ -62,12 +68,16 @@ class WhisperCppRecognizer(
             }
             val rc = withContext(Dispatchers.Default) {
                 WhisperNative.transcribe(
-                    ctx, audio.samples, options.language?.code.orEmpty(), options.initialPrompt, options.threads, beam,
+                    ctx, input.samples, options.language?.code.orEmpty(), options.initialPrompt, options.threads, beam,
                     object : WhisperCallback {
                         override fun onProgress(percent: Int) = onProgress(percent / 100f)
 
                         override fun onSegment(texts: Array<ByteArray>, startMs: LongArray, endMs: LongArray, probabilities: FloatArray) {
-                            val segment = texts.indices.map { RecognizedToken(texts[it], startMs[it], endMs[it], probabilities[it]) }
+                            val segment = texts.indices.map {
+                                val start = speech?.toSource(startMs[it], isStart = true) ?: startMs[it]
+                                val end = speech?.toSource(endMs[it], isStart = false)?.coerceAtLeast(start) ?: endMs[it]
+                                RecognizedToken(texts[it], start, end, probabilities[it])
+                            }
                             tokens += segment
                             WordAssembler.assemble(segment, fallback).forEach { streamed.trySend(it) }
                         }
@@ -84,7 +94,8 @@ class WhisperCppRecognizer(
         }
 
         val seconds = (System.nanoTime() - started) / NANOS
-        runtime = runtimeOf(options.threads, beam, audio.samples.size / audio.sampleRate.toFloat(), seconds).also { System.err.println("trimio " + it.summary()) }
+        val vadFacts = speech?.let { listOf("vad" to "silero: ${it.speechSeconds.toInt()} s of speech in ${it.sourceSeconds.toInt()} s") }.orEmpty()
+        runtime = runtimeOf(options.threads, beam, audio.samples.size / audio.sampleRate.toFloat(), seconds, vadFacts).also { System.err.println("trimio " + it.summary()) }
         val detected = Language.fromCode(WhisperNative.detectedLanguage(ctx)) ?: fallback
         // Re-assemble across segment boundaries so affixes split between segments still join.
         Transcript(detected, WordAssembler.assemble(tokens, detected)).also { onProgress(1f) }
@@ -112,10 +123,25 @@ class WhisperCppRecognizer(
         return info["device"].orEmpty().map { it.split('|') }.firstOrNull { it.getOrNull(1) == name }?.getOrNull(2) ?: name
     }
 
-    private fun runtimeOf(threads: Int, beam: Int, audioSeconds: Float, seconds: Float) = SpeechRuntime(
+    private fun runtimeOf(threads: Int, beam: Int, audioSeconds: Float, seconds: Float, extra: List<Pair<String, String>>) = SpeechRuntime(
         backend = WhisperNative.variant.ifEmpty { "cpu" }, gpu = gpu(), threads = threads, beam = beam,
-        audioSeconds = audioSeconds, seconds = seconds, facts = info.flatMap { (k, v) -> v.map { k to it } },
+        audioSeconds = audioSeconds, seconds = seconds, facts = info.flatMap { (k, v) -> v.map { k to it } } + extra,
     )
+
+    /**
+     * The speech of [audio] by Silero VAD, or null (decode everything) when the VAD model fails to
+     * load or run, finds no speech, or finds almost nothing to cut. The VAD context lives only for
+     * this call: it is under 1 MB and loads in milliseconds.
+     */
+    private fun speechOnly(audio: PcmAudio, model: String, threads: Int): SpeechOnly? {
+        val vad = runCatching { WhisperNative.vadInit(model, threads) }.getOrDefault(0L).takeIf { it != 0L } ?: return null
+        return try {
+            val t = WhisperNative.vadSegments(vad, audio.samples, VAD_THRESHOLD, VAD_MIN_SPEECH_MS, VAD_MIN_SILENCE_MS, VAD_PAD_MS) ?: return null
+            SpeechOnly.of(audio, (0 until t.size / 2).map { t[2 * it]..t[2 * it + 1] })
+        } finally {
+            WhisperNative.vadFree(vad)
+        }
+    }
 
     /**
      * The beam: `-Dtrimio.whisper.beam` (1 is greedy), else 3. Greedy decodes about 2.5× faster on
@@ -126,6 +152,12 @@ class WhisperCppRecognizer(
 
     companion object {
         private const val NANOS = 1e9f
+        private const val VAD_THRESHOLD = 0.5f
+        private const val VAD_MIN_SPEECH_MS = 250
+
+        /** Pauses shorter than this stay in: cutting a breath gains nothing and can clip a word's tail. */
+        private const val VAD_MIN_SILENCE_MS = 500
+        private const val VAD_PAD_MS = 150
         private const val BEAM = 3
         private const val MAX_BEAM = 8
         private val USING = Regex("using (\\S+) backend")

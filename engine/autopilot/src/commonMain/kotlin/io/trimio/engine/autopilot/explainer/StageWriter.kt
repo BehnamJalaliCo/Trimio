@@ -145,14 +145,23 @@ internal class StageWriter(
         if (fresh != null) return false
         val at = found.firstOrNull { it.idea in follows }?.at ?: mid(c)
         return when (main.primitive) {
+            Primitive.Bars -> bars(main, c, at, ideas)
+            else -> workOn(main, c, at, ideas, found)
+        }
+    }
+
+    /** Bars go on: the last is the lowest, the tallest gets its badge, or one more grows in. */
+    private fun bars(main: El, c: Clause, at: Int, ideas: Set<Idea>): Boolean = when {
+        Idea.Decline in ideas -> pick(main, c, at, listOf(main.items - 1), "", "the last bar is the lowest")
+        Idea.Rank in ideas -> pick(main, c, at, listOf(main.items - 1), superlative(c), "the tallest gets the badge")
+        Idea.Grow in ideas || Idea.Accumulate in ideas -> taller(main, c, at)
+        else -> false
+    }
+
+    private fun workOn(main: El, c: Clause, at: Int, ideas: Set<Idea>, found: List<Found>): Boolean {
+        return when (main.primitive) {
             Primitive.TaskTiles, Primitive.Checklist -> tick(main, c, at)
             Primitive.Meter, Primitive.Ring -> (ideas.any { it in DRAINS } || main.uses == 0) && drain(main, c, at, ideas)
-            Primitive.Bars -> when {
-                Idea.Decline in ideas -> pick(main, c, at, listOf(main.items - 1), "", "the last bar is the lowest")
-                Idea.Rank in ideas -> pick(main, c, at, listOf(main.items - 1), superlative(c), "the tallest gets the badge")
-                Idea.Grow in ideas || Idea.Accumulate in ideas -> taller(main, c, at)
-                else -> false
-            }
             Primitive.Branches, Primitive.Flow -> main.checked == 0 && pick(main, c, at, listOf(0), Said.around(n, c, best(c) ?: at, 2), "the best path lights up")
             Primitive.Blocks -> blocks(main, c, at)
             Primitive.Dots -> if (Idea.Many in ideas) more(main, c, at) else Idea.Portion in ideas && blocks(main, c, at)
@@ -294,27 +303,35 @@ internal class StageWriter(
             Idea.Routine -> routine(c, at, phrase)
             Idea.Drain -> meter(c, at, found)
             Idea.Decline -> decline(c, at, phrase)
-            Idea.Grow, Idea.Accumulate -> phrase.isNotBlank() && made(add(choose(f.idea), c, at, BeatContent(text = phrase, items = rising(BARS)), "it grows: bars rise", f.idea, main = true))
-            Idea.Uses -> made(add(choose(Idea.Uses), c, at, BeatContent(text = phrase, items = Said.examples(n.understanding.domain, n.persian)), "most everyday work, drawn as the kinds of work", f.idea, main = true))
+            Idea.Grow, Idea.Accumulate -> phrase.isNotBlank() && add(choose(f.idea), c, at, BeatContent(text = phrase, items = rising(BARS)), "it grows: bars rise", f.idea, main = true).let { true }
+            Idea.Uses -> add(choose(Idea.Uses), c, at, BeatContent(text = phrase, items = Said.examples(n.understanding.domain, n.persian)),
+                "most everyday work, drawn as the kinds of work", f.idea, main = true).let { true }
             Idea.Path -> path(c, at)
-            Idea.Think -> phrase.isNotBlank() && made(add(choose(Idea.Think), c, at, BeatContent(text = phrase, items = List(3) { Item("") }), "thinking it through before acting", f.idea, main = true))
-            Idea.Tangle -> made(add(Primitive.Tangle, c, at, BeatContent(text = phrase, visual = "tangle"), "deep, complex problems: a tangle", f.idea, main = true))
+            Idea.Think -> phrase.isNotBlank() && add(choose(Idea.Think), c, at, BeatContent(text = phrase, items = List(3) { Item("") }), "thinking it through before acting",
+                f.idea, main = true).let { true }
+            Idea.Tangle -> add(Primitive.Tangle, c, at, BeatContent(text = phrase, visual = "tangle"), "deep, complex problems: a tangle", f.idea, main = true).let { true }
             Idea.Rank, Idea.Levels -> rank(c, at, f.idea)
             Idea.Portion -> portion(c, at)
-            Idea.Slow, Idea.Fast -> made(add(Primitive.Clock, c, at, BeatContent(text = Said.from(n, c, at, 2)), "time: a clock", f.idea, main = false))
+            Idea.Slow, Idea.Fast -> add(Primitive.Clock, c, at, BeatContent(text = Said.from(n, c, at, 2)), "time: a clock", f.idea, main = false).let { true }
             Idea.Compare, Idea.Balance, Idea.Change -> sides(c, at, f.idea)
             Idea.Steps, Idea.Connect, Idea.Filter -> process(c, at, f.idea)
-            Idea.Cycle -> phrase.isNotBlank() && made(add(Primitive.Cycle, c, at, BeatContent(text = Said.title(n, c, 3).ifBlank { phrase }, items = List(CYCLE) { Item("") }), "it comes round again: a cycle", f.idea, main = true))
-            Idea.Question -> phrase.isNotBlank() && made(add(choose(Idea.Question), c, at, BeatContent(text = phrase), "the question the chapter answers", f.idea, main = false))
-            Idea.Warning -> made(add(choose(Idea.Warning), c, at, BeatContent(text = phrase.ifBlank { Said.from(n, c, at, 2) }, visual = "warning"), "a caution, marked", f.idea, main = false))
-            Idea.Goal, Idea.Insight -> phrase.isNotBlank() && made(add(choose(f.idea), c, at, BeatContent(text = phrase, visual = if (f.idea == Idea.Goal) "direct hit" else "light bulb"), "the point as a symbol", f.idea, main = false))
-            Idea.Success -> made(add(choose(Idea.Success), c, at, BeatContent(text = Said.from(n, c, at, 2), visual = "check mark"), "it works: a check", f.idea, main = false))
-            Idea.Many -> made(add(Primitive.Dots, c, at, BeatContent(text = phrase, value = DOTS.toDouble(), picks = (0 until DOTS / 3).toList()), "so many: a field of dots", f.idea, main = true))
-            Idea.Talk -> made(add(Primitive.Chat, c, at, BeatContent(text = phrase, items = listOf(Item(Said.title(n, c, 3))), visual = "speech balloon"), "asking and answering: a chat", f.idea, main = true))
-            Idea.Place -> made(add(Primitive.Map, c, at, BeatContent(text = phrase, visual = "world map"), "where it goes: a map", f.idea, main = true))
+            Idea.Cycle -> phrase.isNotBlank() && add(Primitive.Cycle, c, at, BeatContent(text = Said.title(n, c, 3).ifBlank { phrase }, items = List(CYCLE) { Item("") }),
+                "it comes round again: a cycle", f.idea, main = true).let { true }
+            Idea.Question -> phrase.isNotBlank() && add(choose(Idea.Question), c, at, BeatContent(text = phrase), "the question the chapter answers", f.idea, main = false).let { true }
+            Idea.Warning -> add(choose(Idea.Warning), c, at, BeatContent(text = phrase.ifBlank { Said.from(n, c, at, 2) }, visual = "warning"), "a caution, marked", f.idea, main = false).let { true }
+            Idea.Goal, Idea.Insight -> phrase.isNotBlank() && add(choose(f.idea), c, at, BeatContent(text = phrase,
+                visual = if (f.idea == Idea.Goal) "direct hit" else "light bulb"), "the point as a symbol", f.idea, main = false).let { true }
+            Idea.Success -> add(choose(Idea.Success), c, at, BeatContent(text = Said.from(n, c, at, 2), visual = "check mark"), "it works: a check", f.idea, main = false).let { true }
+            Idea.Many -> add(
+                Primitive.Dots, c, at, BeatContent(text = phrase, value = DOTS.toDouble(), picks = (0 until DOTS / 3).toList()), "so many: a field of dots", f.idea, main = true,
+            ).let { true }
+            Idea.Talk -> add(Primitive.Chat, c, at, BeatContent(text = phrase, items = listOf(Item(Said.title(n, c, 3))), visual = "speech balloon"),
+                "asking and answering: a chat", f.idea, main = true).let { true }
+            Idea.Place -> add(Primitive.Map, c, at, BeatContent(text = phrase, visual = "world map"), "where it goes: a map", f.idea, main = true).let { true }
             Idea.History -> history(c, at, phrase)
-            Idea.Quote -> Said.title(n, c).isNotBlank() && made(add(Primitive.Quote, c, at, BeatContent(text = Said.title(n, c)), "someone's words, quoted", f.idea, main = false))
-            Idea.Money -> figure(c) || phrase.isNotBlank() && choose(Idea.Money).let { p -> made(add(p, c, at, BeatContent(text = phrase, visual = "coin"), "money: coins stack up", f.idea, main = p != Primitive.Icon)) }
+            Idea.Quote -> Said.title(n, c).isNotBlank() && add(Primitive.Quote, c, at, BeatContent(text = Said.title(n, c)), "someone's words, quoted", f.idea, main = false).let { true }
+            Idea.Money -> figure(c) || phrase.isNotBlank() && choose(Idea.Money).let { p -> add(p, c, at, BeatContent(text = phrase, visual = "coin"), "money: coins stack up",
+                f.idea, main = p != Primitive.Icon).let { true } }
             Idea.Traits, Idea.Figure -> false
         }
     }
@@ -324,8 +341,6 @@ internal class StageWriter(
         val around = Said.around(n, c, at)
         return if (Phrases.nounish(n.texts[at]) && around.isNotBlank()) around else Said.title(n, c).ifBlank { around }
     }
-
-    private fun made(@Suppress("UNUSED_PARAMETER") e: El) = true
 
     private fun routine(c: Clause, at: Int, phrase: String): Boolean {
         val e = add(choose(Idea.Routine), c, at, BeatContent(text = phrase, items = List(TILES) { Item("", visual = "task") }), "light repetitive work: a row of task tiles", Idea.Routine, main = true)
@@ -353,7 +368,8 @@ internal class StageWriter(
     private fun analogy(c: Clause, at: Int, thing: Int, caption: String): Boolean {
         val visual = visuals.of(n.texts[thing], c.text) ?: return false
         val clock = visual.contains("clock") || visual.contains("watch")
-        add(if (clock) Primitive.Clock else Primitive.Icon, c, at, BeatContent(text = Phrases.clean(n.texts[thing]), caption = caption, visual = visual), "an analogy: the thing it is like", Idea.Analogy, main = false)
+        add(if (clock) Primitive.Clock else Primitive.Icon, c, at, BeatContent(text = Phrases.clean(n.texts[thing]), caption = caption, visual = visual),
+            "an analogy: the thing it is like", Idea.Analogy, main = false)
         return true
     }
 
@@ -453,7 +469,8 @@ internal class StageWriter(
         val noun = c.words.firstOrNull { it !in q.at..q.last && Phrases.nounish(n.texts[it]) && Metaphors.bare(n.texts[it]) !in Said.ADVERBS && Metaphors.bare(n.texts[it]) !in Said.FILLERS }
         val label = noun?.let { Said.around(n, c, it, 2) }?.takeIf { it.isNotBlank() && it != q.unit } ?: Said.title(n, c, 3)
         val value = if (percent) q.value / PERCENT else q.value
-        add(if (percent) Primitive.Ring else Primitive.Stat, c, q.at, BeatContent(text = label, value = value, unit = if (percent) "%" else q.unit), "the figure itself, counted up", Idea.Figure, main = percent)
+        add(if (percent) Primitive.Ring else Primitive.Stat, c, q.at, BeatContent(text = label, value = value, unit = if (percent) "%" else q.unit), "the figure itself, counted up",
+            Idea.Figure, main = percent)
         return true
     }
 

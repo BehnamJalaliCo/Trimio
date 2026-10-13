@@ -36,13 +36,9 @@ class SentencePiece private constructor(
         for (end in 1..n) {
             for (len in 1..minOf(longest, end)) {
                 val start = end - len
-                if (best[start] == Float.NEGATIVE_INFINITY) continue
                 val piece = pieces[s.substring(start, end)]
-                val score = when {
-                    piece != null -> scores[piece]
-                    len == 1 -> unkScore
-                    else -> continue
-                }
+                // A single uncovered character may be <unk>; longer unknown strings are not candidates.
+                val score = piece?.let { scores[it] } ?: unkScore.takeIf { len == 1 } ?: Float.NEGATIVE_INFINITY
                 val total = best[start] + score
                 if (total > best[end]) {
                     best[end] = total
@@ -154,7 +150,11 @@ internal class Proto(private val b: ByteArray, private var pos: Int, private val
         when (wire) {
             VARINT -> varint()
             FIXED64 -> pos += 8
-            LEN -> pos += varint().toInt()
+            LEN -> {
+                // Read the length first: `pos += varint()` would add it to the position before the varint.
+                val len = varint().toInt()
+                pos += len
+            }
             FIXED32 -> pos += 4
             else -> error("unsupported wire type $wire")
         }

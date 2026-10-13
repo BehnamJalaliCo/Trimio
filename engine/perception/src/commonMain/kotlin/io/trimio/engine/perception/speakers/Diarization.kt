@@ -57,30 +57,35 @@ object SpeakerTurns {
         val spans = ArrayList<ClosedFloatingPointRange<Float>>()
         var start = 0
         do {
-            val chunk = FloatArray(WINDOW)
-            audio.copyInto(chunk, 0, start, min(audio.size, start + WINDOW))
-            val out = net.run(mapOf(net.inputNames.first() to Tensor.of(longArrayOf(1, 1, WINDOW.toLong()), chunk))).values.first()
-            val frames = out.shape[1].toInt()
-            val classes = out.shape[2].toInt()
-            val logits = out.requireFloats()
-            // Keep only this window's middle (the overlaps belong to the neighbours), except at the ends.
-            val keepFrom = if (start == 0) 0f else (start + (WINDOW - STEP) / 2f) / RATE
-            val keepUntil = if (start + WINDOW >= audio.size) Float.MAX_VALUE else (start + (WINDOW + STEP) / 2f) / RATE
-            var runSpeaker = 0
-            var runStart = 0f
-            for (f in 0..frames) {
-                val time = (start + f * FRAME_STEP + FRAME_FIELD / 2f) / RATE
-                val speaker = if (f == frames) 0 else dominant(logits, f * classes, classes)
-                if (speaker != runSpeaker) {
-                    if (runSpeaker != 0) clip(runStart, time, keepFrom, keepUntil)?.let { spans += it }
-                    runSpeaker = speaker
-                    runStart = time
-                }
-            }
+            spans += window(net, audio, start)
             start += STEP
         } while (start + WINDOW - STEP < audio.size)
         return spans.filter { it.endInclusive - it.start >= MIN_SPAN }.sortedBy { it.start }
             .flatMap { s -> pieces(s) }
+    }
+
+    /** The spans of one 10 s window starting at sample [start], kept to the window's middle (the overlaps belong to the neighbours). */
+    private fun window(net: Network, audio: FloatArray, start: Int): List<ClosedFloatingPointRange<Float>> {
+        val chunk = FloatArray(WINDOW)
+        audio.copyInto(chunk, 0, start, min(audio.size, start + WINDOW))
+        val out = net.run(mapOf(net.inputNames.first() to Tensor.of(longArrayOf(1, 1, WINDOW.toLong()), chunk))).values.first()
+        val frames = out.shape[1].toInt()
+        val classes = out.shape[2].toInt()
+        val logits = out.requireFloats()
+        val keepFrom = if (start == 0) 0f else (start + (WINDOW - STEP) / 2f) / RATE
+        val keepUntil = if (start + WINDOW >= audio.size) Float.MAX_VALUE else (start + (WINDOW + STEP) / 2f) / RATE
+        val spans = ArrayList<ClosedFloatingPointRange<Float>>()
+        var runSpeaker = 0
+        var runStart = 0f
+        for (f in 0..frames) {
+            val time = (start + f * FRAME_STEP + FRAME_FIELD / 2f) / RATE
+            val speaker = if (f == frames) 0 else dominant(logits, f * classes, classes)
+            if (speaker == runSpeaker) continue
+            if (runSpeaker != 0) clip(runStart, time, keepFrom, keepUntil)?.let { spans += it }
+            runSpeaker = speaker
+            runStart = time
+        }
+        return spans
     }
 
     /** The local speaker (1..3) of a powerset frame; an overlap counts as its first speaker; 0 is silence. */

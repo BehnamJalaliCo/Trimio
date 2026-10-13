@@ -109,6 +109,8 @@ class Retrieval(
             memory: UserMemory? = null,
             taste: TasteMemory? = null,
             bundled: Corpora.Bundled? = null,
+            /** Where vectors embedded on this device are kept (documents no bundled pack covers: installed packs, the creator's memory). */
+            cache: BlobStore? = null,
             onProgress: (Int, Int) -> Unit = { _, _ -> },
         ): Retrieval {
             val b = bundled ?: Corpora.bundled(setOfNotNull(embedder?.space))
@@ -123,9 +125,12 @@ class Retrieval(
                 val total = all.sumOf { it.docs.size }
                 var before = 0
                 for (index in all) {
-                    val pack = b.packs.firstOrNull { it.corpus == index.name && it.space == embedder.space }
+                    val name = "${index.name}-${Corpora.packFile(embedder.space)}"
+                    val cached = cache?.read(name)?.let { bytes -> runCatching { VectorPack.read(bytes) }.getOrNull() }
+                    val packs = b.packs.filter { it.corpus == index.name } + listOfNotNull(cached)
                     val offset = before
-                    index.attach(embedder, pack) { done, _ -> onProgress(offset + done, total) }
+                    val embedded = index.attach(embedder, packs) { done, _ -> onProgress(offset + done, total) }
+                    if (embedded > 0) index.pack()?.let { cache?.write(name, it.write()) }
                     before += index.docs.size
                 }
             }

@@ -56,10 +56,10 @@ class OrtEngine(private val platform: Platform = detectPlatform()) : NeuralEngin
             } catch (e: OrtException) {
                 options.close()
                 skipped += "$accelerator: ${e.message?.lineSequence()?.firstOrNull()}"
-                if (accelerator == Accelerator.Cpu) throw NeuralEngineException("could not open $path: ${e.message}", e)
             }
         }
-        throw NeuralEngineException("no accelerator could open $path")
+        // The plan always ends on the CPU: reaching here means even the CPU could not open the model.
+        throw NeuralEngineException("could not open $path: ${skipped.joinToString("; ")}")
     }
 
     private fun configure(options: OrtSession.SessionOptions, config: SessionConfig) {

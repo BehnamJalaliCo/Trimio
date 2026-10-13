@@ -78,7 +78,9 @@ class PictureAndTextTest {
             val body = listOf<Byte>(0x0A) + varint(t.size) + t + listOf<Byte>(0x15) + (0 until 4).map { (bits ushr (8 * it)).toByte() } + listOf<Byte>(0x18) + varint(type)
             return listOf<Byte>(0x0A) + varint(body.size) + body
         }
-        val pieces = listOf("<unk>" to 2, "<s>" to 3, "</s>" to 3, "<pad>" to 3).map { piece(it.first, 0f, it.second) } +
+        // A trainer spec (field 2, skipped) between the pieces, with a two-byte length.
+        val spec = listOf<Byte>(0x12) + varint(200) + List(200) { 0x08 }
+        val pieces = listOf("<unk>" to 2, "<s>" to 3, "</s>" to 3, "<pad>" to 3).map { piece(it.first, 0f, it.second) } + listOf(spec) +
             listOf(piece("▁", -3f, 1), piece("▁سلام", -2f, 1), piece("سلام", -4f, 1), piece("▁دنیا", -2.5f, 1), piece("a", -5f, 1))
         return pieces.flatten().toByteArray()
     }

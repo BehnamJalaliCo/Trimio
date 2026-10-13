@@ -1,0 +1,215 @@
+{
+ "art": {
+  "palette": "news-gold",
+  "layout": "full-bleed",
+  "chapterMark": "none",
+  "captionStyle": "none",
+  "seed": 13,
+  "grammar": "illustrated-news"
+ },
+ "chapters": [
+  {
+   "title": "",
+   "start": 0.0,
+   "end": 2.8,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 0.1,
+     "until": 1.4,
+     "line": "What happened to the refunds? Where did the money go?",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "text": "What happened to the refunds?",
+      "caption": "Where did the money go?"
+     }
+    },
+    {
+     "at": 0.5,
+     "until": 2.6,
+     "line": "",
+     "op": "add",
+     "element": "hero",
+     "primitive": "hero",
+     "content": {
+      "illustration": "safe with gold bars",
+      "visual": "lock"
+     }
+    }
+   ]
+  },
+  {
+   "title": "",
+   "start": 2.8,
+   "end": 5.6,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 2.9,
+     "until": 4.4,
+     "line": "Customers say they cancelled, but the money is not back",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "kicker": "Customers",
+      "text": "say they cancelled their orders",
+      "punch": "but the money is not back!!"
+     }
+    },
+    {
+     "at": 3.0,
+     "until": 5.4,
+     "line": "",
+     "op": "add",
+     "element": "hero",
+     "primitive": "hero",
+     "content": {
+      "illustration": "worried man looking at phone",
+      "visual": "phone"
+     }
+    },
+    {
+     "at": 3.9,
+     "until": 5.4,
+     "line": "",
+     "op": "add",
+     "element": "b",
+     "primitive": "bubble",
+     "content": {
+      "text": "Refund pending..."
+     }
+    }
+   ],
+   "transition": "circle"
+  },
+  {
+   "title": "",
+   "start": 5.6,
+   "end": 8.4,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 5.7,
+     "until": 6.6,
+     "line": "The promise: after approval",
+     "op": "add",
+     "element": "a",
+     "primitive": "annotation",
+     "content": {
+      "text": "Promised: after approval"
+     }
+    },
+    {
+     "at": 6.3,
+     "until": 8.2,
+     "line": "three work days",
+     "op": "add",
+     "element": "cal",
+     "primitive": "calendar",
+     "content": {
+      "value": 3,
+      "caption": "work days"
+     }
+    },
+    {
+     "at": 6.4,
+     "until": 7.0,
+     "line": "",
+     "op": "add",
+     "element": "st",
+     "primitive": "stars"
+    }
+   ],
+   "transition": "push"
+  },
+  {
+   "title": "",
+   "start": 8.4,
+   "end": 11.2,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 8.5,
+     "until": 9.8,
+     "line": "A report of customers gathering is out",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "kicker": "Report",
+      "text": "Some customers gathered",
+      "caption": "has been published..."
+     }
+    },
+    {
+     "at": 8.7,
+     "until": 11.0,
+     "line": "",
+     "op": "add",
+     "element": "hero",
+     "primitive": "hero",
+     "content": {
+      "illustration": "three people in front of a store",
+      "visual": "store"
+     }
+    },
+    {
+     "at": 10.0,
+     "until": 10.8,
+     "line": "",
+     "op": "highlight",
+     "element": "h"
+    }
+   ],
+   "transition": "peel"
+  },
+  {
+   "title": "",
+   "start": 11.2,
+   "end": 14.4,
+   "accent": 1,
+   "beats": [
+    {
+     "at": 11.3,
+     "until": 12.4,
+     "line": "Is the refund done? Not yet.",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "text": "Is the refund done?",
+      "punch": "Not yet."
+     }
+    },
+    {
+     "at": 11.8,
+     "until": 13.0,
+     "line": "",
+     "op": "add",
+     "element": "m",
+     "primitive": "meter",
+     "content": {
+      "text": "Refunds paid",
+      "value": 0.4
+     }
+    },
+    {
+     "at": 13.0,
+     "until": 14.2,
+     "line": "only a little more",
+     "op": "fill",
+     "element": "m",
+     "content": {
+      "value": 0.55
+     }
+    }
+   ],
+   "transition": "circle"
+  }
+ ],
+ "captions": [],
+ "language": "en"
+}

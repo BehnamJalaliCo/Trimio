@@ -13,27 +13,33 @@ internal object Said {
 
     /** The noun phrase around word [at] of [c], at most [max] words, inside its clause and its comma. */
     fun around(n: Narration, c: Clause, at: Int, max: Int = MAX_PHRASE): String {
-        val t = n.texts
+        val w = Window(n, c)
+        var start = if (!w.noun(at) && w.noun(at + 1)) at + 1 else at
+        var end = start
+        // One more noun on the right («محدودیت مصرف»), or a connector and a noun («سبک و تکراری»); the same on the left.
+        while (end - start + 1 < max && !w.breaks(end)) end = w.right(end, end - start + 3 <= max) ?: break
+        while (end - start + 1 < max) start = w.left(start, end - start + 3 <= max) ?: break
+        return clean(n.texts.subList(start, end + 1))
+    }
+
+    /** The words of a clause as a noun phrase grows over them. */
+    private class Window(n: Narration, private val c: Clause) {
+        private val t = n.texts
         fun noun(i: Int) = i in c.words && Phrases.nounish(t[i]) && Metaphors.bare(t[i]) !in ADVERBS
         fun connector(i: Int) = i in c.words && Metaphors.bare(t[i]) in CONNECTORS
         fun breaks(i: Int) = t[i].trimEnd().lastOrNull()?.let { it in PUNCTUATION } == true
-        var start = if (!noun(at) && noun(at + 1)) at + 1 else at
-        var end = start
-        while (end - start + 1 < max && !breaks(end)) {
-            end = when {
-                noun(end + 1) -> end + 1
-                connector(end + 1) && noun(end + 2) && end - start + 3 <= max -> end + 2
-                else -> break
-            }
+
+        fun right(end: Int, room: Boolean): Int? = when {
+            noun(end + 1) -> end + 1
+            room && connector(end + 1) && noun(end + 2) -> end + 2
+            else -> null
         }
-        while (end - start + 1 < max) {
-            start = when {
-                noun(start - 1) && !breaks(start - 1) -> start - 1
-                connector(start - 1) && noun(start - 2) && !breaks(start - 2) && end - start + 3 <= max -> start - 2
-                else -> break
-            }
+
+        fun left(start: Int, room: Boolean): Int? = when {
+            noun(start - 1) && !breaks(start - 1) -> start - 1
+            room && connector(start - 1) && noun(start - 2) && !breaks(start - 2) -> start - 2
+            else -> null
         }
-        return clean(t.subList(start, end + 1))
     }
 
     /** Up to [max] words from [at] on (function words left out), stopping at the clause's punctuation. */
@@ -77,7 +83,8 @@ internal object Said {
     }
 
     private val WORK = listOf(Triple("نوشتن", "Writing", "pencil"), Triple("کدنویسی", "Code", "laptop"), Triple("تحلیل", "Analysis", "bar chart"), Triple("گفتگو", "Chat", "speech balloon"))
-    private val MONEY = listOf(Triple("درآمد", "Income", "money bag"), Triple("خرج", "Spending", "receipt"), Triple("پس‌انداز", "Savings", "piggy bank"), Triple("سرمایه", "Investing", "chart increasing"))
+    private val MONEY = listOf(Triple("درآمد", "Income", "money bag"), Triple("خرج", "Spending", "receipt"), Triple("پس‌انداز", "Savings", "piggy bank"), Triple("سرمایه", "Investing",
+        "chart increasing"))
     private val HEALTH = listOf(Triple("خواب", "Sleep", "bed"), Triple("تغذیه", "Food", "green salad"), Triple("ورزش", "Exercise", "person running"), Triple("آب", "Water", "droplet"))
     private val STUDY = listOf(Triple("مطالعه", "Reading", "books"), Triple("تمرین", "Practice", "pencil"), Triple("آزمون", "Tests", "memo"), Triple("مرور", "Review", "repeat button"))
 

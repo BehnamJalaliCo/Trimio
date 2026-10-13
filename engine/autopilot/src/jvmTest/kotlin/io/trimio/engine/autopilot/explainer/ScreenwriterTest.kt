@@ -75,7 +75,8 @@ class ScreenwriterTest {
     fun stagesBuildInsteadOfCutting() {
         for ((key, _) in Narrations.ALL) {
             val (n, f) = film(key)
-            assertTrue(FilmCheck(n).problems(f).none { it.kind in setOf(FilmCheck.Kind.Reference, FilmCheck.Kind.Time, FilmCheck.Kind.Crowded, FilmCheck.Kind.Op) }, "$key: ${FilmCheck(n).problems(f)}")
+            assertTrue(FilmCheck(n).problems(f).none { it.kind in setOf(FilmCheck.Kind.Reference, FilmCheck.Kind.Time, FilmCheck.Kind.Crowded, FilmCheck.Kind.Op) },
+                "$key: ${FilmCheck(n).problems(f)}")
             val reuse = f.chapters.flatMap { it.beats }.count { it.op !in setOf(StageOp.Add, StageOp.Clear) }
             assertTrue(reuse > 0, "$key: elements are worked on")
             // Every sentence gets a picture.

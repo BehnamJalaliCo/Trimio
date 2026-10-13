@@ -75,7 +75,9 @@ internal object Loanwords {
     private fun term(p: String): String? {
         if (p.length < MIN_STEM) return null
         val options = listOf(p) + (1 until p.length).filter { p[it] in "وای" }.map { p.removeRange(it, it + 1) }
-        return options.firstNotNullOfOrNull { o -> ALL_WRITTEN.firstOrNull { plain(it) == o && it.length >= MIN_ALIAS - 1 } }
+        // Or the term's last letter unheard: «دایرک» is «دایرکت».
+        return options.firstNotNullOfOrNull { o -> ALL_WRITTEN.firstOrNull { plain(it) == o } }
+            ?: ALL_WRITTEN.firstOrNull { plain(it).length >= MIN_ALIAS + 1 && plain(it).dropLast(1) == p }
     }
 
     private const val MIN_ALIAS = 4

@@ -28,7 +28,7 @@ enum class AddOnGroup(val titleFa: String, val titleEn: String) {
 
 /** The engine that runs an add-on. */
 @Serializable
-enum class AddOnRuntime { Llama, Whisper, Onnx, Kotlin }
+enum class AddOnRuntime { Llama, Whisper, Onnx, Kotlin, Diffusion }
 
 /** Device families an add-on is offered on. */
 @Serializable

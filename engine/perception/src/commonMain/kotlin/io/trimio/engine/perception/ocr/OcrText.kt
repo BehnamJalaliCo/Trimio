@@ -93,47 +93,47 @@ class PpOcr(private val charset: List<String>) {
 
     /** Text boxes (frame fractions) and their scores from a probability map of [w]×[h]. */
     fun boxes(map: FloatArray, w: Int, h: Int, thresh: Float = 0.3f, boxThresh: Float = 0.6f): List<Pair<Box, Float>> {
-        val label = IntArray(w * h)
+        val seen = BooleanArray(w * h)
         val out = ArrayList<Pair<Box, Float>>()
-        var next = 0
-        val stack = ArrayDeque<Int>()
         for (start in 0 until w * h) {
-            if (map[start] <= thresh || label[start] != 0) continue
-            next++
-            label[start] = next
-            stack.add(start)
-            var x0 = w
-            var y0 = h
-            var x1 = 0
-            var y1 = 0
-            var sum = 0f
-            var n = 0
-            while (stack.isNotEmpty()) {
-                val i = stack.removeLast()
-                val x = i % w
-                val y = i / w
-                x0 = min(x0, x)
-                x1 = max(x1, x)
-                y0 = min(y0, y)
-                y1 = max(y1, y)
-                sum += map[i]
-                n++
-                for (j in intArrayOf(i - 1, i + 1, i - w, i + w)) {
-                    val ok = j in 0 until w * h && (j / w == y || j % w == x)
-                    if (ok && map[j] > thresh && label[j] == 0) {
-                        label[j] = next
-                        stack.add(j)
-                    }
-                }
-            }
-            val bw = x1 - x0 + 1f
-            val bh = y1 - y0 + 1f
-            val score = sum / n
-            if (score < boxThresh || bh < MIN_SIDE || bw < MIN_SIDE) continue
-            val d = bw * bh * UNCLIP / (2 * (bw + bh))
-            out += Box.of((x0 - d) / w, (y0 - d) / h, (x1 + 1 + d) / w, (y1 + 1 + d) / h) to score
+            if (map[start] > thresh && !seen[start]) region(map, w, h, start, thresh, seen)?.takeIf { it.second >= boxThresh }?.let { out += it }
         }
         return out
+    }
+
+    /** The 4-connected region above [thresh] from [start]: its unclipped box and mean probability; null when too thin. */
+    private fun region(map: FloatArray, w: Int, h: Int, start: Int, thresh: Float, seen: BooleanArray): Pair<Box, Float>? {
+        val stack = ArrayDeque<Int>().apply { add(start) }
+        seen[start] = true
+        var x0 = w
+        var y0 = h
+        var x1 = 0
+        var y1 = 0
+        var sum = 0f
+        var n = 0
+        while (stack.isNotEmpty()) {
+            val i = stack.removeLast()
+            val x = i % w
+            val y = i / w
+            x0 = min(x0, x)
+            x1 = max(x1, x)
+            y0 = min(y0, y)
+            y1 = max(y1, y)
+            sum += map[i]
+            n++
+            for (j in intArrayOf(i - 1, i + 1, i - w, i + w)) {
+                val inside = j in 0 until w * h && (j / w == y || j % w == x)
+                if (inside && map[j] > thresh && !seen[j]) {
+                    seen[j] = true
+                    stack.add(j)
+                }
+            }
+        }
+        val bw = x1 - x0 + 1f
+        val bh = y1 - y0 + 1f
+        if (bh < MIN_SIDE || bw < MIN_SIDE) return null
+        val d = bw * bh * UNCLIP / (2 * (bw + bh))
+        return Box.of((x0 - d) / w, (y0 - d) / h, (x1 + 1 + d) / w, (y1 + 1 + d) / h) to sum / n
     }
 
     /** The recogniser's input for [box] of [frame]: 48 px high, width by aspect, values −1..1, BGR. */

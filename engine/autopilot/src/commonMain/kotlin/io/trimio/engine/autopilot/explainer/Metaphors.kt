@@ -112,7 +112,8 @@ object Metaphors {
         cue(Idea.Change, 1.1f, "قبلا", "قبلاً", "used to", "before and after", "تبدیل*", "turns into", "turned into", "عوض*", "changed", "transform*")
         cue(Idea.Steps, 1.1f, "مرحله*", "گام*", "قدم*", "step", "steps", "process", "فرایند*", "فرآیند*", "مراحل*")
         cue(Idea.Steps, 0.8f, "اول", "دوم", "سوم", "بعدش", "سپس", "در نهایت", "first", "second", "third", "then", "finally", "next")
-        cue(Idea.Cycle, 1.0f, "هر روز", "هرروز", "هر شب", "هر هفته", "هر صبح", "عادت*", "چرخه*", "every day", "every night", "every morning", "daily", "habit*", "cycle*", "loop*", "again and again", "repeat*")
+        cue(Idea.Cycle, 1.0f, "هر روز", "هرروز", "هر شب", "هر هفته", "هر صبح", "عادت*", "چرخه*", "every day", "every night", "every morning", "daily", "habit*", "cycle*", "loop*",
+            "again and again", "repeat*")
         cue(Idea.Filter, 1.2f, "از بین", "فیلتر*", "filter*", "narrow*", "funnel", "only a few", "out of")
         cue(Idea.Balance, 1.1f, "تعادل*", "توازن*", "balance*", "trade-off", "tradeoff", "هزینه و فایده", "سود و ضرر", "pros and cons")
         cue(Idea.Decline, 1.1f, "کمتری", "کمتر میشه", "کاهش*", "افت*", "less and less", "decreas*", "declin*", "shrink*", "loses", "falls", "drops", "lower")

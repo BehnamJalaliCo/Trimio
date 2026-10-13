@@ -611,6 +611,7 @@ class MotionRenderer(
     }
 
     private fun gradeFilter(g: Grade, t: Float): androidx.compose.ui.graphics.ColorFilter? {
+        g.ink?.let { return inkFilter(it, g.contrast.at(t)) }
         val exposure = g.exposure.at(t)
         val contrast = g.contrast.at(t)
         val saturation = g.saturation.at(t)
@@ -630,6 +631,21 @@ class MotionRenderer(
         )
         m.timesAssign(c)
         return androidx.compose.ui.graphics.ColorFilter.colorMatrix(m)
+    }
+
+    /** Darkness becomes [ink]'s opacity (luminance to alpha, steepened by [contrast]); the paper drops out. */
+    private fun inkFilter(ink: Color, contrast: Float): androidx.compose.ui.graphics.ColorFilter {
+        val k = contrast.coerceAtLeast(0.1f)
+        return androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+            androidx.compose.ui.graphics.ColorMatrix(
+                floatArrayOf(
+                    0f, 0f, 0f, 0f, ink.red * 255f,
+                    0f, 0f, 0f, 0f, ink.green * 255f,
+                    0f, 0f, 0f, 0f, ink.blue * 255f,
+                    -0.2126f * k, -0.7152f * k, -0.0722f * k, 0f, 255f * k,
+                ),
+            ),
+        )
     }
 
     // ---------------------------------------------------------------- paint helpers

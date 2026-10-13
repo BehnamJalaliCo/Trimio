@@ -69,8 +69,10 @@ internal object LlamaNative {
     /**
      * Engine options, from `-Dtrimio.llama.*` (or their defaults) in the order the native side
      * reads them: KV cache type (ggml type: 1 f16, 8 q8_0), flash attention (-1 auto, 0, 1),
-     * n_batch, n_ubatch, prompt-head reuse, lazy grammar, and the share of the weights (percent)
-     * a GPU must be able to run before a model is put on it.
+     * n_batch, n_ubatch, prompt-head reuse, lazy grammar, the share of the weights (percent)
+     * a GPU must be able to run before a model is put on it, and the tokens the model's own MTP
+     * head guesses per step (`-Dtrimio.llama.draft`; only models built with NextN layers use it,
+     * e.g. Qwen3.5 MTP GGUFs: the output is the same, the decode faster when guesses hold).
      */
     fun options(): IntArray = intArrayOf(
         when (prop("kv")) { "f16" -> F16; else -> Q8_0 },
@@ -80,6 +82,7 @@ internal object LlamaNative {
         if (prop("prefixCache") == "off") 0 else 1,
         if (prop("lazyGrammar") == "off") 0 else 1,
         prop("minGpuCoverage")?.toIntOrNull() ?: MIN_GPU_COVERAGE,
+        prop("draft")?.toIntOrNull() ?: DRAFT,
     )
 
     private fun prop(name: String): String? = System.getProperty("trimio.llama.$name")?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
@@ -89,10 +92,13 @@ internal object LlamaNative {
     private const val BATCH = 512
     private const val MIN_GPU_COVERAGE = 90
 
+    /** MTP guesses per step by default (0: off until measured on the devices). */
+    private const val DRAFT = 0
+
     external fun init(modelPath: String, contextSize: Int, threads: Int, gpuLayers: Int, options: IntArray): Long
     external fun runtimeInfo(handle: Long): String
 
-    /** The last call: prompt tokens, reused tokens, generated tokens, prompt µs, generate µs, grammar resamples. */
+    /** The last call: prompt tokens, reused tokens, generated tokens, prompt µs, generate µs, grammar resamples, MTP guesses, guesses kept. */
     external fun lastCall(handle: Long): LongArray
     external fun free(handle: Long)
     external fun contextSize(handle: Long): Int
@@ -198,7 +204,8 @@ class LlamaLanguageModel(
             val c = LlamaNative.lastCall(engine)
             val usage = Usage(1, c[0].toInt(), c[1].toInt(), c[2].toInt(), c[3] / US, c[4] / US)
             total += usage
-            if (log) System.err.println("trimio llm: ${usage.summary()}, grammar resamples ${c[RESAMPLES]}")
+            val mtp = c.getOrNull(DRAFTED)?.takeIf { it > 0 }?.let { ", MTP kept ${c[DRAFTED + 1]}/$it" }.orEmpty()
+            if (log) System.err.println("trimio llm: ${usage.summary()}, grammar resamples ${c[RESAMPLES]}$mtp")
             Generation(out.toString(), stop, servedBy = id, usage = usage)
         }
     }
@@ -268,6 +275,7 @@ class LlamaLanguageModel(
         private const val MAX_THREADS = 8
         private const val US = 1000L
         private const val RESAMPLES = 5
+        private const val DRAFTED = 6
 
         /** `-Dtrimio.llama.log=calls`: one line per call (tokens, speed) on stderr, for measurements. */
         private val log = System.getProperty("trimio.llama.log") == "calls"

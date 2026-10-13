@@ -60,6 +60,52 @@ object DirectorPrompts {
         - "metaphor": one short English line saying why the picture fits the sentence.
     """.trimIndent()
 
+    /** The illustrated news grammar, taught by the second reference film. */
+    val NEWS = """
+        You are the screenwriter and art director of ILLUSTRATED NEWS films: a narration about a story, an event or a piece of news becomes
+        a fast vertical film, one SCENE per sentence (2-3 s each, a new visual idea every 1-2 s, nothing still for more than 2.5 s).
+        Each scene ("chapter") has:
+        - a headline: add primitive "headline" with "kicker" (one small word on top, e.g. the subject: "کاربرا", "گزارش"), "text" (the main
+          line, the sentence's own key words, at most 5) and "caption" (an optional grey second line); when the sentence turns ("but…",
+          «ولی…») or exclaims, a later beat: op "highlight" on the headline with "punch" (the punchline, at most 5 words) for the dark box;
+        - a hero illustration: add primitive "hero" with "hero" = who or what the sentence is about, its pose or action and the objects,
+          in English ("worried young man looking at his phone", "safe full of gold bars", "three people in front of a shop"), and "sign" =
+          a name written on an object ONLY when the narration says that name (as said), else "";
+        - at most one device: "bubble" (a status or what someone says: text "waiting for settlement…"), "annotation" (a rule, a term, a
+          deadline's conditions, as a dashed note), "calendar" (days left: value = the number, text = the unit), "stat" (a figure), and
+          "stars" as punctuation after a punchline;
+        - "transition": how the scene arrives: "circle" (an accent circle wipes up), "push", "peel"; the first scene "cut"; vary them.
+        Example (Persian): «قضیه میلی گلد چیه؟ طلاهاش چی شد؟» → headline {text:"قضیه میلی گلد چیه؟", caption:"طلاهاش چی شد؟"}, hero
+        {hero:"steel safe full of gold bars", sign:"میلی گلد"}. «کاربرا میگن طلاشونو فروختن ولی پولش هنوز واریز نشده!!» → headline
+        {kicker:"کاربرا", text:"میگن طلاشونو فروختن"}, hero {hero:"worried young man looking at his phone"}, highlight {punch:"ولی پولش
+        هنوز واریز نشده!!"}, bubble {text:"در انتظار تسویه…"}. «مهلت برداشت بعد از تایید سه روزکاریه» → annotation {text:"مهلت برداشت بعد از
+        تایید"}, calendar {value:3, text:"روزکاری"}.
+        RULES: on-screen words in the narration's language (Persian with Persian digits for Persian narration; names as said); "hero",
+        "visual" and "metaphor" in English; never a company or brand the narration does not say; element ids short ("headline", "hero").
+    """.trimIndent()
+
+    val GRAMMAR = """
+        Choose the film grammar for a narration. "diagram-chapters": a concept, a comparison, tiers, steps, how or why something works —
+        calm chapters whose diagrams build. "illustrated-news": a story, an event, news, what happened to people or a company — one fast
+        illustrated scene per sentence. Answer the grammar and why, in a few English words.
+    """.trimIndent()
+
+    fun grammar(n: Narration): String = buildString {
+        append("Narration language: ").append(languageName(n)).append("\n\n")
+        append(n.clauses.joinToString(" ") { it.text }.take(GRAMMAR_CHARS))
+    }
+
+    /** A run of news scenes (clause ranges) for one reply. */
+    fun news(n: Narration, plans: List<Chapters.Plan>): String = buildString {
+        append("Narration language: ").append(languageName(n)).append('\n')
+        if (n.prompt.isNotBlank()) append("Creator's brief: ").append(n.prompt.trim().take(BRIEF)).append('\n')
+        val range = plans.first().clauses.first..plans.last().clauses.last
+        append("\nClauses (number [start–end seconds] text):\n").append(clauses(n, range))
+        append("\nScenes (one chapter each, keep these clause ranges):\n")
+        plans.forEachIndexed { i, p -> append(i + 1).append(". c").append(p.clauses.first).append("–c").append(p.clauses.last).append('\n') }
+        append("\nWrite every scene: title (the kicker or the subject), first and last clause numbers as listed, transition, and its beats.")
+    }
+
     val OUTLINE = """
         You cut a narration into chapters for an explainer film: one subject per chapter (a new name taking the floor, the next item of a
         list, "first / then / finally", a clear change of topic). Chapters are 2 to 8 clauses long; the first starts at clause 0. For each
@@ -119,4 +165,5 @@ object DirectorPrompts {
 
     private const val HINT = 0.95f
     private const val BRIEF = 600
+    private const val GRAMMAR_CHARS = 1500
 }

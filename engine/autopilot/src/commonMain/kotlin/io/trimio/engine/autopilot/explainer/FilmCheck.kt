@@ -83,6 +83,9 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         if (words(c.caption) > MAX_CAPTION_WORDS) add(Problem(Kind.Long, b.at, "caption «${c.caption}»"))
         if (c.items.size > MAX_ITEMS || c.items.any { words(it.label) > MAX_ITEM_WORDS || it.label.length > MAX_ITEM_CHARS }) add(Problem(Kind.Long, b.at, "items ${c.items.map { it.label }}"))
         if (b.op in CREATES && b.primitive in WORDS_ONLY && c.text.isBlank()) add(Problem(Kind.Empty, b.at, "${b.primitive} with no words"))
+        if (b.op in CREATES && b.primitive == Primitive.Hero && IllustrationRequest.parse(c.illustration) == null) add(Problem(Kind.Empty, b.at, "a hero with no illustration"))
+        if (words(c.kicker) > MAX_KICKER_WORDS || words(c.punch) > MAX_TEXT_WORDS) add(Problem(Kind.Long, b.at, "kicker «${c.kicker}» punch «${c.punch}»"))
+        IllustrationRequest.parse(c.illustration)?.sign?.takeIf { it.isNotBlank() && !said(core(it.split(' ').first())) }?.let { add(Problem(Kind.Brand, b.at, "sign «$it» is not said")) }
         if (b.primitive in UNIT_VALUES && (c.value ?: 0.0) !in 0.0..1.0) add(Problem(Kind.Value, b.at, "${b.primitive} at ${c.value}"))
         addAll(script(b.at, texts(c)))
     }
@@ -188,8 +191,13 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         val value = c.value?.let { v -> if (b.primitive in UNIT_VALUES && v > 1.0 && v <= PERCENT) v / PERCENT else v }?.let { v -> if (b.primitive in UNIT_VALUES) v.coerceIn(0.0, 1.0) else v }
         val content = BeatContent(
             text = text(c.text, MAX_TEXT_WORDS, log), caption = text(c.caption, MAX_CAPTION_WORDS, log), items = items, value = value,
-            unit = text(c.unit, 1, log), picks = c.picks.distinct().sorted(), visual = visual(c.visual),
+            unit = text(c.unit, 1, log), picks = c.picks.distinct().sorted(), visual = visual(c.visual), illustration = illustration(c.illustration),
+            kicker = text(c.kicker, MAX_KICKER_WORDS, log), punch = text(c.punch, MAX_TEXT_WORDS, log),
         )
+        if (b.op in CREATES && b.primitive == Primitive.Hero && content.illustration.isBlank()) {
+            log("repair: dropped a hero with no illustration at ${b.at}s")
+            return null
+        }
         if (b.op in CREATES && b.primitive in WORDS_ONLY && content.text.isBlank()) {
             log("repair: dropped ${b.primitive} with no words left at ${b.at}s")
             return null
@@ -216,11 +224,20 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         return (screen?.takeIf { n.persian }?.text(digits) { log("repair: $it") } ?: digits).trim()
     }
 
+    /** An illustration request kept to English keywords, its sign only when the name is said. */
+    private fun illustration(s: String): String {
+        val r = IllustrationRequest.parse(s) ?: return ""
+        fun en(x: String) = x.split(Regex("\\s+")).filter { w -> w.isNotBlank() && w.all { it.code < ASCII } && !brand(core(w)) }.joinToString(" ")
+        val subject = en(r.subject).ifBlank { return "" }
+        val sign = r.sign.takeIf { it.isNotBlank() && it.split(' ').all { w -> core(w).isEmpty() || said(core(w)) } }.orEmpty()
+        return r.copy(subject = subject, action = en(r.action), objects = r.objects.map(::en).filter { it.isNotBlank() }, sign = sign).encode()
+    }
+
     /** A picture query: English words only, a few of them, no company. */
     private fun visual(s: String): String =
         s.split(Regex("\\s+")).filter { w -> w.isNotBlank() && w.all { it.code < ASCII } && !brand(core(w)) }.take(MAX_VISUAL_WORDS).joinToString(" ").lowercase()
 
-    private fun texts(c: BeatContent): List<String> = listOf(c.text, c.caption) + c.items.map { it.label }
+    private fun texts(c: BeatContent): List<String> = listOf(c.text, c.caption, c.kicker, c.punch) + c.items.map { it.label }
     private fun texts(s: String): List<String> = listOf(s).filter { it.isNotBlank() }
 
     private fun said(core: String): Boolean {
@@ -235,6 +252,7 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         const val MAX_TEXT_WORDS = 6
         const val MAX_TEXT_CHARS = 40
         const val MAX_CAPTION_WORDS = 4
+        const val MAX_KICKER_WORDS = 2
         const val MAX_ITEMS = 10
         const val MAX_ITEM_WORDS = 3
         const val MAX_ITEM_CHARS = 22
@@ -248,10 +266,10 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         private const val EPS = 0.011
 
         val CREATES = setOf(StageOp.Add, StageOp.Replace, StageOp.Morph)
-        val WORDS_ONLY = setOf(Primitive.Heading, Primitive.Kicker, Primitive.BigWord, Primitive.Quote, Primitive.Note)
+        val WORDS_ONLY = setOf(Primitive.Heading, Primitive.Kicker, Primitive.BigWord, Primitive.Quote, Primitive.Note, Primitive.Headline, Primitive.Bubble, Primitive.Annotation)
         val UNIT_VALUES = setOf(Primitive.Meter, Primitive.Ring)
 
-        private val BUILDS = Families.ITEMS + setOf(Primitive.Profile, Primitive.Chat, Primitive.Bars, Primitive.Versus, Primitive.BeforeAfter, Primitive.Scale, Primitive.Map)
+        private val BUILDS = Families.ITEMS + setOf(Primitive.Headline, Primitive.Profile, Primitive.Chat, Primitive.Bars, Primitive.Versus, Primitive.BeforeAfter, Primitive.Scale, Primitive.Map)
         private val CHECKS = setOf(
             Primitive.TaskTiles, Primitive.Checklist, Primitive.Steps, Primitive.Branches, Primitive.Blocks, Primitive.Timeline, Primitive.IconTiles,
             Primitive.Chips, Primitive.Grid, Primitive.Dots, Primitive.Flow, Primitive.Ladder, Primitive.Funnel, Primitive.Cycle,

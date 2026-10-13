@@ -21,13 +21,14 @@ kotlin {
             api(projects.core.model)
             api(projects.engine.llm)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.io.core)
         }
     }
 }
 
 // -Pretrieval.encoders=<dir> -Pretrieval.native=<dir>: the evaluation and the pack builder run the real models.
 tasks.withType<Test>().configureEach {
-    listOf("retrieval.encoders", "retrieval.native", "retrieval.out", "retrieval.only").forEach { key ->
+    listOf("retrieval.encoders", "retrieval.native", "retrieval.out", "retrieval.only", "retrieval.build").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
     providers.gradleProperty("retrieval.native").orNull?.let { systemProperty("trimio.native.dir", it) }

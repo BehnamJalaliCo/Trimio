@@ -27,7 +27,8 @@ class Screenwriter(
         val say: (String) -> Unit = { report += it; log(it) }
         val check = FilmCheck(n)
         val first = draft(director, n, seed, check, say)
-        say("screenwriter: ${first.chapters.size} chapters, ${first.chapters.sumOf { it.beats.size }} beats, ${first.art.palette}/${first.art.layout}/${first.art.chapterMark}/${first.art.captionStyle}")
+        val look = with(first.art) { "$grammar $palette/$layout/$chapterMark/$captionStyle" }
+        say("screenwriter: ${first.chapters.size} chapters, ${first.chapters.sumOf { it.beats.size }} beats, $look")
         val j = jury ?: return Result(first, null, report)
         val outcome = j.loop(
             first,
@@ -36,7 +37,8 @@ class Screenwriter(
             log = { report += it },
         )
         val p = outcome.panel
-        say("jury: ${if (p.unanimous) "every judge gives 10" else "not unanimous — the best panel within the budget"} after ${outcome.rounds} rounds and ${outcome.variations} variations | ${p.summary()}")
+        val verdict = if (p.unanimous) "every judge gives 10" else "not unanimous — the best panel within the budget"
+        say("jury: $verdict after ${outcome.rounds} rounds and ${outcome.variations} variations | ${p.summary()}")
         p.findings().forEach { report += it }
         return Result(outcome.best, p, report)
     }

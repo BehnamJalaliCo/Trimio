@@ -81,6 +81,7 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
             onDelete = { id -> byId[id]?.let(viewModel.models::delete) },
             onUpdate = { id -> (states[id] as? ModelState.UpdateAvailable)?.let { viewModel.models.download(it.to) } },
             onUse = { id -> viewModel.update { it.copy(localModelId = id) } },
+            onDownloadAll = { ids -> ids.mapNotNull { byId[it] }.forEach(viewModel.models::download) },
         ),
     )
 }
@@ -236,6 +237,96 @@ private fun Shelves(ui: ModelsUi, actions: ModelActions) {
         ui.directors.forEach { ModelLine(it, ui.desktop, actions) }
         SigSectionLabel(tr("گفتار", "Speech"), Modifier.padding(top = 22.dp), trailing = "WHISPER")
         ui.speech.forEach { ModelLine(it, ui.desktop, actions) }
+        if (ui.boosts.isNotEmpty()) Boosts(ui, actions)
+    }
+}
+
+/**
+ * «تقویت کیفیت»: the add-on tiers. The one-tap set for this device first, then each tier's add-ons
+ * with what they bring, their download and the memory they hold while their stage runs.
+ */
+@Composable
+private fun Boosts(ui: ModelsUi, actions: ModelActions) {
+    val c = Sig.colors
+    SigSectionLabel(tr("تقویت کیفیت", "Quality boost"), Modifier.padding(top = 22.dp), trailing = "ADD-ONS")
+    Text(
+        tr(
+            "مدل‌های کمکی که روی خود دستگاه کار می‌کنند: تصویر، صدا و نوشتهٔ درست برای هر جمله. هر کدام در مرحلهٔ خودش بار می‌شود و بعد آزاد.",
+            "Helper models that run on this device: the right picture, sound and spelling for every sentence. Each loads for its own stage, then frees its memory.",
+        ),
+        style = Sig.type.meta, color = c.muted, modifier = Modifier.padding(bottom = 8.dp),
+    )
+    ui.boostPlan?.let { BoostPlanCard(it, ui.desktop, actions) }
+    ui.boosts.forEach { tier ->
+        Text(tr(tier.titleFa, tier.titleEn), style = Sig.type.bodyStrong, color = c.ink, modifier = Modifier.padding(top = 14.dp))
+        tier.rows.forEach { BoostLine(it, ui.desktop, actions) }
+    }
+}
+
+/** «پیشنهاد برای این دستگاه»: how many add-ons, the download still to do, and one button for all of it. */
+@Composable
+private fun BoostPlanCard(plan: BoostPlan, desktop: Boolean, actions: ModelActions) {
+    val c = Sig.colors
+    SigGlass(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentPadding = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                DirectorDot(size = 12.dp)
+                DirectorText(tr("پیشنهاد برای این دستگاه", "Recommended for this device"))
+            }
+            Text(
+                localizedNumber(
+                    tr(
+                        "${plan.ids.size} مدل کمکی که روی این ${if (desktop) "سیستم" else "گوشی"} کنار کارگردان جا می‌شوند؛ بیشترین رم در یک مرحله حدود ${gbFa(plan.ramBytes)} گیگ.",
+                        "${plan.ids.size} add-ons that fit beside the director on this ${if (desktop) "computer" else "phone"}; at most about ${gb(plan.ramBytes)} of RAM in one stage.",
+                    ),
+                ),
+                style = Sig.type.meta, color = c.muted,
+            )
+            if (plan.done) {
+                SigChip(
+                    tr("همه نصب شده‌اند", "All installed"), container = c.emphasisSoft, content = c.emphasisSoftContent,
+                    leading = { TrimioIcon(TrimioIcons.Check, null, tint = c.emphasisSoftContent, size = 13.dp) },
+                )
+            } else {
+                SigButton(
+                    localizedNumber(tr("دانلود همه · ${gbFa(plan.downloadBytes)} گیگ", "Download all · ${gb(plan.downloadBytes)}")),
+                    { actions.onDownloadAll(plan.missingIds) }, Modifier.fillMaxWidth().height(50.dp), trailing = TrimioIcons.Download,
+                )
+            }
+        }
+    }
+}
+
+/** One add-on: its name, what it brings, the fit badge and memory, and its one action. */
+@Composable
+private fun BoostLine(boost: BoostRow, desktop: Boolean, actions: ModelActions) {
+    val c = Sig.colors
+    val row = boost.row
+    val blocked = row.fit == ModelFit.TooBig && !row.installed
+    Column {
+        Hairline()
+        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(tr(row.nameFa, row.nameEn), style = Sig.type.bodyStrong, color = if (blocked) c.faint else c.ink, maxLines = 1)
+                    if (boost.recommended) SigChip(tr("پیشنهادی", "Suggested"), Modifier.height(22.dp), container = c.emphasisSoft, content = c.emphasisSoftContent)
+                }
+                Text(tr(boost.purposeFa, boost.purposeEn), style = Sig.type.meta.copy(fontSize = 12.sp, lineHeight = 18.sp), color = c.ink.copy(alpha = 0.8f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FitBadge(row.fit, desktop)
+                    val laptop = if (boost.laptopOnly) tr(" · فقط لپ‌تاپ", " · laptop only") else ""
+                    Text(
+                        localizedNumber(tr("${gbFa(row.footprintBytes)} گیگ رم در مرحلهٔ خودش$laptop", "${gb(row.footprintBytes)} RAM in its stage$laptop")),
+                        style = Sig.type.meta.copy(fontSize = 11.sp), color = if (row.state is ModelState.Failed) c.action else c.muted, maxLines = 1,
+                    )
+                }
+                (row.state as? ModelState.Downloading)?.let { Progress(it.fraction) }
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LineAction(row, blocked, actions)
+                MicroLabel(gb(row.sizeBytes), color = c.faint)
+            }
+        }
     }
 }
 

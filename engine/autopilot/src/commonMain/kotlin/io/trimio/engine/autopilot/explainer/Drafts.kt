@@ -4,6 +4,7 @@ import io.trimio.engine.motion.explainer.Beat
 import io.trimio.engine.motion.explainer.BeatContent
 import io.trimio.engine.motion.explainer.Chapter
 import io.trimio.engine.motion.explainer.ExplainerFilm
+import io.trimio.engine.motion.explainer.FilmGrammar
 import io.trimio.engine.motion.explainer.Item
 import io.trimio.engine.motion.explainer.Primitive
 import io.trimio.engine.motion.explainer.StageOp
@@ -42,6 +43,13 @@ data class DraftBeat(
     val unit: String = "",
     val picks: List<Int> = emptyList(),
     val visual: String = "",
+    /** Illustrated news: the small word above the headline, the punchline for the dark box. */
+    val kicker: String = "",
+    val punch: String = "",
+    /** Illustrated news: the hero illustration in English ("worried young man looking at his phone"), "" when none. */
+    val hero: String = "",
+    /** A name written on an object in the illustration, only when the narration says it; else "". */
+    val sign: String = "",
 )
 
 @Serializable
@@ -51,11 +59,20 @@ data class DraftChapter(
     val first: Int = 0,
     val last: Int = 0,
     val beats: List<DraftBeat> = emptyList(),
+    /** How the scene arrives: circle, push, peel or cut ("" lets the grammar choose). */
+    val transition: String = "",
 )
 
 /** One chapter written alone (a small model, chapter by chapter): its heading and its beats. */
 @Serializable
-data class DraftScene(val title: String = "", val beats: List<DraftBeat> = emptyList())
+data class DraftScene(val title: String = "", val beats: List<DraftBeat> = emptyList(), val transition: String = "")
+
+/** A model's choice of film grammar, and why. */
+@Serializable
+data class DraftGrammar(val grammar: String = "", val why: String = "")
+
+/** What a director wrote for one chapter or scene. */
+data class Written(val plan: Chapters.Plan, val beats: List<DraftBeat>, val transition: String = "")
 
 @Serializable
 data class DraftFilm(val chapters: List<DraftChapter> = emptyList())
@@ -68,6 +85,7 @@ data class DraftOutline(val chapters: List<OutlineEntry> = emptyList()) {
 }
 
 object Drafts {
+    val TRANSITIONS = listOf("circle", "push", "peel", "cut")
 
     /** The serial names models write ("task-tiles", "add"). */
     val PRIMITIVES: Map<String, Primitive> = Primitive.entries.associateBy { serial(it) }
@@ -81,16 +99,16 @@ object Drafts {
      * from their first clauses, each beat on its cue word (or spread over its clause), element ids
      * kept apart per chapter. Untidy references and lengths are left to [FilmCheck.repair].
      */
-    fun toFilm(n: Narration, chapters: List<Pair<Chapters.Plan, List<DraftBeat>>>, seed: Long): ExplainerFilm {
-        val art = ArtDirector.choose(n, seed)
-        val plans = chapters.map { it.first }
+    fun toFilm(n: Narration, chapters: List<Written>, seed: Long, grammar: FilmGrammar = FilmGrammar.DiagramChapters): ExplainerFilm {
+        val art = if (grammar == FilmGrammar.IllustratedNews) ArtDirector.news(n, seed) else ArtDirector.choose(n, seed)
+        val plans = chapters.map { it.plan }
         val bounds = RulesDirector.bounds(n, plans)
         val accents = ArtDirector.accents(plans.size, seed)
-        val out = chapters.mapIndexed { i, (plan, drafts) ->
+        val out = chapters.mapIndexed { i, w ->
             val (start, end) = bounds[i]
             val perClause = mutableMapOf<Int, Int>()
-            val beats = drafts.mapNotNull { d -> beat(n, plan, i, d, perClause, drafts) }.sortedBy { it.at }.map { it.copy(at = it.at.coerceIn(start, end)) }
-            Chapter(plan.title, start, end, accents[i], beats)
+            val beats = w.beats.mapNotNull { d -> beat(n, w.plan, i, d, perClause, w.beats) }.sortedBy { it.at }.map { it.copy(at = it.at.coerceIn(start, end)) }
+            Chapter(w.plan.title, start, end, accents[i], beats, w.transition.trim().lowercase().takeIf { it in TRANSITIONS }.orEmpty())
         }
         val captions = if (art.captionStyle == ArtDirector.NO_CAPTIONS) emptyList() else Captions.of(n.words, n.persian)
         return ExplainerFilm(art, out, captions, n.language)
@@ -105,8 +123,10 @@ object Drafts {
         val count = all.count { it.clause.coerceIn(plan.clauses.first, plan.clauses.last) == k }.coerceAtLeast(1)
         val at = cue(n, c, d.cue) ?: (c.start + c.length * nth / count)
         val items = d.items.mapIndexed { j, label -> Item(label, d.values.getOrNull(j), d.visuals.getOrNull(j).orEmpty()) }
+        val hero = d.hero.takeIf { it.isNotBlank() }?.let { IllustrationRequest(it, sign = d.sign.trim()).encode() }.orEmpty()
         val content = BeatContent(
             text = d.text, caption = d.caption, items = items, value = d.value.takeIf { it >= 0.0 }, unit = d.unit, picks = d.picks, visual = d.visual,
+            illustration = hero, kicker = d.kicker, punch = d.punch,
         )
         val id = "c${chapter + 1}-" + d.element.lowercase().filter { it.isLetterOrDigit() || it == '-' }.ifEmpty { primitive?.let(::serial) ?: "el" }
         return Beat(at, at, c.text, op, id, primitive.takeIf { op in FilmCheck.CREATES }, content, d.metaphor)
@@ -150,16 +170,23 @@ object Drafts {
         "unit" to str(6),
         "picks" to array(int, 10),
         "visual" to str(30),
+        "kicker" to str(20),
+        "punch" to str(40),
+        "hero" to str(60),
+        "sign" to str(24),
     )
 
     /** One chapter's heading and beats, [clauses] clauses long. */
-    fun sceneSchema(clauses: Int): JsonObject = obj("title" to str(28), "beats" to array(beatSchema, maxOf(2, clauses * BEATS_PER_CLAUSE), min = 1))
+    fun sceneSchema(clauses: Int): JsonObject = obj("title" to str(28), "beats" to array(beatSchema, maxOf(2, clauses * BEATS_PER_CLAUSE), min = 1), "transition" to enum(TRANSITIONS))
 
     val filmSchema: JsonObject = obj(
-        "chapters" to array(obj("title" to str(28), "first" to int, "last" to int, "beats" to array(beatSchema, 40, min = 1)), 12, min = 1),
+        "chapters" to array(obj("title" to str(28), "first" to int, "last" to int, "beats" to array(beatSchema, 40, min = 1), "transition" to enum(TRANSITIONS)), 24, min = 1),
     )
 
     val outlineSchema: JsonObject = obj("chapters" to array(obj("first" to int, "title" to str(28)), 10, min = 1))
+
+    val grammarSchema: JsonObject = obj("grammar" to enum(FilmGrammar.entries.map { it.id }), "why" to str(80))
+
 
     private const val BEATS_PER_CLAUSE = 3
     private const val LEAD = 0.12

@@ -58,7 +58,10 @@ object TextAddOns {
         "qwen3-reranker-0.6b-q8", ModelKind.AddOn, "ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF", "qwen3-reranker-0.6b-q8_0.gguf",
         639_153_184, "22c9979ce4fbcdc5acdc310c6641c32797eff1aa980b8f7a2db8a8ea23429a48", "Apache-2.0",
         "داور ارتباط (Qwen3 Reranker)", "Relevance judge (Qwen3 Reranker)",
-        retrieval(AddOnTier.Essential, "از بین گزینه‌ها آن را برمی‌دارد که جمله را فوراً روشن کند؛ تصویر بی‌ربط حذف می‌شود", "Keeps the candidate that makes the sentence instantly clear; irrelevant pictures are dropped", "plan"),
+        retrieval(
+            AddOnTier.Essential, "از بین گزینه‌ها آن را برمی‌دارد که جمله را فوراً روشن کند؛ تصویر بی‌ربط حذف می‌شود",
+            "Keeps the candidate that makes the sentence instantly clear; irrelevant pictures are dropped", "plan",
+        ),
         work = 300_000_000,
     )
 

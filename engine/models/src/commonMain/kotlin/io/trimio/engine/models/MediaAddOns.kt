@@ -42,7 +42,7 @@ object MediaAddOns {
         232_589, "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4", "MIT",
         "تشخیص چهره", "Face detection",
         pro(AddOnGroup.Picture, "متن و گرافیک هیچ‌وقت روی صورت نمی‌افتد", "Text and graphics never cover a face", "layout"),
-        work = 60_000_000,
+        work = 30_000_000,
     )
 
     /** TransNetV2 (ONNX export of the MIT weights): shot boundaries for cuts and B-roll. */
@@ -51,7 +51,7 @@ object MediaAddOns {
         31_250_929, "c4d54a682bace32f25136ef83ca2c9d403e8f8193775efeb995172a0d95a8e0c", "MIT",
         "تشخیص برش نما", "Shot cut detection",
         pro(AddOnGroup.Picture, "مرز نماها برای برش و بی‌رول", "Shot boundaries for cuts and B-roll", "layout"),
-        work = 150_000_000,
+        work = 140_000_000,
     )
 
     /** PP-OCRv5 mobile text detector (PaddlePaddle). */
@@ -60,14 +60,14 @@ object MediaAddOns {
         4_826_518, "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d", "Apache-2.0",
         "خواندن متن تصویر", "Text in the picture",
         pro(AddOnGroup.Picture, "متن موجود در فیلم و متن خودمان را می‌خواند", "Reads text in the footage and checks our own", "jury"),
-        work = 120_000_000, companions = listOf("ppocrv5-arabic-rec", "ppocrv5-arabic-dict"),
+        work = 110_000_000, companions = listOf("ppocrv5-arabic-rec", "ppocrv5-arabic-dict"),
     )
 
     /** PP-OCRv5 mobile recogniser for Arabic-script languages (Persian letters پ چ ژ گ ک ی included). */
     val ocrRecognizer = onnx(
         "ppocrv5-arabic-rec", "PaddlePaddle/arabic_PP-OCRv5_mobile_rec_onnx", "inference.onnx", "arabic_ppocrv5_mobile_rec.onnx",
         7_998_947, "799113ebf267fbe742deb99eb36e8d42c9ddc5291ceacf92add41b4d52a59110", "Apache-2.0",
-        "تشخیص حروف فارسی", "Persian letter recognition", helper(ocrDetector.addOn!!), work = 60_000_000,
+        "تشخیص حروف فارسی", "Persian letter recognition", helper(ocrDetector.addOn!!), work = 30_000_000,
     )
 
     /** The recogniser's character table (its inference.yml). */
@@ -85,7 +85,7 @@ object MediaAddOns {
         82_098_846, "e5e37b7d1802895e42559c5a1ced7619b1601d257a5c8e167c9d45de37c1b078", "MIT",
         "ضرب و میزان موسیقی", "Music beats and downbeats",
         pro(AddOnGroup.Music, "برش‌ها و حرکت‌ها روی ضرب موسیقی خودتان", "Cuts and motion on the beat of your own music", "music"),
-        work = 400_000_000, companions = listOf("beat-this-frontend"),
+        work = 950_000_000, companions = listOf("beat-this-frontend"),
     )
 
     /** Its frontend: the reference Hann window and 128 mel filters. */
@@ -98,6 +98,22 @@ object MediaAddOns {
     // --- Speech --------------------------------------------------------------------------------
 
     /**
+     * Silero VAD v6.2.0 in whisper.cpp's ggml format (MIT): speech is found before decoding, so
+     * whisper skips silence (faster, no hallucinated words in pauses) and word times stay exact.
+     */
+    val vad = ModelSpec(
+        id = "silero-vad-v6.2", kind = ModelKind.AddOn, titleFa = "تشخیص گفتار از سکوت", titleEn = "Speech detection (Silero VAD)",
+        fileName = "ggml-silero-v6.2.0.bin",
+        urls = listOf("${ModelCatalog.CDN}/addons/ggml-silero-v6.2.0.bin", "$HF/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin"),
+        sizeBytes = 885_098, sha256 = "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987", tier = DeviceTier.Standard,
+        license = "MIT", workBytes = 20_000_000,
+        addOn = AddOn(
+            AddOnTier.Essential, AddOnGroup.Speech, AddOnRuntime.Whisper,
+            "سکوت‌ها پیش از شنیدن حذف می‌شوند: سریع‌تر و بدون کلمهٔ خیالی", "Silence is skipped before listening: faster, no invented words", stage = "listen",
+        ),
+    )
+
+    /**
      * Punctuation, true-casing and sentence ends in 47 languages including Persian (6-layer
      * transformer, 64k SentencePiece). On our 26 s benchmark it restored 13 of 15 gold marks.
      */
@@ -106,7 +122,7 @@ object MediaAddOns {
         232_986_305, "640d91c06b7cc5b3e065c12a7097188378aad3bc11568ff1d72c4c0a2acb0df4", "Apache-2.0",
         "نقطه‌گذاری فارسی", "Persian punctuation",
         pro(AddOnGroup.Speech, "نقطه، ویرگول و علامت سؤال درست در زیرنویس", "Correct full stops, commas and question marks in captions", "proofread"),
-        work = 200_000_000, companions = listOf("punct-cap-seg-47-spm"),
+        work = 130_000_000, companions = listOf("punct-cap-seg-47-spm"),
     )
 
     /** Its SentencePiece vocabulary. */
@@ -125,7 +141,7 @@ object MediaAddOns {
         328_094_283, "38a6cc569d46eb382f27d85b3208b883e834ff281b2057a606ec79e4ae501545", "Apache-2.0",
         "هم‌ترازی دقیق کلمه‌ها", "Exact word timing",
         ultra(AddOnGroup.Speech, "زمان دقیق هر کلمه برای زیرنویس و برش", "Exact word times for captions and cuts", "listen"),
-        work = 700_000_000, companions = listOf("omniasr-ctc-300m-tokens"),
+        work = 500_000_000, companions = listOf("omniasr-ctc-300m-tokens"),
     )
 
     /** Its character vocabulary. */
@@ -141,19 +157,19 @@ object MediaAddOns {
         5_986_908, "057ee564753071c0b09b5b611648b50ac188d50846bff5f01e9f7bbf1591ea25", "MIT",
         "تشخیص گوینده", "Speaker turns",
         ultra(AddOnGroup.Speech, "گفت‌وگو و ویدیوی دونفره", "Dialogue and two-speaker videos", "listen"),
-        work = 80_000_000, companions = listOf("wespeaker-campplus-lm"),
+        work = 30_000_000, companions = listOf("wespeaker-campplus-lm"),
     )
 
     /** WeSpeaker CAM++ (VoxCeleb, large-margin fine-tuned): one 512-d voice print per stretch of speech. */
     val speakerVoices = onnx(
         "wespeaker-campplus-lm", "Wespeaker/wespeaker-voxceleb-campplus-LM", "voxceleb_CAM++_LM.onnx", "wespeaker_campplus_lm.onnx",
         29_292_449, "1068e4ac3a76bb9c769e6816ef30bf89363f6e966f1d938210cb8ed4038f8e93", "Apache-2.0",
-        "صدای گوینده‌ها", "Speaker voices", helper(speakerTurns.addOn!!), work = 100_000_000,
+        "صدای گوینده‌ها", "Speaker voices", helper(speakerTurns.addOn!!), work = 35_000_000,
     )
 
     /** Every media add-on, in the order the tiers screen lists them. */
     val all: List<ModelSpec> = listOf(
-        faces, shots, ocrDetector, ocrRecognizer, ocrDictionary, beats, beatsFrontend, punctuation, punctuationTokenizer,
+        vad, faces, shots, ocrDetector, ocrRecognizer, ocrDictionary, beats, beatsFrontend, punctuation, punctuationTokenizer,
         aligner, alignerTokens, speakerTurns, speakerVoices,
     )
 }

@@ -35,7 +35,32 @@ data class ArtDirection(
     /** Caption treatment id (e.g. "band-pill", "plain-lower", "none"). */
     val captionStyle: String,
     val seed: Long,
+    /**
+     * The film grammar ([FilmGrammar] ids): "diagram-chapters" (a calm stage that builds per chapter) or
+     * "illustrated-news" (one fast scene per sentence: headline, hero illustration, one device).
+     */
+    val grammar: String = FilmGrammar.DiagramChapters.id,
+    /** Brand colour pair as "#RRGGBB" (the accent fills, the dark marks the key phrase); empty keeps the palette's. */
+    val accent: String = "",
+    val dark: String = "",
 )
+
+/** The film grammars the stage renders; each carries its own pacing, layout and transition rules. */
+enum class FilmGrammar(val id: String) {
+    DiagramChapters("diagram-chapters"),
+    IllustratedNews("illustrated-news"),
+    ;
+
+    companion object {
+        fun named(id: String?): FilmGrammar {
+            val key = id?.trim()?.lowercase()?.replace(' ', '-')?.replace('_', '-').orEmpty()
+            return entries.firstOrNull { it.id == key } ?: when (key) {
+                "news", "illustrated", "news-explainer", "scenes" -> IllustratedNews
+                else -> DiagramChapters
+            }
+        }
+    }
+}
 
 @Serializable
 data class Chapter(
@@ -46,6 +71,11 @@ data class Chapter(
     /** Index into the palette's accents; neighbouring chapters differ. */
     val accent: Int,
     val beats: List<Beat>,
+    /**
+     * How this chapter (a scene, in "illustrated-news") arrives over the previous one: "circle" (an accent
+     * circle wipes up and becomes the background), "push", "peel", "cut"; empty lets the grammar choose.
+     */
+    val transition: String = "",
 )
 
 /**
@@ -102,6 +132,12 @@ data class BeatContent(
     val picks: List<Int> = emptyList(),
     /** Optional icon or animation query for the art library (English keywords). */
     val visual: String = "",
+    /** Hero illustration query or id for the illustration source (English keywords, e.g. "worried man with phone"). */
+    val illustration: String = "",
+    /** A small word above a headline (light weight). */
+    val kicker: String = "",
+    /** The punchline of a headline, set on the dark highlight box. */
+    val punch: String = "",
 )
 
 @Serializable
@@ -150,4 +186,16 @@ enum class Primitive {
     @SerialName("map") Map,
     @SerialName("icon") Icon,
     @SerialName("mark") Mark,
+    /** Kicker, main line revealed word by word, the punchline on a dark box, a grey second line. */
+    @SerialName("headline") Headline,
+    /** The scene's hero illustration, rising with a spring over an accent disc. */
+    @SerialName("hero") Hero,
+    /** A speech bubble that pops beside the hero. */
+    @SerialName("bubble") Bubble,
+    /** A dashed annotation box that draws on with anchor dots. */
+    @SerialName("annotation") Annotation,
+    /** A flip calendar tile counting down (value → 1) with a page curl per number. */
+    @SerialName("calendar") Calendar,
+    /** Accent stars flying in at the corners, as punctuation. */
+    @SerialName("stars") Stars,
 }

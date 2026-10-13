@@ -28,6 +28,8 @@
 #include "ggml-backend.h"
 #include "mtmd.h"
 #include "mtmd-helper.h"
+// Staging API for the next-token (MTP) heads: hidden rows of the target and the draft's own.
+#include "../third_party/llama.cpp/src/llama-ext.h"
 
 namespace {
 
@@ -39,6 +41,9 @@ struct CallStats {
     double prompt_ms = 0;
     double generate_ms = 0;
     int grammar_resamples = 0;
+    /** Tokens the MTP head proposed, and how many of them the model kept. */
+    int drafted = 0;
+    int accepted = 0;
 };
 
 /** Options from Kotlin (LlamaNative.Options, in this order). */
@@ -50,6 +55,7 @@ struct Options {
     bool prefix_cache = true;
     bool lazy_grammar = true;
     double min_gpu_coverage = 0.9; // share of the weights the GPU must be able to run
+    int draft = 0;                 // tokens the MTP head proposes per step (0: no self-speculation)
 };
 
 struct Engine {
@@ -71,6 +77,16 @@ struct Engine {
     std::vector<uint8_t> snapshot;
     std::vector<llama_token> snapshot_tokens;
     CallStats last;
+    /**
+     * Self-speculation with the model's own next-token head (Qwen3.5 MTP builds): a second context
+     * runs only that head, fed with the target's hidden rows; [mtp_h] is the row of the last
+     * position it has read. Its state is snapshotted with the target's head ([snapshot]).
+     */
+    llama_context * mtp = nullptr;
+    int n_embd = 0;
+    std::vector<float> mtp_h;
+    std::vector<uint8_t> mtp_snapshot;
+    std::vector<float> mtp_snapshot_h;
 };
 
 using Clock = std::chrono::steady_clock;
@@ -158,9 +174,9 @@ size_t common_prefix(const std::vector<llama_token> & a, const std::vector<llama
     return i;
 }
 
-/** Fills [cur] with the last position's logits. */
-llama_token_data_array candidates(Engine * engine, std::vector<llama_token_data> & cur) {
-    const float * logits = llama_get_logits_ith(engine->ctx, -1);
+/** Fills [cur] with the logits of output [idx] of the last batch (-1: its last). */
+llama_token_data_array candidates(Engine * engine, std::vector<llama_token_data> & cur, int32_t idx = -1) {
+    const float * logits = llama_get_logits_ith(engine->ctx, idx);
     const int n_vocab = llama_vocab_n_tokens(engine->vocab);
     cur.resize(static_cast<size_t>(n_vocab));
     for (llama_token t = 0; t < n_vocab; t++) cur[t] = llama_token_data{t, logits[t], 0.0f};
@@ -173,8 +189,8 @@ llama_token_data_array candidates(Engine * engine, std::vector<llama_token_data>
  * than the rest of sampling, and the picked token is almost always already valid. When the
  * grammar is applied first ([lazy] off) the result is the same for greedy decoding.
  */
-llama_token next_token(Engine * engine, llama_sampler * chain, llama_sampler * grammar, std::vector<llama_token_data> & cur, bool lazy) {
-    llama_token_data_array arr = candidates(engine, cur);
+llama_token next_token(Engine * engine, llama_sampler * chain, llama_sampler * grammar, std::vector<llama_token_data> & cur, bool lazy, int32_t idx = -1) {
+    llama_token_data_array arr = candidates(engine, cur, idx);
     if (grammar != nullptr && !lazy) llama_sampler_apply(grammar, &arr);
     llama_sampler_apply(chain, &arr);
     llama_token token = arr.data[arr.selected].id;
@@ -184,7 +200,7 @@ llama_token next_token(Engine * engine, llama_sampler * chain, llama_sampler * g
         llama_sampler_apply(grammar, &one);
         if (std::isinf(single.logit) && single.logit < 0) {
             engine->last.grammar_resamples++;
-            arr = candidates(engine, cur);
+            arr = candidates(engine, cur, idx);
             llama_sampler_apply(grammar, &arr);
             llama_sampler_apply(chain, &arr);
             token = arr.data[arr.selected].id;
@@ -195,8 +211,101 @@ llama_token next_token(Engine * engine, llama_sampler * chain, llama_sampler * g
     return token;
 }
 
+// --- MTP self-speculation -----------------------------------------------------------------------
+//
+// A model with a trained next-token (NextN/MTP) head guesses the next few tokens cheaply; the model
+// then reads its own token and the guesses in one batch and keeps the guesses its own sampler would
+// have picked, so the text is exactly what plain decoding gives (with the same seed and grammar),
+// in fewer steps. The head runs in a second context of the same model; it reads every token the
+// model keeps, paired with the model's hidden row of the position before it.
+
+void batch_add(llama_batch & b, llama_token token, llama_pos pos, llama_seq_id seq, bool output) {
+    const int i = b.n_tokens;
+    b.token[i] = token;
+    b.pos[i] = pos;
+    b.n_seq_id[i] = 1;
+    b.seq_id[i][0] = seq;
+    b.logits[i] = output ? 1 : 0;
+    b.n_tokens++;
+}
+
+/** Below this probability the head's next guess is not worth a verification slot. */
+constexpr float MTP_P_MIN = 0.4f;
+
+/** Feeds [n] kept tokens (positions [pos0], …) to the head, each with the hidden row of the position before it. */
+bool mtp_follow(Engine * e, const llama_token * toks, int n, llama_pos pos0, const float * rows) {
+    if (e->mtp == nullptr || n <= 0 || rows == nullptr) return false;
+    llama_batch_ext * b = llama_batch_ext_init(e->mtp);
+    const int chunk = std::max(1, e->options.n_batch);
+    const auto n_embd = static_cast<size_t>(e->n_embd);
+    bool ok = b != nullptr;
+    for (int from = 0; ok && from < n; from += chunk) {
+        llama_batch_ext_clear(b);
+        const int to = std::min(n, from + chunk);
+        for (int i = from; ok && i < to; ++i) {
+            const int32_t idx = llama_batch_ext_add_token(b, 0, toks[i]);
+            if (idx < 0) {
+                ok = false;
+                break;
+            }
+            const llama_pos p = pos0 + i;
+            llama_batch_ext_set_pos(b, idx, &p);
+            const float * h = i == 0 ? e->mtp_h.data() : rows + static_cast<size_t>(i - 1) * n_embd;
+            llama_batch_ext_set_embd_state(b, idx, {h, 1, n_embd});
+        }
+        ok = ok && llama_process(e->mtp, LLAMA_PROCESS_TYPE_DECODE, b) == 0;
+    }
+    if (b != nullptr) llama_batch_ext_free(b);
+    if (ok) e->mtp_h.assign(rows + static_cast<size_t>(n - 1) * n_embd, rows + static_cast<size_t>(n) * n_embd);
+    return ok;
+}
+
+/** Forgets what the head has read (a new prompt that shares nothing it can restore). */
+void mtp_reset(Engine * e) {
+    if (e->mtp == nullptr) return;
+    llama_memory_clear(llama_get_memory(e->mtp), true);
+    e->mtp_h.assign(static_cast<size_t>(e->n_embd), 0.0f);
+}
+
+/** Up to [k] greedy guesses after [token] (about to sit at [pos]); the head keeps no trace of them. */
+std::vector<llama_token> mtp_draft(Engine * e, llama_token token, llama_pos pos, int k) {
+    std::vector<llama_token> out;
+    if (e->mtp == nullptr || k <= 0) return out;
+    llama_batch_ext * b = llama_batch_ext_init(e->mtp);
+    if (b == nullptr) return out;
+    std::vector<float> h = e->mtp_h;
+    llama_token cur = token;
+    const int n_vocab = llama_vocab_n_tokens(e->vocab);
+    for (int step = 0; step < k; ++step) {
+        llama_batch_ext_clear(b);
+        const int32_t idx = llama_batch_ext_add_token(b, 0, cur);
+        if (idx < 0) break;
+        const llama_pos p = pos + step;
+        llama_batch_ext_set_pos(b, idx, &p);
+        llama_batch_ext_set_embd_state(b, idx, {h.data(), 1, static_cast<size_t>(e->n_embd)});
+        llama_batch_ext_set_output_logits(b, idx, true);
+        if (llama_process(e->mtp, LLAMA_PROCESS_TYPE_DECODE, b) != 0) break;
+        const float * logits = llama_get_logits_ith(e->mtp, idx);
+        if (logits == nullptr) break;
+        int best = 0;
+        for (int t = 1; t < n_vocab; ++t) if (logits[t] > logits[best]) best = t;
+        double sum = 0;
+        for (int t = 0; t < n_vocab; ++t) sum += std::exp(static_cast<double>(logits[t] - logits[best]));
+        if (1.0 / sum < MTP_P_MIN) break;
+        out.push_back(best);
+        const float * hr = llama_get_embeddings_nextn_ith(e->mtp, idx);
+        if (hr == nullptr) break;
+        h.assign(hr, hr + e->n_embd);
+        cur = best;
+    }
+    llama_batch_ext_free(b);
+    llama_memory_seq_rm(llama_get_memory(e->mtp), 0, pos, -1);
+    return out;
+}
+
 /** The sampling loop shared by text and image prompts; [n_past] tokens are already decoded. */
-jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback) {
+jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint max_tokens, jfloat temperature, jfloat top_p, jfloat min_p, jint seed, jobject callback,
+            bool speculate = false) {
     jclass cls = env->GetObjectClass(callback);
     jmethodID on_text = env->GetMethodID(cls, "onText", "([B)Z");
     env->DeleteLocalRef(cls);
@@ -221,12 +330,12 @@ jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint ma
     std::vector<llama_token_data> cur;
     int status = 1;
     std::string pending;
-    for (int i = 0; i < max_tokens; ++i) {
-        llama_token token = next_token(engine, chain, grammar, cur, engine->options.lazy_grammar);
+    // Counts a token and hands its text on: false when generation ends here (status set).
+    auto emit = [&](llama_token token) -> bool {
         engine->last.generated++;
         if (llama_vocab_is_eog(engine->vocab, token)) {
             status = 0;
-            break;
+            return false;
         }
         pending += piece(engine->vocab, token);
         const size_t ready = complete_utf8_prefix(pending);
@@ -237,15 +346,63 @@ jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint ma
             pending.erase(0, ready);
             if (env->ExceptionCheck() || !keep_going) {
                 status = 2;
-                break;
+                return false;
             }
         }
-        if (++n_past >= n_ctx) break;
-        if (llama_decode(engine->ctx, llama_batch_get_one(&token, 1)) != 0) {
-            status = -2;
-            break;
+        return true;
+    };
+    if (!speculate || engine->mtp == nullptr) {
+        for (int i = 0; i < max_tokens; ++i) {
+            llama_token token = next_token(engine, chain, grammar, cur, engine->options.lazy_grammar);
+            if (!emit(token)) break;
+            if (++n_past >= n_ctx) break;
+            if (llama_decode(engine->ctx, llama_batch_get_one(&token, 1)) != 0) {
+                status = -2;
+                break;
+            }
+            engine->held.push_back(token);
         }
-        engine->held.push_back(token);
+    } else {
+        // The token to read next (sampled, not yet decoded) and the guesses after it.
+        llama_token token = next_token(engine, chain, grammar, cur, engine->options.lazy_grammar);
+        llama_batch batch = llama_batch_init(engine->options.draft + 1, 0, 1);
+        while (emit(token)) {
+            if (engine->last.generated >= max_tokens) break;
+            if (n_past + 1 >= n_ctx) break;
+            const int room = std::min({engine->options.draft, n_ctx - n_past - 2, max_tokens - engine->last.generated});
+            const std::vector<llama_token> drafts = mtp_draft(engine, token, n_past, room);
+            batch.n_tokens = 0;
+            batch_add(batch, token, n_past, 0, true);
+            for (size_t k = 0; k < drafts.size(); ++k) batch_add(batch, drafts[k], n_past + 1 + static_cast<llama_pos>(k), 0, true);
+            if (llama_decode(engine->ctx, batch) != 0) {
+                status = -2;
+                break;
+            }
+            // The model's own pick after each read token: a guess is kept while it matches.
+            std::vector<llama_token> picked;
+            for (size_t k = 0; k <= drafts.size(); ++k) {
+                picked.push_back(next_token(engine, chain, grammar, cur, engine->options.lazy_grammar, static_cast<int32_t>(k)));
+                if (k == drafts.size() || picked.back() != drafts[k]) break;
+            }
+            const size_t kept = picked.size() - 1;
+            engine->last.drafted += static_cast<int>(drafts.size());
+            engine->last.accepted += static_cast<int>(kept);
+            // The cache keeps the token and the accepted guesses; the rest is rolled back.
+            if (kept < drafts.size() && !llama_memory_seq_rm(llama_get_memory(engine->ctx), 0, n_past + 1 + static_cast<llama_pos>(kept), -1)) {
+                status = -2;
+                break;
+            }
+            std::vector<llama_token> read = {token};
+            read.insert(read.end(), drafts.begin(), drafts.begin() + static_cast<long>(kept));
+            engine->held.insert(engine->held.end(), read.begin(), read.end());
+            if (!mtp_follow(engine, read.data(), static_cast<int>(read.size()), n_past, llama_get_embeddings_nextn(engine->ctx))) mtp_reset(engine);
+            n_past += static_cast<int>(read.size());
+            bool more = true;
+            for (size_t k = 0; more && k < kept; ++k) more = emit(picked[k]) && engine->last.generated < max_tokens;
+            if (!more) break;
+            token = picked.back();
+        }
+        llama_batch_free(batch);
     }
     engine->last.generate_ms = ms_since(t0);
     if (!pending.empty() && status >= 0 && status != 2) {
@@ -267,12 +424,13 @@ void ensure_backend() {
     }
 }
 
-/** Decodes tokens [from, to) of [prompt] in n_batch chunks; false when a decode fails. */
+/** Decodes tokens [from, to) of [prompt] in n_batch chunks; false when a decode fails. The MTP head reads along. */
 bool decode_range(Engine * engine, const std::vector<llama_token> & prompt, size_t from, size_t to) {
     const auto batch = static_cast<size_t>(std::max(1, engine->options.n_batch));
     for (size_t i = from; i < to; i += batch) {
         const auto n = static_cast<int32_t>(std::min(batch, to - i));
         if (llama_decode(engine->ctx, llama_batch_get_one(const_cast<llama_token *>(prompt.data()) + i, n)) != 0) return false;
+        if (engine->mtp != nullptr && !mtp_follow(engine, prompt.data() + i, n, static_cast<llama_pos>(i), llama_get_embeddings_nextn(engine->ctx))) mtp_reset(engine);
     }
     return true;
 }
@@ -280,6 +438,9 @@ bool decode_range(Engine * engine, const std::vector<llama_token> & prompt, size
 /** Brings the context's memory to the longest reusable head of [prompt]; returns its length. */
 size_t reuse_head(Engine * engine, const std::vector<llama_token> & prompt) {
     llama_memory_t mem = llama_get_memory(engine->ctx);
+    // The head cannot be cut back to an arbitrary position (it needs the hidden row before it):
+    // it restarts with the prompt, or comes back with the recurrent snapshot below.
+    mtp_reset(engine);
     if (!engine->options.prefix_cache) {
         llama_memory_clear(mem, true);
         engine->held.clear();
@@ -304,6 +465,10 @@ size_t reuse_head(Engine * engine, const std::vector<llama_token> & prompt) {
     if (llama_state_seq_set_data(engine->ctx, engine->snapshot.data(), engine->snapshot.size(), 0) == 0) {
         llama_memory_clear(mem, true);
         return 0;
+    }
+    if (engine->mtp != nullptr && !engine->mtp_snapshot.empty() &&
+        llama_state_seq_set_data(engine->mtp, engine->mtp_snapshot.data(), engine->mtp_snapshot.size(), 0) != 0) {
+        engine->mtp_h = engine->mtp_snapshot_h;
     }
     engine->held.assign(prompt.begin(), prompt.begin() + static_cast<long>(n));
     return n;
@@ -332,6 +497,11 @@ bool decode_prompt(Engine * engine, const std::vector<llama_token> & prompt) {
             engine->snapshot.resize(written);
             if (written > 0) engine->snapshot_tokens.assign(prompt.begin(), prompt.begin() + static_cast<long>(head));
             else engine->snapshot_tokens.clear();
+            if (engine->mtp != nullptr) {
+                engine->mtp_snapshot.resize(llama_state_seq_get_size(engine->mtp, 0));
+                engine->mtp_snapshot.resize(llama_state_seq_get_data(engine->mtp, engine->mtp_snapshot.data(), engine->mtp_snapshot.size(), 0));
+                engine->mtp_snapshot_h = engine->mtp_h;
+            }
         }
         ok = ok && decode_range(engine, prompt, head, prompt.size());
     } else {
@@ -530,10 +700,11 @@ Options read_options(JNIEnv * env, jintArray joptions) {
     if (n > 4) o.prefix_cache = v[4] != 0;
     if (n > 5) o.lazy_grammar = v[5] != 0;
     if (n > 6) o.min_gpu_coverage = v[6] / 100.0;
+    if (n > 7) o.draft = std::max(0, std::min(v[7], 8));
     return o;
 }
 
-llama_context * make_context(llama_model * model, int n_ctx, int n_threads, const Options & o, bool gpu) {
+llama_context * make_context(llama_model * model, int n_ctx, int n_threads, const Options & o, bool gpu, int outputs = 1, uint32_t rollback = 0) {
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = static_cast<uint32_t>(n_ctx);
     cp.n_batch = static_cast<uint32_t>(o.n_batch);
@@ -547,9 +718,39 @@ llama_context * make_context(llama_model * model, int n_ctx, int n_threads, cons
     cp.op_offload = gpu;
     // Only the last position's logits are ever read: reserving them for a whole batch would cost
     // ~0.5 GB with a 248k vocabulary (the difference between fitting an 8 GB phone or not).
-    cp.n_outputs_max = 1;
+    cp.n_outputs_max = static_cast<uint32_t>(std::max(1, outputs));
+    // Recurrent state snapshots per token, so rejected guesses can be rolled back.
+    cp.n_rs_seq = rollback;
     cp.no_perf = true;
     return llama_init_from_model(model, cp);
+}
+
+/**
+ * The MTP head's context beside [target] (same model, its NextN layers only), or null when the
+ * model has none or the target cannot roll a recurrent state back far enough.
+ */
+llama_context * make_mtp_context(llama_model * model, llama_context * target, int n_threads, const Options & o, bool gpu, bool recurrent) {
+    if (o.draft <= 0 || llama_model_n_layer_nextn(model) <= 0) return nullptr;
+    if (recurrent && llama_n_rs_seq(target) < static_cast<uint32_t>(o.draft + 1)) return nullptr;
+    llama_context_params cp = llama_context_default_params();
+    cp.n_ctx = llama_n_ctx(target);
+    cp.n_batch = static_cast<uint32_t>(o.n_batch);
+    cp.n_ubatch = static_cast<uint32_t>(std::min(o.n_ubatch, o.n_batch));
+    cp.n_threads = n_threads;
+    cp.n_threads_batch = n_threads;
+    cp.flash_attn_type = static_cast<llama_flash_attn_type>(o.flash);
+    cp.type_k = static_cast<ggml_type>(o.kv_type);
+    cp.type_v = static_cast<ggml_type>(o.kv_type);
+    cp.op_offload = gpu;
+    cp.n_outputs_max = 1;
+    cp.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
+    cp.ctx_other = target;
+    cp.no_perf = true;
+    llama_context * mtp = llama_init_from_model(model, cp);
+    if (mtp == nullptr) return nullptr;
+    llama_set_embeddings_nextn(target, true, /* masked */ false);
+    llama_set_embeddings_nextn(mtp, true, /* masked */ true);
+    return mtp;
 }
 
 // --- Encoders: text embeddings and relevance judges (retrieval) --------------------------------
@@ -581,16 +782,6 @@ struct Encoder {
     llama_token no = -1;
     std::string info;
 };
-
-void batch_add(llama_batch & b, llama_token token, llama_pos pos, llama_seq_id seq, bool output) {
-    const int i = b.n_tokens;
-    b.token[i] = token;
-    b.pos[i] = pos;
-    b.n_seq_id[i] = 1;
-    b.seq_id[i][0] = seq;
-    b.logits[i] = output ? 1 : 0;
-    b.n_tokens++;
-}
 
 /** [t] cut to [limit] tokens, keeping its head and its last few (the end marker or the judge's question). */
 std::vector<llama_token> fit_tokens(const std::vector<llama_token> & t, size_t limit) {
@@ -831,6 +1022,8 @@ Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring 
     mp.devices = devices.empty() ? cpu_only.data() : devices.data();
     mp.n_gpu_layers = devices.empty() ? 0 : gpu_layers < 0 ? fitting_layers(path, n_ctx, devices, options.kv_type != GGML_TYPE_F16) : gpu_layers;
     const int requested = mp.n_gpu_layers;
+    // The NextN (MTP) layers are loaded only when self-speculation is asked for.
+    mp.load_mtp = options.draft > 0;
     llama_model * model = llama_model_load_from_file(path.c_str(), mp);
     // A GPU that runs out of memory (or a driver that fails) leaves the model to the CPU.
     bool fell_back = false;
@@ -842,33 +1035,42 @@ Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring 
     }
     if (model == nullptr) return 0;
     const bool on_gpu = mp.n_gpu_layers > 0;
+    // A sliding-window cache (Gemma) has dropped the early positions a reused head would still
+    // need, so it takes the snapshot path too.
+    const bool recurrent = llama_model_is_recurrent(model) || llama_model_is_hybrid(model) || llama_model_n_swa(model) > 0;
+    if (llama_model_n_layer_nextn(model) <= 0) options.draft = 0;
+    // Speculation reads the token and its guesses in one batch (one output each) and may roll back.
+    const int outputs = options.draft + 1;
+    const uint32_t rollback = options.draft > 0 && recurrent ? static_cast<uint32_t>(options.draft + 1) : 0;
 
-    llama_context * ctx = make_context(model, n_ctx, n_threads, options, on_gpu);
+    llama_context * ctx = make_context(model, n_ctx, n_threads, options, on_gpu, outputs, rollback);
     // A quantized cache needs flash attention; where the device cannot do it, the plain cache.
     if (ctx == nullptr && options.kv_type != GGML_TYPE_F16) {
         options.kv_type = GGML_TYPE_F16;
         options.flash = LLAMA_FLASH_ATTN_TYPE_AUTO;
-        ctx = make_context(model, n_ctx, n_threads, options, on_gpu);
+        ctx = make_context(model, n_ctx, n_threads, options, on_gpu, outputs, rollback);
     }
     if (ctx == nullptr) {
         llama_model_free(model);
         return 0;
     }
     auto * engine = new Engine{model, ctx, llama_model_get_vocab(model)};
+    engine->recurrent = recurrent;
+    engine->mtp = make_mtp_context(model, ctx, n_threads, options, on_gpu, recurrent);
+    if (engine->mtp == nullptr) options.draft = 0;
     engine->options = options;
-    // A sliding-window cache (Gemma) has dropped the early positions a reused head would still
-    // need, so it takes the snapshot path too.
-    engine->recurrent = llama_model_is_recurrent(model) || llama_model_is_hybrid(model) || llama_model_n_swa(model) > 0;
+    engine->n_embd = llama_model_n_embd_out(model);
+    mtp_reset(engine);
 
     char desc[256];
     llama_model_desc(model, desc, sizeof(desc));
     char line[1024];
     std::snprintf(line, sizeof(line),
         "model=%s\nlayers=%d\ngpu_layers=%d\nrequested_gpu_layers=%d\ngpu_coverage=%.3f\ngated=%d\nfell_back=%d\n"
-        "threads=%d\nctx=%d\nbatch=%d\nubatch=%d\nkv=%s\nflash=%d\nrecurrent=%d\nprefix_cache=%d\nlazy_grammar=%d\n",
+        "threads=%d\nctx=%d\nbatch=%d\nubatch=%d\nkv=%s\nflash=%d\nrecurrent=%d\nprefix_cache=%d\nlazy_grammar=%d\nmtp_draft=%d\n",
         desc, llama_model_n_layer(model) + 1, mp.n_gpu_layers, requested, coverage, gated ? 1 : 0, fell_back ? 1 : 0,
         n_threads, n_ctx, options.n_batch, options.n_ubatch, ggml_type_name(static_cast<ggml_type>(options.kv_type)), options.flash,
-        engine->recurrent ? 1 : 0, options.prefix_cache ? 1 : 0, options.lazy_grammar ? 1 : 0);
+        engine->recurrent ? 1 : 0, options.prefix_cache ? 1 : 0, options.lazy_grammar ? 1 : 0, options.draft);
     info += line;
     for (ggml_backend_dev_t dev : devices) {
         if (dev != nullptr) info += std::string("gpu=") + ggml_backend_dev_description(dev) + "\n";
@@ -887,6 +1089,7 @@ Java_io_trimio_engine_llm_local_LlamaNative_free(JNIEnv *, jobject, jlong handle
     auto * engine = reinterpret_cast<Engine *>(handle);
     if (engine == nullptr) return;
     if (engine->vision != nullptr) mtmd_free(engine->vision);
+    if (engine->mtp != nullptr) llama_free(engine->mtp);
     llama_free(engine->ctx);
     llama_model_free(engine->model);
     delete engine;
@@ -910,15 +1113,15 @@ Java_io_trimio_engine_llm_local_LlamaNative_runtimeInfo(JNIEnv * env, jobject, j
 
 /**
  * The last call's cost: [prompt tokens, reused tokens, generated tokens, prompt µs, generate µs,
- * grammar resamples].
+ * grammar resamples, MTP guesses drafted, guesses kept].
  */
 JNIEXPORT jlongArray JNICALL
 Java_io_trimio_engine_llm_local_LlamaNative_lastCall(JNIEnv * env, jobject, jlong handle) {
     const CallStats & s = reinterpret_cast<Engine *>(handle)->last;
-    const jlong values[6] = {s.prompt_tokens, s.reused_tokens, s.generated, static_cast<jlong>(s.prompt_ms * 1000),
-        static_cast<jlong>(s.generate_ms * 1000), s.grammar_resamples};
-    jlongArray out = env->NewLongArray(6);
-    env->SetLongArrayRegion(out, 0, 6, values);
+    const jlong values[8] = {s.prompt_tokens, s.reused_tokens, s.generated, static_cast<jlong>(s.prompt_ms * 1000),
+        static_cast<jlong>(s.generate_ms * 1000), s.grammar_resamples, s.drafted, s.accepted};
+    jlongArray out = env->NewLongArray(8);
+    env->SetLongArrayRegion(out, 0, 8, values);
     return out;
 }
 
@@ -973,7 +1176,7 @@ Java_io_trimio_engine_llm_local_LlamaNative_generate(
     if (prompt.empty() || static_cast<int>(prompt.size()) + 8 >= n_ctx) return -1;
     if (!decode_prompt(engine, prompt)) return -2;
 
-    return sample(env, engine, static_cast<int>(prompt.size()), jgrammar, max_tokens, temperature, top_p, min_p, seed, callback);
+    return sample(env, engine, static_cast<int>(prompt.size()), jgrammar, max_tokens, temperature, top_p, min_p, seed, callback, engine->mtp != nullptr);
 }
 
 /**
@@ -990,8 +1193,9 @@ Java_io_trimio_engine_llm_local_LlamaNative_generateWithImages(
     engine->last = CallStats{};
     llama_memory_clear(llama_get_memory(engine->ctx), true);
     // The memory now holds image tokens: nothing of it is a text head to reuse (the snapshot is
-    // a copy of its own and stays valid).
+    // a copy of its own and stays valid). The MTP head does not see images: plain decoding here.
     engine->held.clear();
+    mtp_reset(engine);
 
     const jsize n = env->GetArrayLength(images);
     std::vector<jint> w(static_cast<size_t>(n)), h(static_cast<size_t>(n));

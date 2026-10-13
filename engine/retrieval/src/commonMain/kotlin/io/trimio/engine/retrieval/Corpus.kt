@@ -32,8 +32,8 @@ data class Doc(
     /** Identifies the embedded text: a pack vector is reused only for a document that still reads the same. */
     val fingerprint: Int get() = fnv("$title\u0000$embedText")
 
-    private companion object {
-        const val MAX_TAGS = 12
+    companion object {
+        private const val MAX_TAGS = 12
     }
 }
 
@@ -68,9 +68,13 @@ class CorpusIndex(val name: String, val docs: List<Doc>) {
      * Dense vectors for every document in [embedder]'s space: those [pack] holds (same space, same
      * fingerprint) are reused, the rest are embedded now. Returns how many were embedded here.
      */
-    suspend fun attach(embedder: TextEmbedder, pack: VectorPack? = null, onProgress: (Int, Int) -> Unit = { _, _ -> }): Int {
-        val usable = pack?.takeIf { it.space == embedder.space && it.dims == embedder.dims }
-        val known = usable?.entries?.associateBy { it.id }.orEmpty()
+    suspend fun attach(embedder: TextEmbedder, pack: VectorPack? = null, onProgress: (Int, Int) -> Unit = { _, _ -> }): Int =
+        attach(embedder, listOfNotNull(pack), onProgress)
+
+    /** [attach] with several packs of the corpus (the bundled one, then the device's cache: later ones win). */
+    suspend fun attach(embedder: TextEmbedder, packs: List<VectorPack>, onProgress: (Int, Int) -> Unit = { _, _ -> }): Int {
+        val usable = packs.filter { it.space == embedder.space && it.dims == embedder.dims && it.corpus == name }
+        val known = usable.flatMap { it.entries }.associateBy { it.id }
         val missing = docs.indices.filter { i -> known[docs[i].id]?.fingerprint != docs[i].fingerprint }
         val fresh = HashMap<Int, FloatArray>()
         var done = 0

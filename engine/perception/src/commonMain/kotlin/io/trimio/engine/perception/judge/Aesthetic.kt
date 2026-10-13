@@ -25,7 +25,8 @@ object AestheticFeatures {
 
     /** Features of [frame]; [face] and [text] come from the face and OCR add-ons when available. */
     fun of(frame: Frame, face: Box? = null, graphics: List<Box> = emptyList(), text: List<Box> = emptyList()): FloatArray {
-        val f = if (frame.width > MAX_SIDE || frame.height > MAX_SIDE) frame.resized(frame.width * MAX_SIDE / max(frame.width, frame.height), frame.height * MAX_SIDE / max(frame.width, frame.height)) else frame
+        val long = max(frame.width, frame.height)
+        val f = if (long > MAX_SIDE) frame.resized(frame.width * MAX_SIDE / long, frame.height * MAX_SIDE / long) else frame
         val n = f.width * f.height
         var sum = 0.0
         var sq = 0.0
@@ -86,7 +87,8 @@ object AestheticFeatures {
         var s = 0f
         var n = 0
         for (r in 0 until m.rows) for (c in 0 until m.cols) {
-            if (r == 0 || c == 0 || r == m.rows - 1 || c == m.cols - 1) {
+            val ringRow = r == 0 || r == m.rows - 1
+            if (ringRow || c == 0 || c == m.cols - 1) {
                 s += m[c, r]
                 n++
             }

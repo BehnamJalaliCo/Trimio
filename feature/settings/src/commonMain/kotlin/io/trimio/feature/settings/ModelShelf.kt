@@ -1,5 +1,8 @@
 package io.trimio.feature.settings
 
+import io.trimio.engine.models.AddOnAdvice
+import io.trimio.engine.models.AddOnTier
+import io.trimio.engine.models.DeviceClass
 import io.trimio.engine.models.DeviceFit
 import io.trimio.engine.models.DeviceMemory
 import io.trimio.engine.models.ModelFit
@@ -53,11 +56,41 @@ data class ModelsUi(
     val freeBytes: Long? = null,
     /** Where models run here ([HardwareLine]); null hides the line. */
     val hardware: HardwareLine? = null,
+    /** «تقویت کیفیت»: the add-on tiers offered on this device, Essential first. */
+    val boosts: List<BoostTier> = emptyList(),
+    /** «پیشنهاد برای این دستگاه»: the one-tap set; null when nothing is offered. */
+    val boostPlan: BoostPlan? = null,
 ) {
     val installedBytes: Long get() = (directors + speech).filter { it.installed }.sumOf { it.sizeBytes }
 }
 
 val ModelRow.installed: Boolean get() = state == ModelState.Installed || state is ModelState.UpdateAvailable
+
+/** One quality add-on as the «تقویت کیفیت» section lists it: the model row and what it brings. */
+data class BoostRow(
+    val row: ModelRow,
+    val purposeFa: String,
+    val purposeEn: String,
+    /** In the one-tap set for this device. */
+    val recommended: Boolean,
+    /** Laptop only, or best on one; shown as a note. */
+    val laptopOnly: Boolean,
+)
+
+/** One tier of add-ons (ضروری / حرفه‌ای / فوق‌حرفه‌ای). */
+data class BoostTier(val tier: AddOnTier, val rows: List<BoostRow>) {
+    val titleFa: String get() = when (tier) {
+        AddOnTier.Essential -> "ضروری"
+        AddOnTier.Pro -> "حرفه\u200Cای"
+        AddOnTier.Ultra -> "فوق\u200Cحرفه\u200Cای"
+    }
+    val titleEn: String get() = tier.titleEn
+}
+
+/** The one-tap download: the ids still to fetch and their total size (companions included). */
+data class BoostPlan(val ids: List<String>, val missingIds: List<String>, val downloadBytes: Long, val ramBytes: Long) {
+    val done: Boolean get() = missingIds.isEmpty()
+}
 
 /**
  * Builds the shelves from the catalogue: directors (4B for every phone, 9B for strong phones,
@@ -97,7 +130,33 @@ object ModelShelf {
             directors.firstOrNull { it.id == id }?.takeIf { (!it.experimental || device.desktop) && ok(DeviceFit.rate(it.footprintBytes, device)) }
         }
         val recommended = pick { it == ModelFit.Recommended } ?: pick { it.comfortable }
-        return ModelsUi(device.ramGb, device.desktop, directors, speechRows, recommended, freeBytes, hardware)
+        val director = catalog.firstOrNull { it.id == active } ?: recommended?.let { r -> catalog.firstOrNull { it.id == r.id } }
+        val (boosts, plan) = boosts(catalog, states, device, director, ::row)
+        return ModelsUi(device.ramGb, device.desktop, directors, speechRows, recommended, freeBytes, hardware, boosts, plan)
+    }
+
+    /**
+     * The add-on tiers: every add-on this device is offered ([AddOnAdvice.offers]: laptop-only ones
+     * left out on a phone, each rated by memory), grouped by tier, with the one-tap set beside the
+     * [director] in use.
+     */
+    private fun boosts(
+        catalog: List<ModelSpec>, states: Map<String, ModelState>, device: DeviceMemory, director: ModelSpec?, row: (ModelSpec, String?) -> ModelRow,
+    ): Pair<List<BoostTier>, BoostPlan?> {
+        val offers = AddOnAdvice.offers(device, director, catalog)
+        if (offers.isEmpty()) return emptyList<BoostTier>() to null
+        val tiers = AddOnTier.entries.mapNotNull { tier ->
+            val rows = offers.mapNotNull { o ->
+                val a = o.spec.addOn?.takeIf { it.tier == tier } ?: return@mapNotNull null
+                BoostRow(row(o.spec, null).copy(footprintBytes = o.footprintBytes, fit = o.fit), a.purposeFa, a.purposeEn, o.recommended, DeviceClass.Phone !in a.devices)
+            }.sortedByDescending { it.recommended }
+            rows.takeIf { it.isNotEmpty() }?.let { BoostTier(tier, it) }
+        }
+        val picked = offers.filter { it.recommended }.map { it.spec }
+        val (files, _) = AddOnAdvice.download(picked, catalog)
+        val missing = files.filter { (states[it.id] ?: ModelState.NotInstalled).let { s -> s != ModelState.Installed && s !is ModelState.UpdateAvailable } }
+        val plan = BoostPlan(picked.map { it.id }, missing.map { it.id }, missing.sumOf { it.sizeBytes }, offers.filter { it.recommended }.maxOfOrNull { it.footprintBytes } ?: 0)
+        return tiers to plan.takeIf { picked.isNotEmpty() }
     }
 
     /** "4B", "9B", "8B-A1B", "35B-A3B" from the catalogue id, or the size class for speech models. */
@@ -137,4 +196,6 @@ data class ModelActions(
     val onUpdate: (String) -> Unit = {},
     /** Makes an installed director the one that runs. */
     val onUse: (String) -> Unit = {},
+    /** Downloads several models at once (the one-tap «پیشنهاد برای این دستگاه»). */
+    val onDownloadAll: (List<String>) -> Unit = { ids -> ids.forEach(onDownload) },
 )

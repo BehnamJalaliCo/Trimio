@@ -69,12 +69,9 @@ class Glossary(val terms: List<Term>) {
         val out = mutableListOf<Found>()
         var i = 0
         while (i < words.size) {
-            var hit: Found? = null
-            for (n in minOf(maxWords, words.size - i) downTo 1) {
-                val key = words.subList(i, i + n).joinToString("")
-                val t = byKey[key]?.firstOrNull() ?: continue
-                hit = Found(t, i, i + n, words.subList(i, i + n).joinToString(" "))
-                break
+            val at = i
+            val hit = (minOf(maxWords, words.size - at) downTo 1).firstNotNullOfOrNull { n ->
+                byKey[words.subList(at, at + n).joinToString("")]?.firstOrNull()?.let { t -> Found(t, at, at + n, words.subList(at, at + n).joinToString(" ")) }
             }
             if (hit != null) {
                 out += hit

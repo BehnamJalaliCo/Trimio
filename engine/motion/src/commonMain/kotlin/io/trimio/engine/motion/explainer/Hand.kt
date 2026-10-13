@@ -84,7 +84,11 @@ internal class Hand(
     fun say(s: String): String = if (persian) Hand.persianDigits(s) else s
 
     /** Readable [c] on [on]. */
-    fun readable(c: Color, on: Color): Color = ExplainerPalette.readable(c, on, if (ExplainerPalette.ratio(ink, on) >= ExplainerPalette.FLOOR) ink else Look.textOn(on))
+    fun readable(c: Color, on: Color): Color {
+        val toward = if (ExplainerPalette.ratio(ink, on) >= ExplainerPalette.FLOOR) ink else Look.textOn(on)
+        // Moving toward the far side can pass through grey; when that cannot clear the floor, take the far side itself.
+        return ExplainerPalette.readable(c, on, toward).takeIf { ExplainerPalette.ratio(it, on) >= ExplainerPalette.FLOOR } ?: Look.textOn(on)
+    }
 
     // ------------------------------------------------------------------ type
 
@@ -284,8 +288,22 @@ internal class Hand(
     /** Persian digits are for Persian films (Arabic keeps its own). */
     var persian: Boolean = rtl
 
+    /** How headlines sit: centred on a diagram stage, from the reading start in a news scene. */
+    var align: TextAlign = TextAlign.Center
+
+    /** Hero illustrations and the style they are drawn in. */
+    var illustrations: IllustrationSource = IllustrationSource.None
+    var style: IllustrationStyle = IllustrationStyle.PencilSketch
+
+    /** The scene's ground is the accent itself (after a circle wipe): accent shapes would vanish on it. */
+    val accentGround: Boolean get() = ExplainerPalette.ratio(accent, ground) < ACCENT_VISIBLE
+
+    /** The emphasis colour on this ground: the accent, or the dark when the ground is the accent. */
+    val emphasis: Color get() = if (accentGround) ink else accent
+
     companion object {
         private const val FIT_STEPS = 24
+        private const val ACCENT_VISIBLE = 1.3f
 
         /** Persian digits, with the Persian decimal point and percent sign next to digits only. */
         fun persianDigits(s: String): String {

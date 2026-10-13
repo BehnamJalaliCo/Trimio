@@ -17,6 +17,8 @@ kotlin {
             api(projects.engine.asr)
             api(projects.engine.models)
             api(projects.engine.llm)
+            // Perception add-ons on ONNX Runtime (faces, shots, beats, punctuation, alignment, speakers, text): ships the runtime.
+            api(projects.engine.perception)
             // Music moods and beat grids for the editor's sound and cut tools.
             implementation(projects.engine.assets)
             implementation(libs.kotlinx.serialization.json)

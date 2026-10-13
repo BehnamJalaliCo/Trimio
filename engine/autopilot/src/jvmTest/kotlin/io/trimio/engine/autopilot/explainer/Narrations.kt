@@ -85,6 +85,17 @@ internal object Narrations {
         The result: faster apps and smaller bills.
     """.trimIndent()
 
+    /** A news story (made up), the way the second reference tells one. */
+    val FA_NEWS = """
+        قضیه فروشگاه طلای نیلوفر چیه؟ طلاهاش چی شد؟ کاربرا میگن طلاشونو فروختن ولی پولش هنوز واریز نشده!!
+        شرکت اعلام کرده مهلت برداشت بعد از تایید سه روز کاریه. گزارش تجمع برخی کاربرا جلوی شعبه منتشر شده.
+    """.trimIndent()
+
+    val EN_NEWS = """
+        What happened at Northwind Bank? Yesterday, customers said their savings were frozen. But the bank says the money is safe!
+        The company announced that withdrawals will open in three business days. A report shows dozens of people gathered in front of the main branch.
+    """.trimIndent()
+
     val ALL = listOf(
         "fa-tech" to (FA_TECH to true), "fa-health" to (FA_HEALTH to true), "fa-finance" to (FA_FINANCE to true),
         "en-finance" to (EN_FINANCE to false), "en-history" to (EN_HISTORY to false), "en-howto" to (EN_HOWTO to false), "en-tech" to (EN_TECH to false),

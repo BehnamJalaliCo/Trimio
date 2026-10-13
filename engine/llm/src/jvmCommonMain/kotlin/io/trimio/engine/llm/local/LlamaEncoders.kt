@@ -38,7 +38,8 @@ class LlamaEmbedder(
     private var handle = 0L
     private var native = 0
 
-    override val dims: Int get() = truncate ?: native.takeIf { it > 0 } ?: error("$id: dims are known once the model is loaded (call load())")
+    /** Known from the model itself: asking loads it (once). */
+    override val dims: Int get() = truncate ?: native.takeIf { it > 0 } ?: ensureLoaded().let { native }
 
     /** How the encoder was opened (key=value lines), once loaded. */
     var info: Map<String, List<String>> = emptyMap()
@@ -74,25 +75,28 @@ class LlamaEmbedder(
         return w
     }
 
+    @Synchronized
     private fun ensureLoaded(): Long {
         if (handle != 0L) return handle
         if (!File(modelPath).isFile) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Model not installed: $modelPath")
         val h = LlamaNative.encoderInit(modelPath, contextSize, threads, sequences, LlamaNative.ENCODE_EMBED)
-        if (h == 0L) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Could not load $modelPath as an embedder")
-        info = LlamaRuntime.lines(LlamaNative.encoderInfo(h))
-        native = info["dims"]?.firstOrNull()?.toIntOrNull() ?: 0
-        // The model card's warning: a wrong precision gives NaNs (or zeros) instead of failing.
-        val probe = LlamaNative.encode(h, arrayOf(family.format("probe", EmbedRole.Query).encodeToByteArray()), true)
-        if (native <= 0 || probe == null || probe.all { it == 0f }) {
+        if (h != 0L) {
+            info = LlamaRuntime.lines(LlamaNative.encoderInfo(h))
+            native = info["dims"]?.firstOrNull()?.toIntOrNull() ?: 0
+            // The model card's warning: a wrong precision gives NaNs (or zeros) instead of failing.
+            val probe = LlamaNative.encode(h, arrayOf(family.format("probe", EmbedRole.Query).encodeToByteArray()), true)
+            if (native > 0 && probe != null && probe.any { it != 0f }) {
+                handle = h
+                return h
+            }
             LlamaNative.encoderFree(h)
-            throw LanguageModelException(LanguageModelException.Kind.Unavailable, "$id gives no usable vectors (use the Q8_0 or BF16 file, never F16)")
         }
-        handle = h
-        return h
+        throw LanguageModelException(LanguageModelException.Kind.Unavailable, "$id gives no usable vectors from $modelPath (use the Q8_0 or BF16 file, never F16)")
     }
 
     override suspend fun release() = mutex.withLock { close() }
 
+    @Synchronized
     override fun close() {
         if (handle != 0L) {
             LlamaNative.encoderFree(handle)

@@ -20,6 +20,9 @@ class ExplainerProofTest {
         Case("en-wide", "assistants-en", 1920, 1080, palette = "ink-night", layout = "split", mark = "numerals"),
         Case("fa-wide", "assistants-fa", 1920, 1080, palette = "mint", layout = "header-left", mark = "rule"),
         Case("en-tall", "assistants-en", 1080, 1920, palette = "dusk", layout = "full-bleed", captions = "plain-lower"),
+        Case("news-fa", "refunds-fa", 1080, 1920),
+        Case("news-en-wide", "refunds-en", 1920, 1080, palette = "news-teal"),
+        Case("news-en", "refunds-en", 1080, 1920, palette = "news-red"),
     )
 
     /** Every primitive once its ops have landed (cropped to the stage), and caught mid-morph. */
@@ -87,7 +90,7 @@ class ExplainerProofTest {
             if (System.getenv("TRIMIO_EXPLAINER_VIDEO") == "1" && MotionTestKit.ffmpeg()) {
                 val to = System.getenv("TRIMIO_EXPLAINER_TO")?.toFloatOrNull() ?: output.composition.duration
                 val from = System.getenv("TRIMIO_EXPLAINER_FROM")?.toFloatOrNull() ?: 0f
-                MotionExporter(output.composition.withFps(30), { io.trimio.engine.motion.MediaSource.None }, Delivery.Draft.copy(gpu = false), scale = 2f / 3f)
+                MotionExporter(output.composition.withFps(30), { output.media() }, Delivery.Draft.copy(gpu = false), scale = 2f / 3f)
                     .export(out.resolve("${c.id}.mp4"), null, from, to)
             }
         }

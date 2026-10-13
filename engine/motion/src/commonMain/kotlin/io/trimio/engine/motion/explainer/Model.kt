@@ -20,6 +20,9 @@ internal data class Spec(
     val visual: String,
     /** Every op this version will go through (so it can keep room for a tick or an underline). */
     val ops: Set<StageOp> = emptySet(),
+    val kicker: String = "",
+    val punch: String = "",
+    val illustration: String = "",
 ) {
     /** Items, or the text split on "|" or new lines when the beat gave none. */
     val labels: List<String> get() = items.map { it.label }
@@ -30,7 +33,10 @@ internal data class Spec(
                 c.text.split('|', '\n').map { it.trim() }.filter { it.isNotEmpty() }.takeIf { it.size > 1 }?.map { Item(it) }.orEmpty()
             }
             val text = if (c.items.isEmpty() && items.isNotEmpty()) "" else c.text
-            return Spec(p, text.trim(), c.caption.trim(), items, c.value, c.unit.trim(), c.visual.trim())
+            return Spec(
+                p, text.trim(), c.caption.trim(), items, c.value, c.unit.trim(), c.visual.trim(),
+                kicker = c.kicker.trim(), punch = c.punch.trim(), illustration = c.illustration.trim(),
+            )
         }
     }
 }

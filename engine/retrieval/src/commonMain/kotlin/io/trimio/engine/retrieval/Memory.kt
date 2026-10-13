@@ -2,6 +2,10 @@ package io.trimio.engine.retrieval
 
 import io.trimio.core.model.text.TextKey
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.readByteArray
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -40,6 +44,38 @@ data class MemoryEntry(
     val ref: String = "",
 )
 
+/** Named byte blobs on the device (the vector cache of documents embedded here). */
+interface BlobStore {
+    suspend fun read(name: String): ByteArray?
+
+    suspend fun write(name: String, bytes: ByteArray)
+
+    class InMemory : BlobStore {
+        private val blobs = HashMap<String, ByteArray>()
+
+        override suspend fun read(name: String): ByteArray? = blobs[name]
+
+        override suspend fun write(name: String, bytes: ByteArray) {
+            blobs[name] = bytes
+        }
+    }
+
+    /** Files in [directory] (created on first write). */
+    class Folder(private val directory: String) : BlobStore {
+        override suspend fun read(name: String): ByteArray? = runCatching {
+            val p = Path(directory, name)
+            if (!SystemFileSystem.exists(p)) null else SystemFileSystem.source(p).buffered().use { it.readByteArray() }
+        }.getOrNull()
+
+        override suspend fun write(name: String, bytes: ByteArray) {
+            SystemFileSystem.createDirectories(Path(directory))
+            val tmp = Path(directory, "$name.part")
+            SystemFileSystem.sink(tmp).buffered().use { it.write(bytes) }
+            SystemFileSystem.atomicMove(tmp, Path(directory, name))
+        }
+    }
+}
+
 /** Reads and writes the memory's JSON (a file in the app's data folder; in memory for tests). */
 interface MemoryStore {
     suspend fun read(): String?
@@ -52,6 +88,13 @@ interface MemoryStore {
         override suspend fun write(text: String) {
             this.text = text
         }
+    }
+
+    /** One file of [blobs] named [name]. */
+    class Blob(private val blobs: BlobStore, private val name: String) : MemoryStore {
+        override suspend fun read(): String? = blobs.read(name)?.decodeToString()
+
+        override suspend fun write(text: String) = blobs.write(name, text.encodeToByteArray())
     }
 }
 

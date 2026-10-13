@@ -345,6 +345,11 @@ data class Grade(
     val saturation: Anim = Anim.One,
     /** -1 cool … +1 warm. */
     val temperature: Anim = Anim.Zero,
+    /**
+     * Draw the picture as ink on whatever is behind it: its darks become this colour, its paper turns
+     * transparent (a pencil sketch over a coloured ground). Null draws it as it is.
+     */
+    val ink: androidx.compose.ui.graphics.Color? = null,
 )
 
 enum class Fit { Cover, Contain }

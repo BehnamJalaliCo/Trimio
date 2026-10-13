@@ -94,7 +94,7 @@ object SkinFaces {
         val rows = (cells * frame.height.toFloat() / frame.width).roundToInt().coerceAtLeast(1)
         val skin = BooleanArray(cols * rows) { i -> isSkin(frame, i % cols, i / cols, cols, rows) }
         val best = largestRegion(skin, cols, rows, maxRow = (rows * UPPER).toInt())
-        val box = best?.let { (c0, r0, c1, r1) -> Box.of(c0.toFloat() / cols, r0.toFloat() / rows, (c1 + 1f) / cols, (r1 + 1f) / rows) }
+        val box = best?.let { b -> Box.of(b[0].toFloat() / cols, b[1].toFloat() / rows, (b[2] + 1f) / cols, (b[3] + 1f) / rows) }
             ?.takeIf { it.area in MIN_AREA..MAX_AREA && it.h / it.w * frame.height / frame.width in MIN_ASPECT..MAX_ASPECT }
         return Face(box ?: Prior, emptyList(), if (box == null) 0f else GUESS)
     }

@@ -17,7 +17,14 @@ data class Rest(val chapter: Int, val from: Float, val to: Float, val boxes: Map
  * the stage's edge. Whenever the live set changes the stage reflows: elements glide to their new
  * places — making room just before a newcomer lands, closing ranks just after one leaves.
  */
-internal class Solver(private val stage: Box, private val gap: Float, private val wide: Boolean) {
+internal class Solver(
+    private val stage: Box,
+    private val gap: Float,
+    private val wide: Boolean,
+    private val glide: Easing = GLIDE,
+    /** Stack from the stage's top (a headline zone) instead of about its middle. */
+    private val fromTop: Boolean = false,
+) {
     class Solved(val x: Anim, val y: Anim, val scale: Anim)
 
     fun solve(chapter: Int, versions: List<Version>, laid: Map<Version, Laid>): Pair<Map<Version, Solved>, List<Rest>> {
@@ -57,7 +64,7 @@ internal class Solver(private val stage: Box, private val gap: Float, private va
                 if (value == last) continue
                 val t0 = maxOf(ws, ks.last().t)
                 ks += Anim.Key(t0, last, Easing.Hold)
-                ks += Anim.Key(maxOf(we, t0 + 0.05f), value, GLIDE)
+                ks += Anim.Key(maxOf(we, t0 + 0.05f), value, glide)
                 last = value
             }
             return Anim.keys(ks)
@@ -99,7 +106,7 @@ internal class Solver(private val stage: Box, private val gap: Float, private va
     private fun columnAt(items: List<Laid>, cx: Float, scale: Float): List<Place> {
         val total = height(items) * scale
         // Optically a little above centre, never past the stage's top.
-        val top = maxOf(stage.top, stage.centerY - total / 2f - stage.height * LIFT)
+        val top = if (fromTop) stage.top else maxOf(stage.top, stage.centerY - total / 2f - stage.height * LIFT)
         var y = top
         return items.map { l ->
             val p = Place(cx, y + l.h * scale / 2f, scale)

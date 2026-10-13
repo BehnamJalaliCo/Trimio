@@ -1,0 +1,215 @@
+{
+ "art": {
+  "palette": "news-gold",
+  "layout": "full-bleed",
+  "chapterMark": "none",
+  "captionStyle": "none",
+  "seed": 13,
+  "grammar": "illustrated-news"
+ },
+ "chapters": [
+  {
+   "title": "",
+   "start": 0.0,
+   "end": 2.8,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 0.1,
+     "until": 1.4,
+     "line": "قضیه‌ی بازپرداخت‌ها چیه؟ پول‌ها کجا رفت؟",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "text": "قضیه‌ی بازپرداخت‌ها چیه؟",
+      "caption": "پول‌ها کجا رفت؟"
+     }
+    },
+    {
+     "at": 0.5,
+     "until": 2.6,
+     "line": "",
+     "op": "add",
+     "element": "hero",
+     "primitive": "hero",
+     "content": {
+      "illustration": "safe with gold bars",
+      "visual": "lock"
+     }
+    }
+   ]
+  },
+  {
+   "title": "",
+   "start": 2.8,
+   "end": 5.6,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 2.9,
+     "until": 4.4,
+     "line": "مشتری‌ها می‌گن سفارششونو لغو کردن ولی پولش هنوز برنگشته",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "kicker": "مشتری‌ها",
+      "text": "می‌گن سفارششونو لغو کردن",
+      "punch": "ولی پولش هنوز برنگشته!!"
+     }
+    },
+    {
+     "at": 3.0,
+     "until": 5.4,
+     "line": "",
+     "op": "add",
+     "element": "hero",
+     "primitive": "hero",
+     "content": {
+      "illustration": "worried man looking at phone",
+      "visual": "phone"
+     }
+    },
+    {
+     "at": 3.9,
+     "until": 5.4,
+     "line": "",
+     "op": "add",
+     "element": "b",
+     "primitive": "bubble",
+     "content": {
+      "text": "در انتظار بازپرداخت..."
+     }
+    }
+   ],
+   "transition": "circle"
+  },
+  {
+   "title": "",
+   "start": 5.6,
+   "end": 8.4,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 5.7,
+     "until": 6.6,
+     "line": "مهلت اعلامی بعد از تأیید",
+     "op": "add",
+     "element": "a",
+     "primitive": "annotation",
+     "content": {
+      "text": "مهلت اعلامی: بعد از تأیید"
+     }
+    },
+    {
+     "at": 6.3,
+     "until": 8.2,
+     "line": "سه روز کاری",
+     "op": "add",
+     "element": "cal",
+     "primitive": "calendar",
+     "content": {
+      "value": 3,
+      "caption": "روز کاری"
+     }
+    },
+    {
+     "at": 6.4,
+     "until": 7.0,
+     "line": "",
+     "op": "add",
+     "element": "st",
+     "primitive": "stars"
+    }
+   ],
+   "transition": "push"
+  },
+  {
+   "title": "",
+   "start": 8.4,
+   "end": 11.2,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 8.5,
+     "until": 9.8,
+     "line": "گزارش تجمع برخی مشتری‌ها منتشر شده",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "kicker": "گزارش",
+      "text": "تجمع برخی مشتری‌ها",
+      "caption": "منتشر شده..."
+     }
+    },
+    {
+     "at": 8.7,
+     "until": 11.0,
+     "line": "",
+     "op": "add",
+     "element": "hero",
+     "primitive": "hero",
+     "content": {
+      "illustration": "three people in front of a store",
+      "visual": "store"
+     }
+    },
+    {
+     "at": 10.0,
+     "until": 10.8,
+     "line": "",
+     "op": "highlight",
+     "element": "h"
+    }
+   ],
+   "transition": "peel"
+  },
+  {
+   "title": "",
+   "start": 11.2,
+   "end": 14.4,
+   "accent": 1,
+   "beats": [
+    {
+     "at": 11.3,
+     "until": 12.4,
+     "line": "بازپرداخت کامل شد؟ هنوز نه.",
+     "op": "add",
+     "element": "h",
+     "primitive": "headline",
+     "content": {
+      "text": "بازپرداخت کامل شد؟",
+      "punch": "هنوز نه."
+     }
+    },
+    {
+     "at": 11.8,
+     "until": 13.0,
+     "line": "",
+     "op": "add",
+     "element": "m",
+     "primitive": "meter",
+     "content": {
+      "text": "بازپرداخت انجام‌شده",
+      "value": 0.4
+     }
+    },
+    {
+     "at": 13.0,
+     "until": 14.2,
+     "line": "فقط کمی بیشتر شده",
+     "op": "fill",
+     "element": "m",
+     "content": {
+      "value": 0.55
+     }
+    }
+   ],
+   "transition": "circle"
+  }
+ ],
+ "captions": [],
+ "language": "fa"
+}

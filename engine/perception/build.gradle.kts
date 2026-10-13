@@ -20,3 +20,11 @@ kotlin {
         }
     }
 }
+
+tasks.named<Test>("jvmTest") {
+    maxHeapSize = "2g"
+    // Real models and media (never committed): -Ptrimio.mediaModels=<dir> -Ptrimio.mediaTest=<dir>.
+    providers.gradleProperty("trimio.mediaModels").orNull?.let { systemProperty("trimio.media.models", it) }
+    providers.gradleProperty("trimio.mediaTest").orNull?.let { systemProperty("trimio.media.test", it) }
+    providers.gradleProperty("trimio.aestheticData").orNull?.let { systemProperty("trimio.aesthetic.data", it) }
+}

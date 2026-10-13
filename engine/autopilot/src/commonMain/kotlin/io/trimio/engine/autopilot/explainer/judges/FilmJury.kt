@@ -117,7 +117,7 @@ class FilmJury(val judges: List<FilmJudge> = standard(), val budget: Jury.Budget
     companion object {
         private const val MAX_TRIES = 4
 
-        fun standard(): List<FilmJudge> = listOf(MetaphorJudge(), ContinuityJudge(), VarietyJudge(), TimingJudge(), ScriptJudge(), FilmBriefJudge())
+        fun standard(): List<FilmJudge> = listOf(MetaphorJudge(), ContinuityJudge(), VarietyJudge(), TimingJudge(), ScriptJudge(), FilmBriefJudge(), PaceJudge())
 
         /** A verdict: 10 less what the findings cost. */
         fun verdict(judge: FilmJudge, findings: List<Finding>) =

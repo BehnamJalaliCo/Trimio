@@ -58,7 +58,8 @@ class LlmDirectorTest {
         log.forEach(::println)
         Beats.table(film).forEach(::println)
         // One outline call, then one per chapter, each constrained by a schema the grammar compiles.
-        assertEquals(1 + plans.size, model.asked.size)
+        // One grammar call, one outline call, then one per chapter.
+        assertEquals(2 + plans.size, model.asked.size)
         model.asked.forEach { r -> assertTrue(JsonSchemaGrammar.compile(r.schema!!).contains("root ::=")) }
         assertEquals(plans.size, film.chapters.size)
         assertTrue(film.chapters.all { it.title == "عنوان" })
@@ -88,7 +89,7 @@ class LlmDirectorTest {
             """{"chapters":[${chapters.joinToString(",")}]}"""
         }
         val film = FilmCheck(n).repair(LlmDirector(model).direct(n, 2))
-        assertEquals(1, model.asked.size, "one call for a short narration")
+        assertEquals(2, model.asked.size, "a grammar call and one film call for a short narration")
         assertEquals(plans.size, film.chapters.size)
         assertTrue(film.chapters.flatMap { it.beats }.count { it.op == StageOp.Fill } >= plans.size)
         assertEquals(emptyList(), FilmCheck(n).problems(film))
@@ -123,5 +124,37 @@ class LlmDirectorTest {
         println(texts)
         assertTrue(texts.none { t -> t.contains("Google") || t.contains("OpenAI") || t.contains("writing") || t.contains("Chapter") })
         assertEquals(emptyList(), FilmCheck(n).problems(result.film))
+    }
+
+    @Test
+    fun aModelChoosesNewsAndWritesScenes() = runBlocking {
+        val news = Narrations.of(Narrations.FA_NEWS, persian = true)
+        val model = FakeModel(isLocal = true) { r ->
+            when (r.system) {
+                DirectorPrompts.GRAMMAR -> """{"grammar":"illustrated-news","why":"a story about users"}"""
+                else -> {
+                    val scenes = Regex("(?m)^\\d+\\. c(\\d+)–c(\\d+)").findAll(r.messages.last().text).map { it.groupValues[1].toInt() to it.groupValues[2].toInt() }.toList()
+                    val chapters = scenes.map { (a, b) ->
+                        val cue = news.texts[news.clauses[a].first]
+                        val empty = """"text":"","caption":"","items":[],"visuals":[],"values":[],"value":-1,"unit":"","picks":[],"visual":"","kicker":"","punch":""""
+                        val head = """{"clause":$a,"metaphor":"m","primitive":"headline","op":"add","element":"headline","cue":"$cue","""
+                        val title = news.clauses[a].text.split(' ').take(3).joinToString(" ")
+                        val hero = """{"clause":$a,"metaphor":"m","primitive":"hero","op":"add","element":"hero","cue":"$cue",$empty,"""
+                        """{"title":"خبر","first":$a,"last":$b,"transition":"push","beats":[""" +
+                            head + empty.replace(""""text":""""", """"text":"$title"""") + ""","hero":"","sign":""},""" +
+                            hero + """"hero":"worried young man looking at phone","sign":"Starbucks"}]}"""
+                    }
+                    """{"chapters":[${chapters.joinToString(",")}]}"""
+                }
+            }
+        }
+        val result = Screenwriter(LlmDirector(model), askAgain = false).write(news, 1)
+        Beats.table(result.film).forEach(::println)
+        assertEquals(io.trimio.engine.motion.explainer.FilmGrammar.IllustratedNews.id, result.film.art.grammar)
+        val heroes = result.film.chapters.flatMap { c -> c.beats.filter { it.primitive == Primitive.Hero } }
+        assertTrue(heroes.isNotEmpty())
+        // A sign nobody said is taken off the illustration.
+        assertTrue(heroes.all { "Starbucks" !in it.content.illustration }, heroes.map { it.content.illustration }.toString())
+        assertEquals(emptyList(), FilmCheck(news).problems(result.film))
     }
 }

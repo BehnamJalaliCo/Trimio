@@ -1,5 +1,7 @@
 package io.trimio.engine.retrieval
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.math.exp
@@ -80,5 +82,54 @@ class TasteHead(val dims: Int, val weights: FloatArray, val bias: Float = 0f, va
             val p = head.predict(e.query, e.pick, e.signals).coerceIn(1e-6f, 1 - 1e-6f)
             -ln(if (e.good) p else 1 - p)
         }.average().toFloat()
+    }
+}
+
+/**
+ * Collects what the jury thought of each pick (the line, the picture's id, the signals it was
+ * picked with, and whether the edit's relevance judges scored it well) and trains the [TasteHead]
+ * on the device's CPU once enough has been seen. Examples keep text and ids, not vectors: lines are
+ * embedded again when training, pictures come from the index.
+ */
+class TasteTrainer(private val store: MemoryStore, private val capacity: Int = CAPACITY) {
+    @Serializable
+    data class Seen(val line: String, val pick: String, val signals: List<Float>, val good: Boolean)
+
+    @Serializable
+    private data class File(val seen: List<Seen> = emptyList())
+
+    private val lock = Mutex()
+    private var cached: List<Seen>? = null
+    private val json = Json { ignoreUnknownKeys = true }
+
+    private suspend fun load(): List<Seen> = cached ?: (store.read()?.let { runCatching { json.decodeFromString(File.serializer(), it).seen }.getOrNull() }.orEmpty()).also { cached = it }
+
+    suspend fun seen(): List<Seen> = lock.withLock { load() }
+
+    /** Adds the picks of one judged edit; the oldest fall out past [capacity]. */
+    suspend fun record(picks: List<Seen>) = lock.withLock {
+        val next = (load() + picks).takeLast(capacity)
+        cached = next
+        store.write(json.encodeToString(File.serializer(), File(next)))
+    }
+
+    /**
+     * A head trained on what was seen, or null with too few examples of either kind. [embedLines]
+     * embeds the lines (the retrieval's embedder, query role); pictures absent from [index] are skipped.
+     */
+    suspend fun train(index: CorpusIndex, embedLines: suspend (List<String>) -> List<FloatArray>): TasteHead? {
+        val all = seen()
+        val vectors = index.vectors ?: return null
+        val usable = all.mapNotNull { s -> index.indexOf(s.pick)?.let { s to it } }
+        if (usable.count { it.first.good } < MIN_EACH || usable.count { !it.first.good } < MIN_EACH) return null
+        val lines = usable.map { it.first.line }.distinct()
+        val byLine = lines.zip(embedLines(lines)).toMap()
+        val examples = usable.map { (s, i) -> TasteHead.Example(byLine.getValue(s.line), vectors.vector(i), s.signals.toFloatArray(), s.good) }
+        return TasteHead.train(examples, vectors.dims)
+    }
+
+    private companion object {
+        const val CAPACITY = 4000
+        const val MIN_EACH = 20
     }
 }

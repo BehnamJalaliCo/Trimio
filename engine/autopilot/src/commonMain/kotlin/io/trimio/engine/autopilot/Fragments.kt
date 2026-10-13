@@ -30,7 +30,7 @@ internal object Fragments {
             Phrases.verb(key(first)) -> "starts on the verb «$first»"
             last in CLOSERS || last in ADVERBS || last in QUANTIFIERS || last in MODALS -> "ends on «$last»"
             last in COMPLEMENTS -> "ends on «$last» without its verb"
-            Phrases.verb(key(last)) || last in LIGHT -> "ends on the verb «$last»"
+            (Phrases.verb(key(last)) || last in LIGHT) && !whole(words) -> "ends on the verb «$last»"
             dangling(last) -> "ends on «$last», waiting for what follows"
             else -> null
         }
@@ -53,6 +53,9 @@ internal object Fragments {
         val first = bare(texts[range.first])
         return starts && ends && first !in OPENERS && first !in COMPLEMENTS && !Phrases.verb(key(first))
     }
+
+    /** A short compound verb said whole: «عجله کنید», «ثبت‌نام کنید», «فالو کن» (a noun, then its light verb). */
+    private fun whole(words: List<String>): Boolean = words.size in 2..3 && words.last() in LIGHT && words[words.size - 2].let { it in COMPLEMENTS || Phrases.nounish(it) }
 
     /** A lone word stands only when it names something: a common noun as written, or a term. */
     private fun lone(w: String): String? = when {

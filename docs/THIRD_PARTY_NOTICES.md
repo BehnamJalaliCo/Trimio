@@ -20,6 +20,7 @@ phase 9 (`license audit`).
 | Anthropic Java SDK (+ OkHttp, Jackson) | 2.34.0 | MIT (+ Apache-2.0) |
 | whisper.cpp | v1.9.5 | MIT |
 | llama.cpp / ggml | b11536 | MIT |
+| ONNX Runtime (Android AAR `onnxruntime-android`, desktop jar `onnxruntime`) | 1.29.0 | MIT |
 | Vulkan loader headers (Windows GPU build of ggml, links the driver's vulkan-1.dll) | SDK 1.4.309 | Apache-2.0 |
 
 ## Desktop installers only: FFmpeg
@@ -57,6 +58,15 @@ phase 9 (`license audit`).
 | Gemma 4 E4B (QAT GGUF) | Apache-2.0 | |
 | LFM2.5-8B-A1B (GGUF) | LFM Open License v1.0 | free for commercial use below the licence's revenue threshold; review before scaling |
 | LFM2.5-230M (CI tests only) | LFM Open License v1.0 | not shipped |
+| Silero VAD v6.2.0 (ggml, `ggml-org/whisper-vad`) | MIT | quality add-on |
+| YuNet face detector 2023mar (`opencv/face_detection_yunet`) | MIT (OpenCV Zoo, LICENSE in the repo) | quality add-on |
+| TransNetV2 ONNX export (`elya5/transnetv2`) | MIT | quality add-on |
+| PP-OCRv5 mobile detector, Arabic-script recogniser (PaddlePaddle ONNX) | Apache-2.0 | quality add-on |
+| Beat This! final0 ONNX export (`aaatmy/beat-this-onnx`, CPJKU weights) | MIT | quality add-on; keep the upstream LICENSE notice |
+| punct_cap_seg_47_language (`1-800-BAD-CODE`, ONNX + SentencePiece) | Apache-2.0 | quality add-on |
+| Omnilingual ASR CTC-300M int8 ONNX (`OpenVoiceOS/omnilingual-asr-ctc-300m-onnx`, Meta weights) | Apache-2.0 | quality add-on (alignment) |
+| pyannote segmentation-3.0 ONNX (`onnx-community`) | MIT | quality add-on (speakers) |
+| WeSpeaker CAM++ VoxCeleb LM (`Wespeaker/wespeaker-voxceleb-campplus-LM`) | Apache-2.0 | quality add-on (speakers) |
 
 ## Assets
 
@@ -103,3 +113,16 @@ a time, under the Lottie Simple License (commercial use, no credit required).
 | Noto Animated Emoji (Google) — 19 Lottie files bundled (starter pack), the rest fetched on demand | `engine/autopilot/.../files/art/starter.json`, fonts.gstatic.com | CC BY 4.0 | "Animated emoji: Noto Emoji Animation by Google (CC BY 4.0)" in the app's licences and in every edit that shows one (`Production.credits`) |
 | Material Line Icons (`line-md`) by Vjacheslav Trushkin — 28 bundled, the rest through Iconify | `files/art/starter.json`, api.iconify.design | MIT | licence text in the app |
 | Unicode CLDR emoji annotations (English and Persian keywords of the search index) | `files/art/index.json` | Unicode License v3 | licence text in the app |
+
+### Illustrations (phase 8c)
+
+The explainer films' hero illustrations are composed from these bundled drawings and redrawn in the film's
+own pencil/ink style by Trimio's code (`engine/illustration`). No credit is needed in exports.
+
+| Component | Where | Licence | Credit |
+|---|---|---|---|
+| Open Peeps by Pablo Stanley (people, poses, faces, hair incl. headscarf), SVG taken from the `react-peeps` npm package | `engine/illustration/.../files/illustration/people.json` | CC0 1.0 (drawings); package code MIT | none |
+| Fluent Emoji Flat (Microsoft), 230 objects and places | `files/illustration/objects.json` | MIT | licence text in the app |
+| Health Icons (Resolve to Save Lives), 8 icons | `files/illustration/objects.json` | MIT | licence text in the app |
+| Safe, gold bars, storefront | `files/illustration/objects.json` | drawn for Trimio | none |
+| Picture generator add-ons (downloaded on demand): SDXS-512 GGUF; FLUX.2 [klein] 4B, Qwen3-4B, FLUX.2 small decoder | `IllustrationAddOns` | OpenRAIL++-M (use restrictions pass to users); Apache-2.0 | none; see docs/research/ILLUSTRATION.md |

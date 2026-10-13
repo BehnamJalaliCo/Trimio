@@ -6,6 +6,7 @@ import io.trimio.engine.autopilot.Rng
 import io.trimio.engine.motion.explainer.ArtDirection
 import io.trimio.engine.motion.explainer.CaptionStyle
 import io.trimio.engine.motion.explainer.ChapterMark
+import io.trimio.engine.motion.explainer.FilmGrammar
 import io.trimio.engine.motion.explainer.PaletteBook
 import io.trimio.engine.motion.explainer.StageGrammar
 
@@ -19,9 +20,12 @@ import io.trimio.engine.motion.explainer.StageGrammar
 object ArtDirector {
 
     /** The stage's palette book ([PaletteBook]): light grounds and dark ones. */
-    val LIGHT: List<String> get() = PaletteBook.all.filter { !it.dark }.map { it.id }
-    val DARK: List<String> get() = PaletteBook.all.filter { it.dark }.map { it.id }
-    val PALETTES: List<String> get() = PaletteBook.ids
+    val LIGHT: List<String> get() = PaletteBook.all.filter { !it.dark && !news(it.id) }.map { it.id }
+    val DARK: List<String> get() = PaletteBook.all.filter { it.dark && !news(it.id) }.map { it.id }
+    val PALETTES: List<String> get() = PaletteBook.ids.filter { !news(it) }
+
+    /** Palettes the stage keeps for illustrated news ("news-…"): a diagram film does not take them. */
+    private fun news(id: String) = id.startsWith("news")
 
     /** The stage's layout grammars, chapter marks and caption treatments (the reference's own first). */
     val LAYOUTS: List<String> get() = StageGrammar.entries.map { it.id }
@@ -65,6 +69,27 @@ object ArtDirector {
         val captions = if (brief.captions == "none") NO_CAPTIONS else rng.weighted(CAPTIONS.mapIndexed { i, c -> c to if (i == 0) FIRST else 1f })
         return ArtDirection(palette, layout, mark, captions, seed)
     }
+
+    /**
+     * The look of an illustrated news film: a light ground, a brand pair (the accent fills big shapes,
+     * the dark marks the punchline) from the brief's own colours («#F5B800») or the seed, no chapter
+     * mark, and captions only when the brief asks for them (the headlines carry the words).
+     */
+    fun news(n: Narration, seed: Long): ArtDirection {
+        val rng = Rng(seed).fork(SALT + 3)
+        val brief = RulesUnderstander.brief(n.prompt)
+        val hex = Regex("#[0-9A-Fa-f]{6}").findAll(n.prompt).map { it.value.uppercase() }.toList()
+        val (accent, dark) = if (hex.size >= 2) hex[0] to hex[1] else rng.pick(PAIRS).let { (a, d) -> (hex.firstOrNull() ?: a) to d }
+        val newsBook = PaletteBook.ids.filter(::news)
+        val palette = if (brief.look == "noir") rng.pick(DARK.ifEmpty { PALETTES }) else rng.pick(newsBook.ifEmpty { LIGHT.ifEmpty { PALETTES } })
+        val captions = if (brief.captions in setOf("word", "phrase")) CAPTIONS.first() else NO_CAPTIONS
+        return ArtDirection(palette, LAYOUTS.first(), ChapterMark.None.id, captions, seed, FilmGrammar.IllustratedNews.id, accent, dark)
+    }
+
+    /** Brand pairs for news films: an accent that fills, a dark that marks (the reference's yellow and navy first). */
+    private val PAIRS = listOf(
+        "#F5B800" to "#1B1F5E", "#FF6B4A" to "#1D1D2B", "#12A594" to "#20262E", "#E63946" to "#1D3557", "#7B5CFA" to "#1E1B3A", "#2BB673" to "#12343B",
+    )
 
     /** Accents for [count] chapters: the seed's start, and never the same twice in a row. */
     fun accents(count: Int, seed: Long): List<Int> {

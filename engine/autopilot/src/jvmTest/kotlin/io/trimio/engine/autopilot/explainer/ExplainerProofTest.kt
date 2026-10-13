@@ -67,7 +67,8 @@ class ExplainerProofTest {
         )
         // -Dexplainer.chapters=k: the model writes only the first k chapters (short runs on a CPU); the rules the rest.
         val keep = System.getProperty("explainer.chapters")?.toIntOrNull()
-        val narration = keep?.let { k -> Chapters.find(n).getOrNull(k)?.let { cut -> Narration(n.words, n.clauses.take(cut.clauses.first), u, prompt, n.clauses[cut.clauses.first - 1].end, lexicon) } } ?: n
+        val narration = keep?.let { k -> Chapters.find(n).getOrNull(k)?.let { cut -> Narration(n.words, n.clauses.take(cut.clauses.first), u, prompt,
+            n.clauses[cut.clauses.first - 1].end, lexicon) } } ?: n
         val t0 = System.nanoTime()
         val log = mutableListOf<String>()
         val r = runBlocking { Screenwriter(LlmDirector(model, budget = 30.minutes, outline = keep == null), askAgain = false).write(narration, seeds.first()) { println(it); log += it } }

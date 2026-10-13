@@ -40,6 +40,12 @@ internal object Pieces {
             Primitive.Tangle to FigurePieces.Tangle,
             Primitive.Thinking to FigurePieces.Thinking,
             Primitive.Profile to FigurePieces.Profile,
+            Primitive.Headline to NewsPieces.Headline,
+            Primitive.Hero to NewsPieces.Hero,
+            Primitive.Bubble to NewsPieces.Bubble,
+            Primitive.Annotation to NewsPieces.Annotation,
+            Primitive.Calendar to NewsPieces.Calendar,
+            Primitive.Stars to NewsPieces.Stars,
         )
     }
 
@@ -48,14 +54,14 @@ internal object Pieces {
     /** Primitives whose value a "fill" moves; on the others a fill reads as a highlight. */
     val fillable: Set<Primitive> = setOf(
         Primitive.Stat, Primitive.Meter, Primitive.Bars, Primitive.Blocks, Primitive.Ring, Primitive.Dots, Primitive.Clock,
-        Primitive.Scale, Primitive.Ladder, Primitive.Timeline, Primitive.Steps, Primitive.TaskTiles, Primitive.Checklist,
+        Primitive.Scale, Primitive.Ladder, Primitive.Timeline, Primitive.Steps, Primitive.TaskTiles, Primitive.Checklist, Primitive.Calendar,
     )
 
     /** Primitives whose items can be a bare count (a check's picks name them even when they have no labels). */
     val counted: Set<Primitive> = setOf(Primitive.TaskTiles, Primitive.Blocks, Primitive.Dots, Primitive.Branches)
 
     /** Primitives that are words: a whole-element highlight underlines them; marks sit under them. */
-    val wordy: Set<Primitive> = setOf(Primitive.Heading, Primitive.Kicker, Primitive.BigWord, Primitive.Note, Primitive.Stat, Primitive.Mark)
+    val wordy: Set<Primitive> = setOf(Primitive.Headline, Primitive.Heading, Primitive.Kicker, Primitive.BigWord, Primitive.Note, Primitive.Stat, Primitive.Mark)
 
     /** A primitive for a beat that creates an element without naming one. */
     fun guess(c: BeatContent): Primitive = when {
