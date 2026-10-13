@@ -50,7 +50,7 @@ internal object ListPieces {
         val ph = 68f * h.u
         val pad = 30f * h.u
         val icons = s.items.map { it.visual.ifEmpty { s.visual } }
-        val iconW = 32f * h.u
+        val iconW = 36f * h.u
         val widths = fits.mapIndexed { i, f -> f.width + pad * 2f + if (icons.getOrNull(i).isNullOrEmpty()) 0f else iconW + 12f * h.u }
         val gap = 16f * h.u
         val maxW = minOf(h.maxW, 940f * h.u)
@@ -72,7 +72,7 @@ internal object ListPieces {
             texts.indices.map { i ->
                 val b = boxes.getValue(i)
                 val icon = icons.getOrNull(i).orEmpty()
-                val tx = if (icon.isEmpty()) b.centerX else b.centerX - h.dir * (iconW + 12f * h.u) / 2f
+                val tx = if (icon.isEmpty()) b.centerX else b.centerX + h.dir * (iconW + 12f * h.u) / 2f
                 val ix = if (h.rtl) b.right - pad - iconW / 2f else b.left + pad + iconW / 2f
                 val at = t.revealAt(i)
                 fun body(fill: ColorAnim, rim: ColorAnim?, ink: ColorAnim, on: androidx.compose.ui.graphics.Color, glyph: ColorAnim): List<Node> = listOfNotNull(
@@ -80,9 +80,10 @@ internal object ListPieces {
                     if (icon.isNotEmpty()) h.glyph(icon, ix, b.centerY, iconW, glyph, at + 0.1f) else null,
                     h.words(texts[i], fits[i], ink, tx, b.centerY, on, at + 0.05f, Kit.Reveal.Fade, name = "chip"),
                 )
-                val plain = body(ColorAnim.of(h.card), t.pickColor(i, h.pal.rim, h.accent), t.pickColor(i, h.ink, h.accentOnCard), h.card, ColorAnim.of(h.accentOnCard))
+                val plain = body(ColorAnim.of(h.card), ColorAnim.of(h.pal.rim), ColorAnim.of(h.ink), h.card, ColorAnim.of(h.accentOnCard))
+                val picked = h.toggled(body(ColorAnim.of(h.wash), ColorAnim.of(h.accent), ColorAnim.of(h.ink), h.wash, ColorAnim.of(h.readable(h.accent, h.wash))), t.pickSteps(i), "chip-pick")
                 val checked = t.checkedAt(i)?.let { c -> h.layer(body(ColorAnim.of(h.accentBody), null, ColorAnim.of(h.onAccent), h.accentBody, ColorAnim.of(h.onAccent)), c, "chip-on") }
-                h.pop(listOfNotNull(h.rect(b.centerX, b.centerY + 3f * h.u, b.width, b.height, ph / 2f, ColorAnim.of(h.pal.rim.copy(alpha = 0.05f)))) + plain + listOfNotNull(checked), b, at, "chip")
+                h.pop(listOfNotNull(h.rect(b.centerX, b.centerY + 3f * h.u, b.width, b.height, ph / 2f, ColorAnim.of(h.pal.rim.copy(alpha = 0.05f)))) + plain + listOfNotNull(picked, checked), b, at, "chip")
             }
         }
     }

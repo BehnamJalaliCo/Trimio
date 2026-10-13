@@ -133,10 +133,14 @@ enabled yet.
 
 ## Packaging (Compose `nativeDistributions`)
 
-- Windows: MSI and EXE, **per-user install** (no admin prompt, `%LOCALAPPDATA%\Programs`),
-  Start-menu group "Trimio", desktop shortcut, install-folder chooser, a fixed `upgradeUuid` so
-  newer MSIs upgrade in place, and file associations for `.mp4` / `.mov` ("Open with Trimio" starts
-  an edit). The full JDK module set is bundled (`includeAllModules`).
+- Windows: one EXE installer built with Inno Setup around the app image of `createDistributable`
+  (`desktopApp/windows/trimio.iss`): **per-user install** (no admin prompt, `%LOCALAPPDATA%\Programs\Trimio`),
+  Start-menu entry, optional desktop shortcut, "Open with Trimio" for `.mp4` / `.mov`, and a fixed
+  AppId so a newer installer upgrades in place and keeps the models. Uninstalling from Settings →
+  Apps or the Control Panel deletes everything the app made (`%APPDATA%\Trimio`: models, libraries,
+  animations, projects, settings, reports; and `%LOCALAPPDATA%\Trimio`); exported videos in
+  `Videos\Trimio` stay. 1.0.14 and earlier were MSI installs: the EXE removes that MSI quietly first
+  (its data stays). The full JDK module set is bundled (`includeAllModules`).
 - Version: `-Ptrimio.desktop.version=1.2.3` (tags `v1.2.3` / `desktop-v1.2.3` set it in CI);
   MSI needs `MAJOR.MINOR.BUILD` with MAJOR ≥ 1.
 - jpackage cannot build MSI/EXE on Linux, so `.github/workflows/desktop-windows.yml` (windows-latest,

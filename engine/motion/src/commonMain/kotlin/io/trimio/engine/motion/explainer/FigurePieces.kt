@@ -24,11 +24,11 @@ internal object FigurePieces {
         val gw = gf.width + 46f * h.u
         val gh = 64f * h.u
         val w = minOf(h.maxW, 760f * h.u)
-        val spread = 108f * h.u
-        val lf = if (texts.any { it.isNotEmpty() }) h.fitAll(texts.map { it.ifEmpty { " " } }, Voices.label, 24f * h.u, w * 0.45f, 1) else emptyList()
+        val spread = 120f * h.u
+        val lf = if (texts.any { it.isNotEmpty() }) h.fitAll(texts.map { it.ifEmpty { " " } }, Voices.label, 26f * h.u, w * 0.45f, 1) else emptyList()
         val labelRoom = if (lf.isEmpty()) 0f else 40f * h.u
         val ht = (n - 1) * spread + 40f * h.u + labelRoom
-        val dot = 30f * h.u
+        val dot = 34f * h.u
         val sx = if (h.rtl) w - dot / 2f - 4f * h.u else dot / 2f + 4f * h.u
         val gx = if (h.rtl) gw / 2f else w - gw / 2f
         val gy = labelRoom + (ht - labelRoom) / 2f
@@ -55,7 +55,7 @@ internal object FigurePieces {
                 lf.getOrNull(i)?.takeIf { texts[i].isNotEmpty() }?.let { f ->
                     val lx = if (h.rtl) sx + dot / 2f - f.width / 2f else sx - dot / 2f + f.width / 2f
                     val color = picked?.let { ColorAnim.tween(h.muted, h.accentInk, it, it + Track.TURN) } ?: ColorAnim.of(h.muted)
-                    nodes += h.words(texts[i], f, color, lx, y - 34f * h.u, h.ground, at + 0.2f, Kit.Reveal.Fade, name = "branch-label")
+                    nodes += h.words(texts[i], f, color, lx, y - 36f * h.u, h.ground, at + 0.2f, Kit.Reveal.Fade, name = "branch-label")
                 }
             }
             nodes += h.pop(

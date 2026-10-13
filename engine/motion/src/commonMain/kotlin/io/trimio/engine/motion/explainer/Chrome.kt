@@ -29,10 +29,11 @@ internal class Header(
     private val chapters: List<Chapter>,
     private val duration: Float,
     private val mark: ChapterMark,
+    persian: Boolean,
 ) {
     private val u = frame.u
     private val n = chapters.size
-    private val hand = Hand(text, pal, 0, rtl, u, IconResolver.None, frame.width, frame.height, 0L)
+    private val hand = Hand(text, pal, 0, rtl, u, IconResolver.None, frame.width, frame.height, 0L).also { it.persian = persian }
     private val dir = if (rtl) -1f else 1f
 
     private fun start(c: Int) = chapters[c].start.toFloat()
@@ -122,9 +123,9 @@ internal class Header(
 }
 
 /** Captions: a dark pill of a few words on a thin accent band, or quiet low words, or none. */
-internal class Captions(private val text: TextLayoutEngine, private val pal: ExplainerPalette, private val frame: StageFrame, private val rtl: Boolean) {
+internal class Captions(private val text: TextLayoutEngine, private val pal: ExplainerPalette, private val frame: StageFrame, private val rtl: Boolean, persian: Boolean) {
     private val u = frame.u
-    private val hand = Hand(text, pal, 0, rtl, u, IconResolver.None, frame.width, frame.height, 0L)
+    private val hand = Hand(text, pal, 0, rtl, u, IconResolver.None, frame.width, frame.height, 0L).also { it.persian = persian }
 
     fun nodes(style: CaptionStyle, chunks: List<CaptionChunk>, duration: Float): List<Node> = when (style) {
         CaptionStyle.None -> emptyList()
@@ -141,7 +142,7 @@ internal class Captions(private val text: TextLayoutEngine, private val pal: Exp
         val words = hand.say(c.text.trim()).ifEmpty { return null }
         val a = c.start.toFloat()
         val b = c.end.toFloat().coerceAtLeast(a + 0.2f)
-        val f = hand.fit(words, if (body != null) Voices.label else Voices.body, (if (body != null) 30f else 34f) * u, frame.safe.width * 0.82f, 2)
+        val f = hand.fit(words, if (body != null) Voices.label else Voices.body, (if (body != null) 34f else 36f) * u, frame.safe.width * 0.82f, 2)
         val ground = body ?: pal.background
         val node = TextNode(words, f.type, Fill.Solid(ColorAnim.of(ink)), maxWidth = f.width + 2f, rtl = rtl || Kit.persian(words), transform = Transform(x = (frame.width / 2f).anim, y = frame.captionY.anim), name = "caption")
         node.onBody = true
@@ -149,7 +150,7 @@ internal class Captions(private val text: TextLayoutEngine, private val pal: Exp
         val parts = listOfNotNull(
             body?.let {
                 ShapeNode(
-                    ShapeSpec.Rect((f.width + 44f * u).anim, (f.height + 22f * u).anim, (14f * u).anim), fill = Fill.Solid(ColorAnim.of(it)),
+                    ShapeSpec.Rect((f.width + 48f * u).anim, (f.height + 20f * u).anim, (16f * u).anim), fill = Fill.Solid(ColorAnim.of(it)),
                     transform = Transform(x = (frame.width / 2f).anim, y = frame.captionY.anim), name = "caption-pill",
                 )
             },

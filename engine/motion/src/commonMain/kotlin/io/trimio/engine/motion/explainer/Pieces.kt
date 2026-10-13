@@ -47,6 +47,9 @@ internal object Pieces {
         Primitive.Scale, Primitive.Ladder, Primitive.Timeline, Primitive.Steps, Primitive.TaskTiles, Primitive.Checklist,
     )
 
+    /** Primitives whose items can be a bare count (a check's picks name them even when they have no labels). */
+    val counted: Set<Primitive> = setOf(Primitive.TaskTiles, Primitive.Blocks, Primitive.Dots, Primitive.Branches)
+
     /** Primitives that are words: a whole-element highlight underlines them; marks sit under them. */
     val wordy: Set<Primitive> = setOf(Primitive.Heading, Primitive.Kicker, Primitive.BigWord, Primitive.Note, Primitive.Stat, Primitive.Mark)
 

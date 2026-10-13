@@ -81,7 +81,7 @@ internal class Hand(
     val radius: Float get() = 22f * u
 
     /** Persian digits (and the Persian percent sign) on a Persian film. */
-    fun say(s: String): String = if (rtl) Numerals.toPersian(s).replace('%', '٪').replace('.', '٫') else s
+    fun say(s: String): String = if (persian) Hand.persianDigits(s) else s
 
     /** Readable [c] on [on]. */
     fun readable(c: Color, on: Color): Color = ExplainerPalette.readable(c, on, if (ExplainerPalette.ratio(ink, on) >= ExplainerPalette.FLOOR) ink else Look.textOn(on))
@@ -281,7 +281,28 @@ internal class Hand(
         return List(n) { i -> val k = if (rtl) n - 1 - i else i; left + k * (item + gap) + item / 2f }
     }
 
+    /** Persian digits are for Persian films (Arabic keeps its own). */
+    var persian: Boolean = rtl
+
     companion object {
         private const val FIT_STEPS = 24
+
+        /** Persian digits, with the Persian decimal point and percent sign next to digits only. */
+        fun persianDigits(s: String): String {
+            val p = Numerals.toPersian(s)
+            val out = StringBuilder(p.length)
+            for ((i, c) in p.withIndex()) {
+                val before = p.getOrNull(i - 1)?.let { it in '۰'..'۹' } == true
+                val after = p.getOrNull(i + 1)?.let { it in '۰'..'۹' } == true
+                out.append(
+                    when {
+                        c == '.' && before && after -> '٫'
+                        c == '%' && (before || after) -> '٪'
+                        else -> c
+                    },
+                )
+            }
+            return out.toString()
+        }
     }
 }

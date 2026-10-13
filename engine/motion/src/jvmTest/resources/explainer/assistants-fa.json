@@ -1,0 +1,830 @@
+{
+ "art": {
+  "palette": "paper-warm",
+  "layout": "header-top",
+  "chapterMark": "dashes",
+  "captionStyle": "band-pill",
+  "seed": 8
+ },
+ "chapters": [
+  {
+   "title": "سه جور دستیار",
+   "start": 0.0,
+   "end": 12.0,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 0.5,
+     "until": 2.3,
+     "line": "دستیارها همه یه جور نیستن.",
+     "op": "add",
+     "element": "icon1",
+     "primitive": "icon",
+     "content": {
+      "text": "دستیار هوشمند",
+      "visual": "assistant"
+     },
+     "metaphor": "an assistant as one friendly figure"
+    },
+    {
+     "at": 2.3,
+     "until": 4.8,
+     "line": "کدوم دستیار به کار شما میاد؟",
+     "op": "add",
+     "element": "h1",
+     "primitive": "heading",
+     "content": {
+      "text": "کدوم دستیار به کار شما میاد؟"
+     }
+    },
+    {
+     "at": 4.8,
+     "until": 8.4,
+     "line": "سه جور داریم: کارآموز، همه‌کاره و متخصص.",
+     "op": "build",
+     "element": "c1",
+     "primitive": "chips",
+     "content": {
+      "items": [
+       {
+        "label": "کارآموز",
+        "visual": "intern"
+       },
+       {
+        "label": "همه‌کاره",
+        "visual": "layers"
+       },
+       {
+        "label": "متخصص",
+        "visual": "expert"
+       }
+      ]
+     },
+     "metaphor": "three options as three chips"
+    },
+    {
+     "at": 8.4,
+     "until": 9.4,
+     "line": "بیاید یکی یکی ببینیم.",
+     "op": "dim",
+     "element": "icon1"
+    },
+    {
+     "at": 9.4,
+     "until": 11.6,
+     "line": "اول از همه، کارآموز.",
+     "op": "highlight",
+     "element": "c1",
+     "content": {
+      "picks": [
+       0
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "title": "کارآموز",
+   "start": 12.0,
+   "end": 27.0,
+   "accent": 1,
+   "beats": [
+    {
+     "at": 12.3,
+     "until": 13.4,
+     "line": "کارآموز مثل یه...",
+     "op": "add",
+     "element": "k2",
+     "primitive": "kicker",
+     "content": {
+      "text": "مثل یه..."
+     }
+    },
+    {
+     "at": 13.4,
+     "until": 15.0,
+     "line": "نیروی تازه‌وارده.",
+     "op": "add",
+     "element": "p2",
+     "primitive": "profile",
+     "content": {
+      "text": "کارآموز",
+      "visual": "intern"
+     },
+     "metaphor": "a new hire's profile card"
+    },
+    {
+     "at": 15.0,
+     "until": 16.6,
+     "line": "تازه‌وارد شرکت.",
+     "op": "build",
+     "element": "p2",
+     "content": {
+      "items": [
+       {
+        "label": "تازه‌وارد"
+       },
+       {
+        "label": "سریع"
+       }
+      ]
+     }
+    },
+    {
+     "at": 16.6,
+     "until": 17.2,
+     "line": "",
+     "op": "clear",
+     "element": "k2"
+    },
+    {
+     "at": 17.0,
+     "until": 18.2,
+     "line": "کارهای سبک و تکراری رو",
+     "op": "replace",
+     "element": "p2",
+     "primitive": "heading",
+     "content": {
+      "text": "کارهای سبک و تکراری"
+     }
+    },
+    {
+     "at": 18.2,
+     "until": 19.2,
+     "line": "خیلی خوب انجام می‌ده.",
+     "op": "add",
+     "element": "t2",
+     "primitive": "task-tiles",
+     "content": {
+      "value": 5
+     },
+     "metaphor": "small tasks as a row of tiles"
+    },
+    {
+     "at": 19.2,
+     "until": 20.2,
+     "line": "یکی،",
+     "op": "check",
+     "element": "t2",
+     "content": {
+      "picks": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "at": 20.2,
+     "until": 21.0,
+     "line": "دوتا،",
+     "op": "check",
+     "element": "t2",
+     "content": {
+      "picks": [
+       2,
+       3
+      ]
+     }
+    },
+    {
+     "at": 21.0,
+     "until": 21.8,
+     "line": "همه رو.",
+     "op": "check",
+     "element": "t2",
+     "content": {
+      "picks": [
+       4
+      ]
+     }
+    },
+    {
+     "at": 21.8,
+     "until": 23.0,
+     "line": "و محدودیت مصرفش",
+     "op": "morph",
+     "element": "t2",
+     "primitive": "meter",
+     "content": {
+      "text": "محدودیت مصرف",
+      "value": 1.0
+     },
+     "metaphor": "usage as a draining meter"
+    },
+    {
+     "at": 23.0,
+     "until": 24.4,
+     "line": "خیلی آروم",
+     "op": "fill",
+     "element": "t2",
+     "content": {
+      "value": 0.98
+     }
+    },
+    {
+     "at": 24.4,
+     "until": 26.6,
+     "line": "کم می‌شه.",
+     "op": "fill",
+     "element": "t2",
+     "content": {
+      "value": 0.95
+     }
+    },
+    {
+     "at": 24.8,
+     "until": 26.6,
+     "line": "",
+     "op": "add",
+     "element": "n2",
+     "primitive": "note",
+     "content": {
+      "text": "خیلی آروم کم می‌شه"
+     }
+    }
+   ]
+  },
+  {
+   "title": "همه‌کاره",
+   "start": 27.0,
+   "end": 43.0,
+   "accent": 2,
+   "beats": [
+    {
+     "at": 27.3,
+     "until": 28.6,
+     "line": "همه‌کاره بیشتر کارهای روزمره رو",
+     "op": "add",
+     "element": "h3",
+     "primitive": "heading",
+     "content": {
+      "text": "بیشتر کارهای روزمره"
+     }
+    },
+    {
+     "at": 28.6,
+     "until": 32.2,
+     "line": "می‌نویسه، کد می‌زنه، تحلیل می‌کنه و گفتگو می‌کنه.",
+     "op": "build",
+     "element": "i3",
+     "primitive": "icon-tiles",
+     "content": {
+      "items": [
+       {
+        "label": "نوشتن",
+        "visual": "pencil"
+       },
+       {
+        "label": "کدنویسی",
+        "visual": "code"
+       },
+       {
+        "label": "تحلیل",
+        "visual": "analysis"
+       },
+       {
+        "label": "گفتگو",
+        "visual": "chat"
+       }
+      ]
+     },
+     "metaphor": "everyday tasks as icon tiles"
+    },
+    {
+     "at": 32.2,
+     "until": 32.8,
+     "line": "",
+     "op": "clear",
+     "element": "i3"
+    },
+    {
+     "at": 32.4,
+     "until": 33.0,
+     "line": "",
+     "op": "clear",
+     "element": "h3"
+    },
+    {
+     "at": 33.0,
+     "until": 34.6,
+     "line": "اول با خودش فکر می‌کنه،",
+     "op": "add",
+     "element": "th3",
+     "primitive": "thinking",
+     "content": {
+      "text": "اول با خودش فکر می‌کنه"
+     },
+     "metaphor": "thinking dots"
+    },
+    {
+     "at": 34.6,
+     "until": 36.4,
+     "line": "راه‌های مختلف رو می‌سنجه",
+     "op": "add",
+     "element": "b3",
+     "primitive": "branches",
+     "content": {
+      "text": "کار",
+      "items": [
+       {
+        "label": "راه اول"
+       },
+       {
+        "label": "راه دوم"
+       },
+       {
+        "label": "راه سوم"
+       }
+      ]
+     },
+     "metaphor": "paths converging on a task"
+    },
+    {
+     "at": 36.4,
+     "until": 38.0,
+     "line": "و بهترین راه رو انتخاب می‌کنه.",
+     "op": "check",
+     "element": "b3",
+     "content": {
+      "picks": [
+       1
+      ]
+     }
+    },
+    {
+     "at": 38.0,
+     "until": 39.4,
+     "line": "بهترین راه.",
+     "op": "replace",
+     "element": "th3",
+     "primitive": "badge",
+     "content": {
+      "text": "بهترین راه",
+      "visual": "path"
+     }
+    },
+    {
+     "at": 39.4,
+     "until": 39.9,
+     "line": "",
+     "op": "clear",
+     "element": "b3"
+    },
+    {
+     "at": 39.6,
+     "until": 39.9,
+     "line": "",
+     "op": "clear",
+     "element": "th3"
+    },
+    {
+     "at": 40.0,
+     "until": 41.4,
+     "line": "ولی جایی که مسئله عمیق و پیچیده‌ست",
+     "op": "add",
+     "element": "tg3",
+     "primitive": "tangle",
+     "content": {
+      "text": "مسائل عمیق و پیچیده"
+     },
+     "metaphor": "a hand-drawn knot for a hard problem"
+    },
+    {
+     "at": 41.4,
+     "until": 42.6,
+     "line": "اونجا گیر می‌کنه.",
+     "op": "add",
+     "element": "mk3",
+     "primitive": "mark",
+     "content": {
+      "visual": "circle"
+     }
+    }
+   ]
+  },
+  {
+   "title": "متخصص",
+   "start": 43.0,
+   "end": 60.0,
+   "accent": 3,
+   "beats": [
+    {
+     "at": 43.3,
+     "until": 44.8,
+     "line": "متخصص دیرتر جواب می‌ده",
+     "op": "add",
+     "element": "cl4",
+     "primitive": "clock",
+     "content": {
+      "text": "دیرتر جواب می‌ده"
+     },
+     "metaphor": "a clock for a slower answer"
+    },
+    {
+     "at": 44.8,
+     "until": 46.0,
+     "line": "و محدودیت مصرفش",
+     "op": "add",
+     "element": "m4",
+     "primitive": "meter",
+     "content": {
+      "text": "محدودیت مصرف",
+      "value": 0.99
+     }
+    },
+    {
+     "at": 46.0,
+     "until": 47.2,
+     "line": "زودتر تموم می‌شه.",
+     "op": "fill",
+     "element": "m4",
+     "content": {
+      "value": 0.33
+     }
+    },
+    {
+     "at": 47.2,
+     "until": 48.0,
+     "line": "یعنی یک سوم مونده.",
+     "op": "morph",
+     "element": "m4",
+     "primitive": "ring",
+     "content": {
+      "text": "باقی‌مانده",
+      "value": 0.33
+     }
+    },
+    {
+     "at": 48.0,
+     "until": 48.6,
+     "line": "",
+     "op": "clear",
+     "element": "cl4"
+    },
+    {
+     "at": 48.2,
+     "until": 48.8,
+     "line": "",
+     "op": "clear",
+     "element": "m4"
+    },
+    {
+     "at": 48.8,
+     "until": 50.2,
+     "line": "ولی از همه قوی‌تره.",
+     "op": "build",
+     "element": "br4",
+     "primitive": "bars",
+     "content": {
+      "items": [
+       {
+        "label": "کارآموز",
+        "value": 2
+       },
+       {
+        "label": "همه‌کاره",
+        "value": 3.2
+       },
+       {
+        "label": "متخصص",
+        "value": 5
+       }
+      ],
+      "caption": "قوی‌ترین"
+     },
+     "metaphor": "strength as bars by tier"
+    },
+    {
+     "at": 50.2,
+     "until": 51.4,
+     "line": "قوی‌ترین.",
+     "op": "highlight",
+     "element": "br4",
+     "content": {
+      "picks": [
+       2
+      ]
+     }
+    },
+    {
+     "at": 51.4,
+     "until": 52.0,
+     "line": "پس",
+     "op": "dim",
+     "element": "br4"
+    },
+    {
+     "at": 52.0,
+     "until": 54.0,
+     "line": "فقط برای سخت‌ترین بخش کار.",
+     "op": "add",
+     "element": "bw4",
+     "primitive": "big-word",
+     "content": {
+      "text": "سخت‌ترین بخش"
+     },
+     "metaphor": "the key phrase large in the accent"
+    },
+    {
+     "at": 54.0,
+     "until": 54.6,
+     "line": "",
+     "op": "clear",
+     "element": "br4"
+    },
+    {
+     "at": 54.2,
+     "until": 55.4,
+     "line": "کار رو تیکه کنید:",
+     "op": "replace",
+     "element": "bw4",
+     "primitive": "blocks",
+     "content": {
+      "value": 10
+     },
+     "metaphor": "work as a row of blocks"
+    },
+    {
+     "at": 55.4,
+     "until": 56.6,
+     "line": "سخت‌ترین تیکه‌ها با متخصص،",
+     "op": "fill",
+     "element": "bw4",
+     "content": {
+      "value": 3
+     }
+    },
+    {
+     "at": 56.6,
+     "until": 57.8,
+     "line": "بقیه با همه‌کاره.",
+     "op": "highlight",
+     "element": "bw4",
+     "content": {
+      "picks": [
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9
+      ]
+     }
+    },
+    {
+     "at": 57.8,
+     "until": 59.6,
+     "line": "سی درصد کار، صد درصد کیفیت.",
+     "op": "add",
+     "element": "st4",
+     "primitive": "stat",
+     "content": {
+      "text": "سهم متخصص",
+      "value": 30,
+      "unit": "%"
+     },
+     "metaphor": "the share as one figure"
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "text": "دستیارها همه یه",
+   "start": 0.5,
+   "end": 1.36
+  },
+  {
+   "text": "جور نیستن.",
+   "start": 1.4,
+   "end": 2.26
+  },
+  {
+   "text": "کدوم دستیار به",
+   "start": 2.3,
+   "end": 3.51
+  },
+  {
+   "text": "کار شما میاد؟",
+   "start": 3.55,
+   "end": 4.76
+  },
+  {
+   "text": "سه جور داریم: کارآموز،",
+   "start": 4.8,
+   "end": 6.56
+  },
+  {
+   "text": "همه‌کاره و متخصص.",
+   "start": 6.6,
+   "end": 8.36
+  },
+  {
+   "text": "بیاید یکی یکی ببینیم.",
+   "start": 8.4,
+   "end": 9.36
+  },
+  {
+   "text": "اول از همه، کارآموز.",
+   "start": 9.4,
+   "end": 11.56
+  },
+  {
+   "text": "کارآموز مثل یه...",
+   "start": 12.3,
+   "end": 13.36
+  },
+  {
+   "text": "نیروی تازه‌وارده.",
+   "start": 13.4,
+   "end": 14.96
+  },
+  {
+   "text": "تازه‌وارد شرکت.",
+   "start": 15.0,
+   "end": 16.56
+  },
+  {
+   "text": "کارهای سبک و",
+   "start": 17.0,
+   "end": 17.56
+  },
+  {
+   "text": "تکراری رو",
+   "start": 17.6,
+   "end": 18.16
+  },
+  {
+   "text": "خیلی خوب انجام می‌ده.",
+   "start": 18.2,
+   "end": 19.16
+  },
+  {
+   "text": "یکی،",
+   "start": 19.2,
+   "end": 20.16
+  },
+  {
+   "text": "دوتا،",
+   "start": 20.2,
+   "end": 20.96
+  },
+  {
+   "text": "همه رو.",
+   "start": 21.0,
+   "end": 21.76
+  },
+  {
+   "text": "و محدودیت مصرفش",
+   "start": 21.8,
+   "end": 22.96
+  },
+  {
+   "text": "خیلی آروم",
+   "start": 23.0,
+   "end": 24.36
+  },
+  {
+   "text": "کم می‌شه.",
+   "start": 24.4,
+   "end": 26.56
+  },
+  {
+   "text": "همه‌کاره بیشتر کارهای",
+   "start": 27.3,
+   "end": 27.91
+  },
+  {
+   "text": "روزمره رو",
+   "start": 27.95,
+   "end": 28.56
+  },
+  {
+   "text": "می‌نویسه، کد می‌زنه، تحلیل",
+   "start": 28.6,
+   "end": 30.36
+  },
+  {
+   "text": "می‌کنه و گفتگو می‌کنه.",
+   "start": 30.4,
+   "end": 32.16
+  },
+  {
+   "text": "اول با خودش",
+   "start": 33.0,
+   "end": 33.76
+  },
+  {
+   "text": "فکر می‌کنه،",
+   "start": 33.8,
+   "end": 34.56
+  },
+  {
+   "text": "راه‌های مختلف رو می‌سنجه",
+   "start": 34.6,
+   "end": 36.36
+  },
+  {
+   "text": "و بهترین راه",
+   "start": 36.4,
+   "end": 37.16
+  },
+  {
+   "text": "رو انتخاب می‌کنه.",
+   "start": 37.2,
+   "end": 37.96
+  },
+  {
+   "text": "بهترین راه.",
+   "start": 38.0,
+   "end": 39.36
+  },
+  {
+   "text": "ولی جایی که مسئله",
+   "start": 40.0,
+   "end": 40.66
+  },
+  {
+   "text": "عمیق و پیچیده‌ست",
+   "start": 40.7,
+   "end": 41.36
+  },
+  {
+   "text": "اونجا گیر می‌کنه.",
+   "start": 41.4,
+   "end": 42.56
+  },
+  {
+   "text": "متخصص دیرتر جواب می‌ده",
+   "start": 43.3,
+   "end": 44.76
+  },
+  {
+   "text": "و محدودیت مصرفش",
+   "start": 44.8,
+   "end": 45.96
+  },
+  {
+   "text": "زودتر تموم می‌شه.",
+   "start": 46.0,
+   "end": 47.16
+  },
+  {
+   "text": "یعنی یک سوم مونده.",
+   "start": 47.2,
+   "end": 47.96
+  },
+  {
+   "text": "ولی از همه قوی‌تره.",
+   "start": 48.8,
+   "end": 50.16
+  },
+  {
+   "text": "قوی‌ترین.",
+   "start": 50.2,
+   "end": 51.36
+  },
+  {
+   "text": "پس",
+   "start": 51.4,
+   "end": 51.96
+  },
+  {
+   "text": "فقط برای سخت‌ترین",
+   "start": 52.0,
+   "end": 52.96
+  },
+  {
+   "text": "بخش کار.",
+   "start": 53.0,
+   "end": 53.96
+  },
+  {
+   "text": "کار رو تیکه کنید:",
+   "start": 54.2,
+   "end": 55.36
+  },
+  {
+   "text": "سخت‌ترین تیکه‌ها با متخصص،",
+   "start": 55.4,
+   "end": 56.56
+  },
+  {
+   "text": "بقیه با همه‌کاره.",
+   "start": 56.6,
+   "end": 57.76
+  },
+  {
+   "text": "سی درصد کار،",
+   "start": 57.8,
+   "end": 58.66
+  },
+  {
+   "text": "صد درصد کیفیت.",
+   "start": 58.7,
+   "end": 59.56
+  }
+ ],
+ "language": "fa"
+}

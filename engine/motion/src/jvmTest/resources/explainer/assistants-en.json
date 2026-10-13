@@ -1,0 +1,855 @@
+{
+ "art": {
+  "palette": "paper-warm",
+  "layout": "header-top",
+  "chapterMark": "dashes",
+  "captionStyle": "band-pill",
+  "seed": 8
+ },
+ "chapters": [
+  {
+   "title": "Three kinds of assistants",
+   "start": 0.0,
+   "end": 12.0,
+   "accent": 0,
+   "beats": [
+    {
+     "at": 0.5,
+     "until": 2.3,
+     "line": "Assistants are not all alike.",
+     "op": "add",
+     "element": "icon1",
+     "primitive": "icon",
+     "content": {
+      "text": "Smart assistant",
+      "visual": "assistant"
+     },
+     "metaphor": "an assistant as one friendly figure"
+    },
+    {
+     "at": 2.3,
+     "until": 4.8,
+     "line": "Which one fits your work?",
+     "op": "add",
+     "element": "h1",
+     "primitive": "heading",
+     "content": {
+      "text": "Which one fits your work?"
+     }
+    },
+    {
+     "at": 4.8,
+     "until": 8.4,
+     "line": "There are three: the intern, the generalist and the expert.",
+     "op": "build",
+     "element": "c1",
+     "primitive": "chips",
+     "content": {
+      "items": [
+       {
+        "label": "The intern",
+        "visual": "intern"
+       },
+       {
+        "label": "The generalist",
+        "visual": "layers"
+       },
+       {
+        "label": "The expert",
+        "visual": "expert"
+       }
+      ]
+     },
+     "metaphor": "three options as three chips"
+    },
+    {
+     "at": 8.4,
+     "until": 9.4,
+     "line": "Let's meet them one by one.",
+     "op": "dim",
+     "element": "icon1"
+    },
+    {
+     "at": 9.4,
+     "until": 11.6,
+     "line": "First, the intern.",
+     "op": "highlight",
+     "element": "c1",
+     "content": {
+      "picks": [
+       0
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "title": "The intern",
+   "start": 12.0,
+   "end": 27.0,
+   "accent": 1,
+   "beats": [
+    {
+     "at": 12.3,
+     "until": 13.4,
+     "line": "The intern is like a...",
+     "op": "add",
+     "element": "k2",
+     "primitive": "kicker",
+     "content": {
+      "text": "Like a..."
+     }
+    },
+    {
+     "at": 13.4,
+     "until": 15.0,
+     "line": "brand-new hire.",
+     "op": "add",
+     "element": "p2",
+     "primitive": "profile",
+     "content": {
+      "text": "The intern",
+      "visual": "intern"
+     },
+     "metaphor": "a new hire's profile card"
+    },
+    {
+     "at": 15.0,
+     "until": 16.6,
+     "line": "New on the team.",
+     "op": "build",
+     "element": "p2",
+     "content": {
+      "items": [
+       {
+        "label": "New"
+       },
+       {
+        "label": "Quick"
+       }
+      ]
+     }
+    },
+    {
+     "at": 16.6,
+     "until": 17.2,
+     "line": "",
+     "op": "clear",
+     "element": "k2"
+    },
+    {
+     "at": 17.0,
+     "until": 18.2,
+     "line": "Light, repetitive tasks",
+     "op": "replace",
+     "element": "p2",
+     "primitive": "heading",
+     "content": {
+      "text": "Light, repetitive tasks"
+     }
+    },
+    {
+     "at": 18.2,
+     "until": 19.2,
+     "line": "it handles really well.",
+     "op": "add",
+     "element": "t2",
+     "primitive": "task-tiles",
+     "content": {
+      "value": 5
+     },
+     "metaphor": "small tasks as a row of tiles"
+    },
+    {
+     "at": 19.2,
+     "until": 20.2,
+     "line": "One,",
+     "op": "check",
+     "element": "t2",
+     "content": {
+      "picks": [
+       0,
+       1
+      ]
+     }
+    },
+    {
+     "at": 20.2,
+     "until": 21.0,
+     "line": "two,",
+     "op": "check",
+     "element": "t2",
+     "content": {
+      "picks": [
+       2,
+       3
+      ]
+     }
+    },
+    {
+     "at": 21.0,
+     "until": 21.8,
+     "line": "all of them.",
+     "op": "check",
+     "element": "t2",
+     "content": {
+      "picks": [
+       4
+      ]
+     }
+    },
+    {
+     "at": 21.8,
+     "until": 23.0,
+     "line": "And its usage limit",
+     "op": "morph",
+     "element": "t2",
+     "primitive": "meter",
+     "content": {
+      "text": "Usage limit",
+      "value": 1.0
+     },
+     "metaphor": "usage as a draining meter"
+    },
+    {
+     "at": 23.0,
+     "until": 24.4,
+     "line": "drains very",
+     "op": "fill",
+     "element": "t2",
+     "content": {
+      "value": 0.98
+     }
+    },
+    {
+     "at": 24.4,
+     "until": 26.6,
+     "line": "slowly.",
+     "op": "fill",
+     "element": "t2",
+     "content": {
+      "value": 0.95
+     }
+    },
+    {
+     "at": 24.8,
+     "until": 26.6,
+     "line": "",
+     "op": "add",
+     "element": "n2",
+     "primitive": "note",
+     "content": {
+      "text": "drains very slowly"
+     }
+    }
+   ]
+  },
+  {
+   "title": "The generalist",
+   "start": 27.0,
+   "end": 43.0,
+   "accent": 2,
+   "beats": [
+    {
+     "at": 27.3,
+     "until": 28.6,
+     "line": "The generalist covers most everyday work:",
+     "op": "add",
+     "element": "h3",
+     "primitive": "heading",
+     "content": {
+      "text": "Most everyday work"
+     }
+    },
+    {
+     "at": 28.6,
+     "until": 32.2,
+     "line": "writing, code, analysis and conversation.",
+     "op": "build",
+     "element": "i3",
+     "primitive": "icon-tiles",
+     "content": {
+      "items": [
+       {
+        "label": "Writing",
+        "visual": "pencil"
+       },
+       {
+        "label": "Code",
+        "visual": "code"
+       },
+       {
+        "label": "Analysis",
+        "visual": "analysis"
+       },
+       {
+        "label": "Chat",
+        "visual": "chat"
+       }
+      ]
+     },
+     "metaphor": "everyday tasks as icon tiles"
+    },
+    {
+     "at": 32.2,
+     "until": 32.8,
+     "line": "",
+     "op": "clear",
+     "element": "i3"
+    },
+    {
+     "at": 32.4,
+     "until": 33.0,
+     "line": "",
+     "op": "clear",
+     "element": "h3"
+    },
+    {
+     "at": 33.0,
+     "until": 34.6,
+     "line": "It thinks first,",
+     "op": "add",
+     "element": "th3",
+     "primitive": "thinking",
+     "content": {
+      "text": "it thinks first"
+     },
+     "metaphor": "thinking dots"
+    },
+    {
+     "at": 34.6,
+     "until": 36.4,
+     "line": "weighs different paths",
+     "op": "add",
+     "element": "b3",
+     "primitive": "branches",
+     "content": {
+      "text": "Task",
+      "items": [
+       {
+        "label": "Path one"
+       },
+       {
+        "label": "Path two"
+       },
+       {
+        "label": "Path three"
+       }
+      ]
+     },
+     "metaphor": "paths converging on a task"
+    },
+    {
+     "at": 36.4,
+     "until": 38.0,
+     "line": "and picks the best one.",
+     "op": "check",
+     "element": "b3",
+     "content": {
+      "picks": [
+       1
+      ]
+     }
+    },
+    {
+     "at": 38.0,
+     "until": 39.4,
+     "line": "The best path.",
+     "op": "replace",
+     "element": "th3",
+     "primitive": "badge",
+     "content": {
+      "text": "Best path",
+      "visual": "path"
+     }
+    },
+    {
+     "at": 39.4,
+     "until": 39.9,
+     "line": "",
+     "op": "clear",
+     "element": "b3"
+    },
+    {
+     "at": 39.6,
+     "until": 39.9,
+     "line": "",
+     "op": "clear",
+     "element": "th3"
+    },
+    {
+     "at": 40.0,
+     "until": 41.4,
+     "line": "But where a problem is deep and tangled",
+     "op": "add",
+     "element": "tg3",
+     "primitive": "tangle",
+     "content": {
+      "text": "Deep, tangled problems"
+     },
+     "metaphor": "a hand-drawn knot for a hard problem"
+    },
+    {
+     "at": 41.4,
+     "until": 42.6,
+     "line": "it gets stuck.",
+     "op": "add",
+     "element": "mk3",
+     "primitive": "mark",
+     "content": {
+      "visual": "circle"
+     }
+    }
+   ]
+  },
+  {
+   "title": "The expert",
+   "start": 43.0,
+   "end": 60.0,
+   "accent": 3,
+   "beats": [
+    {
+     "at": 43.3,
+     "until": 44.8,
+     "line": "The expert answers later",
+     "op": "add",
+     "element": "cl4",
+     "primitive": "clock",
+     "content": {
+      "text": "Answers later"
+     },
+     "metaphor": "a clock for a slower answer"
+    },
+    {
+     "at": 44.8,
+     "until": 46.0,
+     "line": "and its usage limit",
+     "op": "add",
+     "element": "m4",
+     "primitive": "meter",
+     "content": {
+      "text": "Usage limit",
+      "value": 0.99
+     }
+    },
+    {
+     "at": 46.0,
+     "until": 47.2,
+     "line": "runs out sooner.",
+     "op": "fill",
+     "element": "m4",
+     "content": {
+      "value": 0.33
+     }
+    },
+    {
+     "at": 47.2,
+     "until": 48.0,
+     "line": "A third is left.",
+     "op": "morph",
+     "element": "m4",
+     "primitive": "ring",
+     "content": {
+      "text": "Left",
+      "value": 0.33
+     }
+    },
+    {
+     "at": 48.0,
+     "until": 48.6,
+     "line": "",
+     "op": "clear",
+     "element": "cl4"
+    },
+    {
+     "at": 48.2,
+     "until": 48.8,
+     "line": "",
+     "op": "clear",
+     "element": "m4"
+    },
+    {
+     "at": 48.8,
+     "until": 50.2,
+     "line": "But it is the strongest.",
+     "op": "build",
+     "element": "br4",
+     "primitive": "bars",
+     "content": {
+      "items": [
+       {
+        "label": "Intern",
+        "value": 2
+       },
+       {
+        "label": "Generalist",
+        "value": 3.2
+       },
+       {
+        "label": "Expert",
+        "value": 5
+       }
+      ],
+      "caption": "Strongest"
+     },
+     "metaphor": "strength as bars by tier"
+    },
+    {
+     "at": 50.2,
+     "until": 51.4,
+     "line": "The strongest.",
+     "op": "highlight",
+     "element": "br4",
+     "content": {
+      "picks": [
+       2
+      ]
+     }
+    },
+    {
+     "at": 51.4,
+     "until": 52.0,
+     "line": "So",
+     "op": "dim",
+     "element": "br4"
+    },
+    {
+     "at": 52.0,
+     "until": 54.0,
+     "line": "only for the hardest part.",
+     "op": "add",
+     "element": "bw4",
+     "primitive": "big-word",
+     "content": {
+      "text": "The hardest part"
+     },
+     "metaphor": "the key phrase large in the accent"
+    },
+    {
+     "at": 54.0,
+     "until": 54.6,
+     "line": "",
+     "op": "clear",
+     "element": "br4"
+    },
+    {
+     "at": 54.2,
+     "until": 55.4,
+     "line": "Split the work:",
+     "op": "replace",
+     "element": "bw4",
+     "primitive": "blocks",
+     "content": {
+      "value": 10
+     },
+     "metaphor": "work as a row of blocks"
+    },
+    {
+     "at": 55.4,
+     "until": 56.6,
+     "line": "the hardest pieces to the expert,",
+     "op": "fill",
+     "element": "bw4",
+     "content": {
+      "value": 3
+     }
+    },
+    {
+     "at": 56.6,
+     "until": 57.8,
+     "line": "the rest to the generalist.",
+     "op": "highlight",
+     "element": "bw4",
+     "content": {
+      "picks": [
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9
+      ]
+     }
+    },
+    {
+     "at": 57.8,
+     "until": 59.6,
+     "line": "Thirty percent of the work, all of the quality.",
+     "op": "add",
+     "element": "st4",
+     "primitive": "stat",
+     "content": {
+      "text": "The expert's share",
+      "value": 30,
+      "unit": "%"
+     },
+     "metaphor": "the share as one figure"
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "text": "Assistants are not",
+   "start": 0.5,
+   "end": 1.36
+  },
+  {
+   "text": "all alike.",
+   "start": 1.4,
+   "end": 2.26
+  },
+  {
+   "text": "Which one fits",
+   "start": 2.3,
+   "end": 3.51
+  },
+  {
+   "text": "your work?",
+   "start": 3.55,
+   "end": 4.76
+  },
+  {
+   "text": "There are three: the",
+   "start": 4.8,
+   "end": 5.96
+  },
+  {
+   "text": "intern, the generalist and",
+   "start": 6.0,
+   "end": 7.16
+  },
+  {
+   "text": "the expert.",
+   "start": 7.2,
+   "end": 8.36
+  },
+  {
+   "text": "Let's meet them",
+   "start": 8.4,
+   "end": 8.86
+  },
+  {
+   "text": "one by one.",
+   "start": 8.9,
+   "end": 9.36
+  },
+  {
+   "text": "First, the intern.",
+   "start": 9.4,
+   "end": 11.56
+  },
+  {
+   "text": "The intern is",
+   "start": 12.3,
+   "end": 12.81
+  },
+  {
+   "text": "like a...",
+   "start": 12.85,
+   "end": 13.36
+  },
+  {
+   "text": "brand-new hire.",
+   "start": 13.4,
+   "end": 14.96
+  },
+  {
+   "text": "New on the team.",
+   "start": 15.0,
+   "end": 16.56
+  },
+  {
+   "text": "Light, repetitive tasks",
+   "start": 17.0,
+   "end": 18.16
+  },
+  {
+   "text": "it handles really well.",
+   "start": 18.2,
+   "end": 19.16
+  },
+  {
+   "text": "One,",
+   "start": 19.2,
+   "end": 20.16
+  },
+  {
+   "text": "two,",
+   "start": 20.2,
+   "end": 20.96
+  },
+  {
+   "text": "all of them.",
+   "start": 21.0,
+   "end": 21.76
+  },
+  {
+   "text": "And its usage limit",
+   "start": 21.8,
+   "end": 22.96
+  },
+  {
+   "text": "drains very",
+   "start": 23.0,
+   "end": 24.36
+  },
+  {
+   "text": "slowly.",
+   "start": 24.4,
+   "end": 26.56
+  },
+  {
+   "text": "The generalist covers",
+   "start": 27.3,
+   "end": 27.91
+  },
+  {
+   "text": "most everyday work:",
+   "start": 27.95,
+   "end": 28.56
+  },
+  {
+   "text": "writing, code, analysis",
+   "start": 28.6,
+   "end": 30.36
+  },
+  {
+   "text": "and conversation.",
+   "start": 30.4,
+   "end": 32.16
+  },
+  {
+   "text": "It thinks first,",
+   "start": 33.0,
+   "end": 34.56
+  },
+  {
+   "text": "weighs different paths",
+   "start": 34.6,
+   "end": 36.36
+  },
+  {
+   "text": "and picks the",
+   "start": 36.4,
+   "end": 37.16
+  },
+  {
+   "text": "best one.",
+   "start": 37.2,
+   "end": 37.96
+  },
+  {
+   "text": "The best path.",
+   "start": 38.0,
+   "end": 39.36
+  },
+  {
+   "text": "But where a problem",
+   "start": 40.0,
+   "end": 40.66
+  },
+  {
+   "text": "is deep and tangled",
+   "start": 40.7,
+   "end": 41.36
+  },
+  {
+   "text": "it gets stuck.",
+   "start": 41.4,
+   "end": 42.56
+  },
+  {
+   "text": "The expert answers later",
+   "start": 43.3,
+   "end": 44.76
+  },
+  {
+   "text": "and its usage limit",
+   "start": 44.8,
+   "end": 45.96
+  },
+  {
+   "text": "runs out sooner.",
+   "start": 46.0,
+   "end": 47.16
+  },
+  {
+   "text": "A third is left.",
+   "start": 47.2,
+   "end": 47.96
+  },
+  {
+   "text": "But it is",
+   "start": 48.8,
+   "end": 49.46
+  },
+  {
+   "text": "the strongest.",
+   "start": 49.5,
+   "end": 50.16
+  },
+  {
+   "text": "The strongest.",
+   "start": 50.2,
+   "end": 51.36
+  },
+  {
+   "text": "So",
+   "start": 51.4,
+   "end": 51.96
+  },
+  {
+   "text": "only for the",
+   "start": 52.0,
+   "end": 52.96
+  },
+  {
+   "text": "hardest part.",
+   "start": 53.0,
+   "end": 53.96
+  },
+  {
+   "text": "Split the work:",
+   "start": 54.2,
+   "end": 55.36
+  },
+  {
+   "text": "the hardest pieces",
+   "start": 55.4,
+   "end": 55.96
+  },
+  {
+   "text": "to the expert,",
+   "start": 56.0,
+   "end": 56.56
+  },
+  {
+   "text": "the rest to",
+   "start": 56.6,
+   "end": 57.16
+  },
+  {
+   "text": "the generalist.",
+   "start": 57.2,
+   "end": 57.76
+  },
+  {
+   "text": "Thirty percent of",
+   "start": 57.8,
+   "end": 58.36
+  },
+  {
+   "text": "the work, all",
+   "start": 58.4,
+   "end": 58.96
+  },
+  {
+   "text": "of the quality.",
+   "start": 59.0,
+   "end": 59.56
+  }
+ ],
+ "language": "en"
+}

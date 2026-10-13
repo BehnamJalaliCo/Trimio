@@ -5,7 +5,7 @@ name: Release
 #   trimio-<v>.apk               install directly on the phone (updates the installed app; models stay)
 #   trimio-<v>-play.aab          Google Play upload
 #   trimio-<v>-bazaar.aab/.apk   Cafe Bazaar upload
-#   Trimio-<v>.msi / .exe        Windows installers (replace the installed version; models stay)
+#   Trimio-<v>.exe               Windows installer (upgrades in place, models stay; uninstall removes all app data)
 # Android builds are all signed with the one upload key, and the version code only grows, so each
 # version installs over the last. See docs/RELEASING.md for the secrets.
 on:
@@ -123,7 +123,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.name }}
         run: |
-          find win -type f \( -name '*.msi' -o -name '*.exe' \) -exec mv {} . \;
+          find win -type f -name '*.exe' -exec mv {} . \;
           gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" -p SHA256SUMS
-          sha256sum *.msi *.exe >> SHA256SUMS
-          gh release upload "v$VERSION" *.msi *.exe SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
+          sha256sum *.exe >> SHA256SUMS
+          gh release upload "v$VERSION" *.exe SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"

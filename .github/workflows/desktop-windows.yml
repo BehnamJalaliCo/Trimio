@@ -1,7 +1,7 @@
 name: Desktop (Windows)
 
 # Builds the Windows desktop app: the native engines as DLLs with MSVC (CPU/AVX2 and Vulkan), the
-# pinned LGPL ffmpeg build, the JVM tests, and the MSI + EXE installers (per-user install). See
+# pinned LGPL ffmpeg build, the JVM tests, and the EXE installer (Inno Setup, per-user install, full clean uninstall). See
 # docs/DESKTOP.md. Runs by hand, or from the Release workflow for every version.
 #
 # Optional secrets (installers are built unsigned without them):
@@ -165,8 +165,18 @@ jobs:
           "-Ptrimio.nativeSmoke=$GITHUB_WORKSPACE/$NATIVE_OUT"
 
       # --- Installers ---------------------------------------------------------------------------------
-      - name: Package MSI and EXE
-        run: ./gradlew :desktopApp:packageMsi :desktopApp:packageExe "-Ptrimio.desktop.version=${{ inputs.version || '1.0.0' }}"
+      # The app image (launcher, runtime, bundled tools), then the Inno Setup installer around it:
+      # per-user, upgrades in place, and its uninstaller removes everything the app made
+      # (desktopApp/windows/trimio.iss). 1.0.14 and earlier were MSI installs; the EXE removes that MSI.
+      - name: Package the EXE installer
+        shell: pwsh
+        run: |
+          ./gradlew :desktopApp:createDistributable "-Ptrimio.desktop.version=${{ inputs.version || '1.0.0' }}"
+          if ($LASTEXITCODE -ne 0) { throw "createDistributable failed" }
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup install failed" }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ inputs.version || '1.0.0' }}" desktopApp/windows/trimio.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
       - name: Sign installers
         env:
@@ -178,7 +188,7 @@ jobs:
           $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
-          Get-ChildItem desktopApp/build/compose/binaries/main -Recurse -Include *.msi,*.exe | ForEach-Object {
+          Get-ChildItem desktopApp/build/compose/binaries/main -Recurse -Include *.exe | ForEach-Object {
             & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName
             if ($LASTEXITCODE -ne 0) { throw "signing $($_.Name) failed" }
           }
@@ -188,7 +198,6 @@ jobs:
         with:
           name: trimio-windows-installers
           path: |
-            desktopApp/build/compose/binaries/main/msi/*.msi
             desktopApp/build/compose/binaries/main/exe/*.exe
           if-no-files-found: error
 

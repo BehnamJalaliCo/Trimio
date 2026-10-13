@@ -33,6 +33,7 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
     fun compose(film: ExplainerFilm, width: Int = 1080, height: Int = 1920, fps: Int = 30): Output {
         val pal = PaletteBook.named(film.art.palette)
         val rtl = film.language.lowercase().let { it.startsWith("fa") || it.startsWith("ar") || it.startsWith("ur") }
+        val persian = film.language.lowercase().startsWith("fa")
         val captions = CaptionStyle.named(film.art.captionStyle)
         val frame = StageFrame(width.toFloat(), height.toFloat(), StageGrammar.named(film.art.layout), rtl, captions)
         val chapters = film.chapters.filter { it.end > it.start }.sortedBy { it.start }
@@ -41,7 +42,12 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
         val rests = ArrayList<Rest>()
         val lives = ArrayList<Life>()
         val nodes = ArrayList<Node>()
-        val header = Header(text, pal, frame, rtl, chapters, duration, ChapterMark.named(film.art.chapterMark))
+        // The paper itself, as a layer: it covers the frame at any export scale.
+        nodes += ShapeNode(
+            ShapeSpec.Rect(width.toFloat().let { Anim.Const(it) }, Anim.Const(height.toFloat())), fill = Fill.Solid(ColorAnim.of(pal.background)),
+            transform = Transform(anchorX = 0f, anchorY = 0f), name = "paper",
+        )
+        val header = Header(text, pal, frame, rtl, chapters, duration, ChapterMark.named(film.art.chapterMark), persian)
         nodes += header.marks()
         for ((ci, ch) in chapters.withIndex()) {
             nodes += header.title(ci)
@@ -49,13 +55,13 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
             nodes += chapterNodes
             rests += chapterRests
         }
-        nodes += Captions(text, pal, frame, rtl).nodes(captions, film.captions, duration)
+        nodes += Captions(text, pal, frame, rtl, persian).nodes(captions, film.captions, duration)
         val composition = Composition(width, height, fps, duration, pal.background, Group(nodes, name = "explainer"), shutterAngle = 0f)
         return Output(composition, StageReport(frame, rests, lives, notes))
     }
 
-    private fun hand(pal: ExplainerPalette, ch: Chapter, frame: StageFrame, rtl: Boolean, seed: Long) =
-        Hand(text, pal, ch.accent, rtl, frame.u, icons, frame.stage.width, frame.stage.height, seed)
+    private fun hand(pal: ExplainerPalette, ch: Chapter, frame: StageFrame, rtl: Boolean, persian: Boolean, seed: Long) =
+        Hand(text, pal, ch.accent, rtl, frame.u * if (frame.portrait) PORTRAIT_SCALE else 1f, icons, frame.stage.width, frame.stage.height, seed).also { it.persian = persian }
 
     @Suppress("LongParameterList")
     private fun chapter(
@@ -66,7 +72,7 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
         val laid = HashMap<Version, Laid>()
         val hands = HashMap<Version, Hand>()
         for (v in versions) {
-            val h = hand(pal, ch, frame, rtl, seed + v.serial * 13L + v.element.hashCode())
+            val h = hand(pal, ch, frame, rtl, film.language.lowercase().startsWith("fa"), seed + v.serial * 13L + v.element.hashCode())
             hands[v] = h
             if (!v.overlay) laid[v] = Pieces.of(v.spec.primitive).lay(v.spec, h)
         }
@@ -102,7 +108,7 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
     private fun element(v: Version, h: Hand, l: Laid, s: Solver.Solved): Node {
         val track = v.track()
         val children = ArrayList(l.draw(track))
-        val whole = v.checks.filter { it.second.isEmpty() || v.spec.items.isEmpty() }.minOfOrNull { it.first }
+        val whole = v.checks.filter { it.second.isEmpty() || (v.spec.items.isEmpty() && v.spec.primitive !in Pieces.counted) }.minOfOrNull { it.first }
         whole?.let { children += TextPieces.cornerTick(h, l.w, it) }
         val u = h.u
         val rise = when (v.entry) {
@@ -164,6 +170,8 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
 
     companion object {
         const val TAIL = 0.6f
+        /** Pieces are drawn a little larger on a tall frame: it has the room, and phones are held close. */
+        const val PORTRAIT_SCALE = 1.16f
         const val GAP_TALL = 64f
         const val GAP_WIDE = 52f
         const val RISE = 30f

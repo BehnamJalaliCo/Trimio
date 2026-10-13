@@ -3,6 +3,7 @@ package io.trimio.desktop
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -12,6 +13,8 @@ import io.trimio.shared.uiLanguageFor
 import org.koin.dsl.module
 import java.awt.Dimension
 import java.awt.Frame
+import java.awt.GraphicsEnvironment
+import java.awt.Rectangle
 import java.io.File
 import java.util.Locale
 
@@ -36,9 +39,13 @@ fun main(args: Array<String>) {
     val context = DesktopContext(dirs, hardware, picker, DesktopSharer(dirs.output), incoming)
     val icon = appIcon()?.let(::BitmapPainter)
     application {
-        val state = rememberWindowState(width = 1360.dp, height = 880.dp, position = WindowPosition.Aligned(androidx.compose.ui.Alignment.Center))
+        val fit = WindowFit.of(GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds)
+        val state = rememberWindowState(
+            placement = if (fit.maximized) WindowPlacement.Maximized else WindowPlacement.Floating,
+            width = fit.width.dp, height = fit.height.dp, position = WindowPosition.Aligned(androidx.compose.ui.Alignment.Center),
+        )
         Window(onCloseRequest = ::exitApplication, state = state, title = "Trimio", icon = icon) {
-            window.minimumSize = Dimension(MIN_WIDTH, MIN_HEIGHT)
+            window.minimumSize = Dimension(fit.minWidth, fit.minHeight)
             frame = window
             DesktopShell(context, uiLanguageFor(Locale.getDefault().toLanguageTag()))
         }
@@ -52,5 +59,24 @@ fun desktopModule(dirs: DesktopDirs, hardware: DesktopHardware, picker: DesktopF
         single { incoming }
     }
 
-private const val MIN_WIDTH = 1040
-private const val MIN_HEIGHT = 680
+/**
+ * The first window size: the designed 1360×880 when the screen's usable area (scaled pixels, taskbar
+ * excluded) holds it, else a little smaller than that area; a small screen (a 1080p laptop at 150 %
+ * is 1280×~680) opens maximized so the title bar with its buttons is always on screen.
+ */
+internal data class WindowFit(val width: Int, val height: Int, val minWidth: Int, val minHeight: Int, val maximized: Boolean) {
+    companion object {
+        fun of(usable: Rectangle): WindowFit {
+            val w = minOf(WIDTH, (usable.width * SHARE).toInt())
+            val h = minOf(HEIGHT, (usable.height * SHARE).toInt())
+            val small = usable.width < WIDTH || usable.height < HEIGHT
+            return WindowFit(w, h, minOf(MIN_WIDTH, usable.width), minOf(MIN_HEIGHT, usable.height), small)
+        }
+
+        private const val WIDTH = 1360
+        private const val HEIGHT = 880
+        private const val MIN_WIDTH = 960
+        private const val MIN_HEIGHT = 600
+        private const val SHARE = 0.94
+    }
+}
