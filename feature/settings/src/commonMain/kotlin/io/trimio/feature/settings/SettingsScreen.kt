@@ -96,7 +96,7 @@ data class SettingsActions(
     val onUpdate: ((AppSettings) -> AppSettings) -> Unit = {},
     /** Opens the model manager; null hides the row's way in. */
     val onModels: (() -> Unit)? = null,
-    /** Opens «کتابخانه‌ها» (content libraries and the LottieFiles key); null hides the row. */
+    /** Opens «کتابخانه‌ها» (content libraries); null hides the row. */
     val onLibrary: (() -> Unit)? = null,
     val onSaveKey: (CloudProvider, String) -> Unit = { _, _ -> },
     val onRemoveKey: (CloudProvider) -> Unit = {},
@@ -242,7 +242,7 @@ private fun DirectorSection(ui: SettingsUi, actions: SettingsActions, keysOpen: 
             if (actions.onModels != null) Lead(tr("مدیریت", "Manage"))
         }
         actions.onLibrary?.let { open ->
-            SettingRow(tr("کتابخانه‌ها", "Libraries"), tr("ایموجی و آیکون متحرک، صدا، بافت و کلید LottieFiles", "Animated emoji and icons, sound, textures, LottieFiles key"), onClick = open) {
+            SettingRow(tr("کتابخانه‌ها", "Libraries"), tr("ایموجی و آیکون متحرک، صدا و بافت", "Animated emoji and icons, sound, textures"), onClick = open) {
                 Lead(tr("مدیریت", "Manage"))
             }
         }

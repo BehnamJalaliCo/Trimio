@@ -27,21 +27,6 @@ data class PackRow(
 /** A message in both languages; the screen shows the reader's. */
 data class Words(val fa: String, val en: String)
 
-/** One LottieFiles result in the search sheet. */
-data class LottieResult(val id: Long, val name: String, val selected: Boolean = false)
-
-/** The LottieFiles card: the creator's key, the search and its results, and the last download's outcome. */
-data class LottieUi(
-    val hasKey: Boolean = false,
-    val query: String = "",
-    val searching: Boolean = false,
-    val results: List<LottieResult> = emptyList(),
-    val total: Int = 0,
-    /** Downloading animations into the local pack: done of all. */
-    val progress: Pair<Int, Int>? = null,
-    val message: Words? = null,
-)
-
 /** Everything the library screen shows; a pure model so it renders the same in tests and on every platform. */
 data class LibraryUi(
     val packs: List<PackRow> = emptyList(),
@@ -54,7 +39,6 @@ data class LibraryUi(
     val desktop: Boolean = false,
     /** The platform can pick files or a folder of animations (desktop). */
     val canImport: Boolean = false,
-    val lottie: LottieUi = LottieUi(),
     /** The last import's outcome («۱۲ انیمیشن اضافه شد، ۲ رد شد: لایهٔ متن»). */
     val importNote: Words? = null,
     /** What the folder of animations fetched on demand holds, in bytes. */
@@ -93,10 +77,4 @@ data class LibraryActions(
     val onPauseAll: () -> Unit = {},
     /** Desktop: choose animation files or a folder («افزودن انیمیشن»). */
     val onImport: () -> Unit = {},
-    val onSaveLottieKey: (String) -> Unit = {},
-    val onRemoveLottieKey: () -> Unit = {},
-    val onLottieSearch: (String) -> Unit = {},
-    val onLottieToggle: (Long) -> Unit = {},
-    val onLottieDownload: (allResults: Boolean) -> Unit = {},
-    val onOpenLottieSite: () -> Unit = {},
 )

@@ -39,14 +39,9 @@ class LibraryScreenshotTest {
         "art.mine" to PackState.Installed(2),
     )
 
-    private fun ui(desktop: Boolean, s: Map<String, PackState> = states(), lottie: LottieUi = LottieUi()) = LibraryUi(
+    private fun ui(desktop: Boolean, s: Map<String, PackState> = states()) = LibraryUi(
         packs = LibraryUi.rows(shipped + mine, s), usedBytes = 44_000_000, freeBytes = 23_400_000_000, remainingBytes = 62_000_000,
-        desktop = desktop, canImport = desktop, lottie = lottie, importNote = Words("۱۴ انیمیشن اضافه شد؛ ۲ رد شد (⁦text layer⁩)", "14 added; 2 refused (text layer)"),
-    )
-
-    private val searching = LottieUi(
-        hasKey = true, query = "rocket", total = 12_840,
-        results = listOf(LottieResult(1, "Rocket launch", true), LottieResult(2, "Startup rocket", true), LottieResult(3, "Space rocket loop"), LottieResult(4, "Rocket icon")),
+        desktop = desktop, canImport = desktop, importNote = Words("۱۴ انیمیشن اضافه شد؛ ۲ رد شد (⁦text layer⁩)", "14 added; 2 refused (text layer)"),
     )
 
     @Test
@@ -63,13 +58,13 @@ class LibraryScreenshotTest {
     @Test
     fun phone() {
         shoot("library-fa-noir", Language.Persian, paper = false) { LibraryScreen(ui(false), LibraryActions()) }
-        shoot("library-fa-paper", Language.Persian, paper = true, height = 1700) { LibraryScreen(ui(false, lottie = searching), LibraryActions()) }
+        shoot("library-fa-paper", Language.Persian, paper = true, height = 1700) { LibraryScreen(ui(false), LibraryActions()) }
         shoot("library-en-noir", Language.English, paper = false) { LibraryScreen(ui(false, s = emptyMap()), LibraryActions()) }
     }
 
     @Test
     fun desktop() {
-        shoot("library-fa-desktop", Language.Persian, paper = false, width = 1280, height = 900, density = 1.5f) { LibraryScreen(ui(true, lottie = searching), LibraryActions()) }
+        shoot("library-fa-desktop", Language.Persian, paper = false, width = 1280, height = 900, density = 1.5f) { LibraryScreen(ui(true), LibraryActions()) }
         shoot("library-en-desktop", Language.English, paper = true, width = 1280, height = 900, density = 1.5f) { LibraryScreen(ui(true), LibraryActions()) }
     }
 

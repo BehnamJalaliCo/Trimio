@@ -4,7 +4,7 @@ plugins {
 
 /**
  * «کتابخانه‌ها»: the downloadable content libraries (art, sound, overlays, looks), the creator's
- * own animations (desktop import, LottieFiles with their own key) and the in-app core set
+ * own animations (desktop import) and the in-app core set
  * (files/core: the most used animated pictures, drawn with no download; built by tools/packs).
  */
 compose.resources {
@@ -19,8 +19,6 @@ kotlin {
             implementation(projects.core.designsystem)
             api(projects.engine.models)
             implementation(projects.engine.assets)
-            implementation(projects.engine.llm)
-            implementation(libs.ktor.client.core)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.runtime.compose)
         }

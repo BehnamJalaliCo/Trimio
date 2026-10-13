@@ -22,17 +22,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,8 +47,6 @@ import io.trimio.core.designsystem.signature.SigScreen
 import io.trimio.core.designsystem.signature.SigSecondaryButton
 import io.trimio.core.designsystem.signature.SigSectionLabel
 import io.trimio.core.designsystem.signature.SigSpace
-import io.trimio.core.designsystem.signature.SigTextButton
-import io.trimio.core.designsystem.signature.SigTextField
 import io.trimio.core.designsystem.signature.SigTopRow
 import io.trimio.core.designsystem.signature.gutter
 import io.trimio.core.designsystem.theme.localizedNumber
@@ -63,8 +56,8 @@ import io.trimio.engine.models.PackState
 /**
  * «کتابخانه‌ها»: the downloadable libraries that make an edit richer — animated emoji and icons,
  * recorded sound, textures and looks — each with what it improves, its size, and download, pause
- * or delete; the room they take; «دانلود همه»; and the creator's own animations (imported files on
- * desktop, or LottieFiles with their own key).
+ * or delete; the room they take; «دانلود همه»; and the creator's own animations (files imported on
+ * desktop).
  */
 @Composable
 fun LibraryScreen(ui: LibraryUi, actions: LibraryActions) {
@@ -290,7 +283,7 @@ private fun status(row: PackRow): String {
     )
 }
 
-/** The creator's own animations: imported files (desktop) and LottieFiles with their own key. */
+/** The creator's own animations: files imported on desktop. */
 @Composable
 private fun Mine(ui: LibraryUi, actions: LibraryActions) {
     val c = Sig.colors
@@ -306,86 +299,6 @@ private fun Mine(ui: LibraryUi, actions: LibraryActions) {
             )
         }
         ui.importNote?.let { Text(localizedNumber(tr(it.fa, it.en)), style = Sig.type.meta.copy(fontSize = 12.sp), color = c.ink) }
-        LottieFiles(ui.lottie, ui.canImport, actions)
-    }
-}
-
-/** LottieFiles through its official developer API, with the creator's own key; without one, what to do instead. */
-@Composable
-private fun LottieFiles(lottie: LottieUi, canImport: Boolean, actions: LibraryActions) {
-    val c = Sig.colors
-    var keyText by rememberSaveable { mutableStateOf("") }
-    var query by rememberSaveable { mutableStateOf(lottie.query) }
-    SigGlass(Modifier.fillMaxWidth().padding(top = 6.dp), contentPadding = PaddingValues(16.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TrimioIcon(TrimioIcons.Globe, null, tint = c.action, size = 16.dp)
-                Text("LottieFiles", style = Sig.type.bodyStrong.copy(fontWeight = FontWeight(650)), color = c.ink)
-                if (lottie.hasKey) SigChip(tr("وصل", "Connected"), Modifier.height(22.dp), container = c.emphasisSoft, content = c.emphasisSoftContent)
-            }
-            if (!lottie.hasKey) {
-                Text(
-                    tr(
-                        "برای جستجو و دانلود مستقیم از LottieFiles، کلید API شخصی‌ات را از بخش توسعه‌دهندگان LottieFiles بگیر و اینجا وارد کن؛ کلید فقط روی همین دستگاه می‌ماند." +
-                            if (canImport) " بدون کلید هم می‌توانی انیمیشن‌ها را از سایت دانلود کنی و با «افزودن انیمیشن» بیاوری." else "",
-                        "To search and download from LottieFiles directly, get your own API key from LottieFiles' developer pages and enter it here; it stays on this device." +
-                            if (canImport) " Without a key, download animations on the site and bring them in with «Add animations»." else "",
-                    ),
-                    style = Sig.type.meta.copy(fontSize = 12.sp, lineHeight = 19.sp), color = c.muted,
-                )
-                Field(keyText, { keyText = it }, tr("کلید LottieFiles", "LottieFiles key"))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SigSecondaryButton(tr("ذخیرهٔ کلید", "Save key"), { actions.onSaveLottieKey(keyText.trim()); keyText = "" }, Modifier.weight(1f), icon = TrimioIcons.Key)
-                    SigTextButton(tr("باز کردن سایت", "Open the site"), actions.onOpenLottieSite)
-                }
-            } else {
-                Field(query, { query = it }, tr("جستجو، مثلاً «موشک» یا rocket", "Search, e.g. rocket"))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SigSecondaryButton(if (lottie.searching) tr("در حال جستجو…", "Searching…") else tr("جستجو", "Search"), { actions.onLottieSearch(query.trim()) }, Modifier.weight(1f))
-                    SigTextButton(tr("حذف کلید", "Remove key"), actions.onRemoveLottieKey)
-                }
-                Results(lottie, actions)
-            }
-            lottie.message?.let { Text(localizedNumber(tr(it.fa, it.en)), style = Sig.type.meta.copy(fontSize = 12.sp), color = c.ink) }
-        }
-    }
-}
-
-@Composable
-private fun Results(lottie: LottieUi, actions: LibraryActions) {
-    val c = Sig.colors
-    if (lottie.results.isEmpty()) return
-    MicroLabel(localizedNumber(tr("${lottie.results.size} از ${lottie.total} نتیجه", "${lottie.results.size} of ${lottie.total} results")))
-    lottie.results.forEach { r ->
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(role = Role.Checkbox) { actions.onLottieToggle(r.id) }.padding(vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier.size(18.dp).clip(RoundedCornerShape(5.dp)).background(if (r.selected) c.action else Color.Transparent)
-                    .border(1.dp, if (r.selected) c.action else c.lineStrong, RoundedCornerShape(5.dp)),
-                contentAlignment = Alignment.Center,
-            ) { if (r.selected) TrimioIcon(TrimioIcons.Check, null, tint = c.onAction, size = 12.dp) }
-            Text(r.name.ifEmpty { "#${r.id}" }, style = Sig.type.meta, color = c.ink, maxLines = 1)
-        }
-    }
-    val progress = lottie.progress
-    if (progress != null) {
-        Text(localizedNumber(tr("دانلود ${progress.first} از ${progress.second}…", "Downloading ${progress.first} of ${progress.second}…")), style = Sig.type.meta, color = c.action)
-    } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val selected = lottie.results.count { it.selected }
-            SigSecondaryButton(localizedNumber(tr("دانلود $selected انتخاب", "Download $selected chosen")), { actions.onLottieDownload(false) }, Modifier.weight(1f), icon = TrimioIcons.Download)
-            SigSecondaryButton(tr("دانلود همهٔ نتیجه‌ها", "Download all results"), { actions.onLottieDownload(true) }, Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun Field(value: String, onChange: (String) -> Unit, placeholder: String) {
-    val c = Sig.colors
-    Box(Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, c.line, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
-        SigTextField(value, onChange, placeholder, Modifier.fillMaxWidth())
     }
 }
 
@@ -406,10 +319,9 @@ internal fun sizeFa(bytes: Long): String = when {
     else -> "${maxOf(1, (bytes + 512) / 1024)} کیلوبایت"
 }
 
-/** The library screen bound to its view model; links open in the system browser. */
+/** The library screen bound to its view model. */
 @Composable
 fun LibraryRoute(viewModel: LibraryViewModel, onBack: () -> Unit) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    val uri = LocalUriHandler.current
-    LibraryScreen(ui, viewModel.actions(onBack) { url -> runCatching { uri.openUri(url) } })
+    LibraryScreen(ui, viewModel.actions(onBack))
 }

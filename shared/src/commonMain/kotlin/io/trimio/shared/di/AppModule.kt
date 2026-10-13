@@ -131,7 +131,7 @@ val appModule: Module = module {
         io.trimio.engine.autopilot.KtorWebPort.animations(get(), (get<AppPaths>().animations ?: Path("LottieFiles")).toString()) { settings.settings.value.onlineAnimations }
     }
     single(createdAtStart = true) {
-        ContentLibrary(get(), get(), get(), get(AppScope), get<AppPaths>().contentPacks, animations = get<io.trimio.engine.assets.art.LottieFilesSource>())
+        ContentLibrary(get(), get(AppScope), get<AppPaths>().contentPacks, animations = get<io.trimio.engine.assets.art.LottieFilesSource>())
     }
     // The automatic engine: one app-wide run that outlives its screen; screens and the foreground service observe it.
     single { AppProductionRunner(get(), get(AppScope), get()) }
@@ -186,9 +186,9 @@ val appModule: Module = module {
         val device = get<DeviceInfo>()
         val free = getOrNull<io.trimio.core.data.StorageInfo>()
         LibraryViewModel(
-            get(), get(), get(), validate = { doc -> io.trimio.engine.motion.art.MotionArts.readOrWhy(io.trimio.engine.motion.art.MotionArt.FORMAT_LOTTIE, doc).second },
+            get(), validate = { doc -> io.trimio.engine.motion.art.MotionArts.readOrWhy(io.trimio.engine.motion.art.MotionArt.FORMAT_LOTTIE, doc).second },
             picker = getOrNull<AnimationFilePicker>(), freeBytes = { free?.freeBytes() },
-            desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) }, onLottieKey = { get<ContentLibrary>().connect(it) },
+            desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) },
             animationBytes = get<io.trimio.engine.assets.art.LottieFilesSource>()::bytes,
         )
     }

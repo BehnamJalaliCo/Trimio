@@ -32,13 +32,14 @@ data class PackMusic(val id: String, val title: String, val mood: String, val bp
 /** An overlay (texture, grain, dust, light leak) or a look (a 3D LUT) of a pack, by file. */
 data class PackVisual(val id: String, val name: String, val nameFa: String, val kind: String, val file: String, val blend: String, val tags: List<String>)
 
-/** A picture found online (an animation service the creator connected), with its document. */
+/** A picture found online (the free on-demand animations), with its document. */
 data class OnlineHit(val entry: ArtEntry, val document: String)
 
 /**
- * Animated pictures from an online service beyond the open sources (LottieFiles, with the
- * creator's own key): asked only when neither the bundled pictures nor the installed packs show a
- * query well, within the edit's time budget. [fetch] is the edit's budgeted HTTP GET.
+ * Animated pictures from online beyond the open sources (the free on-demand animations,
+ * [io.trimio.engine.assets.art.LottieFilesSource]): asked only when neither the bundled pictures nor
+ * the installed packs show a query well, within the edit's time budget. [fetch] is the edit's
+ * budgeted HTTP GET.
  */
 fun interface OnlineArt {
     suspend fun search(query: String, limit: Int, fetch: suspend (String) -> String?): List<OnlineHit>
@@ -74,7 +75,7 @@ object ContentPacks {
     /** The file system packs are read from (tests may swap it). */
     var fs: FileSystem = SystemFileSystem
 
-    /** An online picture service the creator connected (null: none; the open sources are always there). */
+    /** The online picture source, the free on-demand animations (null: none; the open sources are always there). */
     var online: OnlineArt? = null
 
     /** Changes whenever the installed packs (or the extra catalogues) change. */
