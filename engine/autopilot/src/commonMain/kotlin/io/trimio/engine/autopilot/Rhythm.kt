@@ -350,8 +350,8 @@ internal class Rhythm(
         /** Entity kinds worth a picture. */
         val PICTURED = setOf("object", "concept", "place", "product")
 
-        /** Beats that may land a little before their words (text and stamps), rather than flash. */
-        private val MOVABLE = TEXT_RECIPES + "stamp"
+        /** Beats that may land a little before their words (text, stamps and bursts), rather than flash. */
+        private val MOVABLE = TEXT_RECIPES + "stamp" + "burst"
         private val TECH = setOf("tech", "software", "ai", "crypto", "gaming")
         private val ALTERNATE_TEXT = mapOf(
             "slam" to "flip", "mask-rise" to "flip", "type-on" to "mask-rise", "blur-in" to "mask-rise",

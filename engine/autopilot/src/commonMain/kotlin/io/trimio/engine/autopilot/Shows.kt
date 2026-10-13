@@ -76,7 +76,7 @@ internal class Shows(
         if (read.role == "comparison" && items.size == 2) out += b.copy(recipe = "versus", items = items, text = null) to 0.6f
     }
 
-    /** What a headline line could be instead: a trade, a wallet, a place, a step card, a poll, a kinetic quote. */
+    /** What a headline line could be instead: a trade, a wallet, a place, a chapter card, a poll, a kinetic quote. */
     private fun headline(b: BeatScore, texts: List<String>, line: Lines.Line, norm: List<String>, read: LineRead, takeover: Boolean, out: MutableList<Pair<BeatScore, Float>>) {
         fun has(words: Set<String>) = norm.any { it in words }
         val title = b.text ?: return
@@ -97,7 +97,6 @@ internal class Shows(
         if (!takeover && quotable && loud) {
             out += b.copy(recipe = "quote", text = line.range.joinToString(" ") { texts[it] }, at = line.first, until = line.last, label = null) to 0.2f
         }
-        if (mood in PLAYFUL && loud && title.split(' ').size <= 2) out += b.copy(recipe = "burst", icon = "star") to 0.25f
     }
 
     /**
@@ -178,7 +177,6 @@ internal class Shows(
         private val QUOTE_WORDS = 4..8
         private val HAND = listOf("scribble", "half", "double")
         private val TRADING = setOf("crypto", "finance")
-        private val PLAYFUL = setOf("playful", "energetic")
         private val QUOTABLE = setOf("punchline", "insight", "hook", "claim", "warning", "benefit")
         private val SIDES = setOf("خرید", "فروش", "لانگ", "شورت", "buy", "sell", "long", "short")
         private val PRICE = setOf("قیمت", "قیمتش", "price", "costs", "cost", "تومن", "تومان", "دلار")
