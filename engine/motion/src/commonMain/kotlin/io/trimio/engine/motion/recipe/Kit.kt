@@ -283,7 +283,8 @@ object Kit {
 
     /** The voice for a family's title in [typo]. */
     fun titleVoice(look: Look, typo: Typo): Look.Voice = when (typo) {
-        Typo.Poster -> look.headline
+        // A family title runs to two or three lines: the display leading of a one-line slam would let them touch.
+        Typo.Poster -> look.headline.copy(lineHeight = maxOf(look.headline.lineHeight, POSTER_LEADING))
         Typo.Editorial -> look.body.copy(weight = maxOf(look.body.weight, HEAVY), lineHeight = 1.22f)
         Typo.Data -> Look.Voice(BrandFonts.Role.Ui, maxOf(look.caption.weight, HEAVY), lineHeight = 1.2f)
     }
@@ -539,6 +540,7 @@ object Kit {
     const val DRAW = 0.5f
     private const val MIN_PAD = 60f
     private const val PIVOT_PAD = 80f
+    private const val POSTER_LEADING = 1.08f
     private const val PAD_SHARE = 0.15f
     private const val ENTER_CALM = 0.8f
     private const val ENTER_HOT = 0.5f

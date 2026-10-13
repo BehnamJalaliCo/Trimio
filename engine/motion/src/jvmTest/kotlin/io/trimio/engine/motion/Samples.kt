@@ -49,7 +49,7 @@ object Samples {
         "ring" to { c -> c.copy(value = 72f, label = "Win rate this month") },
         "social-proof" to { c -> c.copy(points = listOf(12500f, 840f, 2300f), value = 4.8f, label = "3,200 reviews") },
         "price-tag" to { c -> c.copy(value = 49f, from = 99f, prefix = "$", label = "Trading course") },
-        "quote" to { c -> c.copy(text = "The market pays the patient, not the hasty", label = "An old trader", emphasis = setOf(3)) },
+        "quote" to { c -> c.copy(text = "The market pays the patient, not the hasty", label = "An old trader", emphasis = setOf(4)) },
         "chapter" to { c -> c.copy(text = "Risk management", value = 2f) },
         "bubble" to { c -> c.copy(text = "Hey, does this strategy work on forex too?", label = "Sarah", value = 214f) },
         "poll" to { c -> c.copy(text = "Is it time to buy Bitcoin?", items = listOf("Yes, buying", "No, waiting"), points = listOf(68f, 32f)) },

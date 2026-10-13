@@ -60,8 +60,11 @@ class OnlineAnimationsTest {
         val requests = AtomicInteger()
         val agents = mutableSetOf<String>()
         val engine = MockEngine { request ->
-            requests.incrementAndGet()
-            agents += request.headers[HttpHeaders.UserAgent].orEmpty()
+            // Only the animation service's hosts are counted (the bundled pictures may ask their own CDN).
+            if ("lottiefiles" in request.url.host) {
+                requests.incrementAndGet()
+                agents += request.headers[HttpHeaders.UserAgent].orEmpty()
+            }
             when {
                 request.method == HttpMethod.Post && request.url.host == "graphql.lottiefiles.com" ->
                     respond("""{"data":{"searchPublicAnimations":{"edges":[${node(8, "zorbulator")},${node(9, "zorbulator")}]}}}""", HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
@@ -75,7 +78,7 @@ class OnlineAnimationsTest {
         val before = ContentPacks.online
         try {
             ContentPacks.online = KtorWebPort.animations(http, dir.path)
-            val result = VisualPicker(VisualLibrary.Empty, WebKnowledge(http)).pick(mapOf("zorbulator" to "این دستگاه عجیب"))
+            val result = VisualPicker(VisualLibrary.Empty, WebKnowledge(http)).pick(mapOf("zorbulator" to ""))
             assertEquals("lf:9", result.picks["zorbulator"], "the one with expressions is refused by the engine's reader")
             assertEquals(1f, result.relevance["zorbulator"])
             assertTrue(result.credits.isEmpty(), "nothing to credit")
