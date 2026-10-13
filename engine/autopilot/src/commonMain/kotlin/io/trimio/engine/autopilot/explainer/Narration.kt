@@ -5,6 +5,8 @@ import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.autopilot.LineRead
 import io.trimio.engine.autopilot.Lines
+import io.trimio.engine.autopilot.PersianSpelling
+import io.trimio.engine.autopilot.Phrases
 import io.trimio.engine.autopilot.RulesUnderstander
 import io.trimio.engine.autopilot.Understanding
 import io.trimio.engine.motion.score.NumberWords
@@ -40,6 +42,8 @@ class Narration(
     val prompt: String,
     /** The narration's own length (seconds): nothing is shown after it. */
     val duration: Double,
+    /** Persian word counts, when loaded: a word nobody writes is a name said in Persian letters («سانته», «فیبل»). */
+    val lexicon: PersianSpelling? = null,
 ) {
     /** Persian on screen when most words are Persian. */
     val persian: Boolean = words.count { w -> w.text.any { it in '؀'..'ۿ' } } * 2 > words.size
@@ -51,6 +55,22 @@ class Narration(
     /** Normalised word keys (Latin digits, no half-space, lower case, no punctuation), for cue matching. */
     val keys: List<String> = texts.map { NumberWords.normalize(it) }
 
+    /**
+     * The narration's category noun: the content word it says most (three times or more), the
+     * kind of thing its chapters walk through («مدل», "step", "habit"); null when nothing repeats.
+     */
+    val category: String? by lazy {
+        keys.filter { Phrases.nounish(it) && it.length >= MIN_CATEGORY }.groupingBy { it }.eachCount()
+            .filter { it.value >= CATEGORY_TIMES }.maxByOrNull { it.value }?.key
+    }
+
+    /** Whether word [i] is a word nobody writes (unknown to the lexicon): in Persian speech, likely a name. */
+    fun unknown(i: Int): Boolean {
+        val lex = lexicon ?: return false
+        val core = texts[i].trim { !it.isLetterOrDigit() && it != '\u200C' }
+        return core.length >= MIN_NAME && core.all { it in '\u0600'..'\u06FF' || it == '\u200C' } && lex.count(core) == 0
+    }
+
     /** Seconds at which word [i] starts and ends. */
     fun startOf(i: Int): Double = words[i].range.startMs / MS
     fun endOf(i: Int): Double = words[i].range.endMs / MS
@@ -61,6 +81,9 @@ class Narration(
 
     companion object {
         private const val MS = 1000.0
+        private const val MIN_CATEGORY = 3
+        private const val CATEGORY_TIMES = 3
+        private const val MIN_NAME = 3
 
         /**
          * The narration of [words]: clauses are the transcript's lines (sentence ends, real pauses,
@@ -73,6 +96,7 @@ class Narration(
             understanding: Understanding? = null,
             pauses: List<ClosedFloatingPointRange<Float>> = emptyList(),
             duration: Double? = null,
+            lexicon: PersianSpelling? = null,
         ): Narration {
             val lines = Lines.split(words, pauses = pauses)
             val transcript = Transcript(words.firstOrNull()?.language ?: Language.Persian, words)
@@ -86,7 +110,7 @@ class Narration(
                 )
             }
             val end = duration ?: (words.lastOrNull()?.range?.endMs?.div(MS) ?: 0.0)
-            return Narration(words, clauses, u, prompt, maxOf(end, clauses.lastOrNull()?.end ?: 0.0))
+            return Narration(words, clauses, u, prompt, maxOf(end, clauses.lastOrNull()?.end ?: 0.0), lexicon)
         }
     }
 }
