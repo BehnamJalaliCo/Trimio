@@ -18,6 +18,8 @@ internal data class Spec(
     val value: Double?,
     val unit: String,
     val visual: String,
+    /** Every op this version will go through (so it can keep room for a tick or an underline). */
+    val ops: Set<StageOp> = emptySet(),
 ) {
     /** Items, or the text split on "|" or new lines when the beat gave none. */
     val labels: List<String> get() = items.map { it.label }
@@ -50,14 +52,29 @@ internal class Track(
     val fills: List<FillStep>,
     /** Whole-element marks (a highlight with no items, or an op the primitive draws as one). */
     val marks: List<Float>,
+    /** A "build" of the element's own words: revealed one by one across this window. */
+    val build: Pair<Float, Float>? = null,
 ) {
     fun revealAt(i: Int): Float = reveals.getOrElse(i) { enter + i * STAGGER }
 
     /** When item [i] is first checked, or null. */
     fun checkedAt(i: Int): Float? = checks.firstOrNull { i in it.second }?.first
 
-    /** How many leading items count as done at the end (checks or a "fill" count). */
-    fun pickedAt(i: Int): List<Float> = picks.filter { i in it.second }.map { it.first }
+    /**
+     * When item [i] of [n] is done: checked, or reached by a fill (a value ≤ 1 is the share of
+     * the items, a larger one their count), staggered along the row.
+     */
+    fun doneAt(i: Int, n: Int): Float? {
+        checkedAt(i)?.let { return it }
+        val step = fills.firstOrNull { f -> f.to?.let { count(it, n) > i } == true } ?: return null
+        return step.at + i * FILL_STAGGER * (step.dur / FILL_SPAN).coerceIn(0.5f, 1.5f)
+    }
+
+    /** When the element as a whole is first checked (a check with no items), or null. */
+    val wholeCheck: Float? get() = checks.firstOrNull { it.second.isEmpty() }?.first
+
+    /** When the element is first marked as a whole, or null. */
+    val firstMark: Float? get() = marks.minOrNull()
 
     /** Steps where item [i] becomes picked (true) or loses the pick to others (false). */
     fun pickSteps(i: Int): List<Pair<Float, Boolean>> {
@@ -109,6 +126,11 @@ internal class Track(
         const val TURN = 0.28f
         const val ROLL = 1.1f
         const val ROLL_DELAY = 0.15f
+        const val FILL_STAGGER = 0.09f
+        const val FILL_SPAN = 0.9f
+
+        /** A fill value as an item count of [n]: a share when ≤ 1, a count above. */
+        fun count(v: Double, n: Int): Int = if (v <= 1.0) kotlin.math.round(v * n).toInt() else v.toInt()
 
         fun steps(base: Color, events: List<Pair<Float, Color>>): ColorAnim {
             if (events.isEmpty()) return ColorAnim.of(base)

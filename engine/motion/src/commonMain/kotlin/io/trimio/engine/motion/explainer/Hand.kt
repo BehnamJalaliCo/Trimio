@@ -104,6 +104,13 @@ internal class Hand(
         return last!!
     }
 
+    /** [texts] at one shared size (the largest all of them fit at): a row whose labels change size reads as a mistake. */
+    fun fitAll(texts: List<String>, voice: Look.Voice, size: Float, w: Float, lines: Int = 2): List<Fitted> {
+        val first = texts.map { fit(it, voice, size, w, lines) }
+        val common = first.minOfOrNull { it.type.size } ?: size
+        return texts.map { fit(it, voice, common, w, lines) }
+    }
+
     fun isRtl(s: String) = rtl || Kit.persian(s)
 
     /**
@@ -133,11 +140,11 @@ internal class Hand(
     )
 
     /** A figure that rolls (Persian digits on a Persian film), centred at [cx], [cy]. */
-    fun counter(value: Anim, decimals: Int, suffix: String, size: Float, color: Color, cx: Float, cy: Float, on: Color, at: Float, prefix: String = ""): CounterNode {
+    fun counter(value: Anim, decimals: Int, suffix: String, size: Float, color: Color, cx: Float, cy: Float, on: Color, at: Float, prefix: String = "", anchorX: Float = 0.5f): CounterNode {
         val node = CounterNode(
             value = value, decimals = decimals, prefix = prefix, suffix = say(suffix), persianDigits = rtl, grouping = true,
             type = Voices.number.at(size), fill = color.fill(),
-            transform = Transform(x = cx.anim, y = cy.anim, opacity = Anim.tween(0f, 1f, at, at + 0.25f)), name = "figure",
+            transform = Transform(x = cx.anim, y = cy.anim, anchorX = anchorX, opacity = Anim.tween(0f, 1f, at, at + 0.25f)), name = "figure",
         )
         node.onBody = true
         node.ground = on
@@ -195,14 +202,17 @@ internal class Hand(
         )
     }
 
+    /** A check mark [size] px drawn on from [at], in [color] (the words' colour on the accent by default). */
+    fun check(cx: Float, cy: Float, size: Float, at: Float, color: Color = onAccent): ShapeNode = ShapeNode(
+        ShapeSpec.Path(Icons.path("check")!!, Icons.VIEWPORT, size), stroke = Stroke(color.fill(), size * 0.15f),
+        trimEnd = Anim.tween(0f, 1f, at, at + 0.32f, Easing.ExpoOut), transform = Transform(x = cx.anim, y = cy.anim), name = "check",
+    )
+
     /** A round tick that pops in at [at] and draws its check. */
-    fun tick(cx: Float, cy: Float, d: Float, at: Float, fill: Color = accentBody, mark: Color = onAccent): Node {
-        val check = ShapeNode(
-            ShapeSpec.Path(Icons.path("check")!!, Icons.VIEWPORT, d * 0.62f), stroke = Stroke(mark.fill(), d * 0.1f),
-            trimEnd = Anim.tween(0f, 1f, at + 0.1f, at + 0.42f, Easing.ExpoOut), transform = Transform(x = cx.anim, y = cy.anim), name = "check",
-        )
+    fun tick(cx: Float, cy: Float, d: Float, at: Float, fill: Color = accentBody, mark: Color = onAccent, ring: Color = ground): Node {
+        val check = check(cx, cy, d * 0.62f, at + 0.1f, mark)
         val ring = ShapeNode(
-            ShapeSpec.Ellipse((d + 5f * u).anim, (d + 5f * u).anim), fill = ground.fill(), transform = Transform(x = cx.anim, y = cy.anim), name = "tick-ring",
+            ShapeSpec.Ellipse((d + 5f * u).anim, (d + 5f * u).anim), fill = ring.fill(), transform = Transform(x = cx.anim, y = cy.anim), name = "tick-ring",
         )
         return pop(listOf(ring, dot(cx, cy, d, ColorAnim.of(fill), "tick"), check), Box.around(cx, cy, d, d), at, "tick")
     }
@@ -225,6 +235,40 @@ internal class Hand(
             keys += Anim.Key(start + 0.7f, 1f, Easing.SineInOut)
         }
         return Anim.keys(keys)
+    }
+
+    /** [children] (local px) that fade in at [at] (a checked or picked state laid over the plain one). */
+    fun layer(children: List<Node>, at: Float, name: String): Group =
+        Group(children, Transform(anchorX = 0f, anchorY = 0f, opacity = Anim.tween(0f, 1f, at, at + Track.TURN, Easing.Standard)), start = at, name = name)
+
+    /** [children] that fade in at each "on" step and out at each "off" step of [steps]. */
+    fun toggled(children: List<Node>, steps: List<Pair<Float, Boolean>>, name: String): Group? {
+        if (steps.isEmpty()) return null
+        val keys = ArrayList<Anim.Key>()
+        keys += Anim.Key(steps.first().first - 0.001f, 0f, Easing.Hold)
+        for ((t, on) in steps) {
+            val start = maxOf(t, keys.last().t + 0.001f)
+            keys += Anim.Key(start, keys.last().v, Easing.Hold)
+            keys += Anim.Key(start + Track.TURN, if (on) 1f else 0f, Easing.Standard)
+        }
+        return Group(children, Transform(anchorX = 0f, anchorY = 0f, opacity = Anim.keys(keys)), start = steps.first().first, name = name)
+    }
+
+    /** Splits items of [widths] into rows no wider than [maxW] (with [gap] between), in reading order. */
+    fun wrap(widths: List<Float>, maxW: Float, gap: Float, maxPerRow: Int = Int.MAX_VALUE): List<List<Int>> {
+        val rows = ArrayList<MutableList<Int>>()
+        var used = 0f
+        for ((i, w) in widths.withIndex()) {
+            val row = rows.lastOrNull()
+            if (row == null || row.size >= maxPerRow || used + gap + w > maxW) {
+                rows += mutableListOf(i)
+                used = w
+            } else {
+                row += i
+                used += gap + w
+            }
+        }
+        return rows
     }
 
     /** Reading-start x inside a span [left]..[right] at [inset]. */
