@@ -33,3 +33,10 @@ tasks.withType<Test>().configureEach {
     providers.gradleProperty("retrieval.native").orNull?.let { systemProperty("trimio.native.dir", it) }
     maxHeapSize = "3g"
 }
+
+kotlin {
+    sourceSets {
+        // The evaluation compares with the matcher the app used before (engine/assets ArtCatalogue).
+        jvmTest.dependencies { implementation(projects.engine.assets) }
+    }
+}

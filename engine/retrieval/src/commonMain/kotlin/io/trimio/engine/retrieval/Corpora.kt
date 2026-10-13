@@ -3,6 +3,11 @@ package io.trimio.engine.retrieval
 import io.trimio.engine.retrieval.resources.Res
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /**
@@ -56,6 +61,24 @@ object Corpora {
     }
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    /**
+     * The pictures of an art index in the bundled format (tools/art/build_art_index.py: rows of
+     * `[source, key, name, [tags], [tagsFa], popularity, category]`), every one animated. The vector
+     * pack builder and the app read the catalogue through this same function, so the documents
+     * (and their fingerprints) match.
+     */
+    fun pictures(indexJson: String): List<Picture> {
+        val rows = json.parseToJsonElement(indexJson).jsonObject.getValue("art").jsonArray
+        return rows.map { row ->
+            val a = row.jsonArray
+            fun strings(i: Int) = (a.getOrNull(i) as? JsonArray)?.map { it.jsonPrimitive.content }.orEmpty()
+            Picture(
+                id = a[0].jsonPrimitive.content + ":" + a[1].jsonPrimitive.content, name = a[2].jsonPrimitive.content,
+                tags = strings(3), tagsFa = strings(4), category = a.getOrNull(6)?.jsonPrimitive?.contentOrNull.orEmpty(),
+            )
+        }
+    }
 
     fun parseDocs(text: String): List<Doc> = json.decodeFromString(ListSerializer(Doc.serializer()), text)
 
