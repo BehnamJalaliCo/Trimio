@@ -230,7 +230,7 @@ void batch_add(llama_batch & b, llama_token token, llama_pos pos, llama_seq_id s
 }
 
 /** Below this probability the head's next guess is not worth a verification slot. */
-constexpr float MTP_P_MIN = 0.4f;
+constexpr float MTP_P_MIN = 0.1f;
 
 /** Feeds [n] kept tokens (positions [pos0], …) to the head, each with the hidden row of the position before it. */
 bool mtp_follow(Engine * e, const llama_token * toks, int n, llama_pos pos0, const float * rows) {
@@ -251,7 +251,7 @@ bool mtp_follow(Engine * e, const llama_token * toks, int n, llama_pos pos0, con
             const llama_pos p = pos0 + i;
             llama_batch_ext_set_pos(b, idx, &p);
             const float * h = i == 0 ? e->mtp_h.data() : rows + static_cast<size_t>(i - 1) * n_embd;
-            llama_batch_ext_set_embd_state(b, idx, {h, 1, n_embd});
+            llama_batch_ext_set_embd_token(b, idx, {h, 1, n_embd});
         }
         ok = ok && llama_process(e->mtp, LLAMA_PROCESS_TYPE_DECODE, b) == 0;
     }
@@ -282,7 +282,7 @@ std::vector<llama_token> mtp_draft(Engine * e, llama_token token, llama_pos pos,
         if (idx < 0) break;
         const llama_pos p = pos + step;
         llama_batch_ext_set_pos(b, idx, &p);
-        llama_batch_ext_set_embd_state(b, idx, {h.data(), 1, static_cast<size_t>(e->n_embd)});
+        llama_batch_ext_set_embd_token(b, idx, {h.data(), 1, static_cast<size_t>(e->n_embd)});
         llama_batch_ext_set_output_logits(b, idx, true);
         if (llama_process(e->mtp, LLAMA_PROCESS_TYPE_DECODE, b) != 0) break;
         const float * logits = llama_get_logits_ith(e->mtp, idx);

@@ -46,11 +46,13 @@ internal object OnScreenSpelling {
         val first = texts.mapIndexed { i, w -> listed[i] ?: w }
         // 2. The director's proofreading of what is still unknown.
         val asked = first.indices.filter { !screen.shows(first[it]) }
-        val read = if (model == null || asked.isEmpty()) emptyMap() else runCatching { byModel(model, first, asked) { screen.shows(it) } }.getOrElse { e ->
+        val answer = if (model == null || asked.isEmpty()) emptyMap() else runCatching { byModel(model, first, asked) { screen.shows(it) } }.getOrElse { e ->
             if (e is kotlinx.coroutines.CancellationException) throw e
             log("screen words: the director could not proofread (${e.message})")
             emptyMap()
         }
+        // A word given back unchanged is not taken as a name: the jury could not tell it from a slip.
+        val read = answer.filter { (i, w) -> w != first[i] }
         read.forEach { (i, w) -> log("screen words (director): ${first[i]} → $w") }
         // Word for word (the lines and the reading share these indices): a fix of several words waits for the lexicon's pass.
         val fixes = (listed + read).filterValues { it.isNotBlank() && ' ' !in it.trim() }

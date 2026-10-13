@@ -32,7 +32,7 @@ class TextAddOnsTest {
         // Laptop-only add-ons are not even offered on a phone.
         val offered = AddOnAdvice.offers(phone).map { it.spec.id }
         assertFalse(TextAddOns.reranker4b.id in offered)
-        assertTrue(TextAddOns.bgeM3.id in offered)
+        assertTrue(TextAddOns.embeddingGemma2.id in offered)
     }
 
     @Test
@@ -42,7 +42,7 @@ class TextAddOnsTest {
         assertTrue(TextAddOns.reranker4b in picked, picked.map { it.id }.toString())
         assertTrue(TextAddOns.embedder in picked)
         // The alternative embedders are offered but never pushed.
-        assertFalse(TextAddOns.bgeM3 in picked || TextAddOns.embedding4b in picked)
+        assertFalse(TextAddOns.embeddingGemma2 in picked || TextAddOns.embedding4b in picked)
         assertTrue(AddOnAdvice.offers(laptop).any { it.spec == TextAddOns.embedding4b })
     }
 

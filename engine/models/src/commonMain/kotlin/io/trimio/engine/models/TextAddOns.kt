@@ -39,8 +39,8 @@ object TextAddOns {
     val embeddingGemma2 = gguf(
         "embeddinggemma-2-q8", ModelKind.Embedding, "ggml-org/embeddinggemma-2-GGUF", "embeddinggemma-2-Q8_0.gguf",
         309_855_456, "2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135", "Apache-2.0",
-        "جست‌وجوی معنایی (EmbeddingGemma 2)", "Meaning search (EmbeddingGemma 2)",
-        retrieval(AddOnTier.Essential, "برای هر جمله تصویر، صدا و مثالی پیدا می‌کند که معنایش را دارد", "Finds the picture, sound and example that mean what each sentence says", "plan"),
+        "جست‌وجوی معنایی سبک (EmbeddingGemma 2)", "Light meaning search (EmbeddingGemma 2)",
+        retrieval(AddOnTier.Essential, "جایگزین سبک‌تر: نصف حجم، در جست‌وجوی فارسی کمی ضعیف‌تر", "Lighter alternative: half the size, a little weaker on Persian search", "plan"),
         work = 160_000_000,
     )
 
@@ -49,7 +49,10 @@ object TextAddOns {
         "bge-m3-q8", ModelKind.Embedding, "ggml-org/bge-m3-Q8_0-GGUF", "bge-m3-q8_0.gguf",
         634_553_760, "aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173", "MIT",
         "جست‌وجوی معنایی (bge-m3)", "Meaning search (bge-m3)",
-        retrieval(AddOnTier.Essential, "جایگزین: جست‌وجوی معنایی با مدل چندزبانهٔ bge-m3", "Alternative: meaning search with the multilingual bge-m3", "plan"),
+        retrieval(
+            AddOnTier.Essential, "برای هر جمله تصویر، صدا و مثالی پیدا می‌کند که معنایش را دارد",
+            "Finds the picture, sound and example that mean what each sentence says", "plan",
+        ),
         work = 220_000_000,
     )
 
@@ -104,8 +107,12 @@ object TextAddOns {
         work = 200_000_000,
     )
 
-    /** The embedder the vector packs are built for (chosen by the measured Persian check). */
-    val embedder: ModelSpec get() = embeddingGemma2
+    /**
+     * The embedder the vector packs are built for: bge-m3, by the measured Persian check
+     * (docs/research/RETRIEVAL_EVAL.md: nDCG@10 0.374 against EmbeddingGemma 2's 0.293, hybrid with
+     * the director's picture idea; 0.321 against 0.208 on the sentence alone).
+     */
+    val embedder: ModelSpec get() = bgeM3
 
     /** The reranker offered first on each device class. */
     fun rerankerFor(device: DeviceMemory): ModelSpec = if (device.desktop && device.ramGb >= LAPTOP_PRO_RAM) reranker4b else reranker06b
@@ -113,5 +120,5 @@ object TextAddOns {
     private const val LAPTOP_PRO_RAM = 16
 
     /** Every text add-on, in the order the tiers screen lists them. */
-    val all: List<ModelSpec> = listOf(embeddingGemma2, reranker06b, bgeM3, reranker4b, embedding4b, vlReranker2b, vlReranker2bEyes)
+    val all: List<ModelSpec> = listOf(bgeM3, reranker06b, embeddingGemma2, reranker4b, embedding4b, vlReranker2b, vlReranker2bEyes)
 }
