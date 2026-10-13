@@ -144,12 +144,30 @@ class NewsWriter(private val visuals: Visuals = Visuals.Lexicon) {
         val main = body.filter { it != kickerAt && (split == null || it <= split) }.dropWhile(::loose).dropLastWhile(::loose).map(::shown).filter { it.isNotBlank() }
         val rest = if (split == null) emptyList() else body.filter { it > split }.map(::shown).filter { it.isNotBlank() }
         val punch = punchFrom?.let { p -> (p..s.last).take(PUNCH_WORDS).joinToString(" ") { Phrases.clean(n.texts[it]) } + if (bang) "!!" else "" }.orEmpty()
+        // A headline is a whole phrase: the sentence when it is short, else cut where a phrase ends (never on an ezafe,
+        // a preposition or a number without its noun); the grey line likewise.
+        val head = if (main.size <= MAIN_MAX) main else main.take(cut(main, MAIN_WORDS))
+        val more = rest.ifEmpty { main.drop(head.size) }
         return Headline(
             kickerAt?.let { Phrases.clean(n.texts[it]) }.orEmpty(),
-            main.take(MAIN_WORDS).joinToString(" "),
-            (rest.ifEmpty { main.drop(MAIN_WORDS) }).take(SECOND_WORDS).joinToString(" "),
+            head.joinToString(" "),
+            more.take(cut(more, SECOND_WORDS)).joinToString(" "),
             punch, punchFrom, split?.let { it + 1 }?.takeIf { rest.isNotEmpty() },
         )
+    }
+
+    /** How many of [words] (at most [max]) make a line that ends where a phrase can end; 0 when none does. */
+    private fun cut(words: List<String>, max: Int): Int = (minOf(max, words.size) downTo 1).firstOrNull { k -> ends(words.take(k)) } ?: 0
+
+    /** Whether a line may end on its last word (the quality agent's fragment rules, plus ezafe and bare numbers). */
+    internal fun ends(line: List<String>): Boolean {
+        val raw = line.last().trim()
+        val last = Metaphors.bare(raw)
+        val ezafe = raw.endsWith("\u200Cی") || raw.endsWith("\u200Cای")
+        if (ezafe || last in OPEN_ENDS) return false
+        if (Quantities.sense(listOf(last), 0).quantities.isNotEmpty()) return false
+        val fault = io.trimio.engine.autopilot.Fragments.fault(line.joinToString(" ")) ?: return true
+        return !fault.startsWith("ends on «") && !fault.startsWith("starts mid-phrase")
     }
 
     /** At most one device for the scene, with the word it lands on. */
@@ -205,6 +223,13 @@ class NewsWriter(private val visuals: Visuals = Visuals.Lexicon) {
         const val SCRAP = 2.0
         const val KICKER_MIN = 3
         const val MAIN_WORDS = 5
+
+        /** A sentence up to this long is the headline whole. */
+        const val MAIN_MAX = 9
+        private val OPEN_ENDS = setOf(
+            "از", "به", "با", "در", "برای", "تا", "که", "و", "را", "رو", "یا", "اما", "ولی", "بر", "روی", "زیر", "پیش", "بین", "جلوی",
+            "of", "to", "the", "a", "and", "in", "for", "with",
+        )
         const val SECOND_WORDS = 3
         const val PUNCH_WORDS = 5
         const val ANNOTATION_WORDS = 6

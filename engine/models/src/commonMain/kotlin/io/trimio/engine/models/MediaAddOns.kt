@@ -98,22 +98,6 @@ object MediaAddOns {
     // --- Speech --------------------------------------------------------------------------------
 
     /**
-     * Silero VAD v6.2.0 in whisper.cpp's ggml format (MIT): speech is found before decoding, so
-     * whisper skips silence (faster, no hallucinated words in pauses) and word times stay exact.
-     */
-    val vad = ModelSpec(
-        id = "silero-vad-v6.2", kind = ModelKind.AddOn, titleFa = "تشخیص گفتار از سکوت", titleEn = "Speech detection (Silero VAD)",
-        fileName = "ggml-silero-v6.2.0.bin",
-        urls = listOf("${ModelCatalog.CDN}/addons/ggml-silero-v6.2.0.bin", "$HF/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin"),
-        sizeBytes = 885_098, sha256 = "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987", tier = DeviceTier.Standard,
-        license = "MIT", workBytes = 20_000_000,
-        addOn = AddOn(
-            AddOnTier.Essential, AddOnGroup.Speech, AddOnRuntime.Whisper,
-            "سکوت‌ها پیش از شنیدن حذف می‌شوند: سریع‌تر و بدون کلمهٔ خیالی", "Silence is skipped before listening: faster, no invented words", stage = "listen",
-        ),
-    )
-
-    /**
      * Punctuation, true-casing and sentence ends in 47 languages including Persian (6-layer
      * transformer, 64k SentencePiece). On our 26 s benchmark it restored 13 of 15 gold marks.
      */
@@ -169,7 +153,7 @@ object MediaAddOns {
 
     /** Every media add-on, in the order the tiers screen lists them. */
     val all: List<ModelSpec> = listOf(
-        vad, faces, shots, ocrDetector, ocrRecognizer, ocrDictionary, beats, beatsFrontend, punctuation, punctuationTokenizer,
+        faces, shots, ocrDetector, ocrRecognizer, ocrDictionary, beats, beatsFrontend, punctuation, punctuationTokenizer,
         aligner, alignerTokens, speakerTurns, speakerVoices,
     )
 }

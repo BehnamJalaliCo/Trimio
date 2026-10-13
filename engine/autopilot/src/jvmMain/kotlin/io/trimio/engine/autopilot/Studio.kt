@@ -92,12 +92,12 @@ class Studio(
         private const val LOOK_H = 512
 
         /** Speech to words with whisper.cpp; the prompt's names and jargon condition the decoder. */
-        suspend fun transcribe(video: File, whisperModel: String, prompt: String, language: Language? = Language.Persian, vad: String? = null): Transcript {
+        suspend fun transcribe(video: File, whisperModel: String, prompt: String, language: Language? = Language.Persian): Transcript {
             val audio = Media.audio(video, 16_000)
             // A short, well-punctuated sentence in the spoken language naming the brief's names and the
             // field's terms: better punctuation, and the terms spelled as they are written ([Loanwords.prompt]).
             val hint = System.getProperty("auto.hint")?.takeIf { it == "plain" }?.let { "سلام دوستان، امروز می‌خواهم یک نکته‌ی مهم را بگویم." } ?: Loanwords.prompt(prompt)
-            return WhisperCppRecognizer(whisperModel, vadModelPath = vad).use { r ->
+            return WhisperCppRecognizer(whisperModel).use { r ->
                 // -Dtrimio.asr.threads: fewer threads than cores on a shared, busy machine (ggml's workers spin while they wait for each other).
                 val threads = System.getProperty("trimio.asr.threads")?.toIntOrNull() ?: Runtime.getRuntime().availableProcessors()
                 r.transcribe(audio, RecognitionOptions(language = language, initialPrompt = hint, threads = threads))

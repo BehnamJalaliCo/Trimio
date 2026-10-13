@@ -13,8 +13,6 @@ import io.trimio.engine.asr.SpeechRuntime
  * switch models at any time) and keeps that model loaded only while it stays the chosen one.
  */
 class InstalledWhisperRecognizer(
-    /** Silero VAD's file when that add-on is installed: decoding then skips silence. */
-    private val resolveVadPath: () -> String? = { null },
     private val resolveModelPath: () -> String?,
 ) : SpeechRecognizer, AutoCloseable {
     private var current: Pair<String, WhisperCppRecognizer>? = null
@@ -31,11 +29,9 @@ class InstalledWhisperRecognizer(
     ): Transcript {
         val path = resolveModelPath()
             ?: throw RecognitionException("No speech model installed. Download one in Settings → Models.")
-        val vad = resolveVadPath()
-        val key = "$path|$vad"
-        val recognizer = current?.takeIf { it.first == key }?.second ?: run {
+        val recognizer = current?.takeIf { it.first == path }?.second ?: run {
             current?.second?.close()
-            WhisperCppRecognizer(path, vadModelPath = vad).also { current = key to it }
+            WhisperCppRecognizer(path).also { current = path to it }
         }
         return recognizer.transcribe(audio, options, onProgress, onWord).also { runtime = recognizer.runtime }
     }

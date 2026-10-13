@@ -38,7 +38,7 @@ class MediaAddOnsTest {
             assertTrue(AddOnFit.of(spec, laptop).comfortable, "${spec.id} on the laptop")
         }
         val tiers = AddOnTier.entries.associateWith { AddOnFit.offered(it, phone, all).map { s -> s.id } }
-        assertTrue("silero-vad-v6.2" in tiers.getValue(AddOnTier.Essential))
+        assertTrue(tiers.values.flatten().none { "vad" in it }, "speech detection was removed: it dropped spoken words")
         assertTrue("yunet-2023mar" in tiers.getValue(AddOnTier.Pro))
         assertTrue(tiers.values.flatten().none { it.endsWith("-spm") || it.endsWith("-tokens") }, "helpers are not rows")
     }

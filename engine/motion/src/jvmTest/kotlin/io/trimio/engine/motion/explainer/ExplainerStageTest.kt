@@ -224,7 +224,9 @@ class ExplainerStageTest {
         for ((ci, ch) in film.chapters.withIndex()) {
             val mine = lives.filter { it.chapter == ci }
             assertTrue(mine.isNotEmpty())
-            for (l in mine) assertTrue(l.leave <= ch.end + 1e-3 && l.enter >= ch.start - 1e-3, "${l.element} lives inside chapter $ci")
+            // The last chapter is the end card: it stays to the film's last frame.
+            val until = if (ci == film.chapters.lastIndex) out.composition.duration.toDouble() else ch.end
+            for (l in mine) assertTrue(l.leave <= until + 1e-3 && l.enter >= ch.start - 1e-3, "${l.element} lives inside chapter $ci")
         }
         // Within a chapter the stage builds: some moments hold more than one element.
         assertTrue(out.report.rests.any { it.boxes.size >= 2 })

@@ -67,13 +67,8 @@ class ArtShelf(
      */
     private suspend fun recalled(query: String, line: String, limit: Int, sources: Set<String>, lexical: List<ArtHit>): List<ArtHit> {
         val r = recall ?: return lexical
-        val found = try {
-            r.search(query, line, limit, sources)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-            null
-        } ?: return lexical
+        val found = runCatching { r.search(query, line, limit, sources) }
+            .getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else null } ?: return lexical
         val semantic = found.mapNotNull { (id, rel) ->
             catalogue.entry(id)?.takeIf { it.source.id in sources }?.let { ArtHit(it, maxOf(rel, ArtCatalogue.relevance(query, it.name, it.tags))) }
         }

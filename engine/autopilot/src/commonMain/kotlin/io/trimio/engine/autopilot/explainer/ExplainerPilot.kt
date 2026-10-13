@@ -87,7 +87,7 @@ class ExplainerPilot(
         val director: FilmDirector = model?.let { LlmDirector(it, budget = if (it.isLocal) budget else null) } ?: RulesDirector()
         val writer = Screenwriter(director, jury, askAgain = model?.isLocal == false || model == null)
         val written = writer.write(n, request.seed, request.others) { report += it }
-        val film = leadIn(written.film)
+        val film = endCard(leadIn(written.film))
         Beats.table(film).forEach { report += it }
 
         onStage("draw", 0.8f)
@@ -129,6 +129,22 @@ class ExplainerPilot(
         )
     }
 
+    /**
+     * The film ends on a card, not on a passing beat: the last chapter's call to action (its badge), else its
+     * last beat, comes up alone at least [END_CARD] seconds before the end and stays to the last frame.
+     */
+    private fun endCard(film: ExplainerFilm): ExplainerFilm {
+        if (film.art.grammar != io.trimio.engine.motion.explainer.FilmGrammar.DiagramChapters.id) return film
+        val c = film.chapters.lastOrNull() ?: return film
+        val beats = c.beats.sortedBy { it.at }
+        val card = beats.lastOrNull { it.primitive == io.trimio.engine.motion.explainer.Primitive.Badge } ?: beats.lastOrNull { it.primitive != null } ?: return film
+        val at = minOf(card.at, maxOf(c.start + OPEN, c.end - END_CARD))
+        val before = beats.filter { it.at < at && it !== card }
+        val sweep = io.trimio.engine.motion.explainer.Beat(at, at, card.line, io.trimio.engine.motion.explainer.StageOp.Clear, "*", metaphor = "the stage clears for the end card")
+        val shown = card.copy(at = at + CARD_GAP, until = c.end, op = io.trimio.engine.motion.explainer.StageOp.Add, element = "end-card")
+        return film.copy(chapters = film.chapters.dropLast(1) + c.copy(beats = before + sweep + shown))
+    }
+
     /** A soft whoosh where a new chapter (or news scene) arrives; nothing under the first one. */
     private fun cues(film: ExplainerFilm): List<io.trimio.engine.motion.recipe.Sfx> =
         film.chapters.drop(1).map { io.trimio.engine.motion.recipe.Sfx(it.start.toFloat(), io.trimio.engine.motion.recipe.SfxKind.Whoosh, CUE_GAIN) }
@@ -137,6 +153,8 @@ class ExplainerPilot(
         const val CUE_GAIN = 0.55f
         const val LEAD = 1.2
         const val OPEN = 0.5
+        const val END_CARD = 2.5
+        const val CARD_GAP = 0.3
         val MODEL_BUDGET = 12.minutes
         val UNDERSTAND_BUDGET = 3.minutes
         fun round1(v: Float) = kotlin.math.round(v * 10f) / 10f

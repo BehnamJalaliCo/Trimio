@@ -73,7 +73,9 @@ class ExplainerStage(
         nodes += header.marks()
         for ((ci, ch) in chapters.withIndex()) {
             nodes += header.title(ci)
-            val (chapterNodes, chapterRests) = chapter(ci, ch, film, look, frame, notes, lives)
+            // The last chapter is the end card: nothing sweeps it away, it stays to the film's last frame.
+            val last = ci == chapters.lastIndex
+            val (chapterNodes, chapterRests) = chapter(ci, if (last) ch.copy(end = duration.toDouble()) else ch, film, look, frame, notes, lives, sweep = !last)
             nodes += chapterNodes
             rests += chapterRests
         }
@@ -85,10 +87,13 @@ class ExplainerStage(
     @Suppress("LongParameterList")
     private fun chapter(
         ci: Int, ch: Chapter, film: ExplainerFilm, look: FilmLook, frame: StageFrame, notes: MutableList<String>, lives: MutableList<Life>,
+        sweep: Boolean = true,
     ): Pair<List<Node>, List<Rest>> {
         val rules = look.rules
-        val versions = Director(ch, notes).run()
+        val versions = Director(ch, notes, sweep).run()
+        Staging.holdTillNext(versions)
         Staging.limit(versions, rules.maxLive, { true }, notes)
+        Staging.keepLit(versions)
         val seed = film.art.seed * 1_000L + ci * 97L
         val laid = HashMap<Version, Laid>()
         val hands = HashMap<Version, Hand>()

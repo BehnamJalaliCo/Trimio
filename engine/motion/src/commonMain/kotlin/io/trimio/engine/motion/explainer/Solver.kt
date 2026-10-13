@@ -99,7 +99,11 @@ internal class Solver(
     private fun height(items: List<Laid>) = items.sumOf { it.h.toDouble() }.toFloat() + gap * (items.size - 1)
 
     private fun column(items: List<Laid>, cx: Float): Pair<Float, List<Place>> {
-        val scale = minOf(1f, stage.height / height(items), stage.width / items.maxOf { it.w })
+        val widest = items.maxOf { it.w }
+        // On a tall stage a small set grows until it spans about two thirds of the width (the stage is used, not a corner of it).
+        val fill = if (wide || fromTop) 1f else (stage.width * FILL / widest).coerceIn(1f, MAX_GROW)
+        val room = if (fill > 1f) GROWN_ROOM else 1f
+        val scale = minOf(fill, stage.height * room / height(items), stage.width / widest)
         return scale to columnAt(items, cx, scale)
     }
 
@@ -119,6 +123,9 @@ internal class Solver(
         const val MAKE_ROOM = 0.5f
         const val CLOSE_RANKS = 0.6f
         const val LIFT = 0.04f
+        const val FILL = 0.66f
+        const val MAX_GROW = 1.5f
+        const val GROWN_ROOM = 0.86f
         val GLIDE: Easing = Easing.Bezier(0.45f, 0f, 0.15f, 1f)
     }
 }

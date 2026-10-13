@@ -50,3 +50,7 @@ Work continues until the app is truly ultra-professional. The ONLY acceptance is
 0 unknown on-screen words, 0 fragment texts, 0 cuts inside words, every judge >= 9.5 with the rules director and
 the 9B director. The app itself must detect and fix these on ANY video (no video-specific hacks). Write a PROGRESS.md
 in your scratchpad folder after each milestone so a container restart loses nothing.
+
+## Owner's rule on defective parts (13 Oct 2026)
+Anything that makes the output worse or causes errors is REMOVED from the app entirely — not left in switched off.
+(Example: Silero VAD dropped a whole spoken passage on a real video, so it was deleted from code, catalogue and tests.)

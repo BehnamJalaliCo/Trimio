@@ -11,7 +11,6 @@ import io.trimio.engine.llm.local.LlamaLanguageModel
 import io.trimio.engine.llm.local.LlamaReranker
 import io.trimio.engine.llm.local.LocalEncoders
 import io.trimio.engine.models.ChatFormat
-import io.trimio.engine.models.MediaAddOns
 import io.trimio.engine.models.TextAddOns
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Score
@@ -54,10 +53,10 @@ class AutopilotProofTest {
         val out = File(System.getProperty("auto.out") ?: "build/proof").apply { mkdirs() }
         val cache = File(out, "cache").apply { mkdirs() }
 
-        // -Pauto.addons=<dir>[,<dir>]: the add-ons installed there run as in the app (Silero VAD, AddOnPass); absent: none.
+        // -Pauto.addons=<dir>[,<dir>]: the add-ons installed there run as in the app (AddOnPass); absent: none.
         val addOns = AddOns(System.getProperty("auto.addons")?.split(',')?.map(::File)?.filter { it.isDirectory }.orEmpty())
         // -Pauto.embedder=<dir>: the retrieval add-on (bge-m3, plus the reranker when it is there) widens the picture search.
-        System.getProperty("auto.embedder")?.let(::File)?.takeIf { it.isDirectory }?.let { ArtShelf.recall = recall(it) }
+        useEmbedder(System.getProperty("auto.embedder"))
 
         // 1. Speech, recognised by the app's own whisper.cpp (cached: it does not change between seeds).
         val transcriptFile = File(out, "transcript.json")
@@ -124,6 +123,10 @@ class AutopilotProofTest {
         llm?.close()
     }
 
+    private fun useEmbedder(dir: String?) {
+        File(dir ?: return).takeIf { it.isDirectory }?.let { ArtShelf.recall = recall(it) }
+    }
+
     private fun recall(dir: File): ArtShelf.Recall {
         val embedder = TextAddOns.embedder.let { LlamaEmbedder(it.id, File(dir, it.fileName).path, LocalEncoders.familyOf(it)) }
         val reranker = TextAddOns.reranker06b.let { s -> File(dir, s.fileName).takeIf { it.isFile }?.let { LlamaReranker(s.id, it.path) } }
@@ -138,10 +141,9 @@ class AutopilotProofTest {
     private class AddOns(private val dirs: List<File>) {
         private fun file(name: String) = dirs.map { File(it, name) }.firstOrNull { it.isFile }?.path
         private val pass = dirs.takeIf { it.isNotEmpty() }?.let { AddOnPass(Perception(OrtEngine(), ModelFiles { spec -> file(spec.fileName) })) }
-        private val vad = file(MediaAddOns.vad.fileName)
 
         suspend fun transcribe(video: File, whisper: String, prompt: String): Transcript {
-            val t = Studio.transcribe(video, whisper, prompt, vad = vad)
+            val t = Studio.transcribe(video, whisper, prompt)
             return pass?.let { p -> t.copy(words = p.words(t.words, Media.audio(video, WHISPER_RATE), t.language)) } ?: t
         }
 
@@ -150,7 +152,7 @@ class AutopilotProofTest {
             return SubjectFinder.Found(Subject(h[0], h[1], h[2], h[3]), FACE_CONFIDENCE)
         }
 
-        fun lines(): List<String> = listOfNotNull(vad?.let { "add-on vad: $it" }) + pass?.report.orEmpty().map { "add-on $it" }
+        fun lines(): List<String> = pass?.report.orEmpty().map { "add-on $it" }
     }
 
     private class FileCache(private val dir: File) : KnowledgeCache {

@@ -50,23 +50,10 @@ val downloadWhisperTestModel by tasks.registering(Exec::class) {
     )
 }
 
-/** Silero VAD v6.2.0 for whisper.cpp (0.9 MB), for the speech-only test. */
-val vadTestModel = gradle.gradleUserHomeDir.resolve("trimio-test-models/ggml-silero-v6.2.0.bin")
-val downloadVadTestModel by tasks.registering(Exec::class) {
-    group = "native"
-    outputs.file(vadTestModel)
-    commandLine(
-        "bash", "-c",
-        "mkdir -p '${vadTestModel.parent}' && curl -sSfL -o '$vadTestModel.part' " +
-            "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin && mv '$vadTestModel.part' '$vadTestModel'",
-    )
-}
-
 tasks.named<Test>("jvmTest") {
     // Native tests run only when explicitly requested: ./gradlew :engine:asr:jvmTest -Ptrimio.nativeTests
     if (providers.gradleProperty("trimio.nativeTests").isPresent) {
-        dependsOn(buildHostNative, downloadWhisperTestModel, downloadVadTestModel)
-        systemProperty("trimio.whisper.vad", vadTestModel.absolutePath)
+        dependsOn(buildHostNative, downloadWhisperTestModel)
         providers.gradleProperty("trimio.asrModels").orNull?.let { systemProperty("trimio.asr.models", it) }
         providers.gradleProperty("trimio.asrAudio").orNull?.let { systemProperty("trimio.asr.audio", it) }
         systemProperty("trimio.nativeTests", "true")

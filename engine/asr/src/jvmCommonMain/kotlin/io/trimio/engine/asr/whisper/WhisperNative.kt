@@ -28,13 +28,6 @@ internal object WhisperNative {
     external fun detectedLanguage(handle: Long): String
     external fun systemInfo(): String
 
-    /** Silero VAD (ggml): 0 when the model cannot be loaded. */
-    external fun vadInit(modelPath: String, threads: Int): Long
-    external fun vadFree(handle: Long)
-
-    /** Speech spans of 16 kHz [pcm] as start/end pairs in seconds; null when detection failed. */
-    external fun vadSegments(handle: Long, pcm: FloatArray, threshold: Float, minSpeechMs: Int, minSilenceMs: Int, padMs: Int): FloatArray?
-
     const val ABORTED = -100
 }
 

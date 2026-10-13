@@ -20,7 +20,11 @@ internal object Staging {
     const val RISE = 30f
     const val LIFT = 18f
     const val DIMMED = 0.3f
+    private const val DIM_SPAN = 0.45f
     const val OUT_REPLACE = 0.25f
+
+    /** How long a replaced element stays at full strength while its replacement comes up. */
+    const val HAND_OVER = 0.2f
     const val OUT_MORPH = 0.18f
     const val MORPH_IN = 0.32f
 
@@ -77,14 +81,15 @@ internal object Staging {
         return out
     }
 
-    fun end(v: Version): Float = (if (v.leave.isFinite()) maxOf(v.gone, v.leave + OUT_REPLACE) else Float.POSITIVE_INFINITY) + 0.05f
+    fun end(v: Version): Float = (if (v.leave.isFinite()) maxOf(v.gone, v.leave + HAND_OVER + OUT_REPLACE) else Float.POSITIVE_INFINITY) + 0.05f
 
     /** Entrance and exit opacity by how the version came and how it goes. */
     fun life(v: Version): Anim {
         val keys = ArrayList<Anim.Key>()
         val (a, b) = when (v.entry) {
             Entry.Add -> v.enter to v.enter + 0.4f
-            Entry.Replace -> v.enter + 0.12f to v.enter + 0.5f
+            // A replacement is fully up before what it replaces has gone: the stage never passes through empty.
+            Entry.Replace -> v.enter to v.enter + 0.3f
             Entry.Morph -> v.enter + MORPH_IN to v.enter + MORPH_IN + 0.35f
         }
         keys += Anim.Key(a, 0f, Easing.Hold)
@@ -95,12 +100,45 @@ internal object Staging {
                 Entry.Replace -> OUT_REPLACE
                 Entry.Morph -> OUT_MORPH
             }
-            val t0 = maxOf(v.leave, b + 0.01f)
+            val t0 = maxOf(v.leave + if (v.exit == Entry.Replace) HAND_OVER else 0f, b + 0.01f)
             keys += Anim.Key(t0, 1f, Easing.Hold)
             keys += Anim.Key(t0 + out, 0f, Easing.Standard)
         }
         return Anim.keys(keys)
     }
+
+    /**
+     * Dimming is contrast, never the whole stage: a dim is dropped when nothing else on stage would stay
+     * at full strength at that moment (the newest element keeps its light first).
+     */
+    fun keepLit(versions: List<Version>) {
+        val stage = versions.filter { !it.overlay }
+        for (v in stage.sortedByDescending { it.enter }) {
+            v.dims.removeAll { (t, on) -> on && stage.none { o -> o !== v && o.live(t + DIM_SPAN) && !dimmed(o, t + DIM_SPAN) } }
+        }
+    }
+
+    /**
+     * The stage never empties inside a chapter: an element cleared while nothing else is up stays until
+     * the next one arrives (it then leaves as that one lands).
+     */
+    fun holdTillNext(versions: List<Version>) {
+        val stage = versions.filter { !it.overlay }
+        for (v in stage.sortedBy { it.leave }) {
+            if (!v.leave.isFinite()) continue
+            val alone = stage.none { o -> o !== v && o.enter <= v.gone && o.gone > v.gone }
+            val next = stage.filter { it.enter > v.leave }.minByOrNull { it.enter } ?: continue
+            if (!alone) continue
+            v.leave = next.enter + HAND_OVER
+            v.gone = v.leave + OUT_REPLACE
+            for (m in versions) if (m.target === v) {
+                m.leave = v.leave
+                m.gone = v.gone
+            }
+        }
+    }
+
+    private fun dimmed(v: Version, t: Float): Boolean = v.dims.filter { it.first <= t }.maxByOrNull { it.first }?.second == true
 
     fun dim(v: Version): Anim {
         if (v.dims.isEmpty()) return Anim.One
