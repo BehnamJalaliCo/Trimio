@@ -70,7 +70,9 @@ object PhotoStyler {
         val ref = median(border)
         val spread = border.map { dist(it, ref) }.sorted()[border.size * 3 / 4]
         val far = FloatArray(w * h) { i -> if (Colors.a(img.argb[i]) < CLEAR_ALPHA) 0f else dist(img.argb[i], ref) }
-        val bg = if (spread < PLAIN_BORDER) flood(Fields.blur(far, w, h, max(1, (unit * NOISE_RADIUS).roundToInt()), passes = 2), w, h) else null
+        // Shaded paper (a generator's soft vignette) widens the tolerance with the border's own spread.
+        val tolerance = max(FLOOD_TOLERANCE, spread * SPREAD_GAIN)
+        val bg = if (spread < PLAIN_BORDER) flood(Fields.blur(far, w, h, max(1, (unit * NOISE_RADIUS).roundToInt()), passes = 2), w, h, tolerance) else null
         val share = bg?.let { b -> b.count { it }.toFloat() / b.size } ?: 0f
         if (bg != null && share in MIN_BACKGROUND..MAX_BACKGROUND) {
             val fg = withoutIslands(BooleanArray(w * h) { !bg[it] }, w, h)
@@ -89,12 +91,12 @@ object PhotoStyler {
     }
 
     /** Pixels reachable from the border through [far] below the tolerance. */
-    private fun flood(far: FloatArray, w: Int, h: Int): BooleanArray {
+    private fun flood(far: FloatArray, w: Int, h: Int, tolerance: Float): BooleanArray {
         val bg = BooleanArray(w * h)
         val stack = IntArray(w * h)
         var top = 0
         fun push(i: Int) {
-            if (!bg[i] && far[i] < FLOOD_TOLERANCE) {
+            if (!bg[i] && far[i] < tolerance) {
                 bg[i] = true
                 stack[top++] = i
             }
@@ -220,6 +222,7 @@ object PhotoStyler {
     private const val PLAIN_BORDER = 0.12f
     private const val FLOOD_TOLERANCE = 0.14f
     private const val NOISE_RADIUS = 1.5f
+    private const val SPREAD_GAIN = 3f
     private const val ISLAND_SHARE = 0.08f
     private const val CLEAR_ALPHA = 16
     private const val MIN_BACKGROUND = 0.12f
@@ -232,7 +235,7 @@ object PhotoStyler {
     private const val BASE_GAIN = 0.8f
     private const val LIFT = 0.02f
     private const val OUTLINE_GAIN = 1.6f
-    private const val OUTLINE_MAX = 0.85f
+    private const val OUTLINE_MAX = 0.6f
     private const val DOG_RADIUS = 0.9f
     private const val DOG_RATIO = 1.6f
     private const val DOG_THRESHOLD = 0.008f
