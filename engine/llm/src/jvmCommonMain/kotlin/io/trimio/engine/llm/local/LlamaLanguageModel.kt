@@ -109,6 +109,24 @@ internal object LlamaNative {
     external fun initVision(handle: Long, projectorPath: String, threads: Int, maxImageTokens: Int): Boolean
     external fun systemInfo(): String
 
+    // Encoders (native `Encoder`): embedders and relevance judges, on the CPU.
+
+    /** [mode]: [ENCODE_EMBED], [ENCODE_RANK] or [ENCODE_JUDGE]; 0 when the file is not that kind of model. */
+    external fun encoderInit(modelPath: String, contextSize: Int, threads: Int, sequences: Int, mode: Int): Long
+    external fun encoderFree(handle: Long)
+    external fun encoderInfo(handle: Long): String
+
+    /** Pooled vectors of [texts], n × dims; null on failure or a non-finite value. */
+    external fun encode(handle: Long, texts: Array<ByteArray>, normalise: Boolean): FloatArray?
+
+    /** P(yes) of each document continuing the shared [head]; null on failure. */
+    external fun judge(handle: Long, head: ByteArray, docs: Array<ByteArray>): FloatArray?
+    external fun encoderTokens(handle: Long, text: ByteArray, special: Boolean): Int
+
+    const val ENCODE_EMBED = 0
+    const val ENCODE_RANK = 1
+    const val ENCODE_JUDGE = 2
+
     /** Placeholder llama.cpp's multimodal tokenizer replaces with an image's tokens. */
     const val MEDIA_MARKER = "<__media__>"
 }

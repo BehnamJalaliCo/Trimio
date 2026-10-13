@@ -258,6 +258,15 @@ jint sample(JNIEnv * env, Engine * engine, int n_past, jstring jgrammar, jint ma
     return status;
 }
 
+void ensure_backend() {
+    static bool backend_ready = false;
+    if (!backend_ready) {
+        llama_log_set(quiet_log, nullptr);
+        llama_backend_init();
+        backend_ready = true;
+    }
+}
+
 /** Decodes tokens [from, to) of [prompt] in n_batch chunks; false when a decode fails. */
 bool decode_range(Engine * engine, const std::vector<llama_token> & prompt, size_t from, size_t to) {
     const auto batch = static_cast<size_t>(std::max(1, engine->options.n_batch));
@@ -543,18 +552,266 @@ llama_context * make_context(llama_model * model, int n_ctx, int n_threads, cons
     return llama_init_from_model(model, cp);
 }
 
+// --- Encoders: text embeddings and relevance judges (retrieval) --------------------------------
+//
+// An encoder is a model of its own, on the CPU (the GPU belongs to the director), with a context
+// made for many short sequences at once:
+//  - EMBED: pooled embeddings as the GGUF says (EmbeddingGemma: mean, bge-m3: CLS, Qwen3-Embedding:
+//    last token), L2-normalised, as llama.cpp's embedding example and server do;
+//  - RANK: the GGUF's rank pooling (`--pooling rank`): for Qwen3-Reranker the softmax of the yes/no
+//    head on the last token, P(yes) first — kept to check JUDGE against;
+//  - JUDGE: the same reranker run as a causal model: every (instruction, query) head is decoded once
+//    and shared by all documents (copied sequences of one unified cache), only each document's last
+//    token is output, and P(yes) = softmax(logit_yes, logit_no). The same number as RANK (the rank
+//    head's two rows are the lm_head's yes/no rows), without reserving vocabulary-sized logits for
+//    every token of the batch (~300 MB per 512 tokens with a 151k vocabulary).
+
+enum EncoderMode { EMBED = 0, RANK = 1, JUDGE = 2 };
+
+struct Encoder {
+    llama_model * model = nullptr;
+    llama_context * ctx = nullptr;
+    const llama_vocab * vocab = nullptr;
+    mtmd_context * media = nullptr;
+    int mode = EMBED;
+    int n_ctx = 0;
+    int n_seq = 1;
+    int dims = 0;
+    llama_token yes = -1;
+    llama_token no = -1;
+    std::string info;
+};
+
+void batch_add(llama_batch & b, llama_token token, llama_pos pos, llama_seq_id seq, bool output) {
+    const int i = b.n_tokens;
+    b.token[i] = token;
+    b.pos[i] = pos;
+    b.n_seq_id[i] = 1;
+    b.seq_id[i][0] = seq;
+    b.logits[i] = output ? 1 : 0;
+    b.n_tokens++;
+}
+
+/** [t] cut to [limit] tokens, keeping its head and its last few (the end marker or the judge's question). */
+std::vector<llama_token> fit_tokens(const std::vector<llama_token> & t, size_t limit) {
+    if (t.size() <= limit) return t;
+    const size_t tail = std::min<size_t>(16, limit / 4);
+    std::vector<llama_token> out(t.begin(), t.begin() + static_cast<long>(limit - tail));
+    out.insert(out.end(), t.end() - static_cast<long>(tail), t.end());
+    return out;
+}
+
+bool all_finite(const float * v, int n) {
+    for (int i = 0; i < n; i++) if (!std::isfinite(v[i])) return false;
+    return true;
+}
+
+void l2_normalise(float * v, int n) {
+    double sum = 0;
+    for (int i = 0; i < n; i++) sum += double(v[i]) * v[i];
+    const float inv = sum > 0 ? static_cast<float>(1.0 / std::sqrt(sum)) : 0.0f;
+    for (int i = 0; i < n; i++) v[i] *= inv;
+}
+
+/** Sequences [from, to) of [seqs] in one decode; each pooled vector into [out] (dims floats each). */
+bool encode_batch(Encoder * e, const std::vector<std::vector<llama_token>> & seqs, size_t from, size_t to, bool normalise, float * out) {
+    size_t total = 0;
+    for (size_t s = from; s < to; s++) total += seqs[s].size();
+    llama_batch batch = llama_batch_init(static_cast<int32_t>(total), 0, 1);
+    for (size_t s = from; s < to; s++) {
+        for (size_t i = 0; i < seqs[s].size(); i++) batch_add(batch, seqs[s][i], static_cast<llama_pos>(i), static_cast<llama_seq_id>(s - from), true);
+    }
+    llama_memory_clear(llama_get_memory(e->ctx), true);
+    bool ok = llama_decode(e->ctx, batch) == 0;
+    for (size_t s = from; ok && s < to; s++) {
+        const float * v = llama_get_embeddings_seq(e->ctx, static_cast<llama_seq_id>(s - from));
+        if (v == nullptr || !all_finite(v, e->dims)) {
+            ok = false;
+            break;
+        }
+        float * dst = out + (s - from) * static_cast<size_t>(e->dims);
+        std::copy(v, v + e->dims, dst);
+        if (normalise) l2_normalise(dst, e->dims);
+    }
+    llama_batch_free(batch);
+    return ok;
+}
+
+/** Embeds (or rank-pools) every sequence, as many per decode as the context and sequence count allow. */
+bool encode_all(Encoder * e, const std::vector<std::vector<llama_token>> & seqs, bool normalise, std::vector<float> & out) {
+    out.assign(seqs.size() * static_cast<size_t>(e->dims), 0.0f);
+    size_t from = 0;
+    while (from < seqs.size()) {
+        size_t to = from;
+        size_t tokens = 0;
+        while (to < seqs.size() && static_cast<int>(to - from) < e->n_seq && tokens + seqs[to].size() <= static_cast<size_t>(e->n_ctx)) {
+            tokens += seqs[to].size();
+            to++;
+        }
+        if (to == from) return false;
+        if (!encode_batch(e, seqs, from, to, normalise, out.data() + from * static_cast<size_t>(e->dims))) return false;
+        from = to;
+    }
+    return true;
+}
+
+/** The single token [word] tokenizes to, or -1. */
+llama_token single_token(const llama_vocab * vocab, const std::string & word) {
+    const auto t = tokenize(vocab, word, false);
+    return t.size() == 1 ? t[0] : -1;
+}
+
+/**
+ * P(yes) for every document after one shared [head]: the head is decoded once in sequence 0, each
+ * document of a group continues a copy of it (sequences 1..n) with only its last token output.
+ */
+bool judge_all(Encoder * e, const std::vector<llama_token> & head, const std::vector<std::vector<llama_token>> & docs, std::vector<float> & out) {
+    llama_memory_t mem = llama_get_memory(e->ctx);
+    llama_memory_clear(mem, true);
+    const auto n_head = static_cast<llama_pos>(head.size());
+    if (head.empty() || static_cast<int>(head.size()) + 8 >= e->n_ctx) return false;
+    {
+        llama_batch batch = llama_batch_init(static_cast<int32_t>(head.size()), 0, 1);
+        for (size_t i = 0; i < head.size(); i++) batch_add(batch, head[i], static_cast<llama_pos>(i), 0, false);
+        const bool ok = llama_decode(e->ctx, batch) == 0;
+        llama_batch_free(batch);
+        if (!ok) return false;
+    }
+    out.assign(docs.size(), 0.0f);
+    const size_t room = static_cast<size_t>(e->n_ctx) - head.size();
+    size_t from = 0;
+    while (from < docs.size()) {
+        size_t to = from;
+        size_t tokens = 0;
+        while (to < docs.size() && static_cast<int>(to - from) < e->n_seq - 1 && tokens + docs[to].size() <= room) {
+            tokens += docs[to].size();
+            to++;
+        }
+        if (to == from) return false;
+        llama_batch batch = llama_batch_init(static_cast<int32_t>(tokens), 0, 1);
+        std::vector<int> last(to - from);
+        for (size_t s = from; s < to; s++) {
+            const auto seq = static_cast<llama_seq_id>(s - from + 1);
+            llama_memory_seq_cp(mem, 0, seq, -1, -1);
+            for (size_t i = 0; i < docs[s].size(); i++) {
+                const bool final = i + 1 == docs[s].size();
+                if (final) last[s - from] = batch.n_tokens;
+                batch_add(batch, docs[s][i], n_head + static_cast<llama_pos>(i), seq, final);
+            }
+        }
+        bool ok = llama_decode(e->ctx, batch) == 0;
+        for (size_t s = from; ok && s < to; s++) {
+            const float * logits = llama_get_logits_ith(e->ctx, last[s - from]);
+            if (logits == nullptr || !std::isfinite(logits[e->yes]) || !std::isfinite(logits[e->no])) {
+                ok = false;
+                break;
+            }
+            out[s] = 1.0f / (1.0f + std::exp(logits[e->no] - logits[e->yes]));
+        }
+        for (size_t s = from; s < to; s++) llama_memory_seq_rm(mem, static_cast<llama_seq_id>(s - from + 1), -1, -1);
+        llama_batch_free(batch);
+        if (!ok) return false;
+        from = to;
+    }
+    return true;
+}
+
+Encoder * open_encoder(const std::string & path, int n_ctx, int n_threads, int n_seq, int mode) {
+    llama_model_params mp = llama_model_default_params();
+    std::vector<ggml_backend_dev_t> cpu_only = {nullptr};
+    mp.devices = cpu_only.data();
+    mp.n_gpu_layers = 0;
+    llama_model * model = llama_model_load_from_file(path.c_str(), mp);
+    if (model == nullptr) return nullptr;
+    if (llama_model_has_encoder(model) && llama_model_has_decoder(model)) {
+        llama_model_free(model);
+        return nullptr;
+    }
+    llama_context_params cp = llama_context_default_params();
+    cp.n_ctx = static_cast<uint32_t>(n_ctx);
+    cp.n_batch = static_cast<uint32_t>(n_ctx);
+    // A non-causal encoder (BERT, EmbeddingGemma) reads a whole batch in one micro-batch.
+    cp.n_ubatch = static_cast<uint32_t>(n_ctx);
+    cp.n_seq_max = static_cast<uint32_t>(std::max(1, n_seq));
+    cp.kv_unified = true;
+    cp.n_threads = n_threads;
+    cp.n_threads_batch = n_threads;
+    cp.op_offload = false;
+    cp.no_perf = true;
+    if (mode == JUDGE) {
+        cp.embeddings = false;
+        cp.n_outputs_max = static_cast<uint32_t>(std::max(1, n_seq));
+    } else {
+        cp.embeddings = true;
+        cp.pooling_type = mode == RANK ? LLAMA_POOLING_TYPE_RANK : LLAMA_POOLING_TYPE_UNSPECIFIED;
+    }
+    llama_context * ctx = llama_init_from_model(model, cp);
+    if (ctx == nullptr) {
+        llama_model_free(model);
+        return nullptr;
+    }
+    auto * e = new Encoder{model, ctx, llama_model_get_vocab(model)};
+    e->mode = mode;
+    e->n_ctx = n_ctx;
+    e->n_seq = std::max(1, n_seq);
+    const auto pooling = llama_pooling_type(ctx);
+    bool usable = true;
+    if (mode == EMBED) {
+        e->dims = llama_model_n_embd_out(model);
+        usable = pooling != LLAMA_POOLING_TYPE_NONE && pooling != LLAMA_POOLING_TYPE_RANK;
+    } else if (mode == RANK) {
+        e->dims = static_cast<int>(llama_model_n_cls_out(model));
+        usable = e->dims > 0;
+    } else {
+        e->dims = 1;
+        e->yes = single_token(e->vocab, "yes");
+        e->no = single_token(e->vocab, "no");
+        usable = e->yes >= 0 && e->no >= 0;
+    }
+    char desc[256];
+    llama_model_desc(model, desc, sizeof(desc));
+    char line[512];
+    std::snprintf(line, sizeof(line), "model=%s\nmode=%d\npooling=%d\ndims=%d\nctx=%d\nseqs=%d\nthreads=%d\nusable=%d\n",
+        desc, mode, static_cast<int>(pooling), e->dims, n_ctx, e->n_seq, n_threads, usable ? 1 : 0);
+    e->info = line;
+    if (!usable) {
+        llama_free(ctx);
+        llama_model_free(model);
+        delete e;
+        return nullptr;
+    }
+    return e;
+}
+
+void close_encoder(Encoder * e) {
+    if (e == nullptr) return;
+    if (e->media != nullptr) mtmd_free(e->media);
+    llama_free(e->ctx);
+    llama_model_free(e->model);
+    delete e;
+}
+
+std::vector<std::vector<llama_token>> tokenize_all(JNIEnv * env, const llama_vocab * vocab, jobjectArray texts, bool add_special, size_t limit) {
+    const jsize n = env->GetArrayLength(texts);
+    std::vector<std::vector<llama_token>> out;
+    out.reserve(static_cast<size_t>(n));
+    for (jsize i = 0; i < n; ++i) {
+        auto * bytes = static_cast<jbyteArray>(env->GetObjectArrayElement(texts, i));
+        auto t = tokenize(vocab, from_bytes(env, bytes), add_special);
+        env->DeleteLocalRef(bytes);
+        if (t.empty()) t.push_back(llama_vocab_bos(vocab) >= 0 ? llama_vocab_bos(vocab) : 0);
+        out.push_back(fit_tokens(t, limit));
+    }
+    return out;
+}
+
 }  // namespace
 
 extern "C" {
 
 JNIEXPORT jlong JNICALL
 Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring jpath, jint n_ctx, jint n_threads, jint gpu_layers, jintArray joptions) {
-    static bool backend_ready = false;
-    if (!backend_ready) {
-        llama_log_set(quiet_log, nullptr);
-        llama_backend_init();
-        backend_ready = true;
-    }
+    ensure_backend();
     {
         std::lock_guard<std::mutex> lock(log_mutex);
         load_log.clear();
@@ -795,6 +1052,67 @@ Java_io_trimio_engine_llm_local_LlamaNative_initVision(JNIEnv * env, jobject, jl
 JNIEXPORT jstring JNICALL
 Java_io_trimio_engine_llm_local_LlamaNative_systemInfo(JNIEnv * env, jobject) {
     return env->NewStringUTF(llama_print_system_info());
+}
+
+/**
+ * Opens an encoder ([EncoderMode]: 0 embed, 1 rank pooling, 2 yes/no judge) on the CPU; 0 when
+ * the file does not load or is not that kind of model.
+ */
+JNIEXPORT jlong JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_encoderInit(JNIEnv * env, jobject, jstring jpath, jint n_ctx, jint n_threads, jint n_seq, jint mode) {
+    ensure_backend();
+    return reinterpret_cast<jlong>(open_encoder(to_string(env, jpath), n_ctx, n_threads, n_seq, mode));
+}
+
+JNIEXPORT void JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_encoderFree(JNIEnv *, jobject, jlong handle) {
+    close_encoder(reinterpret_cast<Encoder *>(handle));
+}
+
+/** How the encoder was opened, as key=value lines (model, mode, pooling, dims, ctx, seqs, threads). */
+JNIEXPORT jstring JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_encoderInfo(JNIEnv * env, jobject, jlong handle) {
+    return env->NewStringUTF(reinterpret_cast<Encoder *>(handle)->info.c_str());
+}
+
+/**
+ * Pooled vectors of [texts] (embed or rank mode), n × dims floats; L2-normalised when [normalise].
+ * Null when a decode fails or any value is not finite (an f16 EmbeddingGemma's NaNs).
+ */
+JNIEXPORT jfloatArray JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_encode(JNIEnv * env, jobject, jlong handle, jobjectArray texts, jboolean normalise) {
+    auto * e = reinterpret_cast<Encoder *>(handle);
+    if (e->mode == JUDGE) return nullptr;
+    const auto seqs = tokenize_all(env, e->vocab, texts, e->mode == EMBED, static_cast<size_t>(e->n_ctx));
+    std::vector<float> out;
+    if (!encode_all(e, seqs, normalise == JNI_TRUE, out)) return nullptr;
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(out.size()));
+    env->SetFloatArrayRegion(result, 0, static_cast<jsize>(out.size()), out.data());
+    return result;
+}
+
+/**
+ * P(yes) for each document continuing the shared [head] (judge mode): [head] holds the prompt up
+ * to the document, each of [docs] the document and the prompt's end. Null on failure.
+ */
+JNIEXPORT jfloatArray JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_judge(JNIEnv * env, jobject, jlong handle, jbyteArray jhead, jobjectArray docs) {
+    auto * e = reinterpret_cast<Encoder *>(handle);
+    if (e->mode != JUDGE) return nullptr;
+    const auto head = tokenize(e->vocab, from_bytes(env, jhead), false);
+    const size_t limit = static_cast<size_t>(std::max(16, e->n_ctx / 2 - static_cast<int>(head.size())));
+    const auto seqs = tokenize_all(env, e->vocab, docs, false, limit);
+    std::vector<float> out;
+    if (!judge_all(e, head, seqs, out)) return nullptr;
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(out.size()));
+    env->SetFloatArrayRegion(result, 0, static_cast<jsize>(out.size()), out.data());
+    return result;
+}
+
+/** Token count of [text] for this encoder (with its special tokens when [special]). */
+JNIEXPORT jint JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_encoderTokens(JNIEnv * env, jobject, jlong handle, jbyteArray text, jboolean special) {
+    return static_cast<jint>(tokenize(reinterpret_cast<Encoder *>(handle)->vocab, from_bytes(env, text), special == JNI_TRUE).size());
 }
 
 }  // extern "C"

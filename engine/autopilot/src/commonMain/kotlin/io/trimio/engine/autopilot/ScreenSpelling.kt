@@ -19,9 +19,6 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
         scenes = score.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> beat(b, log) }) },
     )
 
-    /** [s] with every Persian word checked the same way (an explainer film's labels); "" when nothing is left. */
-    fun text(s: String, log: (String) -> Unit): String = phrase(s, log).trim()
-
     private fun beat(b: BeatScore, log: (String) -> Unit): BeatScore? {
         val text = b.text?.let { phrase(it, log) }
         // A title that lost every word has nothing left to say.

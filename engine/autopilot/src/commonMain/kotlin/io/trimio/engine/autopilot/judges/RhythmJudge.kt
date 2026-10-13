@@ -5,7 +5,9 @@ import io.trimio.engine.autopilot.Judge
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.Severity
 import io.trimio.engine.autopilot.Verdict
+import io.trimio.engine.autopilot.JumpCuts
 import io.trimio.engine.motion.score.Compiler
+import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.Score
 
 /**
@@ -111,7 +113,11 @@ class RhythmJudge(
         for ((a, b) in dead(c, graphics)) {
             // Aim under the limit: cuts snap to word starts.
             val parts = kotlin.math.ceil((b - a) / (maxDead * SPLIT)).toInt().coerceAtLeast(2)
-            for (k in 1 until parts) score = Bench.punchAt(score, c.words, a + (b - a) * k / parts) ?: score
+            for (k in 1 until parts) {
+                val t = a + (b - a) * k / parts
+                // No word to cut on (a stretch the recogniser heard as one long word): the cut lands on the time itself.
+                score = Bench.punchAt(score, c.words, t) ?: Bench.punchAtTime(score, c.words, t) ?: score
+            }
         }
         // An empty stage goes back to the speaker, with a punch-in halfway so the stretch it leaves is not dead air.
         val empty = emptyStages(c, graphics)
@@ -129,14 +135,46 @@ class RhythmJudge(
         return score.takeIf { it != c.score }
     }
 
-    private companion object {
-        const val OVERLAP = 0.1f
-        const val SPLIT = 0.8f
+    /**
+     * The cut itself, when it is at fault: a cut inside a word, a flash shot or a crowded run of jump
+     * cuts each keep a pause ([JumpCuts.joined]) — the nearest cut, the flash's shorter neighbour, the
+     * crowd's shortest pause.
+     */
+    override fun recut(c: Jury.Context, verdict: Verdict): EditPlan? {
+        var edit = c.edit ?: return null
+        for (f in verdict.findings) edit = rejoin(edit, f) ?: edit
+        return edit.takeIf { it.segments != c.edit.segments }
+    }
+
+    companion object {
+        /** [edit] with the pause behind a cut finding [f] kept; null when [f] is not about a body cut. */
+        fun rejoin(edit: EditPlan, f: Finding): EditPlan? {
+            val s = edit.segments
+            if (s.size < 2) return null
+            val i = when {
+                "cut falls inside" in f.what -> s.indices.filter { it < s.lastIndex }.minByOrNull { kotlin.math.abs(s[it].outEnd - f.at) }
+                    ?.takeIf { kotlin.math.abs(s[it].outEnd - f.at) <= NEAR_CUT }
+                "flashes between" in f.what -> s.indices.firstOrNull { kotlin.math.abs(s[it].outStart - f.at) <= NEAR_CUT }?.let { k ->
+                    val before = if (k > 0) s[k].sourceStart - s[k - 1].sourceEnd else Float.MAX_VALUE
+                    val after = if (k < s.lastIndex) s[k + 1].sourceStart - s[k].sourceEnd else Float.MAX_VALUE
+                    if (before <= after) k - 1 else k
+                }
+                "jump cuts in ten seconds" in f.what -> (1 until s.size).filter { s[it].outStart >= f.at - NEAR_CUT && s[it].outStart < f.at + WINDOW }
+                    .takeIf { it.isNotEmpty() }?.minByOrNull { s[it].sourceStart - s[it - 1].sourceEnd }?.minus(1)
+                else -> null
+            } ?: return null
+            return JumpCuts.joined(edit, i).takeIf { i >= 0 }
+        }
+
+        private const val NEAR_CUT = 0.35f
+        private const val WINDOW = 10f
+        private const val OVERLAP = 0.1f
+        private const val SPLIT = 0.8f
         /** A stage may stand bare this long (a transition, a breath before its graphic lands). */
-        const val EMPTY_STAGE = 1.2f
+        private const val EMPTY_STAGE = 1.2f
         /** The compiler's stage timing: raised this long before its first graphic lands, and never shorter than [MIN_STAGE]. */
-        const val STAGE_LEAD = 0.12f
-        const val MIN_STAGE = 1.2f
-        val PROTECTED = setOf("comment", "message", "voucher", "stats", "countdown", "progress")
+        private const val STAGE_LEAD = 0.12f
+        private const val MIN_STAGE = 1.2f
+        private val PROTECTED = setOf("comment", "message", "voucher", "stats", "countdown", "progress")
     }
 }

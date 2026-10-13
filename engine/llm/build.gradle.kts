@@ -57,5 +57,7 @@ tasks.named<Test>("jvmTest") {
         systemProperty("trimio.nativeTests", "true")
         systemProperty("trimio.native.dir", hostNativeDir.get().asFile.absolutePath)
         systemProperty("trimio.llama.model", llamaTestModel.absolutePath)
+        // -Ptrimio.encoders=<dir>: the retrieval add-ons (embedders, rerankers) for LlamaEncodersTest.
+        providers.gradleProperty("trimio.encoders").orNull?.let { systemProperty("trimio.encoders", it) }
     }
 }

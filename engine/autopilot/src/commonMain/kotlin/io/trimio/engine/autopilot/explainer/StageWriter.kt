@@ -41,6 +41,7 @@ internal class StageWriter(
     /** The beginning and end of the chapter on the narration's clock. */
     private val start: Double,
     private val end: Double,
+    private val visuals: Visuals = Visuals.Lexicon,
 ) {
     private class El(val id: String, var primitive: Primitive, val main: Boolean, var items: Int, val idea: Idea?) {
         var checked = 0
@@ -336,7 +337,7 @@ internal class StageWriter(
     /** "Like an intern": a persona card; "like a clock", "like a notebook": the thing it is like. */
     private fun persona(c: Clause, at: Int): Boolean {
         val like = Metaphors.bare(n.texts[at]) in LIKE
-        val roleAt = if (like) (at + 1..minOf(c.last, at + LIKE_REACH)).firstOrNull { Said.role(n.texts[it]) || Said.visualOf(n.texts[it]) != null } else at
+        val roleAt = if (like) (at + 1..minOf(c.last, at + LIKE_REACH)).firstOrNull { Said.role(n.texts[it]) || visuals.of(n.texts[it], c.text) != null } else at
         if (roleAt == null) return false
         val caption = if (like) n.texts.subList(at, roleAt).joinToString(" ") { Phrases.clean(it) } + "…" else ""
         if (!Said.role(n.texts[roleAt])) return analogy(c, at, roleAt, caption)
@@ -350,7 +351,7 @@ internal class StageWriter(
     }
 
     private fun analogy(c: Clause, at: Int, thing: Int, caption: String): Boolean {
-        val visual = Said.visualOf(n.texts[thing]) ?: return false
+        val visual = visuals.of(n.texts[thing], c.text) ?: return false
         val clock = visual.contains("clock") || visual.contains("watch")
         add(if (clock) Primitive.Clock else Primitive.Icon, c, at, BeatContent(text = Phrases.clean(n.texts[thing]), caption = caption, visual = visual), "an analogy: the thing it is like", Idea.Analogy, main = false)
         return true
@@ -485,8 +486,14 @@ internal class StageWriter(
 
     /** A concrete thing said: its picture with its name. */
     private fun picture(c: Clause): Boolean {
-        val i = c.words.firstOrNull { Phrases.nounish(n.texts[it]) && Said.visualOf(n.texts[it]) != null } ?: return false
-        add(Primitive.Icon, c, i, BeatContent(text = Phrases.clean(n.texts[i]), visual = Said.visualOf(n.texts[i]).orEmpty()), "the thing itself, as a picture", null, main = false)
+        val i = c.words.firstOrNull { Phrases.nounish(n.texts[it]) && visuals.of(n.texts[it], c.text) != null }
+        if (i != null) {
+            add(Primitive.Icon, c, i, BeatContent(text = Phrases.clean(n.texts[i]), visual = visuals.of(n.texts[i], c.text).orEmpty()), "the thing itself, as a picture", null, main = false)
+            return true
+        }
+        val whole = visuals.forSentence(c.text, n.persian) ?: return false
+        val title = Said.title(n, c, 2).ifBlank { return false }
+        add(Primitive.Icon, c, c.first, BeatContent(text = title, visual = whole), "a picture of what the sentence says", null, main = false)
         return true
     }
 

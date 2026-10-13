@@ -73,6 +73,9 @@ interface Judge {
      * needs, when its findings are fixed by the edit rather than the score; null otherwise.
      */
     fun outro(c: Jury.Context, verdict: Verdict): Float? = null
+
+    /** The cut with this judge's findings fixed, when they are fixed by cutting differently (a pause kept); null otherwise. */
+    fun recut(c: Jury.Context, verdict: Verdict): EditPlan? = null
 }
 
 /** Lines a text takes when laid out at [type] inside [maxWidth] (the real text engine, when the caller has one). */
@@ -106,8 +109,11 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         }
     }
 
-    /** What the judges' fixes change: the score, and the end hold the edit should carry (null: as it is). */
-    data class Revision(val score: Score, val outro: Float? = null)
+    /** What the judges' fixes change: the score, the end hold the edit should carry and the cut (null: as they are). */
+    data class Revision(val score: Score, val outro: Float? = null, val edit: EditPlan? = null) {
+        /** What makes two revisions the same edit. */
+        internal val key: Any get() = Triple(score, outro, edit?.segments)
+    }
 
     /** Everything the judges look at. Words and [lines] share indices; [words] are on the output clock. */
     data class Context(
@@ -202,14 +208,21 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
     fun fixes(c: Context, panel: Panel): Revision? {
         var score = c.score
         var outro: Float? = null
+        var edit: EditPlan? = null
         val held = c.edit?.outro?.length ?: 0f
-        for (v in panel.verdicts.filter { !it.perfect }.sortedBy { it.score }) {
+        // A judge whose fix throws is skipped (its finding stays for the report): the jury never stops the edit.
+        for (v in failing(panel)) {
             val judge = judges.firstOrNull { it.name == v.judge } ?: continue
-            score = runCatching { judge.revise(c.copy(score = score), v) }.getOrNull() ?: score
+            score = runCatching { judge.revise(c.copy(score = score, edit = edit ?: c.edit), v) }.getOrNull() ?: score
+            runCatching { judge.recut(c.copy(edit = edit ?: c.edit), v) }.getOrNull()?.let { edit = it }
             runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }?.let { outro = maxOf(outro ?: 0f, it) }
         }
-        return Revision(score, outro).takeIf { score != c.score || outro != null }
+        return Revision(score, outro, edit).takeIf { score != c.score || outro != null || edit != null }
     }
+
+    /** The judges below 10, lowest score first (scores are plain numbers: a NaN counts as 0). */
+    private fun failing(panel: Panel): List<Verdict> =
+        panel.verdicts.filter { !it.perfect }.sortedBy { if (it.score.isNaN()) 0f else it.score }
 
     /**
      * What a round may try, best bet first: every failing judge's fix together ([fixes]), then
@@ -219,11 +232,12 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
     fun options(c: Context, panel: Panel): List<Pair<String, Revision>> {
         val together = fixes(c, panel)?.let { listOf("all fixes" to it) }.orEmpty()
         val held = c.edit?.outro?.length ?: 0f
-        val alone = panel.verdicts.filter { !it.perfect }.sortedBy { it.score }.mapNotNull { v ->
+        val alone = failing(panel).mapNotNull { v ->
             val judge = judges.firstOrNull { it.name == v.judge } ?: return@mapNotNull null
             val score = runCatching { judge.revise(c, v) }.getOrNull() ?: c.score
             val outro = runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }
-            (v.judge to Revision(score, outro)).takeIf { score != c.score || outro != null }
+            val edit = runCatching { judge.recut(c, v) }.getOrNull()
+            (v.judge to Revision(score, outro, edit)).takeIf { score != c.score || outro != null || edit != null }
         }
         // A lone fix equal to the joint one (only one judge could fix anything) is not tried twice.
         return (together + alone.filter { a -> together.none { it.second == a.second } }).take(MAX_TRIES)
@@ -249,15 +263,21 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var variation = 0
         var candidate: T? = first
         while (candidate != null) {
-            val (current, panel, spent) = polish(candidate, label(variation), context, revise, log)
-            rounds += spent
-            if (panel.betterThan(bestPanel)) {
-                best = current
-                bestPanel = panel
+            // A variation that cannot be judged (it threw) is reported and skipped: the jury never stops the edit.
+            val polished = runCatching { polish(candidate, label(variation), context, revise, log) }
+                .onFailure { log("jury ${label(variation)}: skipped (${it.message ?: it::class.simpleName})") }.getOrNull()
+            if (polished != null) {
+                val (current, panel, spent) = polished
+                rounds += spent
+                if (panel.betterThan(bestPanel)) {
+                    best = current
+                    bestPanel = panel
+                }
+                if (panel.unanimous) break
             }
-            if (panel.unanimous || variation >= budget.variations) break
+            if (variation >= budget.variations) break
             variation++
-            candidate = vary(variation)
+            candidate = runCatching { vary(variation) }.onFailure { log("jury variation $variation: not made (${it.message ?: it::class.simpleName})") }.getOrNull()
         }
         return Outcome(best, bestPanel ?: deliberate(context(best)), rounds, variation)
     }
@@ -282,11 +302,16 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         log("jury $name round 0: ${panel.summary()}")
         panel.details().forEach(log)
         var best = current to panel
-        val tried = mutableSetOf(ctx.score)
+        val tried = mutableSetOf(Revision(ctx.score, null, ctx.edit).key)
+        // Findings that survived the rounds so far, and for how many: each takes a further remedy ([Remedies]).
+        var stuck = emptyMap<String, Int>()
         var sideways = 0
         var round = 0
         while (!panel.unanimous && round < budget.rounds) {
-            val options = options(ctx, panel).filter { it.second.score !in tried || it.second.outro != null }
+            // Stuck findings first: their own fixes already failed them; the remedies ride on the joint fix.
+            val further = runCatching { io.trimio.engine.autopilot.judges.Remedies.beyond(ctx, panel, stuck, fixes(ctx, panel)) }.getOrNull()
+                ?.let { listOf("further remedies" to it) }.orEmpty()
+            val options = (further + options(ctx, panel)).filter { it.second.key !in tried }
             if (options.isNotEmpty()) round++
             val step = if (options.isEmpty()) {
                 null
@@ -295,10 +320,11 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             }
             if (step == null) break
             if (!step.better) sideways++
+            stuck = io.trimio.engine.autopilot.judges.Remedies.persisting(panel, step.panel, stuck)
             current = step.next
             ctx = step.context
             panel = step.panel
-            tried += ctx.score
+            tried += Revision(ctx.score, null, ctx.edit).key
             if (panel.betterThan(best.second)) best = current to panel
             panel.details().forEach(log)
         }
@@ -322,8 +348,9 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
     ): Step<T>? {
         var same: Step<T>? = null
         for ((what, fix) in options) {
-            val next = revise(current, fix)
-            val nextCtx = context(next)
+            // A revision that cannot be made or judged (it threw) is not a step: the next one is tried.
+            val next = runCatching { revise(current, fix) }.getOrElse { continue }
+            val nextCtx = runCatching { context(next) }.getOrElse { continue }
             val nextPanel = deliberate(nextCtx)
             log(what, nextPanel)
             if (nextPanel.betterThan(panel)) return Step(next, nextCtx, nextPanel, better = true)
@@ -347,7 +374,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         /** Findings a round's report line lists at most. */
         private const val MAX_DETAILS = 14
 
-        /** Revisions tried in one round at most (each is a compile and a sitting). */
+        /** Revisions tried in one round at most (each is a compile and a sitting), besides the further remedies. */
         private const val MAX_TRIES = 4
 
         /** The ten judges, in the order they report. */

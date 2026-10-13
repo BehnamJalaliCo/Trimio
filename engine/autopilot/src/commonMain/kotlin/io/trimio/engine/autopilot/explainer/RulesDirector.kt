@@ -22,7 +22,7 @@ interface FilmDirector {
  * its idea on a stage that builds ([StageWriter]). It is the fallback when no model can direct,
  * and what a model's film is repaired with when it fails the checks.
  */
-class RulesDirector : FilmDirector {
+class RulesDirector(private val visuals: Visuals = Visuals.Lexicon) : FilmDirector {
     override val name: String = "rules"
 
     override suspend fun direct(n: Narration, seed: Long, log: (String) -> Unit): ExplainerFilm = film(n, seed)
@@ -35,7 +35,7 @@ class RulesDirector : FilmDirector {
         val bounds = bounds(n, plans)
         val chapters = plans.indices.map { i ->
             val (start, end) = bounds[i]
-            val beats = StageWriter(n, plans, i, rng.fork(i), memory, start, end).write()
+            val beats = StageWriter(n, plans, i, rng.fork(i), memory, start, end, visuals).write()
             Chapter(plans[i].title, start, end, accents[i], beats)
         }
         val captions = if (art.captionStyle == ArtDirector.NO_CAPTIONS) emptyList() else Captions.of(n.words, n.persian)
@@ -48,7 +48,7 @@ class RulesDirector : FilmDirector {
         plans.take(i).mapNotNull { it.subject }.forEach { memory.subjects += it }
         film.chapters.take(i).flatMap { c -> c.beats.mapNotNull { it.primitive } }.forEach { memory.mains += it }
         val old = film.chapters[i]
-        val beats = StageWriter(n, plans, i, Rng(seed).fork(SALT).fork(i), memory, old.start, old.end).write()
+        val beats = StageWriter(n, plans, i, Rng(seed).fork(SALT).fork(i), memory, old.start, old.end, visuals).write()
         return old.copy(beats = beats)
     }
 

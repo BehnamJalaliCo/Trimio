@@ -150,7 +150,9 @@ class Autopilot(
         val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks)
         val first = draft(reading, request.seed, look = true, onStage) { report += it }
         // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
-        val d = deliberate(reading, first, onStage, report)
+        // Whatever goes wrong inside the jury, the edit is still delivered (the first cut), and the report says why.
+        val d = runCatching { deliberate(reading, first, onStage, report) }
+            .getOrElse { e -> if (e is kotlinx.coroutines.CancellationException) throw e else first.also { report += "jury: stopped (${e.message ?: e::class.simpleName}); the first cut goes on" } }
         d.compiled.beats.filter { it.recipe != "pop-captions" }.forEach { report += "  ${it.recipe.padEnd(12)} ${it.zone.padEnd(6)} ${round1(it.at)}–${round1(it.out)}  ${it.text}" }
 
         onStage("sound", 0.9f)
@@ -305,13 +307,16 @@ class Autopilot(
             first,
             context = { d -> context(r, d) },
             revise = { d, fix ->
+                // The cut itself, when a judge asked for a pause to stay (a cut inside a word, a flash, a crowded run).
+                val cut = fix.edit ?: d.edit
                 // A late ask's end hold: the edit runs on past the last word (picture and music) for its card.
-                val edit = fix.outro?.let { d.edit.withOutro(it, r.request.voice.samples.size / r.request.voice.sampleRate.toFloat()) } ?: d.edit
+                val edit = fix.outro?.let { cut.withOutro(it, r.request.voice.samples.size / r.request.voice.sampleRate.toFloat()) } ?: cut
                 fix.outro?.let { report += "jury: an end hold of ${round1(it)}s for the call to action" }
-                // A longer edit is a new cue: its ending moves, and the grid with it.
-                val music = if (edit === d.edit) d.music else MusicEdit.arrange(d.plan.music, edit, d.output, r.lines, r.understanding)
+                // Words move with a new cut; a longer edit is a new cue: its ending moves, and the grid with it.
+                val output = if (cut === d.edit) d.output else edit.remap(r.transcript).words
+                val music = if (edit === d.edit) d.music else MusicEdit.arrange(d.plan.music, edit, output, r.lines, r.understanding)
                 val score = if (edit === d.edit) fix.score else MusicEdit.gridded(fix.score, music)
-                d.copy(score = score, edit = edit, music = music, compiled = compile(d.compiler, score, r.transcript, edit, r.request))
+                d.copy(score = score, edit = edit, music = music, output = output, compiled = compile(d.compiler, score, r.transcript, edit, r.request))
             },
             vary = { k -> draft(r, r.request.seed * VARIATION_STRIDE + k, look = false, onStage = { _, _ -> }) { report += "variation $k: $it" } },
             log = { report += it },

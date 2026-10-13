@@ -2,7 +2,6 @@ package io.trimio.engine.autopilot.explainer
 
 import io.trimio.core.model.text.Numerals
 import io.trimio.engine.autopilot.PersianSpelling
-import io.trimio.engine.autopilot.ScreenSpelling
 import io.trimio.engine.motion.explainer.Beat
 import io.trimio.engine.motion.explainer.BeatContent
 import io.trimio.engine.motion.explainer.Chapter
@@ -28,7 +27,7 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
 
     data class Problem(val kind: Kind, val at: Double, val detail: String)
 
-    private val screen: ScreenSpelling? = lexicon?.let { ScreenSpelling(it, n.texts, n.prompt) }
+    private val screen: FilmSpelling? = lexicon?.let { FilmSpelling(it, n.texts, n.prompt) }
     private val promptLatin: Set<String> = n.prompt.split(Regex("[^A-Za-z0-9.+-]+")).filter { it.length >= 2 }.map { it.lowercase() }.toSet()
 
     fun problems(f: ExplainerFilm): List<Problem> = buildList {

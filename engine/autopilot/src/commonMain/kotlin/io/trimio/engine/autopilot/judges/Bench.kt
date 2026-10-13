@@ -115,6 +115,22 @@ internal object Bench {
         return score.copy(scenes = scenes)
     }
 
+    /**
+     * A punch-in cut at output time [t] itself, for a stretch with no word to cut on (a long word, a
+     * pause the recogniser filled): a scene from that time, carrying the beats that land after it.
+     * Null under the call to action, or when a scene already starts within [MIN_READ] of [t].
+     */
+    fun punchAtTime(score: Score, words: List<Word>, t: Float): Score? {
+        val starts = sceneStarts(score, words)
+        val asked = askedBy(score, words)
+        if (t <= MIN_READ || starts.any { kotlin.math.abs(it - t) < MIN_READ } || (asked != null && t > asked - SCENE_LEAD)) return null
+        val host = starts.indexOfLast { it <= t }.coerceAtLeast(0)
+        val moved = score.scenes[host].beats.filter { beatStart(it, host, score, words, starts) > t }
+        val kept = score.scenes.mapIndexed { k, s -> if (k == host) s.copy(beats = s.beats - moved.toSet()) else s }
+        val scenes = (kept + SceneScore(time = t, beats = moved)).sortedBy { s -> s.time ?: s.from?.let { start(words, it) } ?: 0f }
+        return score.copy(scenes = scenes)
+    }
+
     /** When the call to action lands in [score], if it is there. */
     fun askedBy(score: Score, words: List<Word>): Float? {
         val starts = sceneStarts(score, words)
