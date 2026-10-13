@@ -28,37 +28,8 @@ class ExplainerStageTest {
 
     // ------------------------------------------------------------------ films
 
-    /** One chapter per primitive: every op lands on it, beside a heading and under a mark. */
-    private fun everyOp(lang: String, palette: String, layout: String = "header-top", mark: String = "dashes", captions: String = "band-pill"): ExplainerFilm {
-        val all = Primitive.entries
-        val span = 9.0
-        val chapters = all.mapIndexed { k, p ->
-            val t0 = k * span
-            val next = all[(k + 1) % all.size]
-            val third = all[(k + 2) % all.size]
-            fun b(at: Double, op: StageOp, el: String, prim: Primitive? = null, c: BeatContent = BeatContent()) = Beat(t0 + at, t0 + at + 0.9, "line", op, el, prim, c)
-            Chapter(
-                "${ExplainerSamples.word(lang, k)} $k", t0, t0 + span, k,
-                listOf(
-                    b(0.2, StageOp.Add, "lead", Primitive.Kicker, BeatContent(text = ExplainerSamples.phrase(lang, 0))),
-                    b(0.4, StageOp.Add, "x", p, ExplainerSamples.content(p, lang)),
-                    b(1.4, StageOp.Build, "x", c = BeatContent(items = ExplainerSamples.items(lang, 4, 2), text = ExplainerSamples.phrase(lang, 1))),
-                    b(2.4, StageOp.Check, "x", c = BeatContent(picks = listOf(0, 1))),
-                    b(3.2, StageOp.Fill, "x", c = BeatContent(value = 0.4)),
-                    b(4.0, StageOp.Highlight, "x", c = BeatContent(picks = listOf(1))),
-                    b(4.4, StageOp.Add, "m", Primitive.Mark),
-                    b(4.8, StageOp.Dim, "x"),
-                    b(5.3, StageOp.Highlight, "x"),
-                    b(5.9, StageOp.Morph, "x", next, ExplainerSamples.content(next, lang)),
-                    b(6.9, StageOp.Replace, "x", third, ExplainerSamples.content(third, lang)),
-                    b(7.6, StageOp.Clear, "lead"),
-                    b(8.0, StageOp.Clear, "x"),
-                ),
-            )
-        }
-        val captionChunks = (0 until all.size * 3).map { i -> CaptionChunk(ExplainerSamples.phrase(lang, i), i * 3.0, i * 3.0 + 2.6) }
-        return ExplainerFilm(ArtDirection(palette, layout, mark, captions, 7L), chapters, captionChunks, lang)
-    }
+    private fun everyOp(lang: String, palette: String, layout: String = "header-top", mark: String = "dashes", captions: String = "band-pill") =
+        ExplainerSamples.everyOp(lang, palette, layout, mark, captions)
 
     private fun sample(lang: String) = ExplainerLab.film("assistants-$lang")
 
@@ -156,7 +127,7 @@ class ExplainerStageTest {
     }
 
     /** The first pixel outside the safe area (and off the band) that is not the paper, in frame px, or null. */
-    private fun strays(px: Px, w: Int, h: Int, scale: Float, f: StageFrame, bg: Color): Pair<Int, Int>? {
+    private fun strays(px: Px, w: Int, h: Int, scale: Float, f: StageFrame, bg: Color): String? {
         val r = (bg.red * 255).toInt()
         val g = (bg.green * 255).toInt()
         val b = (bg.blue * 255).toInt()
@@ -169,7 +140,7 @@ class ExplainerStageTest {
             if (inSafe || inBand) continue
             val c = px.argb[y * px.w + x]
             val d = maxOf(kotlin.math.abs(((c shr 16) and 0xFF) - r), kotlin.math.abs(((c shr 8) and 0xFF) - g), kotlin.math.abs((c and 0xFF) - b))
-            if (d > TOLERANCE) return fx.toInt() to fy.toInt()
+            if (d > TOLERANCE) return "(${fx.toInt()}, ${fy.toInt()}) #${Integer.toHexString(c)} vs #${Integer.toHexString((r shl 16) or (g shl 8) or b)}"
         }
         return null
     }

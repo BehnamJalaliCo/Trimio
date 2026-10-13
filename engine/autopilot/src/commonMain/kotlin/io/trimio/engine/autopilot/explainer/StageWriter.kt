@@ -70,14 +70,18 @@ internal class StageWriter(
     private fun clause(c: Clause) {
         val found = Metaphors.find(c.words.map { n.keys[it] }, c.first, c.read?.gist.orEmpty())
         val main = live.firstOrNull { it.main }
+        // The ideas that make a picture first, the small signs (a clock, a check) after.
+        val strong = found.filter { it.strength >= STRONG }.sortedBy { if (it.idea in COMPANION_IDEAS) 1 else 0 }
+        val counted = quantity(c)?.takeIf { q -> strong.firstOrNull()?.let { it.idea in FIGURES || it.strength < CLEAR } ?: true }
         when {
             c.index == ask -> cta(c)
             index == 0 && agenda(c) -> Unit
             step(c) -> Unit
+            counted != null && figure(c) -> companion(c, found, Idea.Figure)
             main != null && goOn(main, c, found) -> companion(c, found, main.idea)
             traits(c) -> Unit
             else -> {
-                val used = found.filter { it.strength >= STRONG }.firstOrNull { idea(it, c, found) }
+                val used = strong.firstOrNull { idea(it, c, found) }
                 when {
                     used != null -> companion(c, found, used.idea)
                     figure(c) || listed(c) || picture(c) -> Unit
@@ -86,6 +90,10 @@ internal class StageWriter(
             }
         }
     }
+
+    /** The clause's first number with a meaning (a unit, a percent, ten or more), when it has one. */
+    private fun quantity(c: Clause): Quantities.Quantity? = Quantities.sense(c.words.map { n.texts[it] }, c.first).quantities
+        .firstOrNull { it.value > 0 && (it.unit.isNotEmpty() || it.kind == Quantities.Kind.Percent || it.value >= TEN) }
 
     /** The opening chapter shows, once, what the film will walk through: the names of the chapters to come. */
     private fun agenda(c: Clause): Boolean {
@@ -106,8 +114,9 @@ internal class StageWriter(
 
     /** A step counted off («Step two, grind the beans», «حرکت دوم»): one more step on the chapter's steps, the last one ticked. */
     private fun step(c: Clause): Boolean {
-        val counted = Enumerations.step(n.texts, Lines.Line(c.first, c.last)) ?: return false
-        val after = (counted.first..c.last).firstOrNull { i -> Metaphors.bare(n.texts[i]) in COUNTERS || n.texts[i].trimEnd().last() in ",،:" }?.plus(1) ?: (counted.last + 1)
+        val head = c.words.take(HEAD).firstOrNull { i -> Metaphors.bare(n.texts[i]) in STEP_NOUNS && i < c.last && Metaphors.bare(n.texts[i + 1]) in COUNTERS } ?: return false
+        val counted = head..(head + 1)
+        val after = counted.last + 1
         val label = (if (after <= c.last) Said.from(n, c, after, 3) else "").ifBlank { counted.joinToString(" ") { Phrases.clean(n.texts[it]) } }
         val steps = live.firstOrNull { it.main && it.primitive in STEPS }
         if (steps == null) {
@@ -138,18 +147,36 @@ internal class StageWriter(
             Primitive.TaskTiles, Primitive.Checklist -> tick(main, c, at)
             Primitive.Meter, Primitive.Ring -> (ideas.any { it in DRAINS } || main.uses == 0) && drain(main, c, at, ideas)
             Primitive.Bars -> when {
-                main.idea == Idea.Decline || Idea.Decline in ideas -> pick(main, c, at, listOf(main.items - 1), "", "the last bar is the lowest")
-                Idea.Rank in ideas || main.checked == 0 -> pick(main, c, at, listOf(main.items - 1), superlative(c), "the tallest gets the badge")
+                Idea.Decline in ideas -> pick(main, c, at, listOf(main.items - 1), "", "the last bar is the lowest")
+                Idea.Rank in ideas -> pick(main, c, at, listOf(main.items - 1), superlative(c), "the tallest gets the badge")
+                Idea.Grow in ideas || Idea.Accumulate in ideas -> taller(main, c, at)
                 else -> false
             }
             Primitive.Branches, Primitive.Flow -> main.checked == 0 && pick(main, c, at, listOf(0), Said.around(n, c, best(c) ?: at, 2), "the best path lights up")
-            Primitive.Blocks, Primitive.Dots -> blocks(main, c, at)
+            Primitive.Blocks -> blocks(main, c, at)
+            Primitive.Dots -> if (Idea.Many in ideas) more(main, c, at) else Idea.Portion in ideas && blocks(main, c, at)
             Primitive.Ladder -> (Idea.Rank in ideas || main.checked == 0) && pick(main, c, at, listOf(main.items - 1), superlative(c), "the top rung lights up")
             Primitive.Profile -> tag(main, c)
             Primitive.Tangle -> (Idea.Success in ideas) && solved(c, found.first { it.idea == Idea.Success }.at)
             Primitive.IconTiles, Primitive.Chips, Primitive.Steps -> highlight(main, c, at)
             else -> false
         }
+    }
+
+    /** Bars that go on growing: one more, taller. */
+    private fun taller(e: El, c: Clause, at: Int): Boolean {
+        if (e.items >= MAX_ITEMS) return false
+        e.items++
+        e.uses++
+        move(at, StageOp.Build, e, BeatContent(items = listOf(Item("", value = 1.0))), "one more bar, taller: it keeps growing", c)
+        return true
+    }
+
+    /** More dots light up: even more of them. */
+    private fun more(e: El, c: Clause, at: Int): Boolean {
+        e.uses++
+        move(at, StageOp.Check, e, BeatContent(picks = (0 until DOTS * 2 / 3).toList()), "more and more of the dots light up", c)
+        return true
     }
 
     private fun tick(e: El, c: Clause, at: Int): Boolean {
@@ -223,6 +250,7 @@ internal class StageWriter(
     private fun companion(c: Clause, found: List<Found>, used: Idea?) {
         val f = found.firstOrNull { it.strength >= STRONG && it.idea in COMPANION_IDEAS && it.idea != used } ?: return
         if (live.any { !it.main && it.idea == f.idea }) return
+        if (used in setOf(Idea.Slow, Idea.Fast) && f.idea in setOf(Idea.Slow, Idea.Fast)) return
         val (primitive, visual) = when (f.idea) {
             Idea.Slow, Idea.Fast -> Primitive.Clock to (if (f.idea == Idea.Fast) "stopwatch" else "hourglass")
             Idea.Warning -> Primitive.Badge to "warning"
@@ -261,14 +289,14 @@ internal class StageWriter(
         val at = f.at
         val phrase = label(c, at)
         return when (f.idea) {
-            Idea.Persona -> persona(c, at)
+            Idea.Persona, Idea.Analogy -> persona(c, at)
             Idea.Routine -> routine(c, at, phrase)
             Idea.Drain -> meter(c, at, found)
             Idea.Decline -> decline(c, at, phrase)
             Idea.Grow, Idea.Accumulate -> phrase.isNotBlank() && made(add(choose(f.idea), c, at, BeatContent(text = phrase, items = rising(BARS)), "it grows: bars rise", f.idea, main = true))
             Idea.Uses -> made(add(choose(Idea.Uses), c, at, BeatContent(text = phrase, items = Said.examples(n.understanding.domain, n.persian)), "most everyday work, drawn as the kinds of work", f.idea, main = true))
             Idea.Path -> path(c, at)
-            Idea.Think -> made(add(choose(Idea.Think), c, at, BeatContent(text = goal(), items = List(3) { Item("") }), "thinking it through before acting", f.idea, main = true))
+            Idea.Think -> phrase.isNotBlank() && made(add(choose(Idea.Think), c, at, BeatContent(text = phrase, items = List(3) { Item("") }), "thinking it through before acting", f.idea, main = true))
             Idea.Tangle -> made(add(Primitive.Tangle, c, at, BeatContent(text = phrase, visual = "tangle"), "deep, complex problems: a tangle", f.idea, main = true))
             Idea.Rank, Idea.Levels -> rank(c, at, f.idea)
             Idea.Portion -> portion(c, at)
@@ -285,7 +313,7 @@ internal class StageWriter(
             Idea.Place -> made(add(Primitive.Map, c, at, BeatContent(text = phrase, visual = "world map"), "where it goes: a map", f.idea, main = true))
             Idea.History -> history(c, at, phrase)
             Idea.Quote -> Said.title(n, c).isNotBlank() && made(add(Primitive.Quote, c, at, BeatContent(text = Said.title(n, c)), "someone's words, quoted", f.idea, main = false))
-            Idea.Money -> !figure(c) && phrase.isNotBlank() && made(add(choose(Idea.Money), c, at, BeatContent(text = phrase, visual = "coin"), "money: coins stack up", f.idea, main = true))
+            Idea.Money -> figure(c) || phrase.isNotBlank() && choose(Idea.Money).let { p -> made(add(p, c, at, BeatContent(text = phrase, visual = "coin"), "money: coins stack up", f.idea, main = p != Primitive.Icon)) }
             Idea.Traits, Idea.Figure -> false
         }
     }
@@ -308,7 +336,7 @@ internal class StageWriter(
     /** "Like an intern": a persona card; "like a clock", "like a notebook": the thing it is like. */
     private fun persona(c: Clause, at: Int): Boolean {
         val like = Metaphors.bare(n.texts[at]) in LIKE
-        val roleAt = if (like) (at + 1..c.last).firstOrNull { Phrases.nounish(n.texts[it]) } else at
+        val roleAt = if (like) (at + 1..minOf(c.last, at + LIKE_REACH)).firstOrNull { Said.role(n.texts[it]) || Said.visualOf(n.texts[it]) != null } else at
         if (roleAt == null) return false
         val caption = if (like) n.texts.subList(at, roleAt).joinToString(" ") { Phrases.clean(it) } + "…" else ""
         if (!Said.role(n.texts[roleAt])) return analogy(c, at, roleAt, caption)
@@ -324,14 +352,14 @@ internal class StageWriter(
     private fun analogy(c: Clause, at: Int, thing: Int, caption: String): Boolean {
         val visual = Said.visualOf(n.texts[thing]) ?: return false
         val clock = visual.contains("clock") || visual.contains("watch")
-        add(if (clock) Primitive.Clock else Primitive.Icon, c, at, BeatContent(text = Phrases.clean(n.texts[thing]), caption = caption, visual = visual), "an analogy: the thing it is like", Idea.Persona, main = false)
+        add(if (clock) Primitive.Clock else Primitive.Icon, c, at, BeatContent(text = Phrases.clean(n.texts[thing]), caption = caption, visual = visual), "an analogy: the thing it is like", Idea.Analogy, main = false)
         return true
     }
 
     private fun meter(c: Clause, at: Int, found: List<Found>): Boolean {
         val fast = found.any { it.idea == Idea.Fast } || c.words.any { Metaphors.bare(n.texts[it]) in FAST_WORDS }
         val noun = c.words.firstOrNull { Metaphors.bare(n.texts[it]).let { b -> METER_NOUNS.any { s -> b.startsWith(s) } } }
-        val label = Said.around(n, c, noun ?: at, 3).ifBlank { return false }
+        val label = (if (noun != null) Said.around(n, c, noun, 3) else Said.title(n, c, 3)).ifBlank { return false }
         val start = if (fast) FAST_FROM else 1.0
         val e = add(choose(Idea.Drain), c, noun ?: at, BeatContent(text = label, value = start, unit = "%"), "a limit: a meter that drains", Idea.Drain, main = true)
         e.value = start
@@ -341,7 +369,9 @@ internal class StageWriter(
         return true
     }
 
-    private fun decline(c: Clause, at: Int, phrase: String): Boolean {
+    private fun decline(c: Clause, at: Int, cue: String): Boolean {
+        val head = c.words.firstOrNull { Phrases.nounish(n.texts[it]) && Metaphors.bare(n.texts[it]) !in Said.ADVERBS }
+        val phrase = head?.let { Phrases.clean(n.texts[it]) } ?: cue
         if (phrase.isBlank()) return false
         val p = choose(Idea.Decline)
         if (p == Primitive.Meter) {
@@ -419,7 +449,8 @@ internal class StageWriter(
             move(q.at, StageOp.Fill, main, BeatContent(value = round2(q.value / PERCENT), unit = "%"), "the meter moves to the figure said", c)
             return true
         }
-        val label = Said.around(n, c, (q.last + 1).coerceAtMost(c.last), 3).takeIf { it.isNotBlank() && it != q.unit } ?: Said.title(n, c, 3)
+        val noun = c.words.firstOrNull { it !in q.at..q.last && Phrases.nounish(n.texts[it]) && Metaphors.bare(n.texts[it]) !in Said.ADVERBS && Metaphors.bare(n.texts[it]) !in Said.FILLERS }
+        val label = noun?.let { Said.around(n, c, it, 2) }?.takeIf { it.isNotBlank() && it != q.unit } ?: Said.title(n, c, 3)
         val value = if (percent) q.value / PERCENT else q.value
         add(if (percent) Primitive.Ring else Primitive.Stat, c, q.at, BeatContent(text = label, value = value, unit = if (percent) "%" else q.unit), "the figure itself, counted up", Idea.Figure, main = percent)
         return true
@@ -465,9 +496,18 @@ internal class StageWriter(
             highlight(main, c, mid(c))
             return
         }
-        val title = Said.title(n, c, 3).ifBlank { return }
+        val subject = plan.subject?.let(Phrases::key)
+        val title = Said.title(n, c, 3).split(' ').filter { Phrases.key(it) != subject }.joinToString(" ").ifBlank { naming(c) ?: return }
         val primitive = if (' ' in title) Primitive.Kicker else Primitive.BigWord
         add(primitive, c, c.first, BeatContent(text = title), "the line's key phrase, set as type", null, main = false)
+    }
+
+    /** A clause that names the chapter's subject («مدل اول اسمش Haiku هست»): the words around the name, without it («مدل اول»). */
+    private fun naming(c: Clause): String? {
+        val subject = plan.subject?.let(Phrases::key) ?: return null
+        val words = c.words.map { n.texts[it] }
+        if (words.none { Phrases.key(it) == subject }) return null
+        return words.takeWhile { Phrases.key(it) != subject }.filter { Phrases.nounish(it) || Metaphors.bare(it) in COUNTERS }.take(2).joinToString(" ") { Phrases.clean(it) }.ifBlank { null }
     }
 
     // ---- the stage's bookkeeping -----------------------------------------------------------------
@@ -482,6 +522,11 @@ internal class StageWriter(
             moveAt(time(at), op, e, primitive, content, why, c)
             memory.mains += primitive
             return e
+        }
+        // Never two of the same small picture: the one there takes the new words in place.
+        live.firstOrNull { !main && !it.main && it.primitive == primitive }?.let { twin ->
+            moveAt(time(at), StageOp.Replace, twin, primitive, content, why, c)
+            return twin
         }
         while (live.size >= MAX_LIVE) {
             val old = live.firstOrNull { !it.main } ?: live.first()
@@ -553,6 +598,13 @@ internal class StageWriter(
         const val MAX_LIVE = 3
         const val MAX_ITEMS = 6
         private const val STRONG = 0.95f
+        /** An idea this strong wins over a number said in the same clause. */
+        private const val CLEAR = 1.3f
+        private const val TEN = 10.0
+        private const val HEAD = 3
+        private const val LIKE_REACH = 3
+        private val FIGURES = setOf(Idea.Money, Idea.Accumulate, Idea.Grow, Idea.Figure, Idea.Many, Idea.Cycle, Idea.Decline)
+        private val STEP_NOUNS = setOf("step", "number", "tip", "rule", "مرحله", "مرحلهی", "قدم", "گام", "حرکت", "نکته", "قانون", "روش")
         private const val WEAK = 0.6f
         private const val MAX_USES = 3
         private const val TILES = 5
@@ -583,7 +635,10 @@ internal class StageWriter(
         private val DRAINS = setOf(Idea.Drain, Idea.Fast, Idea.Slow, Idea.Grow, Idea.Decline)
         private val COMPANION_IDEAS = setOf(Idea.Slow, Idea.Fast, Idea.Warning, Idea.Success, Idea.Insight)
         private val LIKE = setOf("مثل", "like", "همچون", "انگار")
-        private val COUNTERS = setOf("one", "two", "three", "four", "five", "six", "اول", "دوم", "سوم", "چهارم", "پنجم", "ششم")
+        private val COUNTERS = setOf(
+            "one", "two", "three", "four", "five", "six", "first", "second", "third", "fourth", "fifth", "1", "2", "3", "4", "5",
+            "اول", "دوم", "سوم", "چهارم", "پنجم", "ششم", "یک", "یکم",
+        )
         private val ASKS = listOf("فالو", "follow", "subscribe", "سابسکرایب", "کامنت", "comment", "لایک", "like", "share", "شیر", "save", "سیو", "ذخیره")
         private val FAST_WORDS = setOf("زود", "زودتر", "سریع", "سریعتر", "fast", "faster", "quickly", "soon")
         private val DRAIN_VERBS = setOf("کم", "کمتر", "تموم", "تمام", "drains", "drain", "runs", "drops", "falls", "empties")

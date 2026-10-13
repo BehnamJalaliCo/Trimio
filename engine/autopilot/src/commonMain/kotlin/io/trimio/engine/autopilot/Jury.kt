@@ -153,8 +153,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         /** Every placed beat's ink over its life, when [geometry] can draw (shared by the judges of one panel). */
         val tracks: List<Geometry.Track>? get() = geometry?.let { g -> runCatching { g.traced(compiled) }.getOrNull() }
 
-        /** The voice's own levels, for judging where cuts fall (built once per context). */
-        val cuts: CutPoints? by lazy { voice?.let { CutPoints(it) } }
+        /** The voice's own levels (levelled, as the cuts were placed on it), for judging where cuts fall (built once per context). */
+        val cuts: CutPoints? by lazy { voice?.let { CutPoints(VoiceLevel.levelled(it)) } }
     }
 
     /** The panel's result: per-judge verdicts, the lowest score (what gates delivery) and the mean. */

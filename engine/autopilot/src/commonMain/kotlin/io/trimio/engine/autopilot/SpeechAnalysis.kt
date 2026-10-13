@@ -34,19 +34,35 @@ class SpeechAnalysis(
          */
         fun of(voice: PcmAudio, transcript: Transcript, tightenCuts: Boolean = true, strict: Boolean = false): SpeechAnalysis {
             val duration = voice.samples.size / voice.sampleRate.toFloat()
-            val speech = VoiceActivityDetector().detect(voice)
-            val speaking = VoiceActivityDetector(hangoverMs = 70, mergeGapMs = 120, belowSpeechDb = 24f).detect(voice)
-            val pauses = silences(speaking, duration)
+            // Speech and pauses are found on the levelled voice: a quieter take joined to a louder
+            // one would otherwise read as silence, and its words would be cut out.
+            val level = VoiceLevel.levelled(voice)
+            val speech = VoiceActivityDetector().detect(level)
+            val speaking = VoiceActivityDetector(hangoverMs = 70, mergeGapMs = 120, belowSpeechDb = 24f).detect(level)
+            // A "pause" that holds a recognised word whole is speech the detector missed: never a cut.
+            val pauses = silences(speaking, duration).filter { p -> transcript.words.none { holds(p, it) } }
             val aligned = EditPlan.alignToSpeech(transcript.words, pauses)
             val lufs = LoudnessMeter.measure(voice).integratedLufs.toFloat()
             val prosody = ProsodyAnalyzer()
-            val stress = prosody.emphasis(prosody.features(voice, speech, lufs, 0f), aligned)
+            val stress = prosody.emphasis(prosody.features(level, speech, LoudnessMeter.measure(level).integratedLufs.toFloat(), 0f), aligned)
             val words = aligned.mapIndexed { i, w -> w.copy(emphasis = stress.getOrElse(i) { 0f }.coerceIn(0f, 1f)) }
             // Asked to cut every pause («همهٔ سکوت‌ها و مکث‌ها حذف»): the quiet gaps between words go too, not only real silence.
-            val cuts = if (strict) merge(pauses + quietGaps(words, voice)) else pauses
-            val edit = if (tightenCuts) EditPlan.tighten(words, cuts, duration, minGap = if (strict) STRICT_GAP else LOOSE_GAP) else EditPlan.identity(duration)
+            val cuts = if (strict) merge(pauses + quietGaps(words, level)) else pauses
+            val tight = EditPlan.tighten(words, cuts, duration, minGap = if (strict) STRICT_GAP else LOOSE_GAP)
+            // Every cut in the quiet between words, no flash shots, no machine-gun run of cuts ([JumpCuts]).
+            val edit = if (tightenCuts) JumpCuts.clean(tight, io.trimio.engine.motion.score.CutPoints(level)) else EditPlan.identity(duration)
             return SpeechAnalysis(Transcript(transcript.language, words), edit, pauses, lufs, duration)
         }
+
+        /** [p] holds [w] whole, with room to spare: the recogniser heard a word where the detector heard none. */
+        private fun holds(p: ClosedFloatingPointRange<Float>, w: Word): Boolean {
+            val a = w.range.startMs / MS
+            val b = w.range.endMs / MS
+            return b - a in HELD_WORD && a >= p.start + EDGE && b <= p.endInclusive - EDGE
+        }
+
+        /** A recognised word this long is a word (shorter is a blip, longer a stretched timing). */
+        private val HELD_WORD = 0.12f..1.5f
 
         /** Whether the brief asks for every pause to go («همهٔ سکوت‌ها و مکث‌ها حذف», "cut all the pauses"). */
         fun strict(prompt: String): Boolean {

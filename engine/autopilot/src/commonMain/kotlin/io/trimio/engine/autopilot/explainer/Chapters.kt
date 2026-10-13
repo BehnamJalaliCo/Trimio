@@ -145,10 +145,10 @@ object Chapters {
         val repeated = nouns.groupBy { stem(n.texts[it]) }.filter { it.value.size >= 2 && it.key !in used }.maxByOrNull { it.value.size }
         if (repeated != null) return cased(n, repeated.value.map { Phrases.clean(n.texts[it]) }.minByOrNull { it.length }!!)
         if (index == 0) {
-            val t = edges(n.understanding.title.split(' ').take(MAX_TITLE_WORDS))
+            val t = edges(n.understanding.title.split(' ').take(DERIVED_WORDS))
             if (t.isNotBlank() && Phrases.key(t) !in used) return cased(n, t)
         }
-        val phrase = edges(Phrases.title(n.words, Lines.Line(first.first, first.last), used).split(' ').take(MAX_TITLE_WORDS))
+        val phrase = edges(Phrases.title(n.words, Lines.Line(first.first, first.last), used).split(' ').take(DERIVED_WORDS))
         return cased(n, phrase.ifBlank { nouns.firstOrNull()?.let { Phrases.clean(n.texts[it]) } ?: Phrases.clean(n.texts[words.first()]) })
     }
 
@@ -204,5 +204,5 @@ object Chapters {
     private const val MAX_SECONDS = 24.0
     private const val MIN_CLAUSES = 2
     private const val MAX_CHAPTERS = 9
-    private const val MAX_TITLE_WORDS = 3
+    private const val DERIVED_WORDS = 2
 }

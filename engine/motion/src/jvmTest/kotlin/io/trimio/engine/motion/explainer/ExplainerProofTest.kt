@@ -22,11 +22,26 @@ class ExplainerProofTest {
         Case("en-tall", "assistants-en", 1080, 1920, palette = "dusk", layout = "full-bleed", captions = "plain-lower"),
     )
 
+    /** Every primitive once its ops have landed (cropped to the stage), and caught mid-morph. */
+    private fun atlas(out: File, only: List<String>?) {
+        for ((id, lang, palette) in listOf(Triple("atlas-fa", "fa", "paper-warm"), Triple("atlas-en", "en", "ink-night"))) {
+            if (only != null && id !in only) continue
+            val film = ExplainerSamples.everyOp(lang, palette)
+            val o = ExplainerLab.compose(film, 1080, 1920)
+            val at = System.getenv("TRIMIO_EXPLAINER_AT")?.toFloatOrNull() ?: 4.6f
+            val ts = film.chapters.map { (it.start + at).toFloat() }
+            val f = o.report.frame
+            val crop = org.jetbrains.skia.Rect.makeLTRB(0f, f.header.bottom - 40f, 1080f, f.captionY - 60f)
+            ExplainerLab.sheet(o.composition, ts, out.resolve("$id.png"), 9, System.getenv("TRIMIO_EXPLAINER_SCALE")?.toFloatOrNull() ?: 0.2f, crop)
+        }
+    }
+
     @Test
     fun proof() {
         val out = System.getenv("TRIMIO_EXPLAINER")?.takeIf { it.isNotBlank() }?.let(::File) ?: return
         val only = System.getenv("TRIMIO_EXPLAINER_ONLY")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
         val times = System.getenv("TRIMIO_EXPLAINER_TIMES")?.split(",")?.mapNotNull { it.trim().toFloatOrNull() }?.takeIf { it.isNotEmpty() }
+        if (only == null || "atlas" in only.joinToString()) atlas(out, only)
         for (c in cases) {
             if (only != null && c.id !in only) continue
             val base = ExplainerLab.film(c.film)

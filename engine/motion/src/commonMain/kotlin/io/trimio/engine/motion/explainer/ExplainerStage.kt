@@ -61,7 +61,7 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
     }
 
     private fun hand(pal: ExplainerPalette, ch: Chapter, frame: StageFrame, rtl: Boolean, persian: Boolean, seed: Long) =
-        Hand(text, pal, ch.accent, rtl, frame.u * if (frame.portrait) PORTRAIT_SCALE else 1f, icons, frame.stage.width, frame.stage.height, seed).also { it.persian = persian }
+        Hand(text, pal, ch.accent, rtl, frame.u * if (frame.portrait) PORTRAIT_SCALE else 1f, icons, frame.stage.width * ROOM, frame.stage.height * ROOM, seed).also { it.persian = persian }
 
     @Suppress("LongParameterList")
     private fun chapter(
@@ -76,7 +76,9 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
             hands[v] = h
             if (!v.overlay) laid[v] = Pieces.of(v.spec.primitive).lay(v.spec, h)
         }
-        val solver = Solver(frame.stage, frame.u * if (frame.portrait) GAP_TALL else GAP_WIDE, wide = !frame.portrait).also { it.rtlStart = rtl }
+        // Elements rest a little inside the stage: a highlight's pulse never pushes them past it.
+        val room = frame.stage.let { b -> val dx = b.width * (1f - ROOM) / 2f; val dy = b.height * (1f - ROOM) / 2f; io.trimio.engine.motion.recipe.Box(b.left + dx, b.top + dy, b.right - dx, b.bottom - dy) }
+        val solver = Solver(room, frame.u * if (frame.portrait) GAP_TALL else GAP_WIDE, wide = !frame.portrait).also { it.rtlStart = rtl }
         val (solved, rests) = solver.solve(ci, versions, laid)
         val out = ArrayList<Node>()
         for (v in versions.sortedBy { it.order }) {
@@ -172,6 +174,8 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
         const val TAIL = 0.6f
         /** Pieces are drawn a little larger on a tall frame: it has the room, and phones are held close. */
         const val PORTRAIT_SCALE = 1.16f
+        /** The share of the stage elements rest in (the rest is room for pulses). */
+        const val ROOM = 0.95f
         const val GAP_TALL = 64f
         const val GAP_WIDE = 52f
         const val RISE = 30f

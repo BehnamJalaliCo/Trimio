@@ -1,0 +1,1113 @@
+{
+ "summary": {
+  "model": "Qwen3.5-2B-Q4_K_M",
+  "scenarios": 4,
+  "runs": 4,
+  "json": "18/18",
+  "json_rate": 1.0,
+  "hit_token_limit": 0,
+  "domain": 0.75,
+  "cta_action": 1.0,
+  "cta_keyword": 0.6666666666666666,
+  "hook": 0.25,
+  "show": 0.0,
+  "show_n": 13,
+  "spell_fix": 0.047619047619047616,
+  "spell_kept_wrong": 0.8571428571428571,
+  "spell_n": 21,
+  "cer_fixed": 0.10051520366332245,
+  "cer_heard": 0.028858894389088653,
+  "fa_titles": 0.5476190476190477,
+  "prompt_tokens": 14168,
+  "gen_tokens": 5516,
+  "prompt_tps": 47.45874276631854,
+  "gen_tps": 4.021628607367779,
+  "wall_s": 1670.7213428020477
+ },
+ "runs": [
+  {
+   "domain": true,
+   "cta_action": true,
+   "cta_keyword": null,
+   "hook": false,
+   "shows": [
+    {
+     "cue": "من دکتر نیلوفر احمدی",
+     "line": 0,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "هشتاد درصد",
+     "line": 2,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "سه تا علامتش",
+     "line": 4,
+     "got": "counter",
+     "ok": false
+    }
+   ],
+   "fixes": [
+    {
+     "clean": "ویتامین دی",
+     "heard": "ویتامین D",
+     "fixed": "نزدیک هشتاد درصد ایرانی‌ها کمبود ویتامین D دارن،",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "مزمن،",
+     "heard": "مضمن،",
+     "fixed": "three signs: fatigue, bone pain, hair loss",
+     "ok": false,
+     "kept_wrong": false
+    },
+    {
+     "clean": "خودسرانه",
+     "heard": "خودصرانه",
+     "fixed": "but please don't take the 50,000 unit pills!",
+     "ok": false,
+     "kept_wrong": false
+    }
+   ],
+   "cer_fixed": 0.27508610362383945,
+   "cer_heard": 0.007905310971348707,
+   "fa_titles": [
+    3,
+    12
+   ],
+   "titles": [
+    "Vit D Deficiency in Iran",
+    "Vit D Deficiency in Iran",
+    "Dr. Niloufar Ahmadi",
+    "Let's tell you something",
+    "Nearly 80% of Iranians",
+    "even people who think they get",
+    "three signs",
+    "don't take the pills",
+    "آزمایش",
+    "سطح",
+    "واحد",
+    "Follow"
+   ],
+   "id": "fa-medical-vitamin-d",
+   "seed": 1,
+   "seconds": 352.02559065818787,
+   "calls": 5,
+   "valid": 5,
+   "prompt_n": 3842,
+   "gen_n": 1180,
+   "understanding": {
+    "title": "Vit D Deficiency in Iran",
+    "topic": "Vitamin D",
+    "domain": "health",
+    "mood": "serious",
+    "brief": {
+     "look": "paper",
+     "energy": 0,
+     "pace": "normal",
+     "captions": "word",
+     "music": "none",
+     "payoffFirst": true
+    },
+    "entities": [],
+    "hook": {
+     "line": 3,
+     "title": "Vit D Deficiency in Iran"
+    },
+    "cta": {
+     "action": "follow",
+     "keyword": "Vit D"
+    }
+   },
+   "reads": [
+    {
+     "fixed": "من دکتر نیلوفر احمدی هستم، متخصص داخلی.",
+     "gist": "Dr. Niloufar Ahmadi, Internal Medicine.",
+     "role": "insight",
+     "show": "headline",
+     "title": "Dr. Niloufar Ahmadi",
+     "visual": "woman in white coat",
+     "items": [
+      "Dr. Niloufar Ahmadi",
+      "Internal Medicine"
+     ],
+     "energy": 0
+    },
+    {
+     "fixed": "بذارید یه چیزی رو رک بگم: طبق مطالعات،",
+     "gist": "Let's tell you something: according to studies,",
+     "role": "hook",
+     "show": "headline",
+     "title": "Let's tell you something",
+     "visual": "hand holding a clipboard",
+     "items": [
+      "Let's tell you something",
+      "According to studies"
+     ],
+     "energy": 0
+    },
+    {
+     "fixed": "نزدیک هشتاد درصد ایرانی‌ها کمبود ویتامین D دارن،",
+     "gist": "Nearly 80% of Iranians have Vitamin D deficiency",
+     "role": "insight",
+     "show": "headline",
+     "title": "Nearly 80% of Iranians",
+     "visual": "bar chart showing 80% filled",
+     "items": [
+      "Nearly 80% of Iranians",
+      "Vitamin D deficiency"
+     ],
+     "energy": 0
+    },
+    {
+     "fixed": "even people who think they get too much sun",
+     "gist": "even people who think they get too much sun",
+     "role": "punchline",
+     "show": "headline",
+     "title": "even people who think they get",
+     "visual": "people looking at sun",
+     "items": [],
+     "energy": 0.5
+    },
+    {
+     "fixed": "three signs: fatigue, bone pain, hair loss",
+     "gist": "fatigue, bone pain, hair loss",
+     "role": "list",
+     "show": "counter",
+     "title": "three signs",
+     "visual": "three icons",
+     "items": [
+      "fatigue",
+      "bone pain",
+      "hair loss"
+     ],
+     "energy": 0.2
+    },
+    {
+     "fixed": "but please don't take the 50,000 unit pills!",
+     "gist": "don't take the pills",
+     "role": "warning",
+     "show": "stamp",
+     "title": "don't take the pills",
+     "visual": "warning sign",
+     "items": [],
+     "energy": 0.8
+    },
+    {
+     "fixed": "اول یه آزمایش ساده بدید.",
+     "gist": "do a simple test.",
+     "role": "steps",
+     "show": "headline",
+     "title": "آزمایش",
+     "visual": "test",
+     "items": [
+      "simple test",
+      "lab result"
+     ],
+     "energy": 0.5
+    },
+    {
+     "fixed": "اگه سطحش زیر سی بود، با پزشکتون دوز رو تنظیم کنید.",
+     "gist": "if level is below 10, adjust dose with doctor.",
+     "role": "steps",
+     "show": "counter",
+     "title": "سطح",
+     "visual": "blood test",
+     "items": [
+      "level below 10",
+      "doctor consultation",
+      "dose adjustment"
+     ],
+     "energy": 0.5
+    },
+    {
+     "fixed": "معمولاً روزی هزار تا دو هزار واحد کافیه.",
+     "gist": "usually 1000 to 2000 units daily is enough.",
+     "role": "number",
+     "show": "counter",
+     "title": "واحد",
+     "visual": "pill",
+     "items": [
+      "1000 units",
+      "2000 units",
+      "daily dose"
+     ],
+     "energy": 0.5
+    },
+    {
+     "fixed": "برای نکته‌های بیشتر فالو کنید.",
+     "gist": "Follow for more tips.",
+     "role": "cta",
+     "show": "headline",
+     "title": "Follow",
+     "visual": "CTA button",
+     "items": [],
+     "energy": 0
+    }
+   ]
+  },
+  {
+   "domain": true,
+   "cta_action": true,
+   "cta_keyword": false,
+   "hook": false,
+   "shows": [
+    {
+     "cue": "صد تتر هدیهٔ",
+     "line": 5,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "پونصد تا ظرفیت",
+     "line": 6,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "کمتر از هفتاد و دو ساعت",
+     "line": 7,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "کلمهٔ بیت رو کامنت کن",
+     "line": 9,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "صرافی Nobitex",
+     "line": 4,
+     "got": "headline",
+     "ok": false
+    }
+   ],
+   "fixes": [
+    {
+     "clean": "بیت‌کوین",
+     "heard": "بیتکوین",
+     "fixed": "بیتکوین دوباره رفت بالای صد هزار دلار و",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "صرافی",
+     "heard": "سرافی",
+     "fixed": "سرافی نوبیتکس برای کاربرای جدید یه کمپین گذاشته:",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "Nobitex",
+     "heard": "نوبیتکس",
+     "fixed": "سرافی نوبیتکس برای کاربرای جدید یه کمپین گذاشته:",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "ثبت‌نام",
+     "heard": "سبتنام",
+     "fixed": "با سبتنام و اهراز هویت، صد تتر هدیهٔ ترید می‌گیری.",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "احراز",
+     "heard": "اهراز",
+     "fixed": "با سبتنام و اهراز هویت، صد تتر هدیهٔ ترید می‌گیری.",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "پونصد",
+     "heard": "پانصد",
+     "fixed": "تا الان سه هزار نفر گرفتنش و فقط پانصد تا ظرفیت مونده.",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "هفتاد و دو",
+     "heard": "هفتادو دو",
+     "fixed": "مهلتشم تا یکشنبه ساعت دوازده شبه، یعنی کمتر از هفتادو دو ساعت.",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "صفره.",
+     "heard": "سفره.",
+     "fixed": "کارمزد معاملاتم تا آخر ماه سفره.",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "قدم‌به‌قدم",
+     "heard": "قدم به قدم",
+     "fixed": "لینک ثبت‌نام و آموزش قدم به قدم رو برات دایرکت می‌کنم.",
+     "ok": false,
+     "kept_wrong": true
+    }
+   ],
+   "cer_fixed": 0.043486605642367976,
+   "cer_heard": 0.043486605642367976,
+   "fa_titles": [
+    4,
+    13
+   ],
+   "titles": [
+    "Nobitex: 100 Tether Gift for New Crypto Users",
+    "Nobitex: 100 Tether Gift for New Crypto",
+    "Bitcoin",
+    "Everyone",
+    "Don't",
+    "فرصت",
+    "نوبیتکس",
+    "سبتنام",
+    "500 left",
+    "72 hours",
+    "empty",
+    "bit",
+    "دایرکت"
+   ],
+   "id": "fa-crypto-bitcoin",
+   "seed": 1,
+   "seconds": 479.0081400871277,
+   "calls": 5,
+   "valid": 5,
+   "prompt_n": 4615,
+   "gen_n": 1501,
+   "understanding": {
+    "title": "Nobitex: 100 Tether Gift for New Crypto Users",
+    "topic": "Nobitex, Crypto, Gift, Trading",
+    "domain": "finance",
+    "mood": "urgent",
+    "brief": {
+     "look": "noir",
+     "energy": 1,
+     "pace": "fast",
+     "captions": "word",
+     "music": "tense",
+     "payoffFirst": true
+    },
+    "entities": [
+     {
+      "at": 38,
+      "until": 48,
+      "name": "Nobitex",
+      "kind": "brand",
+      "visual": "Nobitex logo"
+     },
+     {
+      "at": 44,
+      "until": 46,
+      "name": "Nobitex",
+      "kind": "brand",
+      "visual": "Nobitex logo"
+     },
+     {
+      "at": 50,
+      "until": 53,
+      "name": "Nobitex",
+      "kind": "brand",
+      "visual": "Nobitex logo"
+     },
+     {
+      "at": 57,
+      "until": 59,
+      "name": "Nobitex",
+      "kind": "brand",
+      "visual": "Nobitex logo"
+     },
+     {
+      "at": 63,
+      "until": 65,
+      "name": "Nobitex",
+      "kind": "brand",
+      "visual": "Nobitex logo"
+     }
+    ],
+    "hook": {
+     "line": 4,
+     "title": "Nobitex: 100 Tether Gift for New Crypto"
+    },
+    "cta": {
+     "action": "comment",
+     "keyword": "BET"
+    }
+   },
+   "reads": [
+    {
+     "fixed": "بیتکوین دوباره رفت بالای صد هزار دلار و",
+     "gist": "Bitcoin hit new high",
+     "role": "hook",
+     "show": "headline",
+     "title": "Bitcoin",
+     "visual": "📈",
+     "items": [
+      "Bitcoin",
+      "New High"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "همه دارن می‌پرسن الان بخرم یا دیره؟",
+     "gist": "Everyone asking buy or wait",
+     "role": "question",
+     "show": "counter",
+     "title": "Everyone",
+     "visual": "🤔",
+     "items": [
+      "Everyone",
+      "Buying",
+      "Wait"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "اِم ببین، من بهت نمی‌گم چی بخری،",
+     "gist": "Don't tell me what to buy",
+     "role": "question",
+     "show": "counter",
+     "title": "Don't",
+     "visual": "🙅‍♂️",
+     "items": [
+      "Don't",
+      "Tell",
+      "Me",
+      "Buy"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "ولی یه فرصت دارم که نباید از دستش بدی.",
+     "gist": "A chance to not lose it.",
+     "role": "warning",
+     "show": "headline",
+     "title": "فرصت",
+     "visual": "warning sign",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "سرافی نوبیتکس برای کاربرای جدید یه کمپین گذاشته:",
+     "gist": "Nobitex campaign for new users.",
+     "role": "list",
+     "show": "headline",
+     "title": "نوبیتکس",
+     "visual": "logo",
+     "items": [
+      "Nobitex",
+      "campaign"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "با سبتنام و اهراز هویت، صد تتر هدیهٔ ترید می‌گیری.",
+     "gist": "Sign in to get 100 Tether.",
+     "role": "list",
+     "show": "headline",
+     "title": "سبتنام",
+     "visual": "logo",
+     "items": [
+      "Nobitex",
+      "sign-in",
+      "100 Tether"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "تا الان سه هزار نفر گرفتنش و فقط پانصد تا ظرفیت مونده.",
+     "gist": "Three thousand people got it, only 500 left.",
+     "role": "punchline",
+     "show": "headline",
+     "title": "500 left",
+     "visual": "empty",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "مهلتشم تا یکشنبه ساعت دوازده شبه، یعنی کمتر از هفتادو دو ساعت.",
+     "gist": "Deadline next Tuesday at 12 AM, less than 72h.",
+     "role": "warning",
+     "show": "headline",
+     "title": "72 hours",
+     "visual": "empty",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "کارمزد معاملاتم تا آخر ماه سفره.",
+     "gist": "Trading fees until end of month.",
+     "role": "claim",
+     "show": "headline",
+     "title": "empty",
+     "visual": "empty",
+     "items": [],
+     "energy": 0
+    },
+    {
+     "fixed": "کلمه بیت رو کامنت کن",
+     "gist": "Comment the word 'bit'",
+     "role": "steps",
+     "show": "headline",
+     "title": "bit",
+     "visual": "comment",
+     "items": [
+      "کلمه بیت",
+      "کامنت کن"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "لینک ثبت‌نام و آموزش قدم به قدم رو برات دایرکت می‌کنم.",
+     "gist": "send registration link and step-by-step tutorial",
+     "role": "list",
+     "show": "counter",
+     "title": "دایرکت",
+     "visual": "link",
+     "items": [
+      "لینک ثبت‌نام",
+      "آموزش قدم به قدم",
+      "برات دایرکت می‌کنم"
+     ],
+     "energy": 1
+    }
+   ]
+  },
+  {
+   "domain": true,
+   "cta_action": true,
+   "cta_keyword": true,
+   "hook": false,
+   "shows": [
+    {
+     "cue": "من سارا هستم",
+     "line": 0,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "هفت گرفتم",
+     "line": 6,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "کلمهٔ مشاوره",
+     "line": 9,
+     "got": "headline",
+     "ok": false
+    }
+   ],
+   "fixes": [
+    {
+     "clean": "پارسیان،",
+     "heard": "پارصیان،",
+     "fixed": "سه ماه پیش که اومدم آموزشگاه پارصیان،",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "آیلتسم",
+     "heard": "آیلتس م",
+     "fixed": "آیلتس م پنج و نیم بود و اِم واقعاً نا امید بودم،",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "ناامید",
+     "heard": "نا امید",
+     "fixed": "آیلتس م پنج و نیم بود و اِم واقعاً نا امید بودم،",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "تعیین",
+     "heard": "تعین",
+     "fixed": "اینجا اولین کاری که کردن یه تعین سطح دقیق بود،",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "تصحیح",
+     "heard": "تصحیه",
+     "fixed": "هفت جلسه کلاس داشتم، با تصحیح هر روز. امتحان آخرم... هفت گرفتم!",
+     "ok": true,
+     "kept_wrong": false
+    },
+    {
+     "clean": "شیش",
+     "heard": "شش",
+     "fixed": "رایتینگم شد شش و نیم.",
+     "ok": false,
+     "kept_wrong": true
+    }
+   ],
+   "cer_fixed": 0.04304692891649413,
+   "cer_heard": 0.02360248447204969,
+   "fa_titles": [
+    10,
+    11
+   ],
+   "titles": [
+    "نمره‌های واقعی رضایت هنرجو",
+    "هنرجوی رضایت واقعی",
+    "سارا",
+    "سه ماه پیش",
+    "5.5",
+    "دو بار",
+    "تعین سطح",
+    "رایتینگ",
+    "7 sessions",
+    "6.5",
+    "مشاوره"
+   ],
+   "id": "fa-testimonial-ielts",
+   "seed": 1,
+   "seconds": 538.8983218669891,
+   "calls": 5,
+   "valid": 5,
+   "prompt_n": 3686,
+   "gen_n": 1805,
+   "understanding": {
+    "title": "نمره‌های واقعی رضایت هنرجو",
+    "topic": "آموزشگاه زبان",
+    "domain": "education",
+    "mood": "calm",
+    "brief": {
+     "look": "paper",
+     "energy": 0,
+     "pace": "normal",
+     "captions": "word",
+     "music": "uplifting",
+     "payoffFirst": true
+    },
+    "entities": [
+     {
+      "at": 10,
+      "until": 11,
+      "name": "آیلتس",
+      "kind": "brand",
+      "visual": ""
+     },
+     {
+      "at": 12,
+      "until": 13,
+      "name": "پارصیان",
+      "kind": "organization",
+      "visual": ""
+     },
+     {
+      "at": 14,
+      "until": 15,
+      "name": "م",
+      "kind": "object",
+      "visual": ""
+     },
+     {
+      "at": 16,
+      "until": 17,
+      "name": "پنج و نیم",
+      "kind": "object",
+      "visual": ""
+     },
+     {
+      "at": 20,
+      "until": 21,
+      "name": "امتحان",
+      "kind": "object",
+      "visual": ""
+     },
+     {
+      "at": 23,
+      "until": 24,
+      "name": "دو بار",
+      "kind": "object",
+      "visual": ""
+     },
+     {
+      "at": 30,
+      "until": 31,
+      "name": "تعین سطح",
+      "kind": "object",
+      "visual": ""
+     },
+     {
+      "at": 36,
+      "until": 37,
+      "name": "رایتینگ",
+      "kind": "object",
+      "visual": ""
+     },
+     {
+      "at": 43,
+      "until": 44,
+      "name": "جلسه",
+      "kind": "object",
+      "visual": ""
+     },
+     {
+      "at": 46,
+      "until": 47,
+      "name": "تصحیه",
+      "kind": "object",
+      "visual": ""
+     }
+    ],
+    "hook": {
+     "line": 1,
+     "title": "هنرجوی رضایت واقعی"
+    },
+    "cta": {
+     "action": "comment",
+     "keyword": "مشاوره"
+    }
+   },
+   "reads": [
+    {
+     "fixed": "من سارا هستم.",
+     "gist": "I am Sara.",
+     "role": "solution",
+     "show": "headline",
+     "title": "سارا",
+     "visual": "woman speaking",
+     "items": [
+      "woman",
+      "speaking"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "سه ماه پیش که اومدم آموزشگاه پارصیان،",
+     "gist": "Three months ago I came to the Persian language.",
+     "role": "problem",
+     "show": "counter",
+     "title": "سه ماه پیش",
+     "visual": "calendar",
+     "items": [
+      "three months ago",
+      "came",
+      "to",
+      "Persian language",
+      "came",
+      "to",
+      "Persian language",
+      "came",
+      "to"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "آیلتس م پنج و نیم بود و اِم واقعاً نا امید بودم،",
+     "gist": "IELTS was 5.5 and I was really disappointed.",
+     "role": "problem",
+     "show": "meter",
+     "title": "5.5",
+     "visual": "score",
+     "items": [
+      "5.5",
+      "score",
+      "was",
+      "really",
+      "disappointed",
+      "was",
+      "really",
+      "disappointed",
+      "was"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "چون دو بار امتحان داده بودم.",
+     "gist": "چون دو بار امتحان داده بودم",
+     "role": "steps",
+     "show": "countdown",
+     "title": "دو بار",
+     "visual": "countdown",
+     "items": [
+      "2 امتحان",
+      "2 امتحان",
+      "2 امتحان",
+      "2 امتحان",
+      "2 امتحان",
+      "2 امتحان",
+      "2 امتحان",
+      "2 امتحان",
+      "2 امتحان"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "اینجا اولین کاری که کردن یه تعین سطح دقیق بود،",
+     "gist": "اینجا اولین کاری که کردن یه تعین سطح دقیق بود",
+     "role": "list",
+     "show": "list",
+     "title": "تعین سطح",
+     "visual": "list",
+     "items": [
+      "تعین سطح",
+      "تعین سطح",
+      "تعین سطح",
+      "تعین سطح",
+      "تعین سطح",
+      "تعین سطح",
+      "تعین سطح",
+      "تعین سطح",
+      "تعین سطح"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "فهمیدیم مشکل اصلیم رایتینگه.",
+     "gist": "فهمیدیم مشکل اصلیم رایتینگه",
+     "role": "steps",
+     "show": "chart",
+     "title": "رایتینگ",
+     "visual": "chart",
+     "items": [
+      "رایتینگ",
+      "رایتینگ",
+      "رایتینگ",
+      "رایتینگ",
+      "رایتینگ",
+      "رایتینگ",
+      "رایتینگ",
+      "رایتینگ",
+      "رایتینگ"
+     ],
+     "energy": 1
+    },
+    {
+     "fixed": "هفت جلسه کلاس داشتم، با تصحیح هر روز. امتحان آخرم... هفت گرفتم!",
+     "gist": "7 sessions, daily corrections, final exam passed",
+     "role": "punchline",
+     "show": "headline",
+     "title": "7 sessions",
+     "visual": "7 sessions",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "رایتینگم شد شش و نیم.",
+     "gist": "Writing score 6.5",
+     "role": "punchline",
+     "show": "counter",
+     "title": "6.5",
+     "visual": "6.5",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "اگه شما هم هدفتون مهاجرت یا ادامه تحصیله،",
+     "gist": "If you want to migrate or continue studies",
+     "role": "question",
+     "show": "none",
+     "title": "",
+     "visual": "",
+     "items": [],
+     "energy": 0
+    },
+    {
+     "fixed": "کلمهٔ مشاوره رو کامنت کنید تا باهاتون تماس بگیرن.",
+     "gist": "کلمه مشاوره",
+     "role": "cta",
+     "show": "headline",
+     "title": "مشاوره",
+     "visual": "call to action button",
+     "items": [],
+     "energy": 0.5
+    }
+   ]
+  },
+  {
+   "domain": false,
+   "cta_action": true,
+   "cta_keyword": true,
+   "hook": true,
+   "shows": [
+    {
+     "cue": "پنجاه درصد تخفیف",
+     "line": 0,
+     "got": "headline",
+     "ok": false
+    },
+    {
+     "cue": "کلمهٔ کتونی",
+     "line": 3,
+     "got": "headline",
+     "ok": false
+    }
+   ],
+   "fixes": [
+    {
+     "clean": "کتونی‌های",
+     "heard": "کتونیهای",
+     "fixed": "فقط امروز! همهٔ کتونیهای نایک و آدیداس پنجاه درصد تخفیف. موجودی محدوده،",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "Nike",
+     "heard": "نایک",
+     "fixed": "فقط امروز! همهٔ کتونیهای نایک و آدیداس پنجاه درصد تخفیف. موجودی محدوده،",
+     "ok": false,
+     "kept_wrong": true
+    },
+    {
+     "clean": "Adidas",
+     "heard": "آدیداس",
+     "fixed": "فقط امروز! همهٔ کتونیهای نایک و آدیداس پنجاه درصد تخفیف. موجودی محدوده،",
+     "ok": false,
+     "kept_wrong": true
+    }
+   ],
+   "cer_fixed": 0.04044117647058824,
+   "cer_heard": 0.04044117647058824,
+   "fa_titles": [
+    6,
+    6
+   ],
+   "titles": [
+    "کتونیهای نایک و آدیداس ۵۰٪ تخفیف",
+    "کتونیهای نایک و آدیداس ۵۰٪ تخفیف",
+    "فقط امروز",
+    "چهل و دو و چهل و سه",
+    "دایرکت",
+    "کوتنی"
+   ],
+   "id": "fa-flash-sale-15s",
+   "seed": 1,
+   "seconds": 300.7885844707489,
+   "calls": 3,
+   "valid": 3,
+   "prompt_n": 2025,
+   "gen_n": 1030,
+   "understanding": {
+    "title": "کتونیهای نایک و آدیداس ۵۰٪ تخفیف",
+    "topic": "کتونیهای نایک و آدیداس",
+    "domain": "real-estate",
+    "mood": "luxury",
+    "brief": {
+     "look": "lumen",
+     "energy": 0,
+     "pace": "normal",
+     "captions": "word",
+     "music": "none",
+     "payoffFirst": true
+    },
+    "entities": [
+     {
+      "at": 2,
+      "until": 10,
+      "name": "کتونیهای",
+      "kind": "product",
+      "visual": "کتونیهای نایک و آدیداس"
+     },
+     {
+      "at": 10,
+      "until": 11,
+      "name": "پنجاه",
+      "kind": "product",
+      "visual": "پنجاه درصد تخفیف"
+     },
+     {
+      "at": 11,
+      "until": 12,
+      "name": "موجودی",
+      "kind": "product",
+      "visual": "موجودی محدوده"
+     },
+     {
+      "at": 12,
+      "until": 13,
+      "name": "سایز",
+      "kind": "product",
+      "visual": "سایز چهل و دو و چهل و سه"
+     },
+     {
+      "at": 13,
+      "until": 14,
+      "name": "تموم",
+      "kind": "product",
+      "visual": "تموم می‌شه"
+     },
+     {
+      "at": 14,
+      "until": 19,
+      "name": "دایرکت",
+      "kind": "product",
+      "visual": "دایرکت بده"
+     },
+     {
+      "at": 28,
+      "until": 35,
+      "name": "کتونی",
+      "kind": "product",
+      "visual": "کتونی"
+     },
+     {
+      "at": 35,
+      "until": 36,
+      "name": "لینک",
+      "kind": "product",
+      "visual": "لینک خرید"
+     }
+    ],
+    "hook": {
+     "line": 0,
+     "title": "کتونیهای نایک و آدیداس ۵۰٪ تخفیف"
+    },
+    "cta": {
+     "action": "dm",
+     "keyword": "کتونی"
+    }
+   },
+   "reads": [
+    {
+     "fixed": "فقط امروز! همهٔ کتونیهای نایک و آدیداس پنجاه درصد تخفیف. موجودی محدوده،",
+     "gist": "فقط امروز",
+     "role": "punchline",
+     "show": "headline",
+     "title": "فقط امروز",
+     "visual": "🏷️",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "سایز چهل و دو و چهل و سه داره تموم می‌شه.",
+     "gist": "سایز",
+     "role": "punchline",
+     "show": "headline",
+     "title": "چهل و دو و چهل و سه",
+     "visual": "📏",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "همین الان دایرکت بده،",
+     "gist": "دایرکت",
+     "role": "punchline",
+     "show": "headline",
+     "title": "دایرکت",
+     "visual": "💬",
+     "items": [],
+     "energy": 1
+    },
+    {
+     "fixed": "کلمهٔ کتونی رو بفرست تا لینک خرید رو برات بفرستیم.",
+     "gist": "Send the word 'kotoniy' to get the buy link.",
+     "role": "punchline",
+     "show": "headline",
+     "title": "کوتنی",
+     "visual": "kotoniy",
+     "items": [],
+     "energy": 1
+    }
+   ]
+  }
+ ]
+}

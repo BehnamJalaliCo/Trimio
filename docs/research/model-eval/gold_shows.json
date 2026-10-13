@@ -1,0 +1,21 @@
+{
+ "_note": "Hand gold for the Persian workshop scenarios, derived from each brief and script (synthetic, nothing real). cue = a phrase of the clean script; the line holding it must get one of 'show' (planner-equivalent shows count, see UnderstandingScore.EQUIVALENT_SHOWS). hook = phrases any of which the hook line may hold. NUM = counter|meter|chart|stats|progress|countdown.",
+ "fa-tutorial-english": {"hook": ["سه تا اشتباه", "لیست سی"], "shows": [["کلمهٔ لیست رو برام کامنت کن", ["comment"]]]},
+ "fa-launch-serum": {"hook": ["چهل درصد تخفیف", "نود و دو", "لانچ شد"], "shows": [["نود و دو", ["NUM"]], ["چهل درصد تخفیف", ["NUM", "voucher"]], ["فقط تا جمعه شب", ["NUM"]]]},
+ "fa-cooking-kuku": {"hook": ["پف کنه", "راز پف"], "shows": [["مواد لازم", ["list", "objects"]], ["بیست دقیقه", ["NUM", "headline", "list"]]]},
+ "fa-medical-vitamin-d": {"hook": ["هشتاد درصد"], "shows": [["من دکتر نیلوفر احمدی", ["lower-third"]], ["هشتاد درصد", ["NUM"]], ["سه تا علامتش", ["list", "objects"]]]},
+ "fa-real-estate": {"hook": ["صد و بیست و پنج", "ویو کامل", "متری صد و ده"], "shows": [["صد و بیست و پنج متره", ["NUM"]], ["متری صد و ده میلیونه", ["NUM"]], ["کلمهٔ بازدید", ["comment", "message"]]]},
+ "fa-fitness-abs": {"hook": ["سه تا حرکت", "شکمت صاف", "فرقش رو می‌بینی"], "shows": [["کلمهٔ برنامه رو کامنت کن", ["comment"]], ["سی ثانیه نگه دار", ["NUM", "list"]]]},
+ "fa-travel-yazd": {"hook": ["بلندترین بادگیر", "شهر بادگیرها"], "shows": [["سی و سه", ["NUM"]], ["پنجاه هزار تومنه", ["NUM"]]]},
+ "fa-motivation-story": {"hook": ["سه تا شعبه", "شکست وقتیه", "همه‌اش رو تا قرون آخر"], "shows": [["صد و هشتاد میلیون بدهی", ["NUM"]], ["گفت: شکست وقتیه", ["message"]], ["سه تا شعبه", ["NUM"]]]},
+ "fa-tech-review-phones": {"hook": ["زوم صد برابر", "دو هفته با هر دوتاش"], "shows": [["Galaxy S24 Ultra", ["logos"]], ["زوم صد برابر", ["NUM", "logos"]], ["پنج هزار میلی‌آمپر", ["NUM"]], ["کلمهٔ گوشی رو کامنت کن", ["comment"]]]},
+ "fa-crypto-bitcoin": {"hook": ["صد تتر هدیهٔ"], "shows": [["صد تتر هدیهٔ", ["voucher"]], ["پونصد تا ظرفیت", ["NUM"]], ["کمتر از هفتاد و دو ساعت", ["NUM"]], ["کلمهٔ بیت رو کامنت کن", ["comment"]], ["صرافی Nobitex", ["logos"]]]},
+ "fa-podcast-quote": {"hook": ["مشکلت درآمد نیست", "بیست درصدش"], "shows": [["گفت: مشکلت", ["message"]], ["بیست درصدش رو بذار کنار", ["NUM"]]]},
+ "fa-testimonial-ielts": {"hook": ["هفت گرفتم"], "shows": [["من سارا هستم", ["lower-third"]], ["هفت گرفتم", ["NUM"]], ["کلمهٔ مشاوره", ["comment"]]]},
+ "fa-news-inflation": {"hook": ["پنجاه و دو درصد", "نه برابر"], "shows": [["پنجاه و دو درصد", ["NUM"]], ["سی و نه درصد", ["NUM"]], ["نزدیک نه برابر", ["NUM"]]]},
+ "fa-mixed-ai-tools": {"hook": ["پنج ساعت", "زندگیمو عوض کرد"], "shows": [["Notion", ["logos"]], ["ChatGPT", ["logos"]], ["Google Calendar", ["logos"]], ["کلمهٔ ابزار رو کامنت کن", ["comment"]]]},
+ "fa-flash-sale-15s": {"hook": ["پنجاه درصد تخفیف"], "shows": [["پنجاه درصد تخفیف", ["NUM", "voucher"]], ["کلمهٔ کتونی", ["comment", "message"]]]},
+ "fa-launch-perfume-assets": {"hook": ["عطر جدید Velora", "دوازده ساعت"], "shows": [["دوازده ساعت", ["NUM"]], ["پونصد تا شیشه", ["NUM"]], ["بیست درصد تخفیف", ["NUM", "voucher"]]]},
+ "fa-glossary-rsi": {"hook": ["واگراییه", "بالای هفتاد"], "shows": [["بالای هفتاد", ["NUM"]]]},
+ "fa-cafe-no-captions": {"hook": ["قهوهٔ اولتون مهمون", "باز شد"], "shows": []}
+}

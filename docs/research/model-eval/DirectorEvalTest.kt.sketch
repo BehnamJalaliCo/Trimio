@@ -1,0 +1,61 @@
+// SKETCH (not compiled, not in the repo): engine/autopilot/src/jvmTest/kotlin/io/trimio/engine/autopilot/DirectorEvalTest.kt
+// The JVM twin of run_eval.py: same metrics, but on the real Workshop scenarios, the app's own
+// LlamaLanguageModel (JNI, GPU layers, grammar sampler chain) and Understander. Opt-in like ModelEvalTest.
+//
+//   ./gradlew :engine:autopilot:directorEval -Peval.llm=/models/gemma-4-E4B_q4_0-it.gguf [-Peval.seeds=1,2] [-Peval.only=fa-]
+//
+package io.trimio.engine.autopilot
+
+import io.trimio.engine.autopilot.workshop.Workshop
+import kotlinx.coroutines.runBlocking
+import java.io.File
+import kotlin.test.Test
+
+class DirectorEvalTest {
+    @Test
+    fun evaluate() {
+        val llm = System.getProperty("eval.llm") ?: return                       // CI: skipped, green
+        val only = System.getProperty("eval.only") ?: "fa-"
+        val seeds = System.getProperty("eval.seeds")?.split(',')?.map { it.trim().toInt() } ?: listOf(1)
+        val gold = DirectorGold.load()                                             // resources/eval/director-gold.json (= gold_shows.json)
+        val rows = mutableListOf<Row>()
+        ModelEvalSupport.open(llm).use { (model, counter, profile) ->            // factor ModelEvalTest.read()'s setup into a helper
+            for (s in Workshop.scenarios().filter { it.id.startsWith(only) }) for (seed in seeds) {
+                val lines = Lines.split(s.words)
+                val t0 = System.nanoTime()
+                val calls0 = counter.calls; val valid0 = counter.valid
+                val u = runBlocking { Understander(counter).understand(s.transcript, s.prompt, lines, seed = seed, temperature = profile.understandingTemperature) }
+                val truthLines = lines.map { l -> s.truth.filter { w -> w.range.startMs >= s.words[l.first].range.startMs - 50 && w.range.endMs <= s.words[l.last].range.endMs + 50 } }
+                rows += Row(
+                    id = s.id, seed = seed, seconds = (System.nanoTime() - t0) / 1e9,
+                    json = (counter.valid - valid0) to (counter.calls - calls0),
+                    domain = UnderstandingScore.alike(s.domain, u.domain, UnderstandingScore.EQUIVALENT_DOMAINS),
+                    ctaAction = (u.cta?.action ?: "none") == (s.ask?.action ?: "none"),
+                    ctaKeyword = s.ask?.keyword?.takeIf { it.isNotEmpty() }?.let { Persian.norm(u.cta?.keyword.orEmpty()) == Persian.norm(it) },
+                    hook = gold.hookOk(s.id, u.hook?.line?.let { truthLines.getOrNull(it) }),
+                    shows = gold.shows(s.id, truthLines, u.lines),                 // cue → line by truth text, EQUIVALENT_SHOWS + "NUM"
+                    fixes = SpellingFidelity.of(s, lines, truthLines, u.lines),    // marked {clean|heard} pairs from Scenario.errors; CER fixed vs heard
+                    persianTitles = if (s.language == "fa") PersianScript.share(u, allowedLatin = s.script + " " + s.prompt) else null,
+                )
+            }
+        }
+        val out = File("build/eval/director-${File(llm).nameWithoutExtension}.json").apply { parentFile.mkdirs() }
+        out.writeText(Row.json(rows))
+        println(Row.result(File(llm).name, rows))                                 // one RESULT line, same keys as run_eval.py
+        DirectorBaseline.check(File(llm).name, rows)                               // fails only if a metric drops under this model's stored baseline
+    }
+}
+
+// engine/autopilot/build.gradle.kts (opt-in task, not part of `check`):
+//
+// val jvmTest = kotlin.jvm().compilations["test"]
+// tasks.register<Test>("directorEval") {
+//     group = "verification"; description = "Persian director eval on the workshop scenarios (needs -Peval.llm)"
+//     testClassesDirs = jvmTest.output.classesDirs
+//     classpath = jvmTest.runtimeDependencyFiles!! + jvmTest.output.allOutputs
+//     useJUnitPlatform()
+//     filter.includeTestsMatching("*DirectorEvalTest*")
+//     listOf("eval.llm", "eval.only", "eval.seeds", "eval.vision").forEach { k -> providers.gradleProperty(k).orNull?.let { systemProperty(k, it) } }
+//     systemProperty("trimio.native.dir", providers.gradleProperty("native.dir").orNull ?: "")
+//     maxHeapSize = "4g"; outputs.upToDateWhen { false }
+// }

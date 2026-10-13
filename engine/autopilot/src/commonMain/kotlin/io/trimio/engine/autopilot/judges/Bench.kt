@@ -6,7 +6,6 @@ import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.Severity
 import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Compiler
-import io.trimio.engine.motion.score.CutPoints
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
@@ -195,15 +194,10 @@ internal object Bench {
     fun cutInto(c: Jury.Context, t: Float, entering: Boolean): String? {
         val near = c.source.minByOrNull { w -> kotlin.math.abs((w.range.startMs + w.range.endMs) / 2000f - t) }?.text
         val cuts = c.cuts
-        if (cuts != null) {
-            val db = if (entering) cuts.db(t, t + CutPoints.FADE) else cuts.db(t - CutPoints.FADE, t)
-            return (near ?: "speech").takeIf { db > cuts.speechDb - LOUD_DB }
-        }
+        if (cuts != null) return (near ?: "speech").takeIf { io.trimio.engine.autopilot.JumpCuts.inWord(cuts, t, entering) }
         return c.source.firstOrNull { w -> w.range.startMs / 1000f < t - WORD_TOL && w.range.endMs / 1000f > t + WORD_TOL }?.text
     }
 
-    /** Within this of the speaker's level, the voice is still a word (CutPoints' burst margin). */
-    private const val LOUD_DB = 16f
     private const val WORD_TOL = 0.06f
 }
 

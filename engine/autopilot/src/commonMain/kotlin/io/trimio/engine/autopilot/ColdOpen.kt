@@ -58,7 +58,7 @@ data class ColdOpen(
             if (!asked(prompt) && !Rng(seed).fork(SALT).chance(CHANCE)) return null
             val q = payoff(words, line) ?: return null
             val span = span(words, q).takeIf { seconds(words, it.first, it.last) >= MIN_S } ?: return null
-            return if (voice == null) onTheWords(words, k, span) else onTheVoice(words, k, span, q.last, line, CutPoints(voice))
+            return if (voice == null) onTheWords(words, k, span) else onTheVoice(words, k, span, q.last, line, CutPoints(VoiceLevel.levelled(voice)))
         }
 
         /** A breath either side of the recognised edges, but never into the neighbouring words. */

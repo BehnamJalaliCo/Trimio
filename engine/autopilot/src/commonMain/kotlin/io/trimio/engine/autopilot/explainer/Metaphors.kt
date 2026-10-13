@@ -15,9 +15,11 @@ import io.trimio.engine.motion.score.NumberWords
  */
 enum class Idea(val pictures: List<Pair<Primitive, Float>>) {
     Persona(listOf(Primitive.Profile to 1f)),
+    /** "Like a clock", «مثل یه دفترچه»: the thing it is like, as a picture. */
+    Analogy(listOf(Primitive.Icon to 0.8f, Primitive.Clock to 0.2f)),
     Routine(listOf(Primitive.TaskTiles to 0.75f, Primitive.Checklist to 0.25f)),
     Drain(listOf(Primitive.Meter to 0.75f, Primitive.Ring to 0.25f)),
-    Grow(listOf(Primitive.Bars to 0.6f, Primitive.Meter to 0.2f, Primitive.Stack to 0.2f)),
+    Grow(listOf(Primitive.Bars to 0.65f, Primitive.Stack to 0.35f)),
     Uses(listOf(Primitive.IconTiles to 0.7f, Primitive.Grid to 0.3f)),
     Path(listOf(Primitive.Branches to 0.85f, Primitive.Flow to 0.15f)),
     Think(listOf(Primitive.Thinking to 0.7f, Primitive.Branches to 0.3f)),
@@ -70,16 +72,17 @@ object Metaphors {
     private val CUES: List<Cue> = buildList {
         fun cue(idea: Idea, weight: Float, vararg patterns: String) = patterns.forEach { add(Cue(idea, weight, it.split(' '))) }
         cue(
-            Idea.Persona, 1.2f, "مثل یه", "مثل یک", "like a", "like an", "کارآموز*", "کاراموز*", "intern*", "دستیار*", "assistant*", "تازهکار*", "تازهوارد*",
+            Idea.Persona, 1.2f, "کارآموز*", "کاراموز*", "intern*", "دستیار*", "assistant*", "تازهکار*", "تازهوارد*",
             "beginner*", "junior", "senior", "متخصص*", "expert*", "استاد*", "mentor*", "مربی*", "coach*", "کارمند*", "employee*", "مشاور*", "advisor*",
         )
+        cue(Idea.Analogy, 1.2f, "مثل یه", "مثل یک", "like a", "like an", "انگار یه")
         cue(Idea.Routine, 1.2f, "تکراری*", "روتین*", "routine*", "repetitive", "chores", "busywork", "کار سبک", "کارهای سبک", "کارای سبک", "simple tasks", "small tasks")
         cue(Idea.Routine, 0.7f, "سبک", "ساده", "light", "simple", "easy", "آسون", "آسان")
         cue(
             Idea.Drain, 1.2f, "محدودیت*", "سهمیه*", "quota*", "usage", "drain*", "runs out", "run out", "battery", "باتری*", "بودجه*", "budget*", "credits",
             "تموم میشه", "تمام میشود", "کم میشه", "کم میشود", "کمتر میشه", "مصرف*", "limit", "limits",
         )
-        cue(Idea.Grow, 1.1f, "رشد*", "افزایش*", "grow*", "increase*", "rising", "rise", "بالا میره", "بیشتر میشه", "بیشتر و بیشتر", "more and more", "compound*", "مرکب")
+        cue(Idea.Grow, 1.1f, "رشد*", "افزایش*", "grow*", "increase*", "rising", "rise", "بالا میره", "بیشتر میشه", "بیشتر و بیشتر", "more and more", "compound*", "مرکب", "faster and faster")
         cue(
             Idea.Uses, 1.3f, "کارهای عمومی", "کارای عمومی", "کارهای روزمره", "روزمره*", "everyday", "most tasks", "most things", "اکثر کارها", "اکثر کارهای",
             "general purpose", "all-round", "همه کار", "همهکاره", "کاربرد*", "use cases", "uses",
@@ -89,7 +92,7 @@ object Metaphors {
             "استراتژی*", "مسیر*", "path", "paths", "route",
         )
         cue(Idea.Path, 0.8f, "راه", "تصمیم*", "decide*", "decision*", "انتخاب میکنه", "choose*")
-        cue(Idea.Think, 0.9f, "فکر*", "think*", "thought", "reason*", "استدلال*", "تحلیل*", "analy*", "ذهن*", "mind")
+        cue(Idea.Think, 1.0f, "فکر*", "think*", "thought", "reason*", "استدلال*", "تحلیل*", "analy*", "ذهن*", "mind")
         cue(Idea.Tangle, 1.1f, "پیچیده*", "complex*", "complicated", "messy", "tangled", "tricky", "عمیق*", "deep", "گیر", "stuck", "سردرگم*", "confus*", "گره*", "knot*")
         cue(Idea.Tangle, 0.8f, "مسئله*", "مسائل*", "مساله*", "problem*", "مشکل*", "سخت", "hard")
         cue(
@@ -109,14 +112,14 @@ object Metaphors {
         cue(Idea.Change, 1.1f, "قبلا", "قبلاً", "used to", "before and after", "تبدیل*", "turns into", "turned into", "عوض*", "changed", "transform*")
         cue(Idea.Steps, 1.1f, "مرحله*", "گام*", "قدم*", "step", "steps", "process", "فرایند*", "فرآیند*", "مراحل*")
         cue(Idea.Steps, 0.8f, "اول", "دوم", "سوم", "بعدش", "سپس", "در نهایت", "first", "second", "third", "then", "finally", "next")
-        cue(Idea.Cycle, 1.2f, "هر روز", "هرروز", "هر شب", "هر هفته", "هر صبح", "عادت*", "چرخه*", "every day", "every night", "every morning", "daily", "habit*", "cycle*", "loop*", "again and again", "repeat*")
+        cue(Idea.Cycle, 1.0f, "هر روز", "هرروز", "هر شب", "هر هفته", "هر صبح", "عادت*", "چرخه*", "every day", "every night", "every morning", "daily", "habit*", "cycle*", "loop*", "again and again", "repeat*")
         cue(Idea.Filter, 1.2f, "از بین", "فیلتر*", "filter*", "narrow*", "funnel", "only a few", "out of")
         cue(Idea.Balance, 1.1f, "تعادل*", "توازن*", "balance*", "trade-off", "tradeoff", "هزینه و فایده", "سود و ضرر", "pros and cons")
         cue(Idea.Decline, 1.1f, "کمتری", "کمتر میشه", "کاهش*", "افت*", "less and less", "decreas*", "declin*", "shrink*", "loses", "falls", "drops", "lower")
         cue(Idea.Accumulate, 1.1f, "جمع میشه", "روی هم", "پسانداز*", "انباشت*", "stack*", "pile*", "adds up", "add up", "build up", "builds up", "لایه*", "layer*", "savings")
         cue(Idea.Levels, 1.1f, "سطح*", "سطوح", "رده*", "level*", "tier*", "پله*", "نردبان*", "ladder", "ارتقا*", "upgrade*", "نسخه*", "version*")
         cue(Idea.Talk, 1.0f, "بپرسی*", "بپرسید", "سوال کن*", "chat*", "ask*", "conversation", "پیام*", "message*", "گفتگو*", "گفتوگو*", "dialog*")
-        cue(Idea.Warning, 1.2f, "مراقب*", "خطر*", "اشتباه*", "نکنید", "هرگز", "careful", "danger*", "mistake*", "never", "avoid*", "warning", "ریسک*", "risk*", "حواستون")
+        cue(Idea.Warning, 1.2f, "مراقب*", "خطر*", "اشتباه*", "نکنید", "نکن", "هرگز", "careful", "danger*", "mistake*", "never", "avoid*", "warning", "ریسک*", "risk*", "حواستون")
         cue(Idea.Goal, 1.0f, "هدف*", "goal*", "target*", "aim", "مقصد*", "رسیدن به", "reach")
         cue(Idea.Money, 1.0f, "پول*", "هزینه*", "قیمت*", "تومن*", "تومان*", "دلار*", "money", "cost*", "price*", "dollar*", "pay*", "پرداخت*", "سود*", "profit*", "درآمد*", "income")
         cue(Idea.Many, 1.0f, "میلیونها", "هزاران", "صدها", "خیلیها", "مردم", "people", "millions", "thousands", "hundreds", "everyone", "users", "کاربرا*", "کاربران*")

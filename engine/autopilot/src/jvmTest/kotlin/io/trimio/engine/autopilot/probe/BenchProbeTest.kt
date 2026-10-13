@@ -25,18 +25,40 @@ class BenchProbeTest {
         val saved = Json.decodeFromString(ListSerializer(W.serializer()), File(out, "transcript.json").readText())
         val t = Transcript(Language.Persian, saved.map { Word(it.w, TimeRange((it.s * 1000).toLong(), (it.e * 1000).toLong()), language = Language.Persian) })
         val voice = Media.audio(video, 48_000)
+        val log = StringBuilder()
+        fun println(x: String) { log.appendLine(x) }
         val a = SpeechAnalysis.of(voice, t)
-        val cp = CutPoints(voice)
-        println("speechDb ${cp.speechDb}")
-        val words = a.transcript.words
-        fun near(x: Float) = words.filter { it.range.startMs / 1000f - 0.4f < x && it.range.endMs / 1000f + 0.4f > x }
+        val cp = CutPoints(io.trimio.engine.autopilot.VoiceLevel.levelled(voice))
+        // The old cut list: VAD on the raw voice, tightened, nothing else.
+        val dur = voice.samples.size / 48_000f
+        val oldPauses = SpeechAnalysis.silences(io.trimio.engine.audio.VoiceActivityDetector(hangoverMs = 70, mergeGapMs = 120, belowSpeechDb = 24f).detect(voice), dur)
+        val old = io.trimio.engine.motion.score.EditPlan.tighten(io.trimio.engine.motion.score.EditPlan.alignToSpeech(t.words, oldPauses), oldPauses, dur)
+        fun near(x: Float) = t.words.filter { it.range.startMs / 1000f - 0.4f < x && it.range.endMs / 1000f + 0.4f > x }
             .joinToString(" ") { "${it.text}[${it.range.startMs / 1000f}-${it.range.endMs / 1000f}]" }
-        a.edit.segments.forEachIndexed { i, s ->
-            val inDb = cp.db(s.sourceStart, s.sourceStart + CutPoints.FADE)
-            val outDb = cp.db(s.sourceEnd - CutPoints.FADE, s.sourceEnd)
-            val bad = (if (i > 0 && inDb > cp.speechDb - 16) "IN! " else "") + (if (i < a.edit.segments.lastIndex && outDb > cp.speechDb - 16) "OUT! " else "")
-            println("seg $i src ${s.sourceStart}-${s.sourceEnd} out ${s.outStart} len ${s.length} in ${inDb.toInt()} out ${outDb.toInt()} $bad| ${near(s.sourceStart)} || ${near(s.sourceEnd)}")
+        fun report(name: String, e: io.trimio.engine.motion.score.EditPlan) {
+            var bad = 0
+            e.segments.forEachIndexed { i, s ->
+                val inBad = i > 0 && io.trimio.engine.autopilot.JumpCuts.inWord(cp, s.sourceStart, true)
+                val outBad = i < e.segments.lastIndex && io.trimio.engine.autopilot.JumpCuts.inWord(cp, s.sourceEnd, false)
+                if (inBad) bad++
+                if (outBad) bad++
+                println("$name seg $i src ${s.sourceStart}-${s.sourceEnd} out ${s.outStart} len ${s.length} ${if (inBad) "IN!" else ""} ${if (outBad) "OUT!" else ""} | ${near(s.sourceStart)} || ${near(s.sourceEnd)}")
+            }
+            val starts = e.segments.map { it.outStart }.filter { it > 0f }
+            val dense = starts.count { t0 -> starts.count { it >= t0 && it < t0 + 10f } > 7 }
+            println("$name: ${e.segments.size} segments, ${e.duration}s, cuts inside words $bad, flashes ${e.segments.count { it.length < 0.3f }}, dense windows $dense")
         }
+        report("OLD", old)
+        report("NEW", a.edit)
         println("pauses: " + a.pauses.joinToString { "%.2f-%.2f".format(it.start, it.endInclusive) })
+        println("speechDb levelled ${cp.speechDb}")
+        for (p in a.pauses) {
+            var lo = 0f
+            var x = p.start
+            val vals = mutableListOf<Float>()
+            while (x < p.endInclusive) { vals += cp.db(x, x + 0.02f) - cp.speechDb; x += 0.01f }
+            println("pause %.2f-%.2f min %.1f max %.1f median %.1f".format(p.start, p.endInclusive, vals.min(), vals.max(), vals.sorted()[vals.size / 2]))
+        }
+        File(out.parentFile, "probe-cuts.txt").writeText(log.toString())
     }
 }

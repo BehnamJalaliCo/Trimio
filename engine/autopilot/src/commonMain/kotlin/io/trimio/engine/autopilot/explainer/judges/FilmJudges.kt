@@ -69,7 +69,8 @@ class MetaphorJudge : FilmJudge {
         val clause = Films.clauseOf(n, b) ?: return emptyList()
         val keys = clause.words.map { n.keys[it] }
         val found = Metaphors.find(keys, clause.first, clause.read?.gist.orEmpty())
-        val fits = found.any { it.strength >= WEAK && it.idea.pictures.any { (q, _) -> q == p } }
+        val counted = p in FIGURES && io.trimio.engine.autopilot.Quantities.sense(clause.words.map { n.texts[it] }, clause.first).quantities.isNotEmpty()
+        val fits = counted || found.any { it.strength >= WEAK && it.idea.pictures.any { (q, _) -> q == p } }
         val words = (listOf(b.content.text, b.content.caption) + b.content.items.map { it.label }).flatMap(Films::keys).filter { it.length >= MIN_STEM }
         val near = (n.clauses.filter { kotlin.math.abs(it.index - clause.index) <= 1 }.flatMap { it.words.map { i -> n.keys[i] } } + Films.keys(ch.title)).map { it.take(STEM) }.toSet()
         val grounded = words.any { it.take(STEM) in near } || p in NEUTRAL
@@ -109,6 +110,7 @@ class MetaphorJudge : FilmJudge {
         const val MAX_HOLES = 4
         const val PRINTED_WORDS = 5
         const val PRINTED_SHARE = 7
+        val FIGURES = setOf(Primitive.Stat, Primitive.Ring, Primitive.Meter, Primitive.Bars, Primitive.Dots, Primitive.Timeline)
         val NEUTRAL = setOf(Primitive.Kicker, Primitive.BigWord, Primitive.Heading, Primitive.Note, Primitive.Stat, Primitive.Badge, Primitive.Quote)
     }
 }
@@ -238,7 +240,7 @@ class VarietyJudge : FilmJudge {
     override fun score(c: FilmJury.Context): Verdict {
         val f = mutableListOf<Finding>()
         val made = made(c.film)
-        val want = minOf(WANT_MAX, WANT_BASE + c.film.chapters.size).coerceAtMost(made.size)
+        val want = minOf(WANT_MAX, WANT_BASE + c.film.chapters.size, (made.size * SHARE).toInt())
         val distinct = made.map { it.second.primitive }.distinct().size
         if (distinct < want) f += finding(0.0, if (want - distinct >= 3) Severity.Major else Severity.Minor, "$distinct kinds of picture for ${made.size} pictures", "draw on more of the vocabulary")
         runs(made).forEach { (at, p) -> f += finding(at, Severity.Major, "${picture(p)} three times in a row", "another picture of the same idea") }
@@ -281,6 +283,7 @@ class VarietyJudge : FilmJudge {
     private companion object {
         const val WANT_BASE = 2
         const val WANT_MAX = 7
+        const val SHARE = 0.7
         const val LOOKS = 24
         const val LOOK_STRIDE = 7919L
     }
@@ -322,7 +325,12 @@ class TimingJudge : FilmJudge {
     /** Beats too short to read push the next one later (within the chapter); then the clock is repaired. */
     override fun revise(c: FilmJury.Context, verdict: Verdict): ExplainerFilm? {
         val chapters = c.film.chapters.map { ch ->
-            val beats = ch.beats.toMutableList()
+            // A beat far from its words goes back to them.
+            val beats = ch.beats.map { b ->
+                val clause = Films.clauseOf(c.narration, b)
+                val off = clause != null && (b.at < clause.start - EARLY || b.at > clause.end + LATE)
+                if (off) b.copy(at = (clause!!.start - LEAD).coerceIn(ch.start, ch.end - MIN_STEP)) else b
+            }.sortedBy { it.at }.toMutableList()
             for (k in 0 until beats.size - 1) {
                 val b = beats[k]
                 val want = b.at + need(b) * SHORT
@@ -342,6 +350,7 @@ class TimingJudge : FilmJudge {
         const val MIN_STEP = 0.35
         const val SHORT = 0.7
         const val EARLY = 0.8
+        const val LEAD = 0.12
         const val LATE = 1.2
         const val MIN_CHAPTER = 2.5
         const val MAX_TIME = 6

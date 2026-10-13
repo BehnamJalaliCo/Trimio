@@ -80,9 +80,9 @@ internal class Solver(private val stage: Box, private val gap: Float, private va
         val total = (wa + wb) * scale + colGap * scale
         // The first column sits on the reading-start side; [rtlStart] mirrors it.
         val left = stage.centerX - total / 2f
-        val xa = left + wa * scale / 2f
-        val xb = left + wa * scale + colGap * scale + wb * scale / 2f
-        val (ca, cb) = if (rtlStart) xb to xa else xa to xb
+        val right = stage.centerX + total / 2f
+        val ca = if (rtlStart) right - wa * scale / 2f else left + wa * scale / 2f
+        val cb = if (rtlStart) left + wb * scale / 2f else right - wb * scale / 2f
         return columnAt(a, ca, scale) + columnAt(b, cb, scale)
     }
 

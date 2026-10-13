@@ -37,4 +37,37 @@ object ExplainerSamples {
             else -> BeatContent(items = items, caption = phrase(lang, 7))
         }
     }
+
+    /** One chapter per primitive: every op lands on it, beside a heading and under a mark. */
+    fun everyOp(lang: String, palette: String, layout: String = "header-top", mark: String = "dashes", captions: String = "band-pill"): ExplainerFilm {
+        val all = Primitive.entries
+        val span = 9.0
+        val chapters = all.mapIndexed { k, p ->
+            val t0 = k * span
+            val next = all[(k + 1) % all.size]
+            val third = all[(k + 2) % all.size]
+            fun b(at: Double, op: StageOp, el: String, prim: Primitive? = null, c: BeatContent = BeatContent()) = Beat(t0 + at, t0 + at + 0.9, "line", op, el, prim, c)
+            Chapter(
+                "${word(lang, k)} $k", t0, t0 + span, k,
+                listOf(
+                    b(0.2, StageOp.Add, "lead", Primitive.Kicker, BeatContent(text = phrase(lang, 0))),
+                    b(0.4, StageOp.Add, "x", p, content(p, lang)),
+                    b(1.4, StageOp.Build, "x", c = BeatContent(items = items(lang, 4, 2), text = phrase(lang, 1))),
+                    b(2.4, StageOp.Check, "x", c = BeatContent(picks = listOf(0, 1))),
+                    b(3.2, StageOp.Fill, "x", c = BeatContent(value = 0.4)),
+                    b(4.0, StageOp.Highlight, "x", c = BeatContent(picks = listOf(1))),
+                    b(4.4, StageOp.Add, "m", Primitive.Mark),
+                    b(4.8, StageOp.Dim, "x"),
+                    b(5.3, StageOp.Highlight, "x"),
+                    b(5.9, StageOp.Morph, "x", next, content(next, lang)),
+                    b(6.9, StageOp.Replace, "x", third, content(third, lang)),
+                    b(7.6, StageOp.Clear, "lead"),
+                    b(8.0, StageOp.Clear, "x"),
+                ),
+            )
+        }
+        val captionChunks = (0 until all.size * 3).map { i -> CaptionChunk(phrase(lang, i), i * 3.0, i * 3.0 + 2.6) }
+        return ExplainerFilm(ArtDirection(palette, layout, mark, captions, 7L), chapters, captionChunks, lang)
+    }
+
 }

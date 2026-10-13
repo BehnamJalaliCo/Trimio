@@ -29,17 +29,18 @@ object ExplainerLab {
     fun frames(c: Composition, scale: Float = 1f) = MotionExporter.Frames(c, MediaSource.None, scale)
 
     /** Frames at [times] tiled [columns] wide, each [scale] of the composition. */
-    fun sheet(c: Composition, times: List<Float>, file: File, columns: Int, scale: Float) {
+    fun sheet(c: Composition, times: List<Float>, file: File, columns: Int, scale: Float, crop: Rect? = null) {
         val frames = frames(c, scale)
-        val w = frames.width
-        val h = frames.height
+        val src = crop?.let { Rect.makeLTRB(it.left * scale, it.top * scale, it.right * scale, it.bottom * scale) } ?: Rect.makeWH(frames.width.toFloat(), frames.height.toFloat())
+        val w = src.width.toInt()
+        val h = src.height.toInt()
         val rows = (times.size + columns - 1) / columns
         val gap = 6
         val surface = Surface.makeRasterN32Premul(columns * (w + gap) - gap, rows * (h + gap) - gap)
         surface.canvas.clear(0xFF202020.toInt())
         for ((i, t) in times.withIndex()) {
             val img: Image = frames.draw(t)
-            surface.canvas.drawImageRect(img, Rect.makeXYWH(((i % columns) * (w + gap)).toFloat(), ((i / columns) * (h + gap)).toFloat(), w.toFloat(), h.toFloat()))
+            surface.canvas.drawImageRect(img, src, Rect.makeXYWH(((i % columns) * (w + gap)).toFloat(), ((i / columns) * (h + gap)).toFloat(), w.toFloat(), h.toFloat()))
         }
         frames.close()
         file.parentFile.mkdirs()

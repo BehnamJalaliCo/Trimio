@@ -101,6 +101,9 @@ internal object Said {
     /** Words that describe how (fast, slow, very): never part of a label. */
     val ADVERBS = setOf("زود", "زودتر", "دیر", "دیرتر", "آروم", "اروم", "آرام", "سریع", "سریعتر", "کند", "کندتر", "خیلی", "کم", "کمتر", "بیشتر", "very", "slowly", "quickly", "faster")
 
+    /** Words that frame a sentence ("suppose", «فرض کن», «یعنی»): never a label. */
+    val FILLERS = setOf("فرض", "یعنی", "مثلا", "مثلاً", "suppose", "imagine", "say", "example")
+
     val CONNECTORS = setOf("و", "یا", "and", "or", "of")
     val FUNCTION = setOf(
         "رو", "را", "که", "به", "از", "با", "در", "تو", "توی", "هم", "یه", "یک", "این", "اون", "خیلی", "the", "a", "an", "to", "of", "is", "are", "it", "that", "very",

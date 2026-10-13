@@ -70,8 +70,10 @@ internal class Header(
 
     private fun dashes(): List<Node> {
         if (n == 0) return emptyList()
-        val dw = (if (n > 8) 22f else 36f) * u
-        val gap = 12f * u
+        // Many chapters share the header's width: dashes narrow (and their gaps with them) to fit.
+        val room = minOf(frame.titleWidth, frame.safe.width * 0.8f)
+        val gap = minOf(12f * u, room / n * 0.25f)
+        val dw = minOf(36f * u, (room - (n - 1) * gap) / n)
         val total = n * dw + (n - 1) * gap
         val cx = along(total)
         return (0 until n).map { i ->
