@@ -57,8 +57,12 @@ data class DiffusionRecipe(
 
 /** Recipes of the generator add-ons (see IllustrationAddOns in engine/models). */
 object Recipes {
-    /** SDXS-512 (one-step distilled SD 1.x, tiny U-Net, tiny VAE): fast enough for a phone. */
-    val sdxs = DiffusionRecipe(size = 512, steps = 1, cfg = 1f, img2img = true, references = false)
+    /**
+     * SDXS-512 (one-step distilled SD 1.x, tiny U-Net, tiny VAE): fast enough for a phone. Text-to-image only:
+     * measured with stable-diffusion.cpp, an init picture is ignored at one or two steps (the composition is
+     * not kept), so the library's sketch cannot steer it (docs/research/ILLUSTRATION.md §3).
+     */
+    val sdxs = DiffusionRecipe(size = 512, steps = 1, cfg = 1f, img2img = false, references = false)
 
     /** SD 1.5 with the LCM LoRA: four steps, img2img from the sketch template. */
     val sd15Lcm = DiffusionRecipe(size = 512, steps = 4, cfg = 1.5f, img2img = true, references = false)

@@ -132,8 +132,8 @@ class LibraryTest {
     fun generatorRetriesOnTextAndStylesTheResult() = runBlocking {
         var calls = 0
         val engine = object : DiffusionEngine {
-            override val modelId = "sdxs-512"
-            override val recipe: DiffusionRecipe = Recipes.sdxs
+            override val modelId = "sd15-tcd"
+            override val recipe: DiffusionRecipe = Recipes.sd15Lcm
             override suspend fun generate(job: DiffusionJob): Raster {
                 calls++
                 assertNotNull(job.init, "img2img from the library's sketch")

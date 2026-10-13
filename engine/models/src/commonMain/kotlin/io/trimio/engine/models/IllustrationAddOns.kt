@@ -4,16 +4,16 @@ package io.trimio.engine.models
  * The picture generator add-ons of «تقویت کیفیت»: on-device text-to-image for the explainer films'
  * hero illustrations, run by stable-diffusion.cpp on the app's own ggml (no cloud, no new runtime
  * beyond its JNI library). The bundled illustration library needs none of them; a generator only draws
- * what the library cannot show, from the library's own sketch of the scene (image-to-image), and every
- * picture is restyled into the film's look (engine/illustration).
+ * what the library cannot show (FLUX.2 klein from the library's own sketch of the scene; SDXS from the prompt
+ * alone, as it ignores an init picture), and every picture is restyled into the film's look (engine/illustration).
  *
  * Licences are the model cards' and permit commercial use: Apache-2.0 (FLUX.2 [klein] 4B, Qwen3-4B,
  * the FLUX.2 small decoder), MIT (TCD LoRA, TAESD), CreativeML OpenRAIL-M / OpenRAIL++-M (SD 1.5,
  * SDXS-512: commercial use allowed; the use-based restrictions pass on to users in the app's terms).
  * Excluded: SD-Turbo, SDXL-Turbo, FLUX.2 [klein] 9B, FLUX.1-dev (non-commercial). Sizes and sha256 are
  * the upstream LFS values read from the Hugging Face API; [ModelSpec.workBytes] are estimates from the
- * models' latent sizes and stable-diffusion.cpp's buffers (docs/research/ILLUSTRATION.md §3), not yet
- * measured on the target devices.
+ * models' latent sizes and stable-diffusion.cpp's buffers (docs/research/ILLUSTRATION.md §3); SDXS-512 was
+ * downloaded, re-hashed and run here (peak 1.18 GB on x86 CPU), the others not yet; none on the target devices.
  */
 object IllustrationAddOns {
     private const val HF = "https://huggingface.co"
@@ -36,7 +36,7 @@ object IllustrationAddOns {
     private val BOTH = setOf(DeviceClass.Phone, DeviceClass.Laptop)
     private val LAPTOP = setOf(DeviceClass.Laptop)
 
-    /** SDXS-512 (one step, tiny U-Net and tiny VAE): a sketch-template refiner fast enough for a phone. */
+    /** SDXS-512 (one step, tiny U-Net and tiny VAE): text-to-image fast enough for a phone, in the pencil look from the prompt. */
     val sdxs = file(
         "sdxs-512", "concedo/sdxs-512-tinySDdistilled-GGUF", "sdxs-512-tinySDdistilled_Q8_0.gguf",
         682_847_200, "409ab23582ee074c6b9d5395784fc0741b0599fb9d138686c69087c71678eb6a", "OpenRAIL++-M",

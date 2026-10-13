@@ -58,7 +58,11 @@ This document covers how Trimio makes pictures like these on the device, in **on
      - FLUX.1-dev;
      - FLUX.2 [klein] 9B;
      - BRIA RMBG 1.4 and 2.0.
-   - **No model inference was measured here.** Free disk fell to about 190 MB, because other agents' files fill the shared disk. Every timing in §3 is an estimate.
+   - **One model was measured here [M]:** SDXS-512 Q8_0. It ran through `sd-cli` built on our ggml, CPU only, 4 threads, at 512×512 in one step.
+     - Time: about 50 s per picture (text encoder 6.2 s, U-Net 27.6 s, tiny-VAE decode 18.3 s). The 4-vCPU container was shared with other agents' builds (load average ≈ 10), so this is a worst case.
+     - Peak RSS: 1.18 GB.
+     - The picture of "a worried young man looking at his phone" is already in reference 2's pencil look.
+   - Every other model timing in §3 is an estimate.
 4. **The creator's photos go into the film's look with no model.**
    - The steps:
      1. A border flood fill separates a plain background. When the background is busy, the photo fades to paper in a soft oval instead.
@@ -151,7 +155,7 @@ Licences come from each model card's licence tag and text. Sizes and sha256 are 
 
 | Model | Licence | Size | RAM at work | Phone (S26U) s/image | Laptop s/image | Style control |
 |---|---|---|---|---|---|---|
-| **SDXS-512** (IDKiro, one-step, tiny U-Net + tiny VAE). GGUF: `concedo/sdxs-512-tinySDdistilled-GGUF` Q8_0 | OpenRAIL++-M [V card]. Commercial OK; use restrictions pass on to users | 683 MB (sha256 `409ab235…eb6a`) | ~1.3 GB [E] | **2–4 s** CPU, ~1–2 s OpenCL [E] | ~1.5–2.5 s CPU, <0.5 s CUDA/Vulkan [E] | Fixed style prompt + seed; img2img from our sketch template; then the styler. A sketch-ControlNet variant exists (`IDKiro/sdxs-512-dreamshaper-sketch`, OpenRAIL++ [V tag]). |
+| **SDXS-512** (IDKiro, one-step, tiny U-Net + tiny VAE). GGUF: `concedo/sdxs-512-tinySDdistilled-GGUF` Q8_0 | OpenRAIL++-M [V card]. Commercial OK; use restrictions pass on to users | 683 MB (sha256 `409ab235…eb6a`, re-hashed here [M]); 652 MB of parameters [M] | **1.18 GB peak RSS [M]** | 6–15 s CPU, 1–3 s OpenCL/Vulkan [E] | 10–20 s CPU, <1 s CUDA/Vulkan [E]. Here: **≈ 50 s** on a contended 4-vCPU x86 [M] | Fixed style prompt + seed, then the styler. **Image-to-image from our sketch template does not work** at 1–2 steps [M]. A sketch-ControlNet variant exists (`IDKiro/sdxs-512-dreamshaper-sketch`, OpenRAIL++ [V tag]) but is not in sd.cpp [U]. |
 | SD 1.5 Q4_0 (`second-state/stable-diffusion-v1-5-GGUF`) + **TCD LoRA** (`h1t/TCD-SD15-LoRA`, MIT [V tag]) or LCM-LoRA (OpenRAIL++ [V tag]) | CreativeML OpenRAIL-M [V tag] | 1.57 GB + 135 MB | ~2.5 GB [E] | 15–30 s for 4 steps CPU [E] | ~10 s CPU, ~2 s GPU [E] | img2img; ControlNet lineart/scribble (OpenRAIL [V tag]); **IP-Adapter** (Apache-2.0 [V tag]), which needs a 2.5 GB ViT-H image encoder [E]: too heavy for the phone. |
 | BK-SDM-tiny Q4_0 (`synesterai/…`) | CreativeML OpenRAIL-M [V base] | 686 MB | ~1.4 GB [E] | 6–12 s for 4–8 steps [E] | 3–6 s [E] | No few-step distillation, so slower than SDXS for the same quality. |
 | Segmind Vega / SSD-1B (SDXL distilled) | **Apache-2.0** [V tag] | 3.3 GB (fp16 safetensors) | ~4–5 GB [E] | too slow [E] | 15–40 s CPU, VegaRT LCM LoRA (Apache [V]) ~4 steps on GPU ~5 s [E] | Better than SD 1.5 at 1024 px; laptop only. |
@@ -173,9 +177,22 @@ Licences come from each model card's licence tag and text. Sizes and sha256 are 
 
 **What was measured here, and what was not.**
 - [M] The sd.cpp build against our ggml; binary sizes; the library pipeline timings and contact sheets.
-- [E] Every model timing and RAM figure above. The container had no GPU, and the disk could not hold even the 683 MB SDXS file once other agents' outputs filled it (190 MB free).
-  - The next step is to rebuild `sd-cli` (the configure line is in §2; I deleted the binary to give disk back) and run it once 1 GB is free.
-  - The SHA256 values in `IllustrationAddOns` are the upstream LFS hashes, read from the HF API but not re-hashed here.
+- [M] SDXS-512 Q8_0, measured once the disk freed up: three text-to-image runs at 512 px, 1 step and seed 42, through `sd-cli` (sd.cpp `d763dae`, upstream ggml from our llama.cpp, CPU, `-t 4`):
+  - **49.4–52.1 s** per picture;
+  - peak RSS 1,177 MB;
+  - breakdown: CLIP 6.2 s, U-Net 27.6 s, TAE decode 18.3 s;
+  - the load average was ≈ 10 on 4 vCPUs (other agents' Gradle builds), so expect about 2–3× faster on an idle machine [E].
+- **Image-to-image does not work with SDXS [M].** I fed it the library's safe sketch at strength 0.55 and 0.75 with 1 step, and at 0.5 with 2 steps. All three runs returned the same picture as text-to-image, with the init ignored: the one-step distilled model gives no structure from a partly noised init.
+  - So SDXS is text-to-image only (`Recipes.sdxs.img2img = false`).
+  - Composition control needs a multi-step model: SD 1.5 + TCD with img2img or ControlNet, or FLUX.2 klein's reference editing.
+- A fourth run, "a woman wearing a headscarf reading a report" (34.8 s at load ≈ 5), is a convincing pencil portrait. It also has faint pseudo-text lines in the background, exactly the artefact `TextArtefacts` and the negative prompt exist for.
+- How the first three pictures came out:
+  - "a worried young man looking at his phone" matches reference 2's pencil look;
+  - "a steel safe full of gold bars" became a generic metal box, a semantic miss. The library's own safe is better; this is why the library goes first;
+  - "three people in front of a shop" is good, but the grey background fills the frame, so the styler falls back to the oval fade.
+  - Sheet: `docs/screenshots/illustration-generator.png` (raw output next to the same picture in the film's look).
+- [E] Every other model timing and RAM figure. There is no GPU here.
+- The SHA256 values in `IllustrationAddOns`: SDXS was re-hashed after download [M]. The FLUX.2 ones are the upstream LFS hashes from the HF API.
 
 ---
 
@@ -201,7 +218,7 @@ Licences come from each model card's licence tag and text. Sizes and sha256 are 
 |---|---|---|---|
 | **Built in (all)** | Library (Open Peeps CC0 + Fluent MIT + ours) + `SketchStyler` (3 looks: pencil, ink, flat) + `PhotoStyler` + `StyleCheck` | same | 0. The 1.8 MB library ships in the APK. |
 | **Essential** | + the retrieval agent's embedder ranks library items by meaning. Wire it through the `ItemRanker` interface: `Retriever.search(CorpusIndex("illustration", items→Doc), Query(text))`. | same | 0 extra (the embedder is already Essential) |
-| **Pro** | + **SDXS-512** generator for what the library cannot show (2–4 s per picture [E]); + BiRefNet-lite cut-outs | + SDXS-512 (GPU) | 683 MB (+ ~45 MB matting) |
+| **Pro** | + **SDXS-512** generator for what the library cannot show (1–3 s per picture on the GPU, 6–15 s on the CPU [E]; ≈ 50 s measured on a contended 4-vCPU x86 [M]); + BiRefNet-lite cut-outs | + SDXS-512 (GPU) | 683 MB (+ ~45 MB matting) |
 | **Ultra** | (FLUX.2 klein is "experimental" on 12 GB; not offered by default) | + **FLUX.2 [klein] 4B** with reference-style consistency and Persian prompts (20–40 s per picture [E]) | 5.2 GB |
 
 Order inside a film (the `Illustrator`):
