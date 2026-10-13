@@ -81,6 +81,15 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
         val solver = Solver(room, frame.u * if (frame.portrait) GAP_TALL else GAP_WIDE, wide = !frame.portrait).also { it.rtlStart = rtl }
         val (solved, rests) = solver.solve(ci, versions, laid)
         val out = ArrayList<Node>()
+        // Morph bodies glide underneath: the new version's own pieces fade in over them as they land.
+        for (v in versions) if (v.entry == Entry.Morph && v.from != null) {
+            val a = v.from
+            val la = laid[a] ?: continue
+            val lb = laid[v] ?: continue
+            val sa = solved[a] ?: continue
+            val sb = solved[v] ?: continue
+            out += Morphs.ghosts(la, sa, lb, sb, v.enter)
+        }
         for (v in versions.sortedBy { it.order }) {
             lives += Life(ci, v.element, v.spec.primitive, v.enter, minOf(v.leave, v.gone), v.overlay)
             val h = hands.getValue(v)
@@ -94,14 +103,6 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
                 val s = solved[v] ?: continue
                 out += element(v, h, l, s)
             }
-        }
-        for (v in versions) if (v.entry == Entry.Morph && v.from != null) {
-            val a = v.from
-            val la = laid[a] ?: continue
-            val lb = laid[v] ?: continue
-            val sa = solved[a] ?: continue
-            val sb = solved[v] ?: continue
-            out += Morphs.ghosts(la, sa, lb, sb, v.enter)
         }
         return out to rests
     }
@@ -129,7 +130,9 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
     /** A mark drawn around its target, moving with it. */
     private fun overlay(v: Version, h: Hand, tl: Laid, ts: Solver.Solved): Node {
         val target = v.target!!
-        val nodes = TextPieces.marking(h, tl.w, tl.h, v.loop, v.enter + 0.05f, h.seed)
+        // A loop needs room around its element; around a wide one it becomes an underline.
+        val loop = v.loop && tl.w < h.maxW * LOOP_ROOM && tl.h < h.maxH * LOOP_ROOM
+        val nodes = TextPieces.marking(h, tl.w, tl.h, loop, v.enter + 0.05f, h.seed)
         return Group(nodes, Transform(x = ts.x, y = ts.y, scale = ts.scale, opacity = life(v) * dim(target)), width = tl.w, height = tl.h, start = v.enter, end = end(v), name = "mark-${v.element}")
     }
 
@@ -176,6 +179,7 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
         const val PORTRAIT_SCALE = 1.16f
         /** The share of the stage elements rest in (the rest is room for pulses). */
         const val ROOM = 0.95f
+        const val LOOP_ROOM = 0.8f
         const val GAP_TALL = 64f
         const val GAP_WIDE = 52f
         const val RISE = 30f

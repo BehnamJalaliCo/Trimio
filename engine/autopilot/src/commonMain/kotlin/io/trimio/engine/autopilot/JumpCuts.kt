@@ -23,15 +23,35 @@ internal object JumpCuts {
     private const val CLEAN_DB = 21f
     private const val SCAN = 0.005f
     private const val MIN_GAP = 0.06f
+    /** Half the breath [EditPlan.tighten] keeps at a cut. */
+    private const val BREATH = 0.06f
     const val MIN_SHOT = 0.45f
     const val MAX_PER_10S = 6
     private const val WINDOW = 10f
 
-    /** Whether a cut at source time [t] sounds inside a word: the fade on its playing side is near the speaker's level. */
-    fun inWord(cuts: CutPoints, t: Float, entering: Boolean, margin: Float = LOUD_DB): Boolean {
+    /**
+     * Whether a cut at source time [t] sounds inside a word: the fade on its playing side is near
+     * the speaker's level and clearly above the room around it (steady noise or a music bed under
+     * the voice is no word: [FLOOR_DB] over the quiet tenth of the three seconds around the cut).
+     */
+    fun inWord(cuts: CutPoints, t: Float, entering: Boolean, margin: Float = LOUD_DB, over: Float = FLOOR_DB): Boolean {
         val db = if (entering) cuts.db(t, t + CutPoints.FADE) else cuts.db(t - CutPoints.FADE, t)
-        return db > cuts.speechDb - margin
+        return db > cuts.speechDb - margin && db > floor(cuts, t) + over
     }
+
+    /** The quiet tenth of the voice's 10 ms frames within [ROOM] seconds of [t]: the room under the speech. */
+    private fun floor(cuts: CutPoints, t: Float): Float {
+        val n = (2 * ROOM / FRAME).toInt()
+        val frames = FloatArray(n) { k -> cuts.energyDb(t - ROOM + k * FRAME) }
+        frames.sort()
+        return frames[(n * ROOM_SHARE).toInt()]
+    }
+
+    private const val ROOM = 1.5f
+    private const val FRAME = 0.01f
+    private const val ROOM_SHARE = 0.1f
+    private const val FLOOR_DB = 6f
+    private const val CLEAN_FLOOR_DB = 3f
 
     /** [edit]'s body cut clean, without flashes, and with room to breathe (its cold open and end hold kept). */
     fun clean(edit: EditPlan, cuts: CutPoints): EditPlan {
@@ -57,8 +77,9 @@ internal object JumpCuts {
         for (k in 1 until spans.size) {
             val (prevStart, prevEnd) = out.last()
             val (start, end) = spans[k]
-            val stop = firstQuiet(cuts, prevEnd, start, out = true)
-            val resume = stop?.let { s -> lastQuiet(cuts, start, s + MIN_GAP) }
+            // The tightened edges keep half a breath each side of the pause: the cut may use the whole pause.
+            val stop = firstQuiet(cuts, prevEnd - BREATH, start + BREATH, out = true)
+            val resume = stop?.let { s -> lastQuiet(cuts, start + BREATH, s + MIN_GAP) }
             if (stop != null && resume != null) {
                 out[out.lastIndex] = prevStart to stop
                 out += resume to end
@@ -73,7 +94,7 @@ internal object JumpCuts {
     private fun firstQuiet(cuts: CutPoints, from: Float, limit: Float, out: Boolean): Float? {
         var t = from
         while (t <= limit - MIN_GAP) {
-            if (!inWord(cuts, t, entering = !out, margin = CLEAN_DB)) return t
+            if (!inWord(cuts, t, entering = !out, margin = CLEAN_DB, over = CLEAN_FLOOR_DB)) return t
             t += SCAN
         }
         return null
@@ -83,7 +104,7 @@ internal object JumpCuts {
     private fun lastQuiet(cuts: CutPoints, from: Float, floor: Float): Float? {
         var t = from
         while (t >= floor) {
-            if (!inWord(cuts, t, entering = true, margin = CLEAN_DB)) return t
+            if (!inWord(cuts, t, entering = true, margin = CLEAN_DB, over = CLEAN_FLOOR_DB)) return t
             t -= SCAN
         }
         return null

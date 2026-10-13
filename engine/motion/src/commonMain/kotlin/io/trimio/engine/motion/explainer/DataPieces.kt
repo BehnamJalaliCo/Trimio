@@ -107,7 +107,8 @@ internal object DataPieces {
         keys += Anim.Key(at, 0f, Easing.Hold)
         keys += Anim.Key(at + 0.75f, (values[i] / maxV).toFloat() * maxH, Easing.ExpoOut)
         for (f in t.fills) {
-            val v = f.items.getOrNull(i)?.value ?: f.to?.takeIf { f.picks.isEmpty() || i in f.picks } ?: continue
+            val chosen = if (f.picks.isEmpty()) i == values.lastIndex else i in f.picks
+            val v = f.items.getOrNull(i)?.value ?: f.to?.takeIf { chosen }?.let { if (it <= 1.0 && maxV > 1.0) it * maxV else it } ?: continue
             val last = keys.last()
             val t0 = maxOf(f.at, last.t)
             keys += Anim.Key(t0, last.v, Easing.Hold)

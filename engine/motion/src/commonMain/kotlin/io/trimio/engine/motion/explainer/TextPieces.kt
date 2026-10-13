@@ -101,18 +101,19 @@ internal object TextPieces {
         val by = s.caption.takeIf { it.isNotEmpty() }?.let { h.say(it) }
         val bf = by?.let { h.fit(it, Voices.kicker, 28f * h.u, inner, 1) }
         val pad = 56f * h.u
-        val w = f.width + pad * 2f
-        val ht = f.height + pad * 2f + (bf?.let { it.height + 16f * h.u } ?: 0f)
+        val top = pad + 46f * h.u
+        val w = maxOf(f.width, bf?.width ?: 0f) + pad * 2f
+        val ht = f.height + top + pad + (bf?.let { it.height + 18f * h.u } ?: 0f)
         Laid(w, ht, listOf(Slot(0f, 0f, w, ht, h.radius, h.card))) { t ->
-            val mark = if (h.rtl) "»" else "“"
-            val mf = h.fit(mark, Voices.big, 110f * h.u, 200f * h.u, 1)
-            val mx = if (h.rtl) w - pad * 0.55f else pad * 0.55f
+            val mark = if (h.rtl) "«" else "“"
+            val mf = h.fit(mark, Voices.big, 92f * h.u, 200f * h.u, 1)
+            val mx = if (h.rtl) w - pad - mf.width / 2f else pad + mf.width / 2f
+            val tx = w / 2f
             listOfNotNull(
                 h.card(w / 2f, ht / 2f, w, ht),
-                h.rect(if (h.rtl) w - 5f * h.u else 5f * h.u, ht / 2f, 6f * h.u, ht - h.radius * 2f, 3f * h.u, h.accent),
-                h.words(mark, mf, h.accentOnCard, mx, pad * 0.62f, h.card, t.enter + 0.1f, Kit.Reveal.Pop, name = "quote-mark"),
-                h.words(str, f, h.ink, w / 2f, pad + f.height / 2f, h.card, t.enter + 0.15f, Kit.Reveal.Fade, name = "quote"),
-                bf?.let { h.words(by, it, h.muted, w / 2f, pad + f.height + 16f * h.u + it.height / 2f, h.card, t.enter + 0.5f, Kit.Reveal.Fade, name = "quote-by") },
+                h.words(mark, mf, h.accentOnCard, mx, pad * 0.5f + mf.height * 0.32f, h.card, t.enter + 0.1f, Kit.Reveal.Pop, name = "quote-mark"),
+                h.words(str, f, h.ink, tx, top + f.height / 2f, h.card, t.enter + 0.15f, Kit.Reveal.Fade, name = "quote"),
+                bf?.let { h.words(by, it, h.muted, tx, top + f.height + 18f * h.u + it.height / 2f, h.card, t.enter + 0.5f, Kit.Reveal.Fade, name = "quote-by") },
             )
         }
     }

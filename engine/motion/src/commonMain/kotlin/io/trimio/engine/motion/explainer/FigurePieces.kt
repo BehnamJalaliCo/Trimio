@@ -33,7 +33,7 @@ internal object FigurePieces {
         val gx = if (h.rtl) gw / 2f else w - gw / 2f
         val gy = labelRoom + (ht - labelRoom) / 2f
         val ys = (0 until n).map { i -> labelRoom + 20f * h.u + i * spread }
-        val slots = ys.map { y -> Slot(minOf(sx, gx), minOf(y, gy) - 3f * h.u, kotlin.math.abs(gx - sx), kotlin.math.abs(gy - y) + 6f * h.u, 3f * h.u, h.muted) } +
+        val slots = ys.map { y -> Slot(minOf(sx, gx), minOf(y, gy) - 3f * h.u, kotlin.math.abs(gx - sx), kotlin.math.abs(gy - y) + 6f * h.u, 3f * h.u, h.pal.track) } +
             Slot(gx - gw / 2f, gy - gh / 2f, gw, gh, gh / 2f, h.card)
         Laid(w, ht, slots) { t ->
             val nodes = ArrayList<Node>()
@@ -75,7 +75,7 @@ internal object FigurePieces {
         val ww = maxOf(w, lf?.width ?: 0f)
         val ht = kh + (lf?.let { it.height + 24f * h.u } ?: 0f)
         val ox = (ww - w) / 2f
-        Laid(ww, ht, listOf(Slot(ox + w * 0.1f, kh * 0.2f, w * 0.8f, kh * 0.6f, kh * 0.3f, h.ink))) { t ->
+        Laid(ww, ht, listOf(Slot(ox + w * 0.1f, kh * 0.2f, w * 0.8f, kh * 0.6f, kh * 0.3f, h.pal.track))) { t ->
             val pts = Scribbles.tangle(h.seed, w, kh).map { (x, y) -> (ox + if (h.rtl) w - x else x) to y }
             val marks = (t.marks + t.picks.map { it.first }).sorted()
             val color = Track.steps(h.ink, marks.take(1).map { it to h.accentInk })
