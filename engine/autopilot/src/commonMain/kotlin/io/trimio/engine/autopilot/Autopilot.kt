@@ -81,6 +81,8 @@ class Autopilot(
         val source: Compiled? = null,
         /** What the creator's own changes (the editor) are applied with, without the director ([Workbench]). */
         val bench: Workbench? = null,
+        /** The explainer film this production draws, for an audio-only explainer ([io.trimio.engine.autopilot.explainer.ExplainerPilot]). */
+        val film: io.trimio.engine.motion.explainer.ExplainerFilm? = null,
     ) {
         /**
          * This edit laid out for [format] ("9:16", "16:9", "1:1", "4:5") at [fps]: the same score,
