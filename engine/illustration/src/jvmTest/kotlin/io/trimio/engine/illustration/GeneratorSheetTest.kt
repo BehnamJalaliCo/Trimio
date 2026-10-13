@@ -50,7 +50,10 @@ class GeneratorSheetTest {
             val text = TextArtefacts.find(raw)
             val textStyled = TextArtefacts.find(styled)
             val stats = StyleStats.of(styled, look)
-            println("${f.name}: styled in $ms ms; text-like raw=${text.textLike} (chain ${text.longestChain}) styled=${textStyled.textLike} (chain ${textStyled.longestChain}); foreign=${stats.foreign} accent=${stats.accent}")
+            println(
+                "${f.name}: styled in $ms ms; text-like raw=${text.textLike} (chain ${text.longestChain}) " +
+                    "styled=${textStyled.textLike} (chain ${textStyled.longestChain}); foreign=${stats.foreign} accent=${stats.accent}",
+            )
             assertTrue(stats.foreign < 0.005f, "${f.name} foreign colour")
             cells += raw to "SDXS-512 raw: ${f.nameWithoutExtension}"
             cells += styled to "in the film's look"

@@ -191,6 +191,10 @@ Licences come from each model card's licence tag and text. Sizes and sha256 are 
   - "a steel safe full of gold bars" became a generic metal box, a semantic miss. The library's own safe is better; this is why the library goes first;
   - "three people in front of a shop" is good, but the grey background fills the frame, so the styler falls back to the oval fade.
   - Sheet: `docs/screenshots/illustration-generator.png` (raw output next to the same picture in the film's look).
+- Styling the generated pictures [M], 170–270 ms each:
+  - **No foreign colour** remained in any of them.
+  - On the shaded paper backgrounds the generator likes, the classical cut-out is ragged. The young man's left side keeps a blotch of background. For generated pictures, BiRefNet-lite matting (§4) is the better cut-out.
+  - The styler's lines can sharpen faint pseudo-letters. So `GeneratorSource` checks for text **before and after** styling. The shop picture is flagged after styling (a window grid read as a row of glyphs) and would be generated again.
 - [E] Every other model timing and RAM figure. There is no GPU here.
 - The SHA256 values in `IllustrationAddOns`: SDXS was re-hashed after download [M]. The FLUX.2 ones are the upstream LFS hashes from the HF API.
 
