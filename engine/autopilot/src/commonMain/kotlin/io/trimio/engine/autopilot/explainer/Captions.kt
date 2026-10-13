@@ -21,7 +21,8 @@ object Captions {
             val gap = next?.let { (it.range.startMs - w.range.endMs) / MS } ?: 0.0
             val chars = current.sumOf { it.text.length + 1 }
             val breath = w.text.last() in BREAKS || gap >= PAUSE
-            if (next == null || current.size >= MAX_WORDS || (current.size >= MIN_WORDS && (breath || chars + next.text.length > MAX_CHARS))) {
+            val full = current.size >= MAX_WORDS || (current.size >= MIN_WORDS && (breath || chars + (next?.text?.length ?: 0) > MAX_CHARS))
+            if (next == null || full) {
                 groups += current
                 current = mutableListOf()
             }

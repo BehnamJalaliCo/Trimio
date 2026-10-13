@@ -91,14 +91,15 @@ internal class Header(
 
     private fun numerals(): List<Node> = (0 until n).map { c ->
         val str = "${two(c + 1)}  /  ${two(n)}"
-        val f = hand.fit(str, Voices.number, 30f * u, frame.titleWidth, 1)
+        val f = hand.fit(str, Voices.number, 34f * u, frame.titleWidth, 1)
         val node = TextNode(
             str, f.type, Fill.Solid(ColorAnim.of(pal.accentText(chapters[c].accent))), maxWidth = f.width + 2f, rtl = false,
             animators = listOfNotNull(Kit.Reveal.Fade.animator(start(c))), transform = Transform(x = along(f.width).anim, y = frame.markY.anim), name = "numeral",
         )
         node.onBody = true
         node.ground = pal.background
-        Group(listOf(node), Transform(anchorX = 0f, anchorY = 0f, opacity = if (c == n - 1) Anim.One else Anim.tween(1f, 0f, end(c) - 0.3f, end(c))), start = start(c), end = end(c), name = "chapter-numeral")
+        Group(listOf(node), Transform(anchorX = 0f, anchorY = 0f, opacity = if (c == n - 1) Anim.One else Anim.tween(1f, 0f, end(c) - 0.3f, end(c))), start = start(c), end = end(c),
+            name = "chapter-numeral")
     }
 
     private fun rule(): List<Node> {
@@ -115,7 +116,8 @@ internal class Header(
         }
         val colours = (0 until n).map { c -> start(c) to pal.accent(chapters[c].accent) }
         return listOf(
-            ShapeNode(ShapeSpec.Rect(len.anim, (3f * u).anim, (1.5f * u).anim), fill = Fill.Solid(ColorAnim.of(pal.track)), transform = Transform(x = (left + len / 2f).anim, y = frame.markY.anim), name = "rule"),
+            ShapeNode(ShapeSpec.Rect(len.anim, (3f * u).anim, (1.5f * u).anim), fill = Fill.Solid(ColorAnim.of(pal.track)), transform = Transform(x = (left + len / 2f).anim, y = frame.markY.anim),
+                name = "rule"),
             ShapeNode(
                 ShapeSpec.Rect(Anim.keys(keys), (5f * u).anim, (2.5f * u).anim), fill = Fill.Solid(Track.steps(pal.accent(chapters[0].accent), colours.drop(1))),
                 transform = Transform(x = x0.anim, y = frame.markY.anim, anchorX = anchor), name = "rule-fill",
@@ -146,7 +148,8 @@ internal class Captions(private val text: TextLayoutEngine, private val pal: Exp
         val b = c.end.toFloat().coerceAtLeast(a + 0.2f)
         val f = hand.fit(words, if (body != null) Voices.label else Voices.body, (if (body != null) 34f else 36f) * u, frame.safe.width * 0.82f, 2)
         val ground = body ?: pal.background
-        val node = TextNode(words, f.type, Fill.Solid(ColorAnim.of(ink)), maxWidth = f.width + 2f, rtl = rtl || Kit.persian(words), transform = Transform(x = (frame.width / 2f).anim, y = frame.captionY.anim), name = "caption")
+        val node = TextNode(words, f.type, Fill.Solid(ColorAnim.of(ink)), maxWidth = f.width + 2f, rtl = rtl || Kit.persian(words), transform = Transform(x = (frame.width / 2f).anim,
+            y = frame.captionY.anim), name = "caption")
         node.onBody = true
         node.ground = ground
         val parts = listOfNotNull(

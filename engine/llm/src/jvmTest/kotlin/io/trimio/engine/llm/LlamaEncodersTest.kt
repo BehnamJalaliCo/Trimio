@@ -6,6 +6,7 @@ import io.trimio.engine.llm.local.LlamaReranker
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.math.abs
+import kotlin.math.ln
 import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -80,15 +81,18 @@ class LlamaEncodersTest {
             println("reranker: ${scores.map { "%.3f".format(it) }} in ${"%.0f".format((System.nanoTime() - t0) / 1e6)} ms")
             assertTrue(scores.all { it in 0f..1f })
             assertTrue(scores[0] > scores[1] && scores[0] > scores[3], "rocket beats sadness and food: $scores")
-            // The shared-head judge gives the GGUF rank head's number (llama.cpp `--pooling rank`).
-            val h = LlamaNative.encoderInit(path, 4096, 4, 4, LlamaNative.ENCODE_RANK)
+            // The shared-head judge gives the GGUF rank head's number (llama.cpp `--pooling rank`), each
+            // pair read alone: within a small margin of logit (batch composition moves llama.cpp's own
+            // rank scores by about as much).
+            val h = LlamaNative.encoderInit(path, 4096, 4, 1, LlamaNative.ENCODE_RANK)
             assertTrue(h != 0L)
             try {
-                val prompts = docs.map { RerankPrompt.qwen3(RerankPrompt.VISUAL, growth, it).encodeToByteArray() }.toTypedArray()
-                val ranked = requireNotNull(LlamaNative.encode(h, prompts, false))
-                val pooled = docs.indices.map { ranked[it * 2] }
+                val pooled = docs.map { d ->
+                    requireNotNull(LlamaNative.encode(h, arrayOf(RerankPrompt.qwen3(RerankPrompt.VISUAL, growth, d).encodeToByteArray()), false))[0]
+                }
                 println("rank head: ${pooled.map { "%.3f".format(it) }}")
-                docs.indices.forEach { assertTrue(abs(pooled[it] - scores[it]) < 0.02f, "judge ${scores[it]} vs rank ${pooled[it]}") }
+                fun logit(p: Float) = ln(p / (1 - p))
+                docs.indices.forEach { assertTrue(abs(logit(pooled[it]) - logit(scores[it])) < 0.3f, "judge ${scores[it]} vs rank ${pooled[it]}") }
             } finally {
                 LlamaNative.encoderFree(h)
             }

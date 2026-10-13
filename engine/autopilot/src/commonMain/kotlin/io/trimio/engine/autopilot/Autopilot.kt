@@ -136,7 +136,11 @@ class Autopilot(
             Proofreader.align(texts.subList(l.first, l.last + 1), l.first, understanding.lines.getOrNull(k)?.fixed.orEmpty()).entries
         }.associate { it.key to it.value }.filter { (i, w) -> real(w, lexicon, request.prompt) && !lexicon.worse(texts[i], w) && !latinised(texts[i], w) }
         lineFixes.forEach { (i, w) -> report += "spelling (director): ${texts[i]} → $w" }
-        val transcript = analysis.transcript.withFixes(lineFixes)
+        // Every word on screen is a word: the list's sure repairs, then the director's proofreading; what is
+        // still no word (and no name) stays off the captions ([OnScreenSpelling]).
+        val names = understanding.entities.map { it.name } + Glossary.read(request.prompt).terms.keys + request.prompt.split(' ', '\n', '،', ',')
+        val checked = OnScreenSpelling.check(analysis.transcript.withFixes(lineFixes), lexicon, names, model) { report += it }
+        val transcript = checked.words
         report += "understand: ${understanding.title} | ${understanding.domain}/${understanding.mood} | hook line ${understanding.hook?.line} | cta ${understanding.cta?.keyword}"
 
         onStage("research", 0.45f)
@@ -147,7 +151,7 @@ class Autopilot(
         val readings = AssetReader(eyes).read(request.assets, request.prompt, persian) { report += it }
 
         onStage("plan", 0.55f)
-        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks)
+        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks, checked.shown)
         val first = draft(reading, request.seed, look = true, onStage) { report += it }
         // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
         // Whatever goes wrong inside the jury, the edit is still delivered (the first cut), and the report says why.
@@ -159,17 +163,18 @@ class Autopilot(
         var levels = Soundtrack.Levels()
         var sound = master(reading, d, levels)
         var panel = jury?.deliberate(context(reading, d, sound, levels))
-        // A true peak over the ceiling: once more with the limiter lowered by the overshoot, kept when the mixer prefers it.
-        val safer = SoundJudge.remaster(sound, levels)?.takeIf { panel != null }
-        if (safer != null) {
+        // A true peak over the ceiling (the limiter lowered by the overshoot), a bed that swells in the pauses (the
+        // bed between words lowered): mastered again, kept when the mixer prefers it.
+        repeat(REMASTERS) {
+            val p = panel ?: return@repeat
+            val safer = SoundJudge.remaster(sound, levels)?.let { l -> SoundJudge.calmer(p.of("sound"), l) ?: l } ?: SoundJudge.calmer(p.of("sound"), levels) ?: return@repeat
             val again = master(reading, d, safer)
             val second = jury?.deliberate(context(reading, d, again, safer))
-            if (second != null && (second.of("sound")?.score ?: 0f) > (panel?.of("sound")?.score ?: 0f)) {
-                levels = safer
-                sound = again
-                panel = second
-                report += "jury: remastered with a ${round1(safer.ceilingDb)} dB ceiling"
-            }
+            if (second == null || (second.of("sound")?.score ?: 0f) <= (p.of("sound")?.score ?: 0f)) return@repeat
+            levels = safer
+            sound = again
+            panel = second
+            report += "jury: remastered (ceiling ${round1(safer.ceilingDb)} dB, bed between words ${round1(safer.musicGapDb)} dB)"
         }
         report += "sound: ${d.plan.music?.id ?: "no music"}, ${d.compiled.sfx.size} cues, ${round1(sound.lufs.toFloat())} LUFS, peak ${round1(sound.peakDb.toFloat())} dBFS"
         panel?.let { p ->
@@ -177,12 +182,12 @@ class Autopilot(
             report += p.findings()
         }
         onStage("done", 1f)
-        val source = Compiled(d.compiler, input(d.score, reading.transcript, d.edit, request))
+        val source = Compiled(d.compiler, input(d.score, reading.shown, d.edit, request))
         return Production(d.compiled, d.score, d.plan, understanding, sound, d.edit, report, panel, source, bench(reading, d, analysis.pauses, levels))
     }
 
     private fun bench(r: Reading, d: Draft, pauses: List<ClosedFloatingPointRange<Float>>, levels: Soundtrack.Levels) =
-        Workbench(r.transcript, r.lines, pauses, r.request, r.understanding, r.lexicon, d.compiler, jury, { r.brands.find(it)?.isMonogram == false }, measure, levels, r.marks, d.icons)
+        Workbench(r.shown, r.lines, pauses, r.request, r.understanding, r.lexicon, d.compiler, jury, { r.brands.find(it)?.isMonogram == false }, measure, levels, r.marks, d.icons)
 
     /**
      * The production [kept] describes, made again without the director: the same words, score,
@@ -222,6 +227,8 @@ class Autopilot(
         val media: UserMedia,
         /** Marks found online for this piece (already in [brands]). */
         val marks: Map<String, BrandLibrary.Entry> = emptyMap(),
+        /** The words as the screen shows them: what is no word blanked, Persian digits ([OnScreenSpelling]). */
+        val shown: Transcript = transcript,
     )
 
     /** One seed's edit, compiled and through the critics. */
@@ -271,14 +278,14 @@ class Autopilot(
         val compiler = Compiler(text, r.brands, picked.second.library)
         // Nothing reaches the screen misspelled: every Persian word was heard, briefed or is known.
         var score = ScreenSpelling(r.lexicon, texts, request.prompt).check(picked.first, log)
-        var compiled = compile(compiler, score, transcript, edit, request)
+        var compiled = compile(compiler, score, r.shown, edit, request)
         val critic = Critic()
         repeat(CRITIC_PASSES) { pass ->
             val review = critic.review(score, compiled, output, r.lines, r.understanding.cta)
             review.issues.forEach { log("critic ${pass + 1}: ${it.kind} at ${round1(it.at)}s — ${it.detail}") }
             val revised = review.revised ?: return@repeat
             score = revised
-            compiled = compile(compiler, score, transcript, edit, request)
+            compiled = compile(compiler, score, r.shown, edit, request)
         }
         var looks = emptyList<VisionCritic.Look>()
         val looker = eyes
@@ -288,7 +295,7 @@ class Autopilot(
             looks = seen
             if (revised != null) {
                 score = revised
-                compiled = compile(compiler, score, transcript, edit, request)
+                compiled = compile(compiler, score, r.shown, edit, request)
                 log("eyes: edit revised from what was seen")
             }
         }
@@ -316,7 +323,7 @@ class Autopilot(
                 val output = if (cut === d.edit) d.output else edit.remap(r.transcript).words
                 val music = if (edit === d.edit) d.music else MusicEdit.arrange(d.plan.music, edit, output, r.lines, r.understanding)
                 val score = if (edit === d.edit) fix.score else MusicEdit.gridded(fix.score, music)
-                d.copy(score = score, edit = edit, music = music, output = output, compiled = compile(d.compiler, score, r.transcript, edit, r.request))
+                d.copy(score = score, edit = edit, music = music, output = output, compiled = compile(d.compiler, score, r.shown, edit, r.request))
             },
             vary = { k -> draft(r, r.request.seed * VARIATION_STRIDE + k, look = false, onStage = { _, _ -> }) { report += "variation $k: $it" } },
             log = { report += it },
@@ -329,7 +336,7 @@ class Autopilot(
     /** What the judges read about [d]; [sound] once it is mastered. */
     private fun context(r: Reading, d: Draft, sound: Soundtrack.Result? = null, levels: Soundtrack.Levels = Soundtrack.Levels()) = Jury.Context(
         compiled = d.compiled, score = d.score, words = d.output, lines = r.lines, understanding = r.understanding, prompt = r.request.prompt,
-        music = d.plan.music, arrangement = d.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.transcript), subject = r.request.subject,
+        music = d.plan.music, arrangement = d.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.shown), subject = r.request.subject,
         footage = r.request.footage != null, sound = sound, levels = levels, looks = d.looks, lexicon = r.lexicon, measure = measure, voice = r.request.voice,
         brand = { r.brands.find(it)?.isMonogram == false }, assets = r.request.assets.map { it.id }, geometry = geometry, pictures = d.pictures,
     )
@@ -420,6 +427,8 @@ class Autopilot(
 
     private companion object {
         const val CRITIC_PASSES = 2
+        /** Masterings the sound judge may ask for after the first (each a mix and a sitting). */
+        const val REMASTERS = 2
 
         /** Line reading by the model at most this long; the rules read the rest (a slow device still ends). */
         val UNDERSTAND_BUDGET = 8.minutes

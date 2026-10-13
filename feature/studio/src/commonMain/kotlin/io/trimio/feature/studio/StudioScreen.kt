@@ -300,7 +300,7 @@ private fun EntryTiles(onNew: (MediaKind) -> Unit, e: Entrance, modifier: Modifi
             ) { onNew(MediaKind.Video) }
             Box(Modifier.width(1.dp).fillMaxHeight().background(c.lineStrong).fadeIn(e, 820, 800))
             EntryTile(
-                tr("فقط صدا", "Audio only"), tr("تصویر از صفر ساخته می‌شود", "Visuals made from scratch"), "B", TrimioIcons.Mic,
+                tr("فقط صدا", "Audio only"), tr("فیلم توضیحی از صفر ساخته می‌شود", "An explainer film made from scratch"), "B", TrimioIcons.Mic,
                 Modifier.weight(1f).rise(e, 900, 800), startPadding = 14.dp,
             ) { onNew(MediaKind.Audio) }
         }

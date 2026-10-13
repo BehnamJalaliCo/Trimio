@@ -73,7 +73,8 @@ internal object DiagramPieces {
                 nodes += Group(listOf(body), Transform(anchorX = 0f, anchorY = 0f, opacity = fade(quiet)), name = "versus-quiet")
             }
             val vf = h.fit(if (h.rtl) "یا" else "vs", Voices.label, 26f * h.u, vs, 1)
-            nodes += h.pop(listOf(h.dot(w / 2f, ch / 2f, vs, ColorAnim.of(h.ink)), h.words(if (h.rtl) "یا" else "vs", vf, h.ground, w / 2f, ch / 2f, h.ink, 0f, Kit.Reveal.None, name = "vs")), Box.around(w / 2f, ch / 2f, vs, vs), t.enter + 0.2f, "vs")
+            nodes += h.pop(listOf(h.dot(w / 2f, ch / 2f, vs, ColorAnim.of(h.ink)), h.words(if (h.rtl) "یا" else "vs", vf, h.ground, w / 2f, ch / 2f, h.ink, 0f, Kit.Reveal.None, name = "vs")),
+                Box.around(w / 2f, ch / 2f, vs, vs), t.enter + 0.2f, "vs")
             nodes
         }
     }
@@ -225,7 +226,8 @@ internal object DiagramPieces {
             for (i in 0 until n) {
                 val (x, y) = pos[i]
                 val at = t.revealAt(i) - 0.1f
-                nodes += h.stroke(listOf(cx to cy, (cx + (x - cx) * 0.92f) to (cy + (y - cy) * 0.92f)), ColorAnim.of(h.muted.copy(alpha = 0.6f)), 3f * h.u, at, at + 0.4f, smooth = false, name = "map-line")
+                nodes += h.stroke(listOf(cx to cy, (cx + (x - cx) * 0.92f) to (cy + (y - cy) * 0.92f)), ColorAnim.of(h.muted.copy(alpha = 0.6f)), 3f * h.u, at, at + 0.4f, smooth = false,
+                    name = "map-line")
             }
             nodes += h.pop(
                 listOf(h.rect(cx, cy, cw, chh, chh / 2f, ColorAnim.of(h.accentBody), shadow = h.shadow()), h.words(centre, cf, h.onAccent, cx, cy, h.accentBody, t.enter + 0.1f, name = "map-centre")),

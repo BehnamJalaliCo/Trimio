@@ -27,6 +27,19 @@ class PersianSpelling(
     private val bySound: Map<String, List<String>> = counts.keys.groupBy(::soundKey)
     private val joins = PersianJoins(this)
 
+    /** Common words ending in [suffix] («تر», «ترین»), with the stem before it (half-spaces dropped): what [PersianRepairs] grades against. */
+    internal fun graded(suffix: String): List<Pair<String, String>> = gradedBy.getOrPut(suffix) {
+        counts.entries.mapNotNull { (w, c) ->
+            val bare = w.replace(ZWNJ_S, "")
+            (bare.dropLast(suffix.length) to w).takeIf { c >= KNOWN_IN_DOC && bare.endsWith(suffix) && bare.length - suffix.length >= 2 }
+        }
+    }
+
+    private val gradedBy = mutableMapOf<String, List<Pair<String, String>>>()
+
+    /** One recogniser slip of an unknown [core] put right ([fix] with no other evidence), for a stem under its endings. */
+    internal fun slip(core: String): String? = if (count(core) > 0) null else fix(core, emptySet(), soundOnly = false)
+
     /** Listed words that sound like [w] (sound-alike letters merged, half-spaces ignored). */
     internal fun sounding(w: String): List<String> = bySound[soundKey(w)].orEmpty()
 
@@ -48,29 +61,56 @@ class PersianSpelling(
         var i = 0
         while (i < parts.size) {
             val w = parts[i]
-            val next = parts.getOrNull(i + 1)
             val prev = parts.getOrNull(i - 1)?.core
-            val third = parts.getOrNull(i + 2)
-            val joined = joined(w, next, third, prev)
-            if (joined != null) {
-                val last = i + joined.second - 1
-                out[i] = w.head + joined.first + parts[last].tail
-                for (k in i + 1..last) out[k] = ""
-                i = last + 1
+            val next = parts.getOrNull(i + 1)
+            val span = span(parts, i)
+            if (span != null) {
+                span.forEachIndexed { k, t -> out[i + k] = t }
+                i += span.size
                 continue
             }
-            if (persian(w.core) && !w.voweled) {
-                // A word heard twice the same way is taken as meant (a name, a brand) unless a sound-alike fixes it.
-                val soundOnly = (heard[w.core] ?: 0) > 1 && count(w.core) == 0
-                val around = Around(prev, next?.core, third?.core)
-                val fixed = confusion(w.core, prev, next?.core, doc, settled) ?: joins.misspelling(w.core) ?: numeral(w.core, around)
-                    ?: joins.halfSpace(w.core) ?: joins.prefixed(w.core) ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) } ?: joins.unmerge(w.core)
-                if (fixed != null) out[i] = w.head + fixed + w.tail
-            }
+            val fixed = if (persian(w.core) && !w.voweled) word(w, prev, next, parts.getOrNull(i + 2), heard, doc, settled) else null
+            if (fixed != null) out[i] = w.head + fixed + w.tail
             i++
         }
         return out
     }
+
+    /**
+     * Words from [i] that are put right together, one text per word ("" for a word joined into the
+     * one before), or null: one term heard as two («چچی پیتیت», «صرف جوی»), a two-word term heard
+     * with a slip («حوشه مسئولی» → «هوش مصنوعی»), or words that are one ([joined]).
+     */
+    private fun span(parts: List<Parts>, i: Int): List<String>? {
+        val w = parts[i]
+        val next = parts.getOrNull(i + 1) ?: return null
+        val pair = Loanwords.pair(w.core, next.core) ?: next.takeIf { joinable(w, it) }?.let { repairs.compound(w.core, it.core) }
+        if (pair != null) return listOf(w.head + pair + next.tail, "")
+        val term = next.takeIf { joinable(w, it) }?.let { repairs.phrase(w.core, it.core) }
+        if (term != null) return listOf(w.head + term.first + w.tail, next.head + term.second + next.tail)
+        val joined = joined(w, next, parts.getOrNull(i + 2), parts.getOrNull(i - 1)?.core) ?: return null
+        val last = i + joined.second - 1
+        return listOf(w.head + joined.first + parts[last].tail) + List(joined.second - 1) { "" }
+    }
+
+    /**
+     * One heard word put right, or null. A term the recogniser often mishears is written as the
+     * term ([Loanwords.alias]); a protected term is never touched ([Loanwords.protected]: «توکن» is
+     * never «تو کن»). A known word is split in two only when it is unknown and said once.
+     */
+    private fun word(w: Parts, prev: String?, next: Parts?, third: Parts?, heard: Map<String, Int>, doc: Set<String>, settled: Set<String>): String? {
+        Loanwords.alias(w.core)?.let { return it }
+        if (Loanwords.protected(w.core)) return null
+        // A word heard twice the same way is taken as meant (a name, a brand) unless a sound-alike fixes it.
+        val soundOnly = (heard[w.core] ?: 0) > 1 && count(w.core) == 0
+        val around = Around(prev, next?.core, third?.core)
+        val split = { joins.unmerge(w.core)?.takeIf { count(w.core) == 0 && (heard[w.core] ?: 0) < 2 } }
+        return confusion(w.core, prev, next?.core, doc, settled) ?: joins.misspelling(w.core) ?: numeral(w.core, around)
+            ?: joins.halfSpace(w.core) ?: joins.prefixed(w.core) ?: fix(w.core, doc, soundOnly)?.let { counted(it, prev) }
+            ?: repairs.written(w.core) ?: split() ?: repairs.repair(w.core, next?.core)
+    }
+
+    private val repairs by lazy { PersianRepairs(this) }
 
     /**
      * Whether the director's [fixed] spelling of a recognised word is a real word one or two slips away
@@ -110,12 +150,15 @@ class PersianSpelling(
     private fun confusion(core: String, prev: String?, next: String?, doc: Set<String>, settled: Set<String>): String? {
         val c = CONFUSIONS.firstOrNull { it.heard == core } ?: return null
         val after = next?.replace(ZWNJ_S, "")
+        val onTopic = c.topic.count { t -> t in doc || doc.any { t in stems(it) } } >= TOPIC_WORDS
         val fires = when {
             prev != null && prev in c.notAfter -> false
-            c.after.isEmpty() && c.afterOnTopic.isEmpty() -> count(core) == 0
+            c.after.isEmpty() && c.afterOnTopic.isEmpty() -> if (c.topic.isEmpty()) count(core) == 0 else onTopic
             after != null && after in c.after -> true
+            // One sense per talk: once a next word gave this one away, its other occurrences follow.
+            c.sticky && core in settled -> true
             after == null || after !in c.afterOnTopic -> false
-            else -> core in settled || c.topic.count { t -> t in doc || doc.any { t in stems(it) } } >= TOPIC_WORDS
+            else -> core in settled || onTopic
         }
         return c.meant.takeIf { fires }
     }
@@ -278,8 +321,8 @@ class PersianSpelling(
         return joins.join(w.core, next.core, prev)?.let { it to 2 }
     }
 
-    /** Two Persian words with nothing but a space between them. */
-    private fun joinable(a: Parts, b: Parts) = a.tail.isEmpty() && b.head.isEmpty() && listOf(a, b).all { persian(it.core) && !it.voweled }
+    /** Two Persian words with nothing but a space between them (a protected term is never joined to its neighbour). */
+    private fun joinable(a: Parts, b: Parts) = a.tail.isEmpty() && b.head.isEmpty() && listOf(a, b).all { persian(it.core) && !it.voweled && !Loanwords.protected(it.core) }
 
     private fun split(word: String): Parts {
         val head = word.takeWhile { !it.isLetterOrDigit() }
@@ -301,6 +344,8 @@ class PersianSpelling(
         val afterOnTopic: Set<String> = emptySet(),
         val topic: Set<String> = emptySet(),
         val notAfter: Set<String> = emptySet(),
+        /** Once one occurrence is given away by its next word, every occurrence is the meant word. */
+        val sticky: Boolean = false,
     )
 
     companion object {
@@ -392,6 +437,9 @@ class PersianSpelling(
         private val CRYPTO = setOf(
             "تتر", "ارز", "کریپتو", "بیت‌کوین", "بیتکوین", "صرافی", "تریدر", "ترید", "معامله", "فیوچرز", "اتریوم", "توکن", "ووچر", "بایننس", "والت",
         )
+        private val TECH = setOf(
+            "کد", "کود", "ریپو", "ریپور", "پروژه", "مدل", "مودل", "کلاد", "توکن", "پرامپت", "ربات", "برنامه", "سایت", "اپ", "هوش", "تسک", "سرور", "گیت",
+        )
         private const val TOPIC_WORDS = 2
         private val HE_CLITICS = listOf("ت", "م", "ش", "تو", "مو", "شو", "تون", "مون", "شون")
 
@@ -402,6 +450,11 @@ class PersianSpelling(
             Confusion("کارورد", "کاربر"),
             // «تیه» (a wilderness) is never done or made: «تیه می‌کنه» is «تهیه می‌کنه».
             Confusion("تیه", "تهیه", after = DO),
+            // Lineage is never installed: «نسب بکنه» is «نصب بکنه», and then «بعد از نسب» too.
+            Confusion("نسب", "نصب", after = DO + setOf("شد", "شده", "شدن", "میشه", "بشه"), sticky = true),
+            // In a talk about code, the fertiliser is the code: «کلمه کود رو بفرست».
+            Confusion("کود", "کد", topic = TECH),
+            Confusion("تذکیر", "تسک", topic = TECH),
         )
 
         /** Number words whisper writes as another word, or as none. */

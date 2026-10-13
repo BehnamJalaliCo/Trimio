@@ -39,14 +39,16 @@ class ExplainerStageTest {
 
     @Test
     fun everyPrimitiveAndOpRenders() {
-        for (lang in listOf("fa", "en")) for (palette in palettes) for ((w, h) in sizes) {
-            val film = everyOp(lang, palette)
-            val out = ExplainerLab.compose(film, w, h)
-            assertTrue(out.report.elements.map { it.primitive }.toSet().containsAll(Primitive.entries), "every primitive on stage ($lang $palette ${w}x$h)")
-            // Every beat mid-flight (a sample of them in the slower combinations).
-            val ts = times(film).let { all -> if (palette == palettes.first()) all else all.filterIndexed { i, _ -> i % 3 == 0 } }
-            ExplainerLab.frames(out.composition, 0.2f).use { f -> for (t in ts) f.draw(t) }
-        }
+        for (lang in listOf("fa", "en")) for (palette in palettes) for ((w, h) in sizes) renderEveryOp(lang, palette, w, h)
+    }
+
+    private fun renderEveryOp(lang: String, palette: String, w: Int, h: Int) {
+        val film = everyOp(lang, palette)
+        val out = ExplainerLab.compose(film, w, h)
+        assertTrue(out.report.elements.map { it.primitive }.toSet().containsAll(Primitive.entries), "every primitive on stage ($lang $palette ${w}x$h)")
+        // Every beat mid-flight (a sample of them in the slower combinations).
+        val ts = times(film).let { all -> if (palette == palettes.first()) all else all.filterIndexed { i, _ -> i % 3 == 0 } }
+        ExplainerLab.frames(out.composition, 0.2f).use { f -> ts.forEach { f.draw(it) } }
     }
 
     @Test

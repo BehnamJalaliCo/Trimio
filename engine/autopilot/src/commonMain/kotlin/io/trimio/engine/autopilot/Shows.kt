@@ -100,7 +100,8 @@ internal class Shows(
         if (read.role == "question" && title.split(' ').size >= 2) out += b.copy(recipe = "poll", items = emptyList()) to 0.35f
         val words = line.range.count()
         val loud = (b.energy ?: 0.5f) >= LOUD
-        val quotable = read.role in QUOTABLE && words in QUOTE_WORDS
+        // A quote is a whole sentence as said ([Fragments.quotable]), never a run that starts or stops mid-sentence.
+        val quotable = read.role in QUOTABLE && words in QUOTE_WORDS && Fragments.quotable(texts, line.range)
         if (!takeover && quotable && loud) {
             out += b.copy(recipe = "quote", text = line.range.joinToString(" ") { texts[it] }, at = line.first, until = line.last, label = null) to 0.2f
         }
@@ -119,7 +120,7 @@ internal class Shows(
             "ranking", "timeline", "steps", "pros-cons", "notification-stack" -> base.copy(items = items, label = title).takeIf { items.size >= 2 }
             "versus", "before-after" -> base.copy(items = items.take(2), points = q.take(2).map { it.value.toFloat() }.takeIf { it.size == 2 }).takeIf { items.size >= 2 }
             "tape" -> tickers(items)?.let { base.copy(items = it) }
-            "quote" -> base.copy(text = line.range.joinToString(" ") { texts[it] }).takeIf { line.range.count() in QUOTE_WORDS }
+            "quote" -> base.copy(text = line.range.joinToString(" ") { texts[it] }).takeIf { line.range.count() in QUOTE_WORDS && Fragments.quotable(texts, line.range) }
             "chapter", "poll", "burst", "callout", "bubble" -> title?.let { base.copy(text = it, value = ordinal(line.range.map { i -> NumberWords.normalize(texts[i]) })) }
             "wallet" -> base.copy(label = title)
             "map-pin" -> title?.let { base.copy(text = it) }

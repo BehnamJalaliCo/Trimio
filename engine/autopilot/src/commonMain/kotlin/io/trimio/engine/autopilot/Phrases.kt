@@ -19,7 +19,7 @@ object Phrases {
         val english = n.all { it.code < 128 }
         val shaped = !english || ('\'' !in n && '’' !in n && !(n.endsWith("ly") && n.length > 4))
         return Words.isContent(w) && n.length >= MIN_LETTERS && !verb(n) && n !in STOP && n !in ENGLISH_STOP && w.none { it.isDigit() } &&
-            Quantities.unitOf(w) == null && shaped && PERCENT.none { n.startsWith(it) }
+            Quantities.unitOf(w) == null && shaped && PERCENT.none { n.startsWith(it) } && Fragments.content(w)
     }
 
     /** A conjugated verb («می‌گفتیم», «بکنی», «گذاشتم», «شده»; "make", "get", "is"), normalised. */
@@ -34,16 +34,19 @@ object Phrases {
     fun title(words: List<Word>, line: Lines.Line, avoid: Set<String> = emptySet()): String {
         val texts = words.map { it.text }
         val peaks = line.range.filter { nounish(texts[it]) && NumberWords.at(texts, it) == null }.sortedByDescending { Words.weight(words[it]) }
-        val phrases = peaks.map { phraseAt(texts, line, it) }.filter { key(it.replace(" ", "")) !in avoid }
+        // Only a phrase that reads on its own ([Fragments]): never «باید استفاده», «درد اکثر کارای».
+        val phrases = peaks.map { phraseAt(texts, line, it) }.filter { key(it.replace(" ", "")) !in avoid && Fragments.fault(it) == null }
         // A phrase of two or three words first; a single long noun only when the line has no phrase.
         return phrases.firstOrNull { ' ' in it } ?: phrases.firstOrNull { key(it).length >= LONE_NOUN } ?: ""
     }
 
     /** Two or three words around a noun: the noun and the nouns or adjectives after (or before) it, within its clause. */
     fun phraseAt(texts: List<String>, line: Lines.Line, i: Int): String {
-        fun joins(a: Int, b: Int) = b in line.range && texts[a].last() !in ".،,:؛;!?؟" && nounish(texts[b]) && NumberWords.at(texts, b) == null
+        fun joins(a: Int, b: Int) = b in line.range && texts[a].lastOrNull()?.let { it !in ".،,:؛;!?؟" } == true && nounish(texts[b]) && NumberWords.at(texts, b) == null
         var end = i
         while (end - i < 2 && joins(end, end + 1)) end++
+        // A plural or noun with its ezafe («کارای») takes the word it waits for, when there is room.
+        if (Fragments.waits(texts[end]) && joins(end, end + 1)) end++
         val start = if (end == i && joins(i - 1, i - 1)) i - 1 else i
         return (start..end).joinToString(" ") { clean(texts[it]) }
     }

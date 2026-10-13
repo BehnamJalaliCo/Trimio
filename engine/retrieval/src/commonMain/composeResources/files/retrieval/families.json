@@ -1,0 +1,411 @@
+[
+{
+"id": "family:versus",
+"kind": "family",
+"title": "Versus card",
+"text": "two options face off side by side",
+"fa": "مقایسهٔ دو گزینه کنار هم",
+"tags": [
+"comparison",
+"vs"
+],
+"meta": {
+"recipe": "versus"
+}
+},
+{
+"id": "family:pros-cons",
+"kind": "family",
+"title": "Pros and cons",
+"text": "advantages and disadvantages in two columns",
+"fa": "مزایا و معایب در دو ستون",
+"tags": [
+"advantages",
+"disadvantages",
+"good bad"
+],
+"meta": {
+"recipe": "pros-cons"
+}
+},
+{
+"id": "family:before-after",
+"kind": "family",
+"title": "Before / after card",
+"text": "a wipe from before to after",
+"fa": "قبل و بعد با جاروب تصویر",
+"tags": [
+"transformation",
+"change"
+],
+"meta": {
+"recipe": "before-after"
+}
+},
+{
+"id": "family:counter",
+"kind": "family",
+"title": "Counter",
+"text": "a number counting up to a figure said",
+"fa": "عددی که تا رقم گفته‌شده می‌شمارد",
+"tags": [
+"number",
+"count",
+"statistic"
+],
+"meta": {
+"recipe": "counter"
+}
+},
+{
+"id": "family:stamp",
+"kind": "family",
+"title": "Stamp",
+"text": "a verdict stamped on: approved, sold out, fake, true",
+"fa": "مهر حکم: تأیید، تمام شد، جعلی، درست",
+"tags": [
+"verdict",
+"approved",
+"rejected"
+],
+"meta": {
+"recipe": "stamp"
+}
+},
+{
+"id": "family:ranking",
+"kind": "family",
+"title": "Ranking",
+"text": "a leaderboard, top three, podium",
+"fa": "جدول رتبه‌بندی، سه نفر اول، سکو",
+"tags": [
+"top",
+"leaderboard",
+"podium",
+"best"
+],
+"meta": {
+"recipe": "ranking"
+}
+},
+{
+"id": "family:timeline",
+"kind": "family",
+"title": "Timeline card",
+"text": "milestones over years, a roadmap",
+"fa": "نقاط عطف در طول سال‌ها، نقشهٔ راه",
+"tags": [
+"history",
+"roadmap"
+],
+"meta": {
+"recipe": "timeline"
+}
+},
+{
+"id": "family:steps",
+"kind": "family",
+"title": "Steps card",
+"text": "numbered how-to steps",
+"fa": "مراحل شماره‌دار آموزش",
+"tags": [
+"how-to",
+"process"
+],
+"meta": {
+"recipe": "steps"
+}
+},
+{
+"id": "family:stat-stack",
+"kind": "family",
+"title": "Stat stack",
+"text": "two or three numbers stacked: views, likes, followers",
+"fa": "دو یا سه عدد روی هم: بازدید، لایک، دنبال‌کننده",
+"tags": [
+"kpi",
+"figures",
+"numbers"
+],
+"meta": {
+"recipe": "stat-stack"
+}
+},
+{
+"id": "family:ring",
+"kind": "family",
+"title": "Ring card",
+"text": "a percentage ring or gauge",
+"fa": "حلقهٔ درصد یا عقربه",
+"tags": [
+"percentage",
+"gauge"
+],
+"meta": {
+"recipe": "ring"
+}
+},
+{
+"id": "family:social-proof",
+"kind": "family",
+"title": "Social proof",
+"text": "stars, reviews, followers, rating",
+"fa": "ستاره، نظرات، امتیاز، دنبال‌کننده",
+"tags": [
+"rating",
+"reviews",
+"stars",
+"trust"
+],
+"meta": {
+"recipe": "social-proof"
+}
+},
+{
+"id": "family:price-tag",
+"kind": "family",
+"title": "Price tag",
+"text": "a price, a discount, a sale offer",
+"fa": "برچسب قیمت، تخفیف، حراج",
+"tags": [
+"price",
+"discount",
+"sale",
+"offer"
+],
+"meta": {
+"recipe": "price-tag"
+}
+},
+{
+"id": "family:quote",
+"kind": "family",
+"title": "Quote card",
+"text": "a quote or testimonial",
+"fa": "نقل‌قول یا رضایت مشتری",
+"tags": [
+"testimonial",
+"said"
+],
+"meta": {
+"recipe": "quote"
+}
+},
+{
+"id": "family:chapter",
+"kind": "family",
+"title": "Chapter card",
+"text": "a section title card",
+"fa": "کارت عنوان بخش",
+"tags": [
+"section",
+"part"
+],
+"meta": {
+"recipe": "chapter"
+}
+},
+{
+"id": "family:bubble",
+"kind": "family",
+"title": "Chat bubble",
+"text": "a message, a reply, a comment shown as a bubble",
+"fa": "پیام، جواب یا کامنت در حباب",
+"tags": [
+"message",
+"comment",
+"reply",
+"dm"
+],
+"meta": {
+"recipe": "bubble"
+}
+},
+{
+"id": "family:poll",
+"kind": "family",
+"title": "Poll",
+"text": "a question to the audience with options",
+"fa": "سؤال از مخاطب با گزینه‌ها",
+"tags": [
+"question",
+"vote",
+"survey"
+],
+"meta": {
+"recipe": "poll"
+}
+},
+{
+"id": "family:callout",
+"kind": "family",
+"title": "Callout",
+"text": "an arrow or spotlight pointing at something on screen",
+"fa": "فلش یا نورافکن روی چیزی در تصویر",
+"tags": [
+"arrow",
+"pointer",
+"annotation"
+],
+"meta": {
+"recipe": "callout"
+}
+},
+{
+"id": "family:lower-third",
+"kind": "family",
+"title": "Lower third",
+"text": "the speaker's name and title",
+"fa": "نام و سمت گوینده",
+"tags": [
+"name",
+"introduction",
+"speaker"
+],
+"meta": {
+"recipe": "lower-third"
+}
+},
+{
+"id": "family:notification-stack",
+"kind": "family",
+"title": "Notifications",
+"text": "phone notifications piling up: messages, orders, alerts",
+"fa": "اعلان‌های گوشی که روی هم می‌آیند",
+"tags": [
+"notifications",
+"alerts",
+"orders",
+"messages"
+],
+"meta": {
+"recipe": "notification-stack"
+}
+},
+{
+"id": "family:receipt",
+"kind": "family",
+"title": "Receipt",
+"text": "a receipt or invoice printing: payment, purchase, cost",
+"fa": "رسید یا فاکتور؛ پرداخت و خرید",
+"tags": [
+"invoice",
+"payment",
+"bill",
+"purchase"
+],
+"meta": {
+"recipe": "receipt"
+}
+},
+{
+"id": "family:phone",
+"kind": "family",
+"title": "Phone mockup",
+"text": "an app screen on a phone",
+"fa": "صفحهٔ اپلیکیشن روی گوشی",
+"tags": [
+"app",
+"mobile",
+"screen"
+],
+"meta": {
+"recipe": "phone"
+}
+},
+{
+"id": "family:burst",
+"kind": "family",
+"title": "Burst",
+"text": "confetti or a sticker burst: celebration, wow, success",
+"fa": "کاغذرنگی و ترکیدن استیکر؛ جشن و موفقیت",
+"tags": [
+"celebration",
+"confetti",
+"wow",
+"success"
+],
+"meta": {
+"recipe": "burst"
+}
+},
+{
+"id": "family:map-pin",
+"kind": "family",
+"title": "Map pin",
+"text": "a pin dropping on a place or city",
+"fa": "نشانگری که روی یک شهر یا مکان می‌افتد",
+"tags": [
+"location",
+"city",
+"place"
+],
+"meta": {
+"recipe": "map-pin"
+}
+},
+{
+"id": "family:candles",
+"kind": "family",
+"title": "Candlestick chart",
+"text": "a candlestick price chart: crypto or stock price moving up or down",
+"fa": "نمودار شمعی قیمت ارز دیجیتال یا سهام",
+"tags": [
+"price chart",
+"crypto",
+"stock",
+"trading"
+],
+"meta": {
+"recipe": "candles"
+}
+},
+{
+"id": "family:tape",
+"kind": "family",
+"title": "Ticker tape",
+"text": "a market ticker of prices scrolling",
+"fa": "نوار قیمت‌های بازار که حرکت می‌کند",
+"tags": [
+"ticker",
+"market",
+"prices"
+],
+"meta": {
+"recipe": "tape"
+}
+},
+{
+"id": "family:wallet",
+"kind": "family",
+"title": "Wallet card",
+"text": "a crypto wallet or deposit address card",
+"fa": "کارت کیف پول ارز دیجیتال یا آدرس واریز",
+"tags": [
+"crypto wallet",
+"address",
+"deposit"
+],
+"meta": {
+"recipe": "wallet"
+}
+},
+{
+"id": "family:order",
+"kind": "family",
+"title": "Order card",
+"text": "a buy or sell order, a trade position, long or short",
+"fa": "سفارش خرید یا فروش، پوزیشن لانگ یا شورت",
+"tags": [
+"trade",
+"buy",
+"sell",
+"long",
+"short",
+"position"
+],
+"meta": {
+"recipe": "order"
+}
+}
+]

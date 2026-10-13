@@ -70,6 +70,7 @@ class AutopilotProofTest {
         // -Pauto.assets=<dir>: the pictures and clips the creator attached beside the prompt (the app works out what each is).
         val assets = System.getProperty("auto.assets")?.let(::File)?.takeIf { it.isDirectory }?.listFiles()?.filter { it.isFile }?.sortedBy { it.name }
             ?.mapIndexed { i, f -> Media.asset(f, "asset-$i") }.orEmpty()
+        val voice = Media.audio(video, Studio.RATE)
         for (seed in seeds) {
             val t0 = System.nanoTime()
             val studio = Studio(brands, visuals, llm, knowledge)
@@ -86,7 +87,10 @@ class AutopilotProofTest {
             // -Pauto.sheet=true: a contact sheet of the edit, one frame at every graphic once it has landed (the art director's look).
             if (System.getProperty("auto.sheet") == "true") Sheet.draw(production, video, File(out, "seed-$seed-sheet.png"))
             val planned = (System.nanoTime() - t0) / 1e9
-            File(out, "seed-$seed-report.txt").writeText(production.report.joinToString("\n") + "\n\nplanned in ${planned}s\n")
+            // The real benchmark's acceptance counts (unknown words, fragments, cuts inside words, every graphic text).
+            val counted = BenchmarkCount.lines(production, voice, runBlocking { PersianSpelling.load() })
+            File(out, "seed-$seed-report.txt").writeText(production.report.joinToString("\n") + "\n\n" + counted.joinToString("\n") + "\n\nplanned in ${planned}s\n")
+            println(counted.joinToString("\n"))
             File(out, "seed-$seed-score.json").writeText(Score.encode(production.score))
             File(out, "seed-$seed-understanding.json").writeText(json.encodeToString(Understanding.serializer(), production.understanding))
             println(production.report.joinToString("\n"))

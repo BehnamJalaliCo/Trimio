@@ -15,6 +15,10 @@ import io.trimio.engine.autopilot.SubjectFinder
 import io.trimio.engine.autopilot.SubjectGrounding
 import io.trimio.engine.autopilot.Taste
 import io.trimio.engine.autopilot.UserAsset
+import io.trimio.engine.autopilot.explainer.ExplainerPilot
+import io.trimio.engine.autopilot.explainer.StageRenderer
+import io.trimio.engine.autopilot.explainer.judges.FilmJury
+import io.trimio.engine.motion.explainer.IconResolver
 import io.trimio.engine.motion.MediaSource
 import io.trimio.engine.motion.MotionFonts
 import io.trimio.engine.motion.TextLayoutEngine
@@ -70,6 +74,8 @@ class Productions(
     private val app: String = "",
     /** Wall clock (epoch ms) for the technical report; tests pass a fake one. */
     private val clock: () -> Long = ::wallClock,
+    /** A voice recording becomes an explainer film ([ExplainerPilot]); false keeps the motion edit over a plain background. */
+    private val explainers: Boolean = true,
 ) : AutoEditor {
 
     /** The run being recorded now, for the watchdog's notes ([stalled]). */
@@ -283,9 +289,18 @@ class Productions(
             onCompiled = { job?.ensureActive(); latest.value = it },
         )
         val understanding = r.previous?.production?.understanding ?: saved?.understanding
-        val production = autopilot.produce(
-            Autopilot.Request(transcript, voice, request.brief, request.seed, footage = if (video) FOOTAGE else null, subject = subject, understanding = understanding, assets = assets),
-        ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
+        val production = if (!video && explainers) {
+            // A voice alone becomes an explainer film: the screenwriter writes it, the stage draws it (phase 8c).
+            val budget = (jury ?: Juries.forDevice(platform.device())).budget
+            val pilot = ExplainerPilot(StageRenderer(e.text, IconResolver.of(visuals)), director.model, FilmJury(budget = budget))
+            pilot.produce(
+                ExplainerPilot.Request(transcript, voice, request.brief, request.seed, understanding, FPS, others = listOfNotNull(r.previous?.production?.film?.art)),
+            ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
+        } else {
+            autopilot.produce(
+                Autopilot.Request(transcript, voice, request.brief, request.seed, footage = if (video) FOOTAGE else null, subject = subject, understanding = understanding, assets = assets),
+            ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
+        }
         if (understanding == null) checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding))
         latest.value = production.compiled
         r.state.update { it.copy(panel = production.panel?.let(PanelSummary::of), report = production.report) }

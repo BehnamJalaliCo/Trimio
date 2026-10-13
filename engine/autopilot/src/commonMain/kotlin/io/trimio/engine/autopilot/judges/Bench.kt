@@ -123,7 +123,9 @@ internal object Bench {
     fun punchAtTime(score: Score, words: List<Word>, t: Float): Score? {
         val starts = sceneStarts(score, words)
         val asked = askedBy(score, words)
-        if (t <= MIN_READ || starts.any { kotlin.math.abs(it - t) < MIN_READ } || (asked != null && t > asked - SCENE_LEAD)) return null
+        val crowded = starts.any { kotlin.math.abs(it - t) < MIN_READ }
+        val late = asked != null && t > asked - SCENE_LEAD
+        if (t <= MIN_READ || crowded || late) return null
         val host = starts.indexOfLast { it <= t }.coerceAtLeast(0)
         val moved = score.scenes[host].beats.filter { beatStart(it, host, score, words, starts) > t }
         val kept = score.scenes.mapIndexed { k, s -> if (k == host) s.copy(beats = s.beats - moved.toSet()) else s }
@@ -152,7 +154,9 @@ internal object Bench {
                 b.variant == null && moveFirst && p.overFootage -> b.copy(place = otherBand(p.zone), variant = p.variant)
                 b.variant == null && variants > 1 -> b.copy(variant = (p.variant + 1) % variants)
                 b.variant == null -> b.copy(place = if (p.overFootage) otherBand(p.zone) else "center", variant = p.variant)
-                // A small flaw (a graphic on the small side) never costs the graphic: another layout is all it gets.
+                // A small flaw (a graphic on the small side) never costs the graphic: another layout, then — for words — the
+                // biggest title treatment of the same words.
+                gentle && b.recipe in TEXT && b.recipe != BIG_TITLE -> b.copy(recipe = BIG_TITLE)
                 gentle || b.recipe in KEEP -> b
                 b.recipe in MARKS -> null
                 b.recipe !in TEXT -> plain(b)
@@ -177,6 +181,7 @@ internal object Bench {
         }
 
         private val SAID_FIGURES = setOf("meter", "voucher", "price-tag", "bars")
+        private const val BIG_TITLE = "slam"
         private const val PLAIN_ITEMS = 3
         private const val PLAIN_WORDS = 5
     }

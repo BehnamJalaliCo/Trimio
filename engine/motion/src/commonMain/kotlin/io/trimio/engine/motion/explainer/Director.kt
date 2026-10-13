@@ -122,7 +122,7 @@ internal class Director(private val chapter: Chapter, private val notes: Mutable
         if (primitive == Primitive.Mark) aim(v, b)
         versions += v
         live[id] = v
-        if (b.op == StageOp.Check || b.op == StageOp.Fill || b.op == StageOp.Highlight || b.op == StageOp.Dim) act(v, b, at + 0.45f, until)
+        if (b.op in ACTS) act(v, b, at + 0.45f, until)
         return v
     }
 
@@ -227,6 +227,8 @@ internal class Director(private val chapter: Chapter, private val notes: Mutable
 
     companion object {
         const val ALL = "*"
+        /** Ops that act on an element already up (a create for them acts once it has landed). */
+        val ACTS = setOf(StageOp.Check, StageOp.Fill, StageOp.Highlight, StageOp.Dim)
         const val LEAD = 0.08f
         const val EXIT = 0.38f
         const val SWEEP = 0.62f

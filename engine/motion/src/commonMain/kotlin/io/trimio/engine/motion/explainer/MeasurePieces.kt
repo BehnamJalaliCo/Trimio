@@ -126,8 +126,10 @@ internal object MeasurePieces {
             for (i in 0 until n) {
                 val y = ys[i]
                 val at = t.revealAt(i)
-                val pick = h.toggled(listOf(h.rect(rx, y, rw, rh, rh / 2f, h.accentBody), h.words(texts[i], fits[i], h.onAccent, rx, y, h.accentBody, 0f, Kit.Reveal.None, name = "rung-on")), t.pickSteps(i), "rung-pick")
-                nodes += h.rise(listOfNotNull(h.card(rx, y, rw, rh, rh / 2f), h.words(texts[i], fits[i], h.ink, rx, y, h.card, at + 0.1f, Kit.Reveal.Fade, name = "rung"), pick), Box(rx - rw / 2f, y - rh / 2f, rx + rw / 2f, y + rh / 2f), at, "rung")
+                val pick = h.toggled(listOf(h.rect(rx, y, rw, rh, rh / 2f, h.accentBody), h.words(texts[i], fits[i], h.onAccent, rx, y, h.accentBody, 0f, Kit.Reveal.None, name = "rung-on")),
+                    t.pickSteps(i), "rung-pick")
+                nodes += h.rise(listOfNotNull(h.card(rx, y, rw, rh, rh / 2f), h.words(texts[i], fits[i], h.ink, rx, y, h.card, at + 0.1f, Kit.Reveal.Fade, name = "rung"), pick), Box(rx - rw / 2f,
+                    y - rh / 2f, rx + rw / 2f, y + rh / 2f), at, "rung")
             }
             if (t.fills.any { it.to != null } || s.value != null) {
                 val idx = { v: Double -> (if (v <= 1.0) v * (n - 1) else v - 1.0).toFloat().coerceIn(0f, (n - 1).toFloat()) }
@@ -166,9 +168,11 @@ internal object MeasurePieces {
                     ShapeSpec.Path(path, top, top), fill = Fill.Solid(fill), stroke = stroke,
                     transform = Transform(x = 0f.anim, y = y0.anim, anchorX = 0f, anchorY = 0f), name = "funnel-layer",
                 )
-                val pick = h.toggled(listOf(layer(ColorAnim.of(h.accentBody), null), h.words(texts[i], fits[i], h.onAccent, top / 2f, y0 + lh / 2f, h.accentBody, 0f, Kit.Reveal.None, name = "funnel-on")), t.pickSteps(i), "funnel-pick")
+                val pick = h.toggled(listOf(layer(ColorAnim.of(h.accentBody), null), h.words(texts[i], fits[i], h.onAccent, top / 2f, y0 + lh / 2f, h.accentBody, 0f, Kit.Reveal.None,
+                    name = "funnel-on")), t.pickSteps(i), "funnel-pick")
                 h.rise(
-                    listOfNotNull(layer(ColorAnim.of(h.card), Stroke(h.pal.rim.fill(), 2f * h.u)), h.words(texts[i], fits[i], h.ink, top / 2f, y0 + lh / 2f, h.card, at + 0.1f, Kit.Reveal.Fade, name = "funnel"), pick),
+                    listOfNotNull(layer(ColorAnim.of(h.card), Stroke(h.pal.rim.fill(), 2f * h.u)), h.words(texts[i], fits[i], h.ink, top / 2f, y0 + lh / 2f, h.card, at + 0.1f, Kit.Reveal.Fade,
+                        name = "funnel"), pick),
                     Box(0f, y0, top, y0 + lh), at, "funnel",
                 )
             }

@@ -270,7 +270,8 @@ internal class Rhythm(
         val phrase = phraseAt(stress)
         // A lone word only when it names something (an entity): «کلیپت» alone says nothing.
         val named = u.entities.any { stress in it.at..maxOf(it.at, it.until) }
-        return phrase.takeIf { fresh(it, shown) && (' ' in it || (named && NumberWords.normalize(it).length >= LONE_NOUN)) }?.let { stress to it }
+        val reads = Fragments.fault(phrase) == null || (named && ' ' !in phrase)
+        return phrase.takeIf { reads && fresh(it, shown) && (' ' in it || (named && NumberWords.normalize(it).length >= LONE_NOUN)) }?.let { stress to it }
     }
 
     /** Two or three words around a noun: the noun and the nouns or adjectives after (or before) it, within its line. */
@@ -278,8 +279,9 @@ internal class Rhythm(
         val line = lines.firstOrNull { i in it.range } ?: Lines.Line(i, i)
         var end = i
         // Words join a phrase within a clause: never across a comma or a sentence end.
-        fun joins(a: Int, b: Int) = b in line.range && texts[a].last() !in ".،," && nounish(b)
+        fun joins(a: Int, b: Int) = b in line.range && texts[a].lastOrNull()?.let { it !in ".،," } == true && nounish(b)
         while (end - i < 2 && joins(end, end + 1)) end++
+        if (Fragments.waits(texts[end]) && joins(end, end + 1)) end++
         val start = if (end == i && joins(i - 1, i - 1)) i - 1 else i
         return (start..end).joinToString(" ") { texts[it].trimEnd('.', '،', ',') }
     }
@@ -287,7 +289,8 @@ internal class Rhythm(
     /** A phrase that carries meaning: a noun in it, in the piece's language, not a lone verb or filler. */
     private fun meaningful(parts: List<String>): Boolean {
         val native = !rtl || parts.any { p -> p.any { it in '؀'..'ۿ' } }
-        return native && parts.none { p -> p.any { it.isDigit() } } && parts.any { nounishWord(it) } && !(parts.size == 1 && !nounishWord(parts[0]))
+        return native && parts.none { p -> p.any { it.isDigit() } } && parts.any { nounishWord(it) } && !(parts.size == 1 && !nounishWord(parts[0])) &&
+            Fragments.fault(parts.joinToString(" ")) == null
     }
 
     private val rtl = texts.count { w -> w.any { it in '؀'..'ۿ' } } * 2 > texts.size

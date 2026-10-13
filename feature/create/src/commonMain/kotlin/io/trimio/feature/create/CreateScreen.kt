@@ -487,7 +487,7 @@ private fun BoxScope.ChooseMedia(actions: CreateActions) {
                 actions.onPickMedia(MediaKind.Video)
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(c.lineStrong))
-            EntryTile(tr("فقط صدا", "Audio only"), tr("تصویر از صفر ساخته می‌شود", "Visuals made from scratch"), "B", TrimioIcons.Mic, Modifier.weight(1f).padding(start = 14.dp)) {
+            EntryTile(tr("فقط صدا", "Audio only"), tr("فیلم توضیحی از صفر ساخته می‌شود", "An explainer film made from scratch"), "B", TrimioIcons.Mic, Modifier.weight(1f).padding(start = 14.dp)) {
                 actions.onPickMedia(MediaKind.Audio)
             }
         }

@@ -75,7 +75,7 @@ class Workbench internal constructor(
         val heard = transcript.words.map { it.text }
         val said = heard.map(::core).toSet()
         val warnings = own.flatMap { it.split(' ') }.map(::core).filter { w -> persian(w) && lexicon.count(w) == 0 && w !in said }.distinct()
-        var current = ScreenSpelling(lexicon, heard + own, prompt).check(score) { notes += it }
+        var current = ScreenSpelling(lexicon, heard, prompt, own).check(score) { notes += it }
         var compiled = compiler.compile(input(current, words, edit))
         val output = edit.remap(words).words
         repeat(CRITIC_PASSES) {

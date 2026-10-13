@@ -6,6 +6,7 @@ import io.trimio.engine.autopilot.Judge
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.autopilot.PersianSpelling
 import io.trimio.engine.autopilot.ScreenSpelling
+import io.trimio.engine.autopilot.ScreenWords
 import io.trimio.engine.autopilot.Severity
 import io.trimio.engine.autopilot.Verdict
 import io.trimio.engine.motion.CounterNode
@@ -33,9 +34,11 @@ class SpellingJudge : Judge {
         if (lex == null) {
             f += Bench.finding(0f, Severity.Note, "no lexicon: unknown-word check skipped", "-")
         } else {
-            val logs = mutableListOf<String>()
-            screen(c, lex).check(c.score) { logs += it }
-            f += logs.map { Bench.finding(0f, Severity.Major, it.removePrefix("screen spelling: "), "the spoken spelling, or leave the word out") }.capped(MAX_WORDS)
+            // Every word read on screen — graphics, captions, the cold open's, the end card — is a word, a term or a name.
+            val words = ScreenWords(lex, names(c))
+            val onScreen = shown(c).map { (t, s) -> Triple(t, s, "") } + Bench.captions(c).map { Triple(it.at, it.text, "caption ") }
+            f += onScreen.flatMap { (t, s, where) -> words.unknown(s).map { w -> Bench.finding(t, Severity.Major, "${where}«$w» is no word", "the right spelling, or another phrase") } }
+                .distinctBy { it.what }.capped(MAX_WORDS)
         }
         val graphics = shown(c)
         f += graphics.flatMap { (t, s) -> halfSpaces(s, lex).map { (w, fix) -> Bench.finding(t, Severity.Minor, "«$w» on screen", "write «$fix»") } }.distinctBy { it.what }.capped()
@@ -62,6 +65,13 @@ class SpellingJudge : Judge {
     }
 
     private fun screen(c: Jury.Context, lex: PersianSpelling) = ScreenSpelling(lex, (c.prelude + c.words).map { it.text }, c.prompt)
+
+    /** Names the understanding, the brief and the speech itself give ([ScreenWords.namesIn]). */
+    private fun names(c: Jury.Context): List<String> {
+        val lex = c.lexicon ?: return emptyList()
+        val heard = (c.prelude + c.words).map { it.text }
+        return c.understanding.entities.map { it.name } + c.prompt.split(' ', '\n', '،', ',') + ScreenWords.namesIn(heard) { ScreenWords(lex).shows(it) }
+    }
 
     /** Every text a graphic shows, with when: the compiled text and the score's labels and items. */
     private fun shown(c: Jury.Context): List<Pair<Float, String>> {

@@ -1,0 +1,591 @@
+[
+{
+"id": "primitive:heading",
+"kind": "primitive",
+"title": "Heading",
+"text": "the chapter's name as a big heading at the top; a new subject or section begins",
+"fa": "عنوان بزرگ فصل؛ شروع یک موضوع یا بخش تازه",
+"tags": [
+"title",
+"chapter",
+"topic",
+"section"
+],
+"meta": {
+"primitive": "heading"
+}
+},
+{
+"id": "primitive:kicker",
+"kind": "primitive",
+"title": "Kicker",
+"text": "a small label above a heading that frames what comes next: a question, a category, 'step 2'",
+"fa": "برچسب کوچک بالای عنوان؛ سؤال، دسته یا «مرحلهٔ دوم»",
+"tags": [
+"label",
+"eyebrow",
+"category"
+],
+"meta": {
+"primitive": "kicker"
+}
+},
+{
+"id": "primitive:big-word",
+"kind": "primitive",
+"title": "Big word",
+"text": "one strong word or short phrase filling the stage, for a punchline, a verdict or an emotion",
+"fa": "یک کلمهٔ کوبنده و بزرگ برای نتیجه، حکم یا احساس",
+"tags": [
+"punchline",
+"emphasis",
+"verdict",
+"keyword"
+],
+"meta": {
+"primitive": "big-word"
+}
+},
+{
+"id": "primitive:stat",
+"kind": "primitive",
+"title": "Stat",
+"text": "one big number with its unit counting up: a price, a percentage, a count, a year",
+"fa": "یک عدد بزرگ با واحدش که بالا می‌شمارد؛ قیمت، درصد، تعداد، سال",
+"tags": [
+"number",
+"figure",
+"percentage",
+"price",
+"count"
+],
+"meta": {
+"primitive": "stat"
+}
+},
+{
+"id": "primitive:quote",
+"kind": "primitive",
+"title": "Quote",
+"text": "someone's words in quotation marks with who said it",
+"fa": "نقل‌قول از کسی با نام گوینده",
+"tags": [
+"said",
+"testimonial",
+"citation"
+],
+"meta": {
+"primitive": "quote"
+}
+},
+{
+"id": "primitive:note",
+"kind": "primitive",
+"title": "Note",
+"text": "a short side remark or tip on a small card, a footnote, a caveat",
+"fa": "یادداشت یا نکتهٔ کوتاه روی کارت کوچک؛ هشدار جزئی",
+"tags": [
+"tip",
+"remark",
+"caveat",
+"hint"
+],
+"meta": {
+"primitive": "note"
+}
+},
+{
+"id": "primitive:chips",
+"kind": "primitive",
+"title": "Chips",
+"text": "a row of small labelled pills: tags, options, features, keywords",
+"fa": "ردیفی از برچسب‌های کوچک؛ گزینه‌ها، ویژگی‌ها، کلیدواژه‌ها",
+"tags": [
+"tags",
+"options",
+"features",
+"keywords"
+],
+"meta": {
+"primitive": "chips"
+}
+},
+{
+"id": "primitive:icon-tiles",
+"kind": "primitive",
+"title": "Icon tiles",
+"text": "tiles with an icon and a label building in: categories of everyday tasks, kinds of things, a set of uses",
+"fa": "کاشی‌های آیکون‌دار که یکی‌یکی می‌آیند؛ دسته‌ها و کاربردها",
+"tags": [
+"categories",
+"uses",
+"kinds",
+"everyday tasks"
+],
+"meta": {
+"primitive": "icon-tiles"
+}
+},
+{
+"id": "primitive:task-tiles",
+"kind": "primitive",
+"title": "Task tiles",
+"text": "a row of task tiles ticked one by one: light repetitive work, chores, a to-do list getting done",
+"fa": "کاشی‌های کار که یکی‌یکی تیک می‌خورند؛ کارهای سبک و تکراری",
+"tags": [
+"chores",
+"to-do",
+"repetitive work",
+"done"
+],
+"meta": {
+"primitive": "task-tiles"
+}
+},
+{
+"id": "primitive:checklist",
+"kind": "primitive",
+"title": "Checklist",
+"text": "items ticked off one by one: requirements, what you need, what to check",
+"fa": "فهرستی که یکی‌یکی تیک می‌خورد؛ نیازها و موارد بررسی",
+"tags": [
+"requirements",
+"check",
+"list",
+"ready"
+],
+"meta": {
+"primitive": "checklist"
+}
+},
+{
+"id": "primitive:steps",
+"kind": "primitive",
+"title": "Steps",
+"text": "numbered steps of a process in order: how to, first second third",
+"fa": "مراحل شماره‌دار یک فرایند؛ اول، دوم، سوم",
+"tags": [
+"process",
+"how-to",
+"instructions",
+"order"
+],
+"meta": {
+"primitive": "steps"
+}
+},
+{
+"id": "primitive:timeline",
+"kind": "primitive",
+"title": "Timeline",
+"text": "events along a line in time: history, years, milestones, a roadmap",
+"fa": "رویدادها روی خط زمان؛ تاریخچه، سال‌ها، نقشهٔ راه",
+"tags": [
+"history",
+"years",
+"milestones",
+"roadmap"
+],
+"meta": {
+"primitive": "timeline"
+}
+},
+{
+"id": "primitive:meter",
+"kind": "primitive",
+"title": "Meter",
+"text": "a gauge filling or draining: a usage limit going down 100% to 95%, battery, capacity, progress",
+"fa": "نشانگری که پر یا خالی می‌شود؛ سهمیه، باتری، ظرفیت، پیشرفت",
+"tags": [
+"limit",
+"quota",
+"battery",
+"capacity",
+"progress",
+"drain"
+],
+"meta": {
+"primitive": "meter"
+}
+},
+{
+"id": "primitive:bars",
+"kind": "primitive",
+"title": "Bars",
+"text": "bars of different heights compared, the tallest highlighted: strongest, biggest, ranking by size",
+"fa": "میله‌هایی با ارتفاع‌های مختلف؛ قوی‌ترین و بزرگ‌ترین",
+"tags": [
+"compare",
+"chart",
+"ranking",
+"growth",
+"strongest"
+],
+"meta": {
+"primitive": "bars"
+}
+},
+{
+"id": "primitive:blocks",
+"kind": "primitive",
+"title": "Blocks",
+"text": "a row of blocks where some take one colour and the rest another: a share, a part of the whole, use it only for part",
+"fa": "ردیف بلوک‌ها که بخشی رنگ دیگری می‌گیرد؛ سهم و بخشی از کل",
+"tags": [
+"share",
+"portion",
+"part of whole",
+"split",
+"allocation"
+],
+"meta": {
+"primitive": "blocks"
+}
+},
+{
+"id": "primitive:ring",
+"kind": "primitive",
+"title": "Ring",
+"text": "a donut ring filling to a percentage: share, completion, probability",
+"fa": "حلقه‌ای که تا یک درصد پر می‌شود؛ سهم، تکمیل، احتمال",
+"tags": [
+"percentage",
+"donut",
+"share",
+"completion"
+],
+"meta": {
+"primitive": "ring"
+}
+},
+{
+"id": "primitive:dots",
+"kind": "primitive",
+"title": "Dots",
+"text": "a grid of dots with some coloured: one in ten people, proportions of a population",
+"fa": "شبکهٔ نقطه‌ها که بعضی رنگی‌اند؛ یک نفر از هر ده نفر",
+"tags": [
+"proportion",
+"people",
+"population",
+"one in ten"
+],
+"meta": {
+"primitive": "dots"
+}
+},
+{
+"id": "primitive:versus",
+"kind": "primitive",
+"title": "Versus",
+"text": "two sides side by side with a VS: option A against option B, comparison",
+"fa": "دو طرف کنار هم با «در برابر»؛ مقایسهٔ دو گزینه",
+"tags": [
+"comparison",
+"vs",
+"against",
+"choice"
+],
+"meta": {
+"primitive": "versus"
+}
+},
+{
+"id": "primitive:before-after",
+"kind": "primitive",
+"title": "Before / after",
+"text": "the same thing before and after a change: transformation, improvement, old versus new",
+"fa": "قبل و بعد از یک تغییر؛ تحول و بهبود",
+"tags": [
+"transformation",
+"change",
+"improvement",
+"old new"
+],
+"meta": {
+"primitive": "before-after"
+}
+},
+{
+"id": "primitive:scale",
+"kind": "primitive",
+"title": "Scale",
+"text": "a balance scale tipping: weighing pros and cons, trade-off, which matters more",
+"fa": "ترازویی که کج می‌شود؛ سبک‌سنگین کردن و مصالحه",
+"tags": [
+"balance",
+"weigh",
+"trade-off",
+"pros cons"
+],
+"meta": {
+"primitive": "scale"
+}
+},
+{
+"id": "primitive:ladder",
+"kind": "primitive",
+"title": "Ladder",
+"text": "rungs of a ladder or tiers climbing up: levels, tiers of models, beginner to expert",
+"fa": "پله‌های نردبان یا سطح‌ها؛ از مبتدی تا حرفه‌ای",
+"tags": [
+"levels",
+"tiers",
+"climb",
+"hierarchy",
+"beginner expert"
+],
+"meta": {
+"primitive": "ladder"
+}
+},
+{
+"id": "primitive:funnel",
+"kind": "primitive",
+"title": "Funnel",
+"text": "a funnel narrowing from many to few: sales funnel, filtering, conversion",
+"fa": "قیفی که از زیاد به کم می‌رسد؛ قیف فروش و فیلتر کردن",
+"tags": [
+"filter",
+"conversion",
+"narrow",
+"sales"
+],
+"meta": {
+"primitive": "funnel"
+}
+},
+{
+"id": "primitive:cycle",
+"kind": "primitive",
+"title": "Cycle",
+"text": "arrows going round in a loop: a habit, a feedback loop, repeat",
+"fa": "فلش‌هایی که دور می‌زنند؛ چرخه، عادت، تکرار",
+"tags": [
+"loop",
+"repeat",
+"habit",
+"feedback"
+],
+"meta": {
+"primitive": "cycle"
+}
+},
+{
+"id": "primitive:flow",
+"kind": "primitive",
+"title": "Flow",
+"text": "boxes connected by arrows from input to output: a pipeline, cause and effect, how it works",
+"fa": "جعبه‌هایی که با فلش به هم وصل‌اند؛ روند، علت و معلول",
+"tags": [
+"pipeline",
+"process",
+"cause effect",
+"workflow"
+],
+"meta": {
+"primitive": "flow"
+}
+},
+{
+"id": "primitive:branches",
+"kind": "primitive",
+"title": "Branches",
+"text": "several paths branching and converging on a goal with the best path highlighted: thinking first, finding the best way, options",
+"fa": "مسیرهایی که منشعب می‌شوند و به هدف می‌رسند؛ پیدا کردن بهترین راه",
+"tags": [
+"paths",
+"options",
+"decision",
+"best route",
+"reasoning"
+],
+"meta": {
+"primitive": "branches"
+}
+},
+{
+"id": "primitive:tangle",
+"kind": "primitive",
+"title": "Tangle",
+"text": "a tangled hand-drawn scribble: a deep complex problem, confusion, messy",
+"fa": "خط‌خطی درهم؛ مسئلهٔ پیچیده و سردرگمی",
+"tags": [
+"complex",
+"confusion",
+"messy",
+"problem",
+"chaos"
+],
+"meta": {
+"primitive": "tangle"
+}
+},
+{
+"id": "primitive:profile",
+"kind": "primitive",
+"title": "Profile",
+"text": "a profile card of a person with a tag: who someone is, a role like an intern, an expert, a character",
+"fa": "کارت معرفی یک نفر با برچسب؛ نقش‌هایی مثل کارآموز یا متخصص",
+"tags": [
+"person",
+"role",
+"intern",
+"expert",
+"character"
+],
+"meta": {
+"primitive": "profile"
+}
+},
+{
+"id": "primitive:badge",
+"kind": "primitive",
+"title": "Badge",
+"text": "a badge or medal on something: the best, award, certified, recommended, winner",
+"fa": "نشان یا مدال؛ بهترین، برنده، تأییدشده",
+"tags": [
+"award",
+"best",
+"winner",
+"medal",
+"certified"
+],
+"meta": {
+"primitive": "badge"
+}
+},
+{
+"id": "primitive:clock",
+"kind": "primitive",
+"title": "Clock",
+"text": "a clock whose hands turn: time passing, a deadline, minutes, hours, speed",
+"fa": "ساعتی که عقربه‌هایش می‌چرخد؛ گذر زمان و مهلت",
+"tags": [
+"time",
+"deadline",
+"hours",
+"duration",
+"wait"
+],
+"meta": {
+"primitive": "clock"
+}
+},
+{
+"id": "primitive:thinking",
+"kind": "primitive",
+"title": "Thinking",
+"text": "a thinking bubble with dots or a brain: considering, reasoning, an idea forming",
+"fa": "حباب فکر یا مغز؛ فکر کردن و شکل گرفتن ایده",
+"tags": [
+"think",
+"reason",
+"idea",
+"consider",
+"brain"
+],
+"meta": {
+"primitive": "thinking"
+}
+},
+{
+"id": "primitive:chat",
+"kind": "primitive",
+"title": "Chat",
+"text": "chat bubbles back and forth: a conversation, asking a question and getting an answer, messaging",
+"fa": "حباب‌های گفتگو؛ پرسیدن و جواب گرفتن، پیام دادن",
+"tags": [
+"conversation",
+"message",
+"ask",
+"answer",
+"dialogue"
+],
+"meta": {
+"primitive": "chat"
+}
+},
+{
+"id": "primitive:stack",
+"kind": "primitive",
+"title": "Stack",
+"text": "layers stacked on top of each other: a tech stack, building on a foundation, accumulation",
+"fa": "لایه‌هایی روی هم؛ پایه و ساختن روی آن، انباشت",
+"tags": [
+"layers",
+"foundation",
+"build up",
+"pile"
+],
+"meta": {
+"primitive": "stack"
+}
+},
+{
+"id": "primitive:grid",
+"kind": "primitive",
+"title": "Grid",
+"text": "a grid of many items: a collection, many options, variety, catalogue",
+"fa": "شبکه‌ای از چیزهای زیاد؛ مجموعه و تنوع",
+"tags": [
+"collection",
+"many",
+"variety",
+"options"
+],
+"meta": {
+"primitive": "grid"
+}
+},
+{
+"id": "primitive:map",
+"kind": "primitive",
+"title": "Map",
+"text": "a map with pins: places, countries, where something happens, global reach",
+"fa": "نقشه با نشانگر؛ مکان‌ها و کشورها",
+"tags": [
+"location",
+"country",
+"world",
+"place",
+"global"
+],
+"meta": {
+"primitive": "map"
+}
+},
+{
+"id": "primitive:icon",
+"kind": "primitive",
+"title": "Icon",
+"text": "one picture of the thing itself, large: an object, an animal, a symbol",
+"fa": "یک تصویر بزرگ از خود چیز؛ شیء، نماد",
+"tags": [
+"object",
+"picture",
+"symbol",
+"thing"
+],
+"meta": {
+"primitive": "icon"
+}
+},
+{
+"id": "primitive:mark",
+"kind": "primitive",
+"title": "Mark",
+"text": "a tick or a cross mark stamping a verdict: right or wrong, yes or no, approved",
+"fa": "علامت تیک یا ضربدر؛ درست یا غلط، تأیید",
+"tags": [
+"tick",
+"cross",
+"yes no",
+"right wrong",
+"approved"
+],
+"meta": {
+"primitive": "mark"
+}
+}
+]

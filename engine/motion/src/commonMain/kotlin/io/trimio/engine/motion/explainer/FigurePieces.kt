@@ -102,10 +102,12 @@ internal object FigurePieces {
         Laid(w, ht, listOf(Slot(px - pw / 2f, cy - ph / 2f, pw, ph, ph / 2f, h.card))) { t ->
             val dots = (0 until 3).map { k ->
                 val x = px + (k - 1) * 28f * h.u * h.dir
-                Group(listOf(h.dot(x, cy, 15f * h.u, ColorAnim.of(h.accent))), Transform(anchorX = 0f, anchorY = 0f, y = bounce(t.enter + 0.2f + k * 0.16f, t.leave + 0.6f, 9f * h.u)), name = "thinking-dot")
+                Group(listOf(h.dot(x, cy, 15f * h.u, ColorAnim.of(h.accent))), Transform(anchorX = 0f, anchorY = 0f, y = bounce(t.enter + 0.2f + k * 0.16f, t.leave + 0.6f, 9f * h.u)),
+                    name = "thinking-dot")
             }
             listOfNotNull(h.pop(listOf(h.card(px, cy, pw, ph, ph / 2f)) + dots, Box.around(px, cy, pw, ph), t.enter, "thinking")) +
-                listOfNotNull(lf?.let { h.words(label, it, h.muted, if (h.rtl) w - pw - gap - it.width / 2f else pw + gap + it.width / 2f, cy, h.ground, t.enter + 0.2f, Kit.Reveal.Fade, name = "thinking-label") })
+                listOfNotNull(lf?.let { h.words(label, it, h.muted, if (h.rtl) w - pw - gap - it.width / 2f else pw + gap + it.width / 2f, cy, h.ground, t.enter + 0.2f, Kit.Reveal.Fade,
+                    name = "thinking-label") })
         }
     }
 
@@ -148,7 +150,8 @@ internal object FigurePieces {
         Laid(w, ht, listOf(Slot(0f, 0f, w, ht, h.radius, h.card))) { t ->
             val nodes = ArrayList<Node>()
             nodes += h.card(w / 2f, ht / 2f, w, ht)
-            nodes += h.pop(listOf(h.dot(ax, ht / 2f, av, ColorAnim.of(h.wash)), h.glyph(s.visual.ifEmpty { "user" }, ax, ht / 2f, av * 0.5f, ColorAnim.of(h.readable(h.accent, h.wash)), t.enter + 0.15f)), Box.around(ax, ht / 2f, av, av), t.enter + 0.05f, "avatar")
+            nodes += h.pop(listOf(h.dot(ax, ht / 2f, av, ColorAnim.of(h.wash)), h.glyph(s.visual.ifEmpty { "user" }, ax, ht / 2f, av * 0.5f, ColorAnim.of(h.readable(h.accent, h.wash)),
+                t.enter + 0.15f)), Box.around(ax, ht / 2f, av, av), t.enter + 0.05f, "avatar")
             nodes += h.words(name.ifEmpty { "…" }, nf, h.ink, textStart + h.dir * nf.width / 2f, ny, h.card, t.enter + 0.1f, name = "profile-name")
             var x = textStart
             for ((i, tag) in tags.withIndex()) {
@@ -156,7 +159,8 @@ internal object FigurePieces {
                 val cx = x + h.dir * tw / 2f
                 val at = maxOf(t.revealAt(i), t.enter + 0.35f + i * 0.15f)
                 val fill: Color = h.accentBody
-                nodes += h.pop(listOf(h.rect(cx, ty, tw, tagH, tagH / 2f, fill), h.words(tag, tf[i], h.onAccent, cx, ty, fill, at + 0.05f, Kit.Reveal.None, name = "profile-tag")), Box.around(cx, ty, tw, tagH), at, "tag")
+                nodes += h.pop(listOf(h.rect(cx, ty, tw, tagH, tagH / 2f, fill), h.words(tag, tf[i], h.onAccent, cx, ty, fill, at + 0.05f, Kit.Reveal.None, name = "profile-tag")), Box.around(cx,
+                    ty, tw, tagH), at, "tag")
                 x += h.dir * (tw + 10f * h.u)
             }
             h.toggled(listOf(h.rect(w / 2f, ht / 2f, w, ht, h.radius, null, stroke = Stroke(h.accent.fill(), 3.5f * h.u))), t.pickSteps(0), "profile-pick")?.let { nodes += it }

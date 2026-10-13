@@ -83,7 +83,8 @@ internal object ListPieces {
                 val plain = body(ColorAnim.of(h.card), ColorAnim.of(h.pal.rim), ColorAnim.of(h.ink), h.card, ColorAnim.of(h.accentOnCard))
                 val picked = h.toggled(body(ColorAnim.of(h.wash), ColorAnim.of(h.accent), ColorAnim.of(h.ink), h.wash, ColorAnim.of(h.readable(h.accent, h.wash))), t.pickSteps(i), "chip-pick")
                 val checked = t.checkedAt(i)?.let { c -> h.layer(body(ColorAnim.of(h.accentBody), null, ColorAnim.of(h.onAccent), h.accentBody, ColorAnim.of(h.onAccent)), c, "chip-on") }
-                h.pop(listOfNotNull(h.rect(b.centerX, b.centerY + 3f * h.u, b.width, b.height, ph / 2f, ColorAnim.of(h.pal.rim.copy(alpha = 0.05f)))) + plain + listOfNotNull(picked, checked), b, at, "chip")
+                h.pop(listOfNotNull(h.rect(b.centerX, b.centerY + 3f * h.u, b.width, b.height, ph / 2f, ColorAnim.of(h.pal.rim.copy(alpha = 0.05f)))) + plain + listOfNotNull(picked, checked), b,
+                    at, "chip")
             }
         }
     }
@@ -107,7 +108,8 @@ internal object ListPieces {
                 val square = h.rect(cx, iy, sq, sq, 18f * h.u, h.wash)
                 val glyph = h.glyph(q, cx, iy, sq * 0.52f, ColorAnim.of(h.readable(h.accent, h.wash)), at + 0.12f)
                 val picked = h.toggled(
-                    listOf(h.rect(cx, cy, tw, th, 26f * h.u, null, stroke = Stroke(h.accent.fill(), 3f * h.u)), h.rect(cx, iy, sq, sq, 18f * h.u, h.accentBody), h.glyph(q, cx, iy, sq * 0.52f, ColorAnim.of(h.onAccent), 0f)),
+                    listOf(h.rect(cx, cy, tw, th, 26f * h.u, null, stroke = Stroke(h.accent.fill(), 3f * h.u)), h.rect(cx, iy, sq, sq, 18f * h.u, h.accentBody), h.glyph(q, cx, iy, sq * 0.52f,
+                        ColorAnim.of(h.onAccent), 0f)),
                     t.pickSteps(i), "tile-pick",
                 )
                 val tick = t.checkedAt(i)?.let { h.tick(cx + h.dir * (tw / 2f - 8f * h.u), cy + th / 2f - 8f * h.u, 40f * h.u, it) }
@@ -142,7 +144,8 @@ internal object ListPieces {
                     h.rect(cx - h.dir * (tw * (0.72f - f) / 2f), y, tw * f, 9f * h.u, 4.5f * h.u, c)
                 }
                 val tick = done?.let { h.tick(cx + h.dir * (tw / 2f - 6f * h.u), cy + th / 2f - 6f * h.u, 38f * h.u, it) }
-                val label = fits.getOrNull(i)?.takeIf { texts[i].isNotEmpty() }?.let { h.words(texts[i], it, h.muted, cx, cy + th / 2f + 16f * h.u + it.height / 2f, h.ground, at + 0.1f, Kit.Reveal.Fade, name = "task") }
+                val label = fits.getOrNull(i)?.takeIf { texts[i].isNotEmpty() }?.let { h.words(texts[i], it, h.muted, cx, cy + th / 2f + 16f * h.u + it.height / 2f, h.ground, at + 0.1f,
+                    Kit.Reveal.Fade, name = "task") }
                 val picked = h.toggled(listOf(h.rect(cx, cy, tw, th, 16f * h.u, null, stroke = Stroke(h.accent.fill(), 3f * h.u))), t.pickSteps(i), "task-pick")
                 h.pop(listOfNotNull(h.card(cx, cy, tw, th, 16f * h.u)) + lines + listOfNotNull(picked, tick, label), Box.around(cx, cy, tw, th), at, "task")
             }
@@ -178,7 +181,8 @@ internal object ListPieces {
                         d, "box-on",
                     )
                 }
-                h.rise(listOfNotNull(wash, empty, filled, h.words(texts[i], fits[i], h.ink, tx, cy, if (wash != null) h.wash else h.card, at + 0.05f, Kit.Reveal.Fade, name = "row")), Box(0f, cy - rowH / 2f, w, cy + rowH / 2f), at, "row")
+                h.rise(listOfNotNull(wash, empty, filled, h.words(texts[i], fits[i], h.ink, tx, cy, if (wash != null) h.wash else h.card, at + 0.05f, Kit.Reveal.Fade, name = "row")), Box(0f,
+                    cy - rowH / 2f, w, cy + rowH / 2f), at, "row")
             }
         }
     }

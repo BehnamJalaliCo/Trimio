@@ -52,10 +52,16 @@ class TypographyJudge(
         f += layers.filter { Bench.persian(it.node.text) && !it.node.rtl }.map { l ->
             Bench.finding(l.t, Severity.Major, "«${l.node.text.take(TRIM)}» is Persian but set left-to-right", "set it right-to-left")
         }.capped()
+        f += fragments(c).map { (g, why) -> Bench.finding(g.at, Severity.Major, "${g.recipe} «${g.text}» is a fragment: $why", "a phrase that reads on its own, or none") }.capped(MAX_FRAGMENTS)
         f += contrast(c, layers)
         f += c.looks.filter { !it.readable }.map { Bench.finding(it.beat.at, Severity.Major, "the eyes could not read ${it.beat.recipe} «${it.beat.text}»", "a full-frame stage for it") }
         return Verdict.of(this, f)
     }
+
+    /** Titles that do not read on its own ([io.trimio.engine.autopilot.Fragments]), with why. */
+    private fun fragments(c: Jury.Context): List<Pair<io.trimio.engine.motion.score.Compiler.Placed, String>> =
+        Bench.graphics(c).filter { it.recipe in io.trimio.engine.autopilot.Fragments.TITLES }
+            .mapNotNull { g -> io.trimio.engine.autopilot.Fragments.fault(g.text)?.let { g to it } }
 
     private fun small(layers: List<Layer>, width: Float) = layers.mapNotNull { l ->
         val min = when (l.kind) {
@@ -136,6 +142,13 @@ class TypographyJudge(
         // Never the opening scene (the speaker introduces the piece) nor the ask's (it is the last screen).
         val staged = scenes.filter { k -> k > 0 && score.scenes.getOrNull(k)?.let { s -> s.bg == null && s.beats.none { it.recipe == Bench.COMMENT } } == true }
         score = score.copy(scenes = score.scenes.mapIndexed { i, s -> if (i in staged) s.copy(bg = "grid", transition = s.transition ?: "zoom") else s })
+        // A fragment says its line's key phrase instead, when the line has one that reads on its own; else it goes.
+        for ((g, _) in fragments(c)) {
+            val at = Bench.locate(score, c.words, g) ?: continue
+            val line = c.lines.firstOrNull { l -> Bench.start(c.words, l.first) <= g.at + LAND_AFTER && Bench.start(c.words, l.last) >= g.at - LAND_AFTER }
+            val title = line?.let { io.trimio.engine.autopilot.Phrases.title(c.words, it) }?.takeIf { it.isNotBlank() && it != g.text }
+            score = Bench.mapBeat(score, at) { b -> title?.let { b.copy(text = it, emphasis = emptyList()) } }
+        }
         if (layers.any { it.kind == CAPTION && tooManyLines(c, it) } && score.captions.maxWords > 2) {
             score = score.copy(captions = score.captions.copy(maxWords = score.captions.maxWords - 1))
         }
@@ -147,6 +160,7 @@ class TypographyJudge(
         const val HEADLINE = "headline"
         const val LABEL = "label"
         const val TRIM = 24
+        const val MAX_FRAGMENTS = 4
         const val LAND = 1.2f
         const val LAND_AFTER = 0.7f
         const val VISIBLE = 0.9f

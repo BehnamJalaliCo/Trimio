@@ -47,6 +47,20 @@ object ExplainerLab {
         file.writeBytes(surface.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes)
     }
 
+    /** One frame from each composition (at its time), tiled [columns] wide at [scale]. */
+    fun tiles(frames: List<Pair<Composition, Float>>, file: File, columns: Int, scale: Float) {
+        val imgs = frames.map { (c, t) -> frames(c, scale).use { f -> f.draw(t).let { img -> Image.makeFromBitmap(org.jetbrains.skia.Bitmap.makeFromImage(img)) } } }
+        val w = imgs.first().width
+        val h = imgs.first().height
+        val gap = 6
+        val rows = (imgs.size + columns - 1) / columns
+        val surface = Surface.makeRasterN32Premul(columns * (w + gap) - gap, rows * (h + gap) - gap)
+        surface.canvas.clear(0xFF202020.toInt())
+        for ((i, img) in imgs.withIndex()) surface.canvas.drawImage(img, ((i % columns) * (w + gap)).toFloat(), ((i / columns) * (h + gap)).toFloat())
+        file.parentFile.mkdirs()
+        file.writeBytes(surface.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+    }
+
     /** Moments worth seeing: each beat once it has settled. */
     fun settled(film: ExplainerFilm): List<Float> = film.chapters.flatMap { ch -> ch.beats.map { (minOf(it.until, it.at + 1.1)).toFloat() } }.distinct().sorted()
 }

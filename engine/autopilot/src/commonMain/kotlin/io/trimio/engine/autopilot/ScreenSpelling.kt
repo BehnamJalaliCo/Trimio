@@ -4,14 +4,18 @@ import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Score
 
 /**
- * The last gate before anything is drawn: every Persian word on screen must be a word the viewer
- * heard (as spelled), a word of the brief, or a word the lexicon knows. A model's misspelling
- * («وچر» for «ووچر») is put back to the spoken word it sounds like, or left out; a title with
- * nothing left is dropped. Latin names and numbers pass untouched.
+ * The last gate before anything is drawn: every Persian word on screen must be a word
+ * ([ScreenWords]: the lexicon knows it, it is a protected term, a name the speech or the brief
+ * gives, or one of the creator's [own] words) — having been heard is not enough, the recogniser
+ * mishears. A misspelling («وچر» for «ووچر», «کاراموز») is put right when the word list or a heard
+ * word that is a word says how, or left out; a title with nothing left, or left a fragment that does
+ * not read on its own ([Fragments]), is dropped. Latin names and numbers pass untouched.
  */
-class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>, prompt: String) {
-    private val heard: Map<String, String> = spoken.map(::core).filter { it.isNotEmpty() }.associateBy(::plain)
+class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>, prompt: String, own: Collection<String> = emptyList()) {
     private val brief: Set<String> = prompt.split(SEPARATORS).map(::core).filter { it.isNotEmpty() }.map(::plain).toSet()
+    private val mine: Set<String> = own.flatMap { it.split(' ') }.map(::core).filter { it.isNotEmpty() }.map(::plain).toSet()
+    private val words = ScreenWords(lexicon, ScreenWords.namesIn(spoken) { w -> ScreenWords(lexicon).shows(w) })
+    private val heard: Map<String, String> = spoken.map(::core).filter { it.isNotEmpty() && words.shows(it) }.associateBy(::plain)
     private val bySound: Map<String, String> = heard.values.associateBy { Proofreader.key(it) }
 
     /** The score with every on-screen Persian word checked; [log] hears each change. */
@@ -19,11 +23,20 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
         scenes = score.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> beat(b, log) }) },
     )
 
+    /** [s] with every Persian word checked the same way (an explainer film's labels); "" when nothing is left. */
+    fun text(s: String, log: (String) -> Unit): String = phrase(s, log).trim()
+
     private fun beat(b: BeatScore, log: (String) -> Unit): BeatScore? {
         val text = b.text?.let { phrase(it, log) }
         // A title that lost every word has nothing left to say.
         if (!b.text.isNullOrBlank() && text.isNullOrBlank()) {
             log("screen spelling: dropped ${b.recipe} «${b.text}»")
+            return null
+        }
+        // A title is a phrase that reads on its own (a quote is a sentence; an ask's words are an imperative).
+        val fault = text?.takeIf { b.recipe in Fragments.TITLES }?.let(Fragments::fault)
+        if (fault != null) {
+            log("screen spelling: dropped ${b.recipe} «$text»: $fault")
             return null
         }
         return b.copy(
@@ -38,7 +51,7 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
         val c = core(token)
         when {
             c.isEmpty() || !persian(c) || known(c) -> token
-            else -> soundsLike(c)?.let { fix -> token.replace(c, fix) }
+            else -> (words.respelled(token) ?: soundsLike(c)?.let { fix -> token.replace(c, fix) })
                 .also { log("screen spelling: «$c» → ${it?.let { f -> "«${core(f)}»" } ?: "left out"}") }
         }
     }.joinToString(" ")
@@ -50,7 +63,7 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
         return bySound.filterKeys { k.length >= MIN_SLIP && distance(it, k) == 1 }.values.singleOrNull()
     }
 
-    private fun known(c: String) = plain(c) in heard || plain(c) in brief || lexicon.count(c) > 0
+    private fun known(c: String) = plain(c) in brief || plain(c) in mine || words.shows(c)
 
     private companion object {
         val SEPARATORS = Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+")

@@ -40,7 +40,8 @@ internal object Glyphs {
         "doc" to "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5",
         "bulb" to "M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z",
         "sparkles" to "M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8zM18 14l.8 2.2 2.2.8-2.2.8L18 20l-.8-2.2-2.2-.8 2.2-.8z",
-        "nodes" to "M12 3a2.2 2.2 0 1 1 0 4.4A2.2 2.2 0 0 1 12 3zM5 16.6A2.2 2.2 0 1 1 5 21a2.2 2.2 0 0 1 0-4.4zM19 16.6a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM11 7.3l-5 9.4M13 7.3l5 9.4M7.2 18.8h9.6",
+        "nodes" to "M12 3a2.2 2.2 0 1 1 0 4.4A2.2 2.2 0 0 1 12 3zM5 16.6A2.2 2.2 0 1 1 5 21a2.2 2.2 0 0 1 0-4.4z" +
+            "M19 16.6a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM11 7.3l-5 9.4M13 7.3l5 9.4M7.2 18.8h9.6",
         "bars" to "M5 20v-7M10 20V6M15 20v-9M20 20V9M3 20h18",
         "book" to "M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zM5 20V5M9 7h6",
         "layers" to "M12 4l8 4.5-8 4.5-8-4.5zM4 12.5l8 4.5 8-4.5M4 16.5l8 4.5 8-4.5",
@@ -170,6 +171,7 @@ internal object Scribbles {
 
     /** A loop around a [w] × [h] box, a little more than one turn, wobbling like a pen. */
     fun loop(seed: Long, w: Float, h: Float): List<Pair<Float, Float>> {
+        // (Points may run a little past the box: the caller sizes the box around what it circles.)
         val r = Rng(seed)
         val pts = ArrayList<Pair<Float, Float>>()
         val n = 72
@@ -178,9 +180,9 @@ internal object Scribbles {
             val f = i / n.toFloat()
             val a = start + f * 1.14f * 2f * PI.toFloat()
             val wob = 1f + 0.04f * sin(a * 3.1f + r.range(0f, 0.3f)) + 0.03f * f
-            pts += (w / 2f + cos(a) * w * 0.47f * wob) to (h / 2f + sin(a) * h * 0.46f * wob)
+            pts += (w / 2f + cos(a) * w * 0.5f * wob) to (h / 2f + sin(a) * h * 0.5f * wob)
         }
-        return clamp(pts, w, h)
+        return pts
     }
 
     private fun clamp(pts: List<Pair<Float, Float>>, w: Float, h: Float) = pts.map { (x, y) -> x.coerceIn(0.5f, w - 0.5f) to y.coerceIn(0.5f, h - 0.5f) }

@@ -61,4 +61,44 @@ class BenchProbeTest {
         }
         File(out.parentFile, "probe-cuts.txt").writeText(log.toString())
     }
+
+    /** The old outputs (scratchpad/jurybug/out) counted with the new yardsticks: the "before" column. */
+    @Test
+    fun before() {
+        if (System.getProperty("auto.mode") != "probe") return
+        val out = File(System.getProperty("auto.out"))
+        val lexicon = kotlinx.coroutines.runBlocking { io.trimio.engine.autopilot.PersianSpelling.load() }
+        val saved = Json.decodeFromString(ListSerializer(W.serializer()), File(out, "transcript.json").readText())
+        val log = StringBuilder()
+        for (seed in 1..6) {
+            val report = File(out, "seed-$seed-report.txt").takeIf { it.isFile }?.readLines() ?: continue
+            // The old captions: the heard words with the old lexicon fixes, in order.
+            val fixes = report.filter { it.startsWith("spelling (") }.map { it.substringAfter("): ").split(" → ") }.toMutableList()
+            val words = mutableListOf<String>()
+            for (w in saved.map { it.w }) {
+                val f = fixes.firstOrNull()
+                if (f != null && f[0] == w) {
+                    fixes.removeAt(0)
+                    if (f[1] != "(joined)") words += f[1].split(' ')
+                } else words += w
+            }
+            val u = Json { ignoreUnknownKeys = true }.decodeFromString(io.trimio.engine.autopilot.Understanding.serializer(), File(out, "seed-$seed-understanding.json").readText())
+            val names = u.entities.map { it.name } + io.trimio.engine.autopilot.ScreenWords.namesIn(words) { io.trimio.engine.autopilot.ScreenWords(lexicon).shows(it) }
+            val screen = io.trimio.engine.autopilot.ScreenWords(lexicon, names)
+            val listing = report.dropWhile { !it.startsWith("jury: the first cut") && !it.startsWith("jury: variation") }.drop(1).takeWhile { it.startsWith("  ") && !it.startsWith("  rhythm") }
+            val graphics = listing.map { l -> l.trim().split(Regex("\\s+"), limit = 4).let { p -> p[0] to (p.getOrNull(3) ?: "") } }
+            val score = io.trimio.engine.motion.score.Score.parse(File(out, "seed-$seed-score.json").readText())
+            val labels = score.scenes.flatMap { sc -> sc.beats.flatMap { listOfNotNull(it.label) + it.items } }
+            val unknownGraphics = (graphics.map { it.second } + labels).flatMap { screen.unknown(it) }
+            val unknownCaptions = words.flatMap { screen.unknown(it) }
+            val fragments = graphics.filter { it.first in io.trimio.engine.autopilot.Fragments.TITLES }.mapNotNull { (r, t) -> io.trimio.engine.autopilot.Fragments.fault(t)?.let { "$r «$t» ($it)" } }
+            val jury = report.firstOrNull { it.startsWith("jury: not unanimous") || it.startsWith("jury: every judge") }.orEmpty()
+            log.appendLine("seed $seed: $jury")
+            log.appendLine("  unknown graphics ${unknownGraphics.size}: ${unknownGraphics.joinToString(" ")}")
+            log.appendLine("  unknown captions ${unknownCaptions.size}: ${unknownCaptions.joinToString(" ")}")
+            log.appendLine("  fragments ${fragments.size}: ${fragments.joinToString(" | ")}")
+            log.appendLine("  graphics: ${graphics.joinToString(" | ") { "${it.first}: ${it.second}" }}")
+        }
+        File(out.parentFile, "probe-before.txt").writeText(log.toString())
+    }
 }

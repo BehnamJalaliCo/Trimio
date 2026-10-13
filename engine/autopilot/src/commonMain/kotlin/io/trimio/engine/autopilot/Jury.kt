@@ -273,9 +273,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
                     best = current
                     bestPanel = panel
                 }
-                if (panel.unanimous) break
             }
-            if (variation >= budget.variations) break
+            if (polished?.second?.unanimous == true || variation >= budget.variations) break
             variation++
             candidate = runCatching { vary(variation) }.onFailure { log("jury variation $variation: not made (${it.message ?: it::class.simpleName})") }.getOrNull()
         }
@@ -349,8 +348,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var same: Step<T>? = null
         for ((what, fix) in options) {
             // A revision that cannot be made or judged (it threw) is not a step: the next one is tried.
-            val next = runCatching { revise(current, fix) }.getOrElse { continue }
-            val nextCtx = runCatching { context(next) }.getOrElse { continue }
+            val made = runCatching { revise(current, fix).let { it to context(it) } }.getOrNull() ?: continue
+            val (next, nextCtx) = made
             val nextPanel = deliberate(nextCtx)
             log(what, nextPanel)
             if (nextPanel.betterThan(panel)) return Step(next, nextCtx, nextPanel, better = true)

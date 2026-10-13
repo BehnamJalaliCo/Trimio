@@ -25,7 +25,7 @@ internal object SequencePieces {
         val maxW = minOf(h.maxW, 960f * h.u)
         val d = if (numbered) 76f * h.u else 28f * h.u
         val across = n * 170f * h.u <= maxW
-        return if (across) across(s, h, texts, d, numbered, maxW) else down(s, h, texts, d, numbered)
+        return if (across) across(s, h, texts, d, numbered, maxW) else down(h, texts, d, numbered)
     }
 
     private fun across(s: Spec, h: Hand, texts: List<String>, d: Float, numbered: Boolean, maxW: Float): Laid {
@@ -50,7 +50,8 @@ internal object SequencePieces {
                 val a = xs[i - 1]
                 val b = xs[i]
                 val len = kotlin.math.abs(b - a)
-                nodes += h.rect(a, lineY, len, 5f * h.u, 2.5f * h.u, ColorAnim.of(h.accent), width = Anim.tween(0f, len, done - 0.3f, done, io.trimio.engine.motion.Easing.ExpoOut), anchorX = if (h.rtl) 1f else 0f)
+                nodes += h.rect(a, lineY, len, 5f * h.u, 2.5f * h.u, ColorAnim.of(h.accent), width = Anim.tween(0f, len, done - 0.3f, done, io.trimio.engine.motion.Easing.ExpoOut),
+                    anchorX = if (h.rtl) 1f else 0f)
             }
             for (i in 0 until n) {
                 val at = t.revealAt(i)
@@ -66,7 +67,7 @@ internal object SequencePieces {
         }
     }
 
-    private fun down(s: Spec, h: Hand, texts: List<String>, d: Float, numbered: Boolean): Laid {
+    private fun down(h: Hand, texts: List<String>, d: Float, numbered: Boolean): Laid {
         val n = texts.size
         val tw = minOf(h.maxW, 760f * h.u) - d - 40f * h.u
         val fits = h.fitAll(texts, Voices.body, 32f * h.u, tw, 2)
@@ -104,7 +105,8 @@ internal object SequencePieces {
             val str = h.say("${i + 1}")
             parts += h.words(str, h.fit(str, Voices.number, d * 0.42f, d, 1), h.ink, x, y, h.card, t.revealAt(i) + 0.1f, Kit.Reveal.Fade, name = "step-number")
         }
-        h.toggled(listOf(h.dot(x, y, d + 14f * h.u, ColorAnim.of(h.wash)), h.dot(x, y, d, ColorAnim.of(h.card), stroke = Stroke(h.accent.fill(), 4f * h.u))), t.pickSteps(i), "station-pick")?.let { parts += it }
+        h.toggled(listOf(h.dot(x, y, d + 14f * h.u, ColorAnim.of(h.wash)), h.dot(x, y, d, ColorAnim.of(h.card), stroke = Stroke(h.accent.fill(), 4f * h.u))), t.pickSteps(i),
+            "station-pick")?.let { parts += it }
         t.doneAt(i, n)?.let { at ->
             parts += h.layer(listOfNotNull(h.dot(x, y, d, ColorAnim.of(h.accentBody)), if (numbered) h.check(x, y, d * 0.5f, at + 0.05f) else null), at, "station-done")
         }
@@ -150,7 +152,8 @@ internal object SequencePieces {
                 val glyph = visuals.getOrNull(i)?.takeIf { it.isNotEmpty() }?.let { h.glyph(it, cx, cy - th / 2f + 52f * h.u, 50f * h.u, ColorAnim.of(h.accentOnCard), at + 0.1f) }
                 val pick = h.toggled(listOf(h.rect(cx, cy, tw, th, 20f * h.u, null, stroke = Stroke(h.accent.fill(), 3.5f * h.u))), t.pickSteps(i), "grid-pick")
                 val tick = t.checkedAt(i)?.let { h.tick(cx + h.dir * (tw / 2f - 10f * h.u), cy - th / 2f + 10f * h.u, 38f * h.u, it) }
-                h.pop(listOfNotNull(h.card(cx, cy, tw, th, 20f * h.u), glyph, h.words(texts[i], fits[i], h.ink, cx, ly, h.card, at + 0.1f, Kit.Reveal.Fade, name = "grid"), pick, tick), Box.around(cx, cy, tw, th), at, "grid")
+                h.pop(listOfNotNull(h.card(cx, cy, tw, th, 20f * h.u), glyph, h.words(texts[i], fits[i], h.ink, cx, ly, h.card, at + 0.1f, Kit.Reveal.Fade, name = "grid"), pick, tick),
+                    Box.around(cx, cy, tw, th), at, "grid")
             }
         }
     }
@@ -209,7 +212,8 @@ internal object SequencePieces {
                 val mine = i % 2 == 1
                 val fill = if (mine) h.accentBody else h.card
                 val ink = if (mine) h.onAccent else h.ink
-                val pick = h.toggled(listOf(h.rect(b.centerX, b.centerY, b.width + 10f * h.u, b.height + 10f * h.u, 30f * h.u, null, stroke = Stroke(h.accent.fill(), 3f * h.u))), t.pickSteps(i), "bubble-pick")
+                val pick = h.toggled(listOf(h.rect(b.centerX, b.centerY, b.width + 10f * h.u, b.height + 10f * h.u, 30f * h.u, null, stroke = Stroke(h.accent.fill(), 3f * h.u))), t.pickSteps(i),
+                    "bubble-pick")
                 val tick = t.checkedAt(i)?.let { h.tick(if (b.left < w / 2f) b.right - 8f * h.u else b.left + 8f * h.u, b.bottom - 8f * h.u, 34f * h.u, it) }
                 h.pop(
                     listOfNotNull(

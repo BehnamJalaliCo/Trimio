@@ -1,0 +1,257 @@
+[
+{
+"id": "music:uplifting",
+"kind": "music",
+"title": "Uplifting music",
+"text": "bright, hopeful, positive groove, major key, 118 bpm: success stories, launches, tips, good news",
+"fa": "موسیقی امیدبخش و روشن؛ موفقیت، معرفی محصول، خبر خوب",
+"tags": [
+"hopeful",
+"positive",
+"bright",
+"success"
+],
+"meta": {
+"music": "uplifting"
+}
+},
+{
+"id": "music:energetic",
+"kind": "music",
+"title": "Energetic music",
+"text": "driving, punchy, fast 126 bpm, minor key: hype, sales, sports, urgency, countdowns",
+"fa": "موسیقی پرانرژی و کوبنده؛ هیجان، فروش، ورزش، فوریت",
+"tags": [
+"hype",
+"fast",
+"urgent",
+"sport",
+"sale"
+],
+"meta": {
+"music": "energetic"
+}
+},
+{
+"id": "music:chill",
+"kind": "music",
+"title": "Chill music",
+"text": "calm, warm, laid-back 84 bpm, soft chords: cooking, lifestyle, travel, explanations, relaxing",
+"fa": "موسیقی آرام و گرم؛ آشپزی، سبک زندگی، سفر، توضیح آرام",
+"tags": [
+"calm",
+"relaxed",
+"soft",
+"lifestyle"
+],
+"meta": {
+"music": "chill"
+}
+},
+{
+"id": "music:cinematic",
+"kind": "music",
+"title": "Cinematic music",
+"text": "epic, emotional, slow build 92 bpm, minor key: stories, inspiration, luxury, big reveals",
+"fa": "موسیقی سینمایی و حماسی؛ داستان، الهام، لوکس، افشاگری بزرگ",
+"tags": [
+"epic",
+"emotional",
+"story",
+"luxury",
+"inspiring"
+],
+"meta": {
+"music": "cinematic"
+}
+},
+{
+"id": "music:corporate",
+"kind": "music",
+"title": "Corporate music",
+"text": "clean, confident, professional 108 bpm: business, finance, education, product explainers, news",
+"fa": "موسیقی رسمی و مطمئن؛ کسب‌وکار، مالی، آموزش، خبر",
+"tags": [
+"business",
+"professional",
+"finance",
+"education",
+"news"
+],
+"meta": {
+"music": "corporate"
+}
+},
+{
+"id": "music:tense",
+"kind": "music",
+"title": "Tense music",
+"text": "dark, suspenseful, low pulse 100 bpm: risks, warnings, scams, market crashes, mysteries",
+"fa": "موسیقی پرتنش و تاریک؛ ریسک، هشدار، کلاهبرداری، سقوط بازار",
+"tags": [
+"suspense",
+"danger",
+"warning",
+"risk",
+"crash"
+],
+"meta": {
+"music": "tense"
+}
+},
+{
+"id": "sfx:whoosh",
+"kind": "sfx",
+"title": "Whoosh",
+"text": "air rushing past: a fast transition, something flying in, a scene change",
+"fa": "صدای عبور سریع هوا؛ انتقال سریع، ورود چیزی",
+"tags": [
+"transition",
+"fast",
+"fly in"
+],
+"meta": {
+"sfx": "whoosh"
+}
+},
+{
+"id": "sfx:hit",
+"kind": "sfx",
+"title": "Hit",
+"text": "a punchy impact: a number lands, a verdict, emphasis on a key word",
+"fa": "ضربهٔ کوبنده؛ فرود عدد یا تأکید",
+"tags": [
+"impact",
+"punch",
+"emphasis"
+],
+"meta": {
+"sfx": "hit"
+}
+},
+{
+"id": "sfx:pop",
+"kind": "sfx",
+"title": "Pop",
+"text": "a light bubbly pop: an item or icon appears, a sticker, something cute",
+"fa": "صدای پاپ سبک؛ ظاهر شدن آیکون یا استیکر",
+"tags": [
+"appear",
+"bubble",
+"light"
+],
+"meta": {
+"sfx": "pop"
+}
+},
+{
+"id": "sfx:click",
+"kind": "sfx",
+"title": "Click",
+"text": "a UI click or tap: pressing a button, typing, an app, a selection",
+"fa": "صدای کلیک؛ زدن دکمه، تایپ، انتخاب",
+"tags": [
+"tap",
+"button",
+"ui",
+"select"
+],
+"meta": {
+"sfx": "click"
+}
+},
+{
+"id": "sfx:riser",
+"kind": "sfx",
+"title": "Riser",
+"text": "a rising sweep building tension before a reveal or a drop",
+"fa": "صدای بالارونده پیش از افشا یا اوج",
+"tags": [
+"build-up",
+"tension",
+"reveal"
+],
+"meta": {
+"sfx": "riser"
+}
+},
+{
+"id": "sfx:swish",
+"kind": "sfx",
+"title": "Swish",
+"text": "a soft swipe: text sliding, a card turning, a gentle move",
+"fa": "صدای ملایم کشیدن؛ لغزیدن متن یا ورق خوردن",
+"tags": [
+"swipe",
+"slide",
+"gentle"
+],
+"meta": {
+"sfx": "swish"
+}
+},
+{
+"id": "sfx:tick",
+"kind": "sfx",
+"title": "Tick",
+"text": "a clock tick or a checkbox tick: time passing, a deadline, items done",
+"fa": "تیک ساعت یا تیک فهرست؛ گذر زمان، کار انجام‌شده",
+"tags": [
+"clock",
+"checkmark",
+"deadline",
+"done"
+],
+"meta": {
+"sfx": "tick"
+}
+},
+{
+"id": "sfx:shimmer",
+"kind": "sfx",
+"title": "Shimmer",
+"text": "a sparkling shimmer: magic, premium, a reward, something shiny or new",
+"fa": "درخشش؛ جادو، لوکس، جایزه",
+"tags": [
+"sparkle",
+"magic",
+"premium",
+"reward"
+],
+"meta": {
+"sfx": "shimmer"
+}
+},
+{
+"id": "sfx:boom",
+"kind": "sfx",
+"title": "Boom",
+"text": "a deep cinematic boom: a big reveal, shock, a dramatic number",
+"fa": "صدای بم و سینمایی؛ افشای بزرگ، شوک",
+"tags": [
+"drama",
+"reveal",
+"shock",
+"bass"
+],
+"meta": {
+"sfx": "boom"
+}
+},
+{
+"id": "sfx:rewind",
+"kind": "sfx",
+"title": "Rewind",
+"text": "a tape rewind: going back in time, a flashback, undo",
+"fa": "صدای عقب زدن نوار؛ بازگشت به گذشته",
+"tags": [
+"flashback",
+"back",
+"undo",
+"past"
+],
+"meta": {
+"sfx": "rewind"
+}
+}
+]

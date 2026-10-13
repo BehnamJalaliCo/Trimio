@@ -47,7 +47,9 @@ class SoundJudge(
         val tp = truePeakDb(sound.audio.samples)
         if (tp > ceilingDbtp) f += Bench.finding(0f, Severity.Major, "true peak ${r1(tp)} dBTP", "limit to $ceilingDbtp dBTP")
         val words = c.prelude + c.words
-        gapLevel(sound.audio.samples, sound.audio.sampleRate, words, c.duration)?.let { (speech, gap) ->
+        // Speech the recogniser left without words (a stretch it heard as one word) is still the voice, not a pause.
+        val dry = c.edit?.let { e -> c.voice?.takeIf { it.sampleRate == sound.audio.sampleRate }?.let { Soundtrack(it.sampleRate).splice(it, e, sound.audio.samples.size) } }
+        gapLevel(sound.audio.samples, sound.audio.sampleRate, words, c.duration, dry)?.let { (speech, gap) ->
             if (gap > speech - gapBelowDb) f += Bench.finding(0f, Severity.Minor, "the bed swells to ${r1(gap - speech)} dB of the voice in pauses", "keep the bed under the voice")
         }
         f += clicks(c, sound)
@@ -95,13 +97,14 @@ class SoundJudge(
     }
 
     /** RMS of the mix while words are said and in pauses of [MIN_GAP_S] or more, in dB; null when there are no pauses. */
-    private fun gapLevel(x: FloatArray, rate: Int, words: List<Word>, duration: Float): Pair<Double, Double>? {
+    private fun gapLevel(x: FloatArray, rate: Int, words: List<Word>, duration: Float, dry: FloatArray? = null): Pair<Double, Double>? {
         val speech = BooleanArray(x.size)
         for (w in words) {
             val a = ((w.range.startMs / 1000f - PAD) * rate).toInt().coerceAtLeast(0)
             val b = ((w.range.endMs / 1000f + PAD) * rate).toInt().coerceAtMost(x.size)
             for (i in a until b) speech[i] = true
         }
+        dry?.let { voiced(it, rate, speech) }
         val head = (HEAD_S * rate).toInt()
         val tail = ((duration - TAIL_S) * rate).toInt().coerceAtMost(x.size)
         var gapSum = 0.0
@@ -122,6 +125,14 @@ class SoundJudge(
         return db(sqrt(speechSum / speechN)) to db(sqrt(gapSum / gapN))
     }
 
+    /** Marks in [speech] every 20 ms of [dry] (the spliced voice alone) within [VOICED_DB] of its loud level. */
+    private fun voiced(dry: FloatArray, rate: Int, speech: BooleanArray) {
+        val hop = (rate * VOICE_FRAME).toInt().coerceAtLeast(1)
+        val frames = (0 until dry.size / hop).map { k -> db(sqrt((k * hop until (k + 1) * hop).sumOf { dry[it].toDouble() * dry[it] } / hop)) }
+        val loud = frames.sorted().getOrNull((frames.size * LOUD_SHARE).toInt()) ?: return
+        frames.forEachIndexed { k, v -> if (v > loud - VOICED_DB) for (i in k * hop until minOf((k + 1) * hop, speech.size)) speech[i] = true }
+    }
+
     private fun r1(v: Double) = kotlin.math.round(v * 10.0) / 10.0
 
     companion object {
@@ -138,6 +149,9 @@ class SoundJudge(
         private const val HEAD_S = 0.3f
         private const val TAIL_S = 1.0f
         private const val MIN_GAP_S = 0.25f
+        private const val VOICE_FRAME = 0.02f
+        private const val LOUD_SHARE = 0.9
+        private const val VOICED_DB = 20.0
 
         private fun db(v: Double) = if (v <= 0.0) SILENT else 20.0 * log10(v)
 
@@ -186,6 +200,19 @@ class SoundJudge(
         }
 
         private const val MARGIN_DB = 0.1f
+
+        /**
+         * Mastering levels with the bed between words lowered by what [verdict] says it swells to
+         * (and [GAP_MARGIN_DB] more), never below the bed under words; null when it does not swell.
+         */
+        fun calmer(verdict: Verdict?, levels: Soundtrack.Levels): Soundtrack.Levels? {
+            val swell = verdict?.findings?.firstNotNullOfOrNull { SWELL.find(it.what)?.groupValues?.get(1)?.toFloatOrNull() } ?: return null
+            val gap = maxOf(levels.musicUnderDb, levels.musicGapDb - swell - GAP_MARGIN_DB)
+            return levels.copy(musicGapDb = gap).takeIf { gap < levels.musicGapDb }
+        }
+
+        private val SWELL = Regex("swells to (-?[0-9.]+) dB")
+        private const val GAP_MARGIN_DB = 2f
 
     }
 }

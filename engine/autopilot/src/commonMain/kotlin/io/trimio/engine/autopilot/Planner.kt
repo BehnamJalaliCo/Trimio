@@ -325,8 +325,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             // On screen only words the speaker said in this line (a model's «وچر» for «ووچر» never shows);
             // labels may also use the brief's words.
             val read = localised(raw).let { r ->
-                val said = spokenIn(r.title, line)
-                labels[k] = said ?: r.title.takeIf { inBrief(it) }.orEmpty()
+                // A title that does not read on its own ([Fragments]: «باید استفاده») is not shown.
+                val said = spokenIn(r.title, line)?.takeIf { Fragments.fault(it) == null }
+                labels[k] = said ?: r.title.takeIf { inBrief(it) && Fragments.fault(it) == null }.orEmpty()
                 r.copy(title = said.orEmpty())
             }
             val number = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull()

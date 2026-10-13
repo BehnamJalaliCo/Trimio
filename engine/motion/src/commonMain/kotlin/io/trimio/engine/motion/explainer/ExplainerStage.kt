@@ -61,7 +61,10 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
     }
 
     private fun hand(pal: ExplainerPalette, ch: Chapter, frame: StageFrame, rtl: Boolean, persian: Boolean, seed: Long) =
-        Hand(text, pal, ch.accent, rtl, frame.u * if (frame.portrait) PORTRAIT_SCALE else 1f, icons, frame.stage.width * ROOM, frame.stage.height * ROOM, seed).also { it.persian = persian }
+        Hand(
+            text, pal, ch.accent, rtl, frame.u * if (frame.portrait) PORTRAIT_SCALE else LANDSCAPE_SCALE, icons,
+            frame.stage.width * ROOM, frame.stage.height * ROOM, seed,
+        ).also { it.persian = persian }
 
     @Suppress("LongParameterList")
     private fun chapter(
@@ -77,32 +80,30 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
             if (!v.overlay) laid[v] = Pieces.of(v.spec.primitive).lay(v.spec, h)
         }
         // Elements rest a little inside the stage: a highlight's pulse never pushes them past it.
-        val room = frame.stage.let { b -> val dx = b.width * (1f - ROOM) / 2f; val dy = b.height * (1f - ROOM) / 2f; io.trimio.engine.motion.recipe.Box(b.left + dx, b.top + dy, b.right - dx, b.bottom - dy) }
+        val room = frame.stage.let { b ->
+            val dx = b.width * (1f - ROOM) / 2f
+            val dy = b.height * (1f - ROOM) / 2f
+            io.trimio.engine.motion.recipe.Box(b.left + dx, b.top + dy, b.right - dx, b.bottom - dy)
+        }
         val solver = Solver(room, frame.u * if (frame.portrait) GAP_TALL else GAP_WIDE, wide = !frame.portrait).also { it.rtlStart = rtl }
         val (solved, rests) = solver.solve(ci, versions, laid)
         val out = ArrayList<Node>()
         // Morph bodies glide underneath: the new version's own pieces fade in over them as they land.
-        for (v in versions) if (v.entry == Entry.Morph && v.from != null) {
-            val a = v.from
-            val la = laid[a] ?: continue
-            val lb = laid[v] ?: continue
-            val sa = solved[a] ?: continue
-            val sb = solved[v] ?: continue
-            out += Morphs.ghosts(la, sa, lb, sb, v.enter)
+        for (v in versions) {
+            val a = v.from?.takeIf { v.entry == Entry.Morph }
+            val ghosts = a?.let { Morphs.ghosts(laid[it], solved[it], laid[v], solved[v], v.enter) }
+            ghosts?.let { out += it }
         }
         for (v in versions.sortedBy { it.order }) {
             lives += Life(ci, v.element, v.spec.primitive, v.enter, minOf(v.leave, v.gone), v.overlay)
             val h = hands.getValue(v)
-            if (v.overlay) {
-                val target = v.target!!
-                val tl = laid[target] ?: continue
-                val ts = solved[target] ?: continue
-                out += overlay(v, h, tl, ts)
+            val target = v.target
+            val node = if (target != null) {
+                laid[target]?.let { tl -> solved[target]?.let { ts -> overlay(v, h, tl, ts) } }
             } else {
-                val l = laid.getValue(v)
-                val s = solved[v] ?: continue
-                out += element(v, h, l, s)
+                solved[v]?.let { s -> element(v, h, laid.getValue(v), s) }
             }
+            node?.let { out += it }
         }
         return out to rests
     }
@@ -177,9 +178,10 @@ class ExplainerStage(private val text: TextLayoutEngine, private val icons: Icon
         const val TAIL = 0.6f
         /** Pieces are drawn a little larger on a tall frame: it has the room, and phones are held close. */
         const val PORTRAIT_SCALE = 1.16f
+        const val LANDSCAPE_SCALE = 1.1f
         /** The share of the stage elements rest in (the rest is room for pulses). */
         const val ROOM = 0.95f
-        const val LOOP_ROOM = 0.8f
+        const val LOOP_ROOM = 0.62f
         const val GAP_TALL = 64f
         const val GAP_WIDE = 52f
         const val RISE = 30f
@@ -196,7 +198,9 @@ internal object Morphs {
     private const val SPAN = 0.62f
     private const val MAX = 48
 
-    fun ghosts(la: Laid, sa: Solver.Solved, lb: Laid, sb: Solver.Solved, at: Float): List<Node> {
+    fun ghosts(la: Laid?, sa: Solver.Solved?, lb: Laid?, sb: Solver.Solved?, at: Float): List<Node> {
+        if (la == null || sa == null) return emptyList()
+        if (lb == null || sb == null) return emptyList()
         if (la.slots.isEmpty() || lb.slots.isEmpty()) return emptyList()
         val n = minOf(MAX, maxOf(la.slots.size, lb.slots.size))
         val ease = Easing.Bezier(0.5f, 0f, 0.2f, 1f)

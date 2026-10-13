@@ -56,7 +56,7 @@ internal object DataPieces {
     val Bars = Piece { s, h ->
         val items = s.items.ifEmpty { listOf(Item(s.text, s.value ?: 1.0)) }
         val n = items.size
-        val values = items.mapIndexed { i, it -> it.value ?: (i + 1).toDouble() }
+        val values = items.mapIndexed { i, item -> item.value ?: (i + 1).toDouble() }
         val maxV = (values + listOfNotNull(s.value)).maxOf { kotlin.math.abs(it) }.coerceAtLeast(1e-6)
         val bw = 88f * h.u
         val gap = 38f * h.u
@@ -91,7 +91,8 @@ internal object DataPieces {
                     val bwid = f.width + 30f * h.u
                     val y = base - maxH * (values[i] / maxV).toFloat() - 14f * h.u - badgeH / 2f
                     h.toggled(
-                        listOf(h.pop(listOf(h.rect(xs[i], y, bwid, badgeH, badgeH / 2f, h.accentBody), h.words(str, f, h.onAccent, xs[i], y, h.accentBody, 0f, Kit.Reveal.None, name = "badge")), Box.around(xs[i], y, bwid, badgeH), steps.first().first, "bar-badge")),
+                        listOf(h.pop(listOf(h.rect(xs[i], y, bwid, badgeH, badgeH / 2f, h.accentBody), h.words(str, f, h.onAccent, xs[i], y, h.accentBody, 0f, Kit.Reveal.None, name = "badge")),
+                            Box.around(xs[i], y, bwid, badgeH), steps.first().first, "bar-badge")),
                         steps, "bar-pick",
                     )?.let { nodes += it }
                 }

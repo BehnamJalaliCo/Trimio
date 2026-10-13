@@ -140,3 +140,24 @@ object Beats {
     private fun fmt(v: Double) = (kotlin.math.round(v * 10) / 10).toString()
     private const val LINE = 48
 }
+
+/** The stage renderer of engine/motion ([io.trimio.engine.motion.explainer.ExplainerStage]) as the pipeline's [FilmStage]. */
+class StageRenderer(
+    private val text: io.trimio.engine.motion.TextLayoutEngine,
+    private val icons: io.trimio.engine.motion.explainer.IconResolver = io.trimio.engine.motion.explainer.IconResolver.None,
+) : FilmStage {
+    override fun compose(film: ExplainerFilm, format: String, fps: Int, duration: Float): Composition {
+        val (w, h) = size(format)
+        return io.trimio.engine.motion.explainer.ExplainerStage(text, icons).compose(film, w, h, fps).composition
+    }
+
+    companion object {
+        /** Frame size for a format: 1080 on the short side. */
+        fun size(format: String): Pair<Int, Int> = when (format.trim()) {
+            "16:9" -> 1920 to 1080
+            "1:1" -> 1080 to 1080
+            "4:5" -> 1080 to 1350
+            else -> 1080 to 1920
+        }
+    }
+}

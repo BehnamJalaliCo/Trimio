@@ -154,6 +154,7 @@ class MotionJudge(
                 }
             }
         }
+        score = mixed(c, score, graphics)
         // Out of its moment: landed where its words are said; else it says what its own moment says (the line's key
         // phrase, so the moment keeps a graphic); else it is left out.
         for (m in Relevance(c).misses()) {
@@ -161,6 +162,28 @@ class MotionJudge(
             score = Bench.mapBeat(score, at) { s -> m.saidAt?.takeIf { s.at != it }?.let { i -> s.copy(at = i, until = null, time = null) } ?: retitled(c, s, m) }
         }
         return score.takeIf { it != c.score }
+    }
+
+    /**
+     * Titles carrying the piece: every other one (past the hook) says its words as another kind of
+     * element — a callout pointing at the speaker, or for one or two words a stamp — until titles are
+     * under half of the graphics. The words, the moment and the place stay.
+     */
+    private fun mixed(c: Jury.Context, score: Score, graphics: List<Compiler.Placed>): Score {
+        if (graphics.size < VARIETY_FROM) return score
+        val titles = graphics.filter { it.recipe in Bench.TEXT && it.at > HOOK_S && it.text.isNotBlank() }
+        val excess = graphics.count { it.recipe in Bench.TEXT } - (graphics.size * TARGET_FAMILY).toInt()
+        if (excess <= 0) return score
+        var out = score
+        titles.filterIndexed { i, _ -> i % 2 == 1 }.take(excess).forEachIndexed { k, g ->
+            val at = Bench.locate(out, c.words, g) ?: return@forEachIndexed
+            val short = g.text.split(' ').size <= 2
+            out = Bench.mapBeat(out, at) { b ->
+                if (short && k % 2 == 1) b.copy(recipe = Bench.STAMP, variant = null)
+                else b.copy(recipe = "callout", variant = null, hold = maxOf(b.hold ?: 0f, CALLOUT_HOLD))
+            }
+        }
+        return out
     }
 
     /** A bare punch-in scene that would cut a held graphic short is folded into the scene before it. */
@@ -193,6 +216,10 @@ class MotionJudge(
         /** How far from a graphic's landing its line may start or end. */
         const val LAND = 0.6f
         const val HEAVY_FAMILY = 0.65f
+        /** Titles are brought under this share of the graphics when they carry the piece. */
+        const val TARGET_FAMILY = 0.45f
+        const val HOOK_S = 3f
+        const val CALLOUT_HOLD = 2.1f
         val FIGURE_FAMILY = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag")
         val PICTURE_FAMILY = setOf("object", "objects", "icon", "animated", "live-reaction")
         val PERCENT = listOf("%", "٪", "درصد", "percent")

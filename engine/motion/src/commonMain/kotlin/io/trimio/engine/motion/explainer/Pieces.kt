@@ -2,44 +2,48 @@ package io.trimio.engine.motion.explainer
 
 /** Every primitive's piece. */
 internal object Pieces {
-    fun of(p: Primitive): Piece = when (p) {
-        Primitive.Heading -> TextPieces.Heading
-        Primitive.Kicker -> TextPieces.Kicker
-        Primitive.BigWord -> TextPieces.BigWord
-        Primitive.Stat -> TextPieces.Stat
-        Primitive.Quote -> TextPieces.Quote
-        Primitive.Note -> TextPieces.Note
-        Primitive.Badge -> TextPieces.Badge
-        Primitive.Icon -> TextPieces.Icon
-        Primitive.Mark -> TextPieces.Mark
-        Primitive.Chips -> ListPieces.Chips
-        Primitive.IconTiles -> ListPieces.IconTiles
-        Primitive.TaskTiles -> ListPieces.TaskTiles
-        Primitive.Checklist -> ListPieces.Checklist
-        Primitive.Steps -> SequencePieces.Steps
-        Primitive.Timeline -> SequencePieces.Timeline
-        Primitive.Grid -> SequencePieces.Grid
-        Primitive.Stack -> SequencePieces.Stack
-        Primitive.Chat -> SequencePieces.Chat
-        Primitive.Meter -> DataPieces.Meter
-        Primitive.Bars -> DataPieces.Bars
-        Primitive.Blocks -> DataPieces.Blocks
-        Primitive.Ring -> DataPieces.Ring
-        Primitive.Dots -> DataPieces.Dots
-        Primitive.Clock -> MeasurePieces.Clock
-        Primitive.Scale -> MeasurePieces.Scale
-        Primitive.Ladder -> MeasurePieces.Ladder
-        Primitive.Funnel -> MeasurePieces.Funnel
-        Primitive.Versus -> DiagramPieces.Versus
-        Primitive.BeforeAfter -> DiagramPieces.BeforeAfter
-        Primitive.Cycle -> DiagramPieces.Cycle
-        Primitive.Flow -> DiagramPieces.Flow
-        Primitive.Map -> DiagramPieces.Map
-        Primitive.Branches -> FigurePieces.Branches
-        Primitive.Tangle -> FigurePieces.Tangle
-        Primitive.Thinking -> FigurePieces.Thinking
-        Primitive.Profile -> FigurePieces.Profile
+    private val table: Map<Primitive, Piece> by lazy {
+        mapOf(
+            Primitive.Heading to TextPieces.Heading,
+            Primitive.Kicker to TextPieces.Kicker,
+            Primitive.BigWord to TextPieces.BigWord,
+            Primitive.Stat to TextPieces.Stat,
+            Primitive.Quote to TextPieces.Quote,
+            Primitive.Note to TextPieces.Note,
+            Primitive.Badge to TextPieces.Badge,
+            Primitive.Icon to TextPieces.Icon,
+            Primitive.Mark to TextPieces.Mark,
+            Primitive.Chips to ListPieces.Chips,
+            Primitive.IconTiles to ListPieces.IconTiles,
+            Primitive.TaskTiles to ListPieces.TaskTiles,
+            Primitive.Checklist to ListPieces.Checklist,
+            Primitive.Steps to SequencePieces.Steps,
+            Primitive.Timeline to SequencePieces.Timeline,
+            Primitive.Grid to SequencePieces.Grid,
+            Primitive.Stack to SequencePieces.Stack,
+            Primitive.Chat to SequencePieces.Chat,
+            Primitive.Meter to DataPieces.Meter,
+            Primitive.Bars to DataPieces.Bars,
+            Primitive.Blocks to DataPieces.Blocks,
+            Primitive.Ring to DataPieces.Ring,
+            Primitive.Dots to DataPieces.Dots,
+            Primitive.Clock to MeasurePieces.Clock,
+            Primitive.Scale to MeasurePieces.Scale,
+            Primitive.Ladder to MeasurePieces.Ladder,
+            Primitive.Funnel to MeasurePieces.Funnel,
+            Primitive.Versus to DiagramPieces.Versus,
+            Primitive.BeforeAfter to DiagramPieces.BeforeAfter,
+            Primitive.Cycle to DiagramPieces.Cycle,
+            Primitive.Flow to DiagramPieces.Flow,
+            Primitive.Map to DiagramPieces.Map,
+            Primitive.Branches to FigurePieces.Branches,
+            Primitive.Tangle to FigurePieces.Tangle,
+            Primitive.Thinking to FigurePieces.Thinking,
+            Primitive.Profile to FigurePieces.Profile,
+        )
     }
+
+    fun of(p: Primitive): Piece = table.getValue(p)
 
     /** Primitives whose value a "fill" moves; on the others a fill reads as a highlight. */
     val fillable: Set<Primitive> = setOf(

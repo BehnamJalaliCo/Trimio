@@ -41,29 +41,32 @@ internal object Remedies {
         var score = base?.score ?: c.score
         var edit = base?.edit ?: c.edit
         val graphics = Bench.graphics(c)
-        for (v in panel.verdicts) for (f in v.findings) {
-            val level = stuck[key(v.judge, f)] ?: continue
+        val held = panel.verdicts.flatMap { v -> v.findings.mapNotNull { f -> stuck[key(v.judge, f)]?.let { f to it } } }
+        for ((f, level) in held) {
             when {
                 cut(f) -> edit = edit?.let { RhythmJudge.rejoin(it, f) } ?: edit
                 "without a visual change" in f.what -> {
                     val length = DEAD.find(f.what)?.groupValues?.get(1)?.toFloatOrNull() ?: 2f
                     score = Bench.punchAtTime(score, c.words, f.at + length / 2f) ?: score
                 }
-                else -> {
-                    val g = culprit(graphics, f) ?: continue
-                    val at = Bench.locate(score, c.words, g) ?: continue
-                    score = Bench.mapBeat(score, at) { b ->
-                        when {
-                            b.recipe in KEEP -> b
-                            level >= REMOVE_AT -> null
-                            else -> Bench.Ladder.next(b, g, moveFirst = true)
-                        }
-                    }
-                }
+                else -> score = stepped(score, c, graphics, f, level)
             }
         }
         val recut = edit?.takeIf { it.segments != c.edit?.segments }
         return Jury.Revision(score, base?.outro, recut).takeIf { score != c.score || recut != null }
+    }
+
+    /** The graphic [f] is about, one step further down the ladder (left out from [REMOVE_AT] rounds on). */
+    private fun stepped(score: io.trimio.engine.motion.score.Score, c: Jury.Context, graphics: List<Compiler.Placed>, f: Finding, level: Int): io.trimio.engine.motion.score.Score {
+        val g = culprit(graphics, f) ?: return score
+        val at = Bench.locate(score, c.words, g) ?: return score
+        return Bench.mapBeat(score, at) { b ->
+            when {
+                b.recipe in KEEP -> b
+                level >= REMOVE_AT -> null
+                else -> Bench.Ladder.next(b, g, moveFirst = true)
+            }
+        }
     }
 
     private fun cut(f: Finding) = listOf("cut falls inside", "flashes between", "jump cuts in ten seconds").any { it in f.what }

@@ -48,7 +48,8 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
             if (ch.start < t - EPS || ch.end <= ch.start || ch.end > n.duration + EPS) add(Problem(Kind.Time, ch.start, "chapter «${ch.title}» ${ch.start}–${ch.end}"))
             var b0 = ch.start
             for (b in ch.beats) {
-                if (b.at < b0 - EPS || b.at < ch.start - EPS || b.until > ch.end + EPS || b.until <= b.at) add(Problem(Kind.Time, b.at, "beat ${b.op} ${b.element} ${b.at}–${b.until}"))
+                val outside = b.at < maxOf(b0, ch.start) - EPS || b.until > ch.end + EPS
+                if (outside || b.until <= b.at) add(Problem(Kind.Time, b.at, "beat ${b.op} ${b.element} ${b.at}–${b.until}"))
                 b0 = b.at
             }
             t = ch.end
@@ -174,9 +175,9 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         return when {
             b.op == StageOp.Add && b.primitive == null -> null.also { log("repair: dropped add of ${b.element} without a picture") }
             b.op == StageOp.Add && known -> b.copy(op = if (b.primitive == live[b.element]) StageOp.Highlight else StageOp.Replace)
-            b.op != StageOp.Add && !known && b.primitive != null && b.op != StageOp.Clear -> b.copy(op = StageOp.Add)
-            b.op != StageOp.Add && !known -> null.also { log("repair: dropped ${b.op} on ${b.element} (not on stage)") }
-            else -> b
+            b.op == StageOp.Add || known -> b
+            b.primitive != null && b.op != StageOp.Clear -> b.copy(op = StageOp.Add)
+            else -> null.also { log("repair: dropped ${b.op} on ${b.element} (not on stage)") }
         }
     }
 

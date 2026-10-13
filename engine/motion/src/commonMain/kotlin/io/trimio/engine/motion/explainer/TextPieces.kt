@@ -87,7 +87,8 @@ internal object TextPieces {
         val w = maxOf(fw, lf?.width ?: 0f)
         val ht = fh + (lf?.let { it.height + 18f * h.u } ?: 0f)
         Laid(w, ht, listOf(Slot((w - fw) / 2f, 0f, fw, fh, 16f * h.u, h.wash))) { t ->
-            val value = t.value(v, from = 0.0) { it.toFloat() }
+            // A share (≤ 1) on a percentage reads as that many percent.
+            val value = t.value(v, from = 0.0) { x -> (if (unit == "%" && x <= 1.0 && v > 1.0) x * 100.0 else x).toFloat() }
             val n = h.counter(value, decimals, unit, size, h.accentInk, w / 2f, fh / 2f, h.ground, t.enter)
             listOfNotNull(n, lf?.let { h.words(label, it, h.muted, w / 2f, fh + 18f * h.u + it.height / 2f, h.ground, t.enter + 0.2f, Kit.Reveal.Fade, name = "stat-label") })
         }
@@ -183,7 +184,14 @@ internal object TextPieces {
     fun marking(h: Hand, w: Float, ht: Float, loop: Boolean, at: Float, seed: Long): List<Node> {
         val pad = 26f * h.u
         return if (loop) {
-            val pts = Scribbles.loop(seed, w + pad * 2f, ht + pad * 2f).map { (x, y) -> x - pad to y - pad }
+            // Only a little taller than the element (it never reaches its neighbours), and as wide as it
+            // must be to pass outside the element's corners (up to the stage's width).
+            val b = ht / 2f + minOf(pad, ht * 0.25f) + 6f * h.u
+            val corner = (1f - (ht / 2f / b).let { it * it }).coerceAtLeast(0.05f)
+            val a = minOf(w / 2f / kotlin.math.sqrt(corner) + pad * 0.5f, h.maxW / 2f, w / 2f * CIRCUMSCRIBE + pad)
+            val lw = a * 2f
+            val lh = b * 2f
+            val pts = Scribbles.loop(seed, lw, lh).map { (x, y) -> x - (lw - w) / 2f to y - (lh - ht) / 2f }
             listOf(h.stroke(pts, ColorAnim.of(h.accent), 5f * h.u, at, at + 0.7f, name = "mark-loop"))
         } else {
             val amp = 7f * h.u
@@ -191,6 +199,8 @@ internal object TextPieces {
             listOf(h.stroke(pts, ColorAnim.of(h.accent), 5.5f * h.u, at, at + 0.55f, name = "mark-under"))
         }
     }
+
+    private const val CIRCUMSCRIBE = 1.8f
 
     fun decimalsOf(v: Double): Int = if (abs(v - kotlin.math.round(v)) < 1e-6) 0 else 1
 

@@ -192,7 +192,7 @@ class ContinuityJudge : FilmJudge {
         val renamed = mutableMapOf<String, String>()
         val beats = ch.beats.map { b ->
             val prev = last
-            val same = b.op == StageOp.Add && prev != null && b.primitive == prev.primitive && b.primitive !in COMPANIONS
+            val same = prev != null && b.op == StageOp.Add && b.primitive == prev.primitive && main(b)
             val out = when {
                 same && FilmCheck.fits(StageOp.Build, b.primitive!!) && b.content.items.isNotEmpty() -> b.copy(op = StageOp.Build, element = prev!!.element, primitive = null)
                 same -> b.copy(op = StageOp.Highlight, element = prev!!.element, primitive = null)
@@ -204,6 +204,8 @@ class ContinuityJudge : FilmJudge {
         }
         return ch.copy(beats = beats)
     }
+
+    private fun main(b: Beat) = b.primitive !in COMPANIONS
 
     /** A chapter that never builds gets a highlight on its main picture when its last sentence is said. */
     private fun builds(ch: Chapter): Chapter {
