@@ -231,6 +231,16 @@ class ExplainerStageTest {
         assertTrue(out.report.notes.isEmpty(), out.report.notes.joinToString())
     }
 
+    @Test
+    fun aCrowdedStageStepsTheOldestOff() {
+        val rules = FilmRules.Diagram
+        val beats = (0 until 7).map { i -> Beat(0.5 + i * 1.2, 1.6 + i * 1.2, "line", StageOp.Add, "e$i", Primitive.Kicker, BeatContent(text = ExplainerSamples.phrase("en", i))) }
+        val film = ExplainerFilm(ArtDirection("mono", "header-top", "dashes", "none", 2L), listOf(Chapter("Crowd", 0.0, 10.0, 0, beats)), language = "en")
+        val out = ExplainerLab.compose(film, 1080, 1920)
+        assertTrue(out.report.rests.all { it.boxes.size <= rules.maxLive }, "never more than ${rules.maxLive} on the stage")
+        assertTrue(out.report.notes.any { "stepped off" in it })
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private fun walk(node: Node, visit: (Node) -> Unit) {

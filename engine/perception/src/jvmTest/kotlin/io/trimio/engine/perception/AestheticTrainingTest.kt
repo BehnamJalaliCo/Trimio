@@ -37,10 +37,12 @@ class AestheticTrainingTest {
             RatedFrame(AestheticFeatures.of(Frame(img.width, img.height, px)), o.getValue("score").jsonPrimitive.float)
         }
         val scores = rated.map { it.score }
-        println("aesthetic: ${rated.size} frames, ${scores.count { it < 10f }} below 10, mean ${scores.average()}, features in ${(System.nanoTime() - t) / 1_000_000} ms")
+        println("aesthetic: ${rated.size} frames, ${scores.count { it < 10f }} below 10, mean ${scores.average()}")
+        println("aesthetic: features in ${(System.nanoTime() - t) / 1_000_000} ms")
         val t2 = System.nanoTime()
         val head = AestheticTrainer().train(rated)
-        println("aesthetic: trained in ${(System.nanoTime() - t2) / 1_000_000} ms on the CPU; held-out Spearman ${head.heldOutSpearman} (${if (head.hidden.isEmpty()) "linear" else "tanh ${head.hidden.size}"})")
+        val form = if (head.hidden.isEmpty()) "linear" else "tanh ${head.hidden.size}"
+        println("aesthetic: trained in ${(System.nanoTime() - t2) / 1_000_000} ms on the CPU ($form); held-out Spearman ${head.heldOutSpearman}")
         File(data, "aesthetic-head.json").writeText(head.toJson())
     }
 }

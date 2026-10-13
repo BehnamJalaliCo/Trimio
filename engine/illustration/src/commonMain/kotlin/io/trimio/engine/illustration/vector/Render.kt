@@ -45,18 +45,18 @@ object Render {
             if (x1 <= x0 || y1 <= y0) return@forEachIndexed
             shape.fill?.let { fill ->
                 raster.fill(shape.lines, shape.evenOdd, m, cov)
-                composite(image, regions, cov, fill, index, x0, x1, y0, y1)
+                composite(image, regions, cov, fill, index, y0, y1)
             }
             shape.stroke?.let { stroke ->
                 raster.stroke(shape.lines, shape.strokeWidth * m.scale, m, cov)
-                composite(image, regions, cov, stroke, index, x0, x1, y0, y1)
+                composite(image, regions, cov, stroke, index, y0, y1)
             }
         }
         return FlatRender(image, regions, drawing.shapes, m)
     }
 
     @Suppress("LongParameterList")
-    private fun composite(image: Raster, regions: IntArray, cov: FloatArray, color: Int, index: Int, x0: Int, x1: Int, y0: Int, y1: Int) {
+    private fun composite(image: Raster, regions: IntArray, cov: FloatArray, color: Int, index: Int, y0: Int, y1: Int) {
         val w = image.width
         val alpha = Colors.a(color) / OPAQUE
         // The rasterizer may touch whole rows; clear the full rows of the box afterwards.

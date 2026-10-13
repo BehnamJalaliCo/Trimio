@@ -55,6 +55,20 @@ class ModelManagerScreenshotTest {
     @Test
     fun desktop() = shoot("models-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { ModelManagerScreen(ui(32, desktop = true), ModelActions()) }
 
+    /** «تقویت کیفیت»: the add-on tiers and the one-tap set, on a tall page so the whole section shows. */
+    @Test
+    fun qualityBoost() {
+        val installing = states + ("bge-m3-q8" to ModelState.Downloading(0.3f, 190_000_000))
+        shoot("models-boost-fa-noir", paper = false, height = 3000) { ModelManagerScreen(ui(12, s = installing), ModelActions()) }
+        shoot("models-boost-fa-desktop", paper = true, height = 3200) { ModelManagerScreen(ui(16, desktop = true), ModelActions()) }
+        val phone = ui(12)
+        val plan = requireNotNull(phone.boostPlan)
+        assertTrue("bge-m3-q8" in plan.ids && "qwen3-reranker-0.6b-q8" in plan.ids, plan.ids.toString())
+        assertEquals(listOf("Essential", "Pro", "Ultra"), phone.boosts.map { it.tier.name }.filter { it in setOf("Essential", "Pro", "Ultra") }.distinct())
+        assertTrue(phone.boosts.flatMap { it.rows }.none { it.row.id == "qwen3-reranker-4b-q4km" }, "laptop-only add-ons are not offered on a phone")
+        assertTrue(ui(16, desktop = true).boosts.flatMap { it.rows }.any { it.row.id == "qwen3-reranker-4b-q4km" && it.recommended })
+    }
+
     @Test
     fun tiersFollowTheDevice() {
         assertEquals("qwen3.5-4b-q4km", ui(8, s = emptyMap()).recommended?.id)

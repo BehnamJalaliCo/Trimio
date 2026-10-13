@@ -52,23 +52,31 @@ class PathData(private val tolerance: Float) {
             if (t is Char) {
                 cmd = t
                 i++
-                if (cmd == 'Z' || cmd == 'z') {
-                    close()
-                    lastCmd = cmd
-                    continue
-                }
             }
-            val n = ARGS[cmd.uppercaseChar()] ?: break
-            if (i + n > tokens.size || (0 until n).any { tokens[i + it] !is Float }) break
-            val a = FloatArray(n) { tokens[i + it] as Float }
-            i += n
-            command(cmd, a)
-            lastCmd = cmd
+            i = if (cmd == 'Z' || cmd == 'z') closed(cmd, i, t is Char) else applied(cmd, tokens, i)
             // A moveto followed by bare pairs continues as lineto.
             if (cmd == 'M') cmd = 'L' else if (cmd == 'm') cmd = 'l'
         }
         flush(false)
         return out
+    }
+
+    /** Closes the subpath; a stray number after Z is skipped. */
+    private fun closed(cmd: Char, i: Int, fromLetter: Boolean): Int {
+        if (fromLetter) {
+            close()
+            lastCmd = cmd
+        }
+        return if (fromLetter) i else i + 1
+    }
+
+    /** Runs one command with its arguments from [i]; the end of the tokens when they are malformed. */
+    private fun applied(cmd: Char, tokens: List<Any>, i: Int): Int {
+        val n = ARGS[cmd.uppercaseChar()] ?: return tokens.size
+        if (i + n > tokens.size || (0 until n).any { tokens[i + it] !is Float }) return tokens.size
+        command(cmd, FloatArray(n) { tokens[i + it] as Float })
+        lastCmd = cmd
+        return i + n
     }
 
     private fun command(cmd: Char, a: FloatArray) {
@@ -145,7 +153,7 @@ class PathData(private val tolerance: Float) {
         if (pts.isEmpty()) add(cx, cy)
         var rx = abs(rxIn)
         var ry = abs(ryIn)
-        if (rx == 0f || ry == 0f || (x == cx && y == cy)) {
+        if (rx == 0f || ry == 0f || samePoint(x, y)) {
             lineTo(x, y)
             return
         }
@@ -179,6 +187,8 @@ class PathData(private val tolerance: Float) {
         }
         cx = x; cy = y; lastCtrlX = x; lastCtrlY = y
     }
+
+    private fun samePoint(x: Float, y: Float): Boolean = x == cx && y == cy
 
     private fun vectorAngle(ux: Float, uy: Float, vx: Float, vy: Float): Float {
         val dot = (ux * vx + uy * vy) / (hypot(ux, uy) * hypot(vx, vy))
@@ -231,7 +241,7 @@ class PathData(private val tolerance: Float) {
                         var j = i
                         if (s[j] == '-' || s[j] == '+') j++
                         var dot = false
-                        while (j < s.length && (s[j].isDigit() || (s[j] == '.' && !dot))) {
+                        while (j < s.length && digitOrFirstDot(s[j], dot)) {
                             if (s[j] == '.') dot = true
                             j++
                         }
@@ -251,6 +261,8 @@ class PathData(private val tolerance: Float) {
             }
             return out
         }
+
+        private fun digitOrFirstDot(c: Char, dotSeen: Boolean): Boolean = c.isDigit() || (c == '.' && !dotSeen)
 
         /** Bounds of polylines as left, top, right, bottom (or null for none). */
         fun bounds(lines: List<Polyline>): FloatArray? {

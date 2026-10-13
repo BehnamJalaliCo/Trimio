@@ -316,7 +316,7 @@ private fun BoostLine(boost: BoostRow, desktop: Boolean, actions: ModelActions) 
                     FitBadge(row.fit, desktop)
                     val laptop = if (boost.laptopOnly) tr(" · فقط لپ‌تاپ", " · laptop only") else ""
                     Text(
-                        localizedNumber(tr("${gbFa(row.footprintBytes)} گیگ رم در مرحلهٔ خودش$laptop", "${gb(row.footprintBytes)} RAM in its stage$laptop")),
+                        localizedNumber(tr("${ramFa(row.footprintBytes)} رم در مرحلهٔ خودش$laptop", "${gb(row.footprintBytes)} RAM in its stage$laptop")),
                         style = Sig.type.meta.copy(fontSize = 11.sp), color = if (row.state is ModelState.Failed) c.action else c.muted, maxLines = 1,
                     )
                 }
@@ -428,14 +428,23 @@ private fun speedEn(row: ModelRow) = when {
 }
 
 private const val GIB = 1L shl 30
+private const val MIB = 1L shl 20
+private const val KIB = 1L shl 10
 private const val FAST = 4L * GIB
 private const val BALANCED = 8L * GIB
 
-/** "2.7 GB" (Latin micro labels). */
+/** "2.7 GB", "640 MB", "900 KB" (Latin micro labels). */
 private fun gb(bytes: Long): String {
     val tenths = (bytes * 10 + GIB / 2) / GIB
-    return if (bytes < GIB) "${bytes / (1L shl 20)} MB" else "${tenths / 10}.${tenths % 10} GB"
+    return when {
+        bytes < MIB -> "${(bytes + KIB / 2) / KIB} KB"
+        bytes < GIB -> "${(bytes + MIB / 2) / MIB} MB"
+        else -> "${tenths / 10}.${tenths % 10} GB"
+    }
 }
+
+/** "۲٫۷ گیگ" or, under a gigabyte, "۲۴۰ مگ" (Persian copy; digits localised by the caller). */
+private fun ramFa(bytes: Long): String = if (bytes < GIB) "${((bytes + MIB / 2) / MIB).coerceAtLeast(1)} مگ" else "${gbFa(bytes)} گیگ"
 
 /** "۲٫۷" (Persian copy; digits localised by the caller). */
 private fun gbFa(bytes: Long): String {

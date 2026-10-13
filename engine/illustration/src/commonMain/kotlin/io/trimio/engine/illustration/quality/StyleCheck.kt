@@ -30,9 +30,10 @@ data class StyleStats(
                 if (Colors.a(c) < OPAQUE) continue
                 opaque++
                 if (Colors.luma(c) < MID) ink++
-                if (Colors.saturation(c) < GREY || Colors.luma(c) < DARK_ENOUGH) continue
+                val coloured = Colors.saturation(c) >= GREY && Colors.luma(c) >= DARK_ENOUGH
                 val hue = Colors.hue(c)
                 when {
+                    !coloured -> Unit
                     Colors.hueDistance(hue, accentHue) <= HUE_TOLERANCE -> accent++
                     Colors.hueDistance(hue, accentDark) <= HUE_TOLERANCE -> Unit
                     else -> foreign++

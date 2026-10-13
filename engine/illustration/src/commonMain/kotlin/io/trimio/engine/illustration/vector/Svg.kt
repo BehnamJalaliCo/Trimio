@@ -54,25 +54,20 @@ object Svg {
         stack.addLast(Style(Colors.BLACK, null, 1f, false, 1f, base))
         var skipDepth = 0
         for (t in tags) {
-            if (t.closing) {
-                if (skipDepth > 0) skipDepth-- else if (t.name in CONTAINERS && stack.size > 1) stack.removeLast()
-                continue
-            }
-            if (skipDepth > 0 || t.name in SKIPPED) {
-                if (!t.selfClosing) skipDepth++
-                continue
-            }
-            val style = inherit(stack.last(), t.attrs, gradients)
-            if (t.name in CONTAINERS) {
-                if (!t.selfClosing) stack.addLast(style)
-                continue
-            }
-            val lines = geometry(t, tolerance / style.m.scale)
-            if (lines.isNotEmpty() && (style.fill != null || style.stroke != null)) {
-                shapes += Shape(lines, style.fill, style.stroke, style.strokeWidth, style.evenOdd, part).transformed(style.m)
+            when {
+                t.closing -> if (skipDepth > 0) skipDepth-- else if (t.name in CONTAINERS && stack.size > 1) stack.removeLast()
+                skipDepth > 0 || t.name in SKIPPED -> if (!t.selfClosing) skipDepth++
+                t.name in CONTAINERS -> if (!t.selfClosing) stack.addLast(inherit(stack.last(), t.attrs, gradients))
+                else -> shape(t, inherit(stack.last(), t.attrs, gradients), tolerance, part)?.let { shapes += it }
             }
         }
         return Drawing(shapes)
+    }
+
+    private fun shape(t: Tag, style: Style, tolerance: Float, part: String): Shape? {
+        if (style.fill == null && style.stroke == null) return null
+        val lines = geometry(t, tolerance / style.m.scale)
+        return if (lines.isEmpty()) null else Shape(lines, style.fill, style.stroke, style.strokeWidth, style.evenOdd, part).transformed(style.m)
     }
 
     private fun inherit(parent: Style, a: Map<String, String>, gradients: Map<String, Int>): Style {
@@ -131,21 +126,22 @@ object Svg {
         var current: String? = null
         val stops = ArrayList<Int>()
         for (t in tags) {
-            if (t.name.endsWith("gradient", ignoreCase = true)) {
-                if (!t.closing) {
-                    current = t.attrs["id"]; stops.clear()
-                }
-                if (t.closing || t.selfClosing) {
-                    current?.let { id -> if (stops.isNotEmpty()) out[id] = average(stops) }
-                    current = null
-                }
-            } else if (t.name == "stop" && current != null && !t.closing) {
-                val c = t.attrs["stop-color"] ?: Regex("stop-color:\\s*([^;]+)").find(t.attrs["style"].orEmpty())?.groupValues?.get(1)
-                Colors.parse(c)?.let { stops += it }
+            val gradient = t.name.endsWith("gradient", ignoreCase = true)
+            if (gradient && !t.closing) {
+                current = t.attrs["id"]
+                stops.clear()
             }
+            if (gradient && (t.closing || t.selfClosing)) {
+                current?.takeIf { stops.isNotEmpty() }?.let { id -> out[id] = average(stops) }
+                current = null
+            }
+            if (!gradient && t.name == "stop" && current != null) stopColor(t)?.let { stops += it }
         }
         return out
     }
+
+    private fun stopColor(t: Tag): Int? =
+        Colors.parse(t.attrs["stop-color"] ?: Regex("stop-color:\\s*([^;]+)").find(t.attrs["style"].orEmpty())?.groupValues?.get(1))
 
     private fun average(cs: List<Int>): Int = Colors.argb(
         255, cs.sumOf { Colors.r(it) } / cs.size, cs.sumOf { Colors.g(it) } / cs.size, cs.sumOf { Colors.b(it) } / cs.size,
@@ -153,23 +149,22 @@ object Svg {
 
     private fun tags(s: String): List<Tag> {
         val out = ArrayList<Tag>()
-        var i = 0
-        while (true) {
-            val start = s.indexOf('<', i)
-            if (start < 0) break
+        var start = s.indexOf('<')
+        while (start >= 0) {
             val end = s.indexOf('>', start)
             if (end < 0) break
             val body = s.substring(start + 1, end)
-            i = end + 1
-            if (body.startsWith("!") || body.startsWith("?")) continue
-            val closing = body.startsWith("/")
-            val selfClosing = body.endsWith("/")
-            val inner = body.removePrefix("/").removeSuffix("/").trim()
-            val name = inner.takeWhile { !it.isWhitespace() }.lowercase()
-            val attrs = ATTR.findAll(inner.drop(name.length)).associate { it.groupValues[1].lowercase() to (it.groupValues[2].ifEmpty { it.groupValues[3] }) }
-            out += Tag(name, attrs, closing, selfClosing)
+            if (!body.startsWith("!") && !body.startsWith("?")) out += tag(body)
+            start = s.indexOf('<', end + 1)
         }
         return out
+    }
+
+    private fun tag(body: String): Tag {
+        val inner = body.removePrefix("/").removeSuffix("/").trim()
+        val name = inner.takeWhile { !it.isWhitespace() }.lowercase()
+        val attrs = ATTR.findAll(inner.drop(name.length)).associate { it.groupValues[1].lowercase() to (it.groupValues[2].ifEmpty { it.groupValues[3] }) }
+        return Tag(name, attrs, closing = body.startsWith("/"), selfClosing = body.endsWith("/"))
     }
 
     const val DEFAULT_TOLERANCE = 0.25f
