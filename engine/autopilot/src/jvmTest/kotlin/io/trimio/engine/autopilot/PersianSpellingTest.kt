@@ -284,6 +284,15 @@ class PersianSpellingTest {
         }
     }
 
+    @Test
+    fun splittingAWordThatOverlapsTheNextKeepsTheWordsInOrder() {
+        // Whisper's «ساتم» runs to 2.0 s while «بیشتر» already starts at 1.2 s: the fix «ساعت هم» splits it.
+        val words = listOf(Word("چلا", TimeRange(0, 600)), Word("ساتم", TimeRange(600, 2000)), Word("بیشتر", TimeRange(1200, 2400)))
+        val fixed = Transcript(Language.Persian, words).withSpelling(mapOf(1 to "ساعت هم")).words
+        assertEquals(listOf("چلا", "ساعت", "هم", "بیشتر"), fixed.map { it.text })
+        assertTrue(fixed.zipWithNext().all { (a, b) -> a.range.startMs <= b.range.startMs })
+    }
+
     private companion object {
         const val SAMPLE = 5000
     }

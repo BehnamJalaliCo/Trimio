@@ -78,7 +78,7 @@ object Chapters {
             rest >= SHORT_REST -> REST * HALF
             else -> 0f
         }
-        if (c.text.trimEnd().lastOrNull() in QUESTION) s += ASKS
+        if (c.text.trimEnd().lastOrNull()?.let { it in QUESTION } == true) s += ASKS
         return s
     }
 

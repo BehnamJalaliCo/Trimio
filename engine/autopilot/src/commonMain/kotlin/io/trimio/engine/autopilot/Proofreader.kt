@@ -247,7 +247,20 @@ fun Transcript.withSpelling(fixes: Map<Int, String>): Transcript {
             out += w.split(text.ifEmpty { w.text })
         }
     }
-    return Transcript(language, out)
+    return Transcript(language, inOrder(out))
+}
+
+/**
+ * Whisper's words may overlap (a word starts before the previous one ends), so a split word's later
+ * parts can start after the next heard word: such a start moves up to the previous start.
+ */
+private fun inOrder(words: List<Word>): List<Word> {
+    var last = Long.MIN_VALUE
+    return words.map { w ->
+        val start = maxOf(w.range.startMs, last)
+        last = start
+        if (start == w.range.startMs) w else w.copy(range = TimeRange(start, maxOf(w.range.endMs, start)))
+    }
 }
 
 /** [text] as one word per space-separated part, each taking a share of this word's time by its length. */
