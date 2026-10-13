@@ -8,7 +8,7 @@ package io.trimio.engine.autopilot
  * never «او پس»), they count as correct on screen, and the recogniser's usual slips of a few of
  * them are put back as the term ([alias]: «کلادکود» → «کلاد کد»).
  */
-internal object Loanwords {
+object Loanwords {
 
     private val TECH = setOf(
         "توکن", "توکنها", "ریپو", "ریپازیتوری", "پرامپت", "پرامت", "تسک", "کد", "کدها", "کدنویسی", "اپ", "اپلیکیشن", "وب‌سایت", "سایت", "لینک",
@@ -38,7 +38,7 @@ internal object Loanwords {
 
 
     /** The term two heard words stand for when they are a term written as one: «چت جی‌پی‌تی» → «چت‌جی‌پی‌تی». */
-    fun pair(a: String, b: String): String? = ALL_WRITTEN.firstOrNull { plain(it) == plain(a) + plain(b) && ZWNJ in it }
+    internal fun pair(a: String, b: String): String? = ALL_WRITTEN.firstOrNull { plain(it) == plain(a) + plain(b) && ZWNJ in it }
 
     private val ALL_WRITTEN: Set<String> = TECH + CRYPTO + SOCIAL + PRODUCTS
     private val ALL: Set<String> = ALL_WRITTEN.map(::plain).toSet()
@@ -49,8 +49,52 @@ internal object Loanwords {
         "رو", "ی", "و", "ت", "ش", "م", "ه", "ا", "یه", "ست", "تر", "ترین",
     )
 
+    /**
+     * The recogniser's initial prompt: one well-punctuated Persian sentence naming the terms the
+     * talk is likely to use — the brief's own names and terms first, then the glossary of each
+     * field the brief touches (crypto and forex, tech and AI, social media; all three when it says
+     * nothing) — within [PROMPT_BYTES] (whisper reads at most 224 prompt tokens; Persian takes about
+     * one per two bytes). Conditioned on the terms, the recogniser writes «توکن», «ریپو», «نصب»
+     * instead of «تو کن», «ریپور», «نسب».
+     */
+    fun prompt(brief: String): String {
+        val b = brief.lowercase()
+        val named = Regex("[A-Za-z][A-Za-z0-9.+-]*(?: [A-Z][A-Za-z0-9.+-]*)*").findAll(brief).map { it.value }.toList() +
+            Regex("«([^»]{2,24})»").findAll(brief).map { it.groupValues[1] }.toList()
+        val fields = FIELDS.filter { (cue, _) -> cue.any { it in b } }.map { it.second }.ifEmpty { FIELDS.map { it.second } }
+        val terms = (named + interleave(fields)).distinct()
+        val head = "در این ویدیو درباره‌ی "
+        val tail = " صحبت می‌کنم."
+        val out = mutableListOf<String>()
+        for (t in terms) {
+            val next = head + (out + t).joinToString("، ") + tail
+            if (next.encodeToByteArray().size > PROMPT_BYTES) break
+            out += t
+        }
+        return if (out.isEmpty()) "سلام دوستان، امروز می‌خواهم یک نکته‌ی مهم را بگویم." else head + out.joinToString("، ") + tail
+    }
+
+    /** One term of each field in turn, so every field the brief touches gets its share of the prompt. */
+    private fun interleave(lists: List<List<String>>): List<String> =
+        (0 until (lists.maxOfOrNull { it.size } ?: 0)).flatMap { i -> lists.mapNotNull { it.getOrNull(i) } }
+
+    /** The terms a talk in each field says most, most common first (the prompt keeps the head of each). */
+    private val FIELDS: List<Pair<List<String>, List<String>>> = listOf(
+        listOf("کریپتو", "ترید", "ارز", "بیت", "فارکس", "بورس", "صرافی", "crypto", "trad", "forex", "bitcoin") to listOf(
+            "ترید", "تتر", "صرافی", "بیت‌کوین", "اتریوم", "ووچر", "کمپین", "سیگنال", "چارت", "فیوچرز", "لوریج", "والت", "آلت‌کوین", "پوزیشن", "استاپ‌لاس",
+        ),
+        listOf("هوش", "ربات", "کد", "برنامه", "اپ", "سایت", "مدل", "ai", "bot", "code", "app", "gpt") to listOf(
+            "هوش مصنوعی", "مدل", "توکن", "ریپو", "پرامپت", "تسک", "کد", "نصب", "ربات", "اپلیکیشن", "کلاد", "چت‌جی‌پی‌تی", "جمینای", "ایجنت",
+        ),
+        listOf("تلگرام", "اینستا", "یوتیوب", "پیج", "کانال", "ریلز", "کامنت", "telegram", "instagram", "youtube") to listOf(
+            "کامنت", "دایرکت", "فالو", "پیج", "پست", "استوری", "ریلز", "لایک", "کانال", "تلگرام", "اینستاگرام", "یوتیوب",
+        ),
+    )
+
+    private const val PROMPT_BYTES = 420
+
     /** [word] (punctuation aside) is a protected term, or one with a clitic or plural ending. */
-    fun protected(word: String): Boolean {
+    internal fun protected(word: String): Boolean {
         val p = plain(word.trim { !it.isLetterOrDigit() && it != ZWNJ })
         if (p.isEmpty()) return false
         if (p in ALL) return true
@@ -62,7 +106,7 @@ internal object Loanwords {
      * («اوپنکد» → «اوپن‌کد»), or with a long vowel the term does not have («کودکس» → «کدکس»,
      * «اوپنکود» → «اوپن‌کد»), or two terms run together («کلادکود» → «کلاد کد»); null otherwise.
      */
-    fun alias(word: String): String? {
+    internal fun alias(word: String): String? {
         val p = plain(word.trim { !it.isLetterOrDigit() && it != ZWNJ })
         if (p.length < MIN_ALIAS || protected(p)) return null
         return term(p) ?: (MIN_STEM + 1..p.length - MIN_STEM).firstNotNullOfOrNull { k ->

@@ -115,4 +115,35 @@ class BenchProbeTest {
         }
         File(out, "probe-golden-words.txt").writeText(log.toString())
     }
+
+    /** One transcription with the glossary prompt (auto.hint=plain: without), and what the screen check makes of it. */
+    @Test
+    fun transcribe() {
+        if (System.getProperty("auto.mode") != "transcribe") return
+        val video = File(System.getProperty("auto.video"))
+        val out = File(System.getProperty("auto.out"))
+        val brief = System.getProperty("auto.prompt").orEmpty()
+        val name = "transcript-" + (System.getProperty("auto.hint") ?: "glossary") + ".json"
+        val t0 = System.nanoTime()
+        val t = kotlinx.coroutines.runBlocking { io.trimio.engine.autopilot.Studio.transcribe(video, System.getProperty("auto.whisper"), brief) }
+        File(out, name).writeText(Json.encodeToString(ListSerializer(W.serializer()), t.words.map { W(it.text, it.range.startMs / 1000f, it.range.endMs / 1000f) }))
+        File(out, "$name.txt").writeText("hint: ${io.trimio.engine.autopilot.Loanwords.prompt(brief)}\nseconds: ${(System.nanoTime() - t0) / 1e9}\n" + t.words.joinToString(" ") { it.text })
+    }
+
+    /** Raw transcripts compared: words the screen check rejects, and words the correction chain had to change. */
+    @Test
+    fun compareTranscripts() {
+        if (System.getProperty("auto.mode") != "compare") return
+        val lexicon = kotlinx.coroutines.runBlocking { io.trimio.engine.autopilot.PersianSpelling.load() }
+        val log = StringBuilder()
+        for (f in System.getProperty("auto.files").split(',')) {
+            val words = Json.decodeFromString(ListSerializer(W.serializer()), File(f).readText()).map { it.w }
+            val screen = io.trimio.engine.autopilot.ScreenWords(lexicon, io.trimio.engine.autopilot.ScreenWords.namesIn(words) { io.trimio.engine.autopilot.ScreenWords(lexicon).shows(it) })
+            val unknown = words.filter { !screen.shows(it) }
+            val fixes = lexicon.correct(words)
+            log.appendLine("$f: ${words.size} words, unknown ${unknown.size}: ${unknown.joinToString(" ")}")
+            log.appendLine("  corrected ${fixes.size}: " + fixes.entries.joinToString(" ") { "${words[it.key]}→${it.value}" })
+        }
+        File(System.getProperty("auto.out"), "probe-compare.txt").writeText(log.toString())
+    }
 }

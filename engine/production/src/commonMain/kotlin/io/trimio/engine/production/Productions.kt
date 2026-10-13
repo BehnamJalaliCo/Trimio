@@ -412,14 +412,10 @@ class Productions(
         private const val DEFAULT_THREADS = 4
 
         /**
-         * Whisper's conditioning: a short, well-punctuated sentence in the spoken language (better
-         * punctuation and spelling), naming the brief's Latin names so they are spelled right.
+         * Whisper's conditioning: a short, well-punctuated sentence in the spoken language naming the
+         * brief's names and the terms of its field ([io.trimio.engine.autopilot.Loanwords.prompt]):
+         * the terms are heard as they are written, not repaired afterwards.
          */
-        fun hint(brief: String): String {
-            val names = Regex("[A-Za-z][A-Za-z0-9.+-]*(?: [A-Z][A-Za-z0-9.+-]*)*").findAll(brief).map { it.value }.distinct().take(MAX_NAMES).toList()
-            return if (names.isEmpty()) "سلام دوستان، امروز می‌خواهم یک نکته‌ی مهم را بگویم." else "در این ویدیو درباره‌ی " + names.joinToString("، ") + " صحبت می‌کنم."
-        }
-
-        private const val MAX_NAMES = 12
+        fun hint(brief: String): String = io.trimio.engine.autopilot.Loanwords.prompt(brief)
     }
 }

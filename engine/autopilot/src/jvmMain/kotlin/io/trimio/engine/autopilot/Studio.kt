@@ -91,9 +91,9 @@ class Studio(
         /** Speech to words with whisper.cpp; the prompt's names and jargon condition the decoder. */
         suspend fun transcribe(video: File, whisperModel: String, prompt: String, language: Language? = Language.Persian): Transcript {
             val audio = Media.audio(video, 16_000)
-            val names = Regex("[A-Za-z][A-Za-z0-9.+-]*(?: [A-Z][A-Za-z0-9.+-]*)*").findAll(prompt).map { it.value }.distinct().take(12).toList()
-            // A short, well-punctuated sentence in the spoken language: better punctuation and spelling, names spelled right.
-            val hint = if (names.isEmpty()) "سلام دوستان، امروز می‌خواهم یک نکته‌ی مهم را بگویم." else "در این ویدیو درباره‌ی " + names.joinToString("، ") + " صحبت می‌کنم."
+            // A short, well-punctuated sentence in the spoken language naming the brief's names and the
+            // field's terms: better punctuation, and the terms spelled as they are written ([Loanwords.prompt]).
+            val hint = System.getProperty("auto.hint")?.takeIf { it == "plain" }?.let { "سلام دوستان، امروز می‌خواهم یک نکته‌ی مهم را بگویم." } ?: Loanwords.prompt(prompt)
             return WhisperCppRecognizer(whisperModel).use { r ->
                 // -Dtrimio.asr.threads: fewer threads than cores on a shared, busy machine (ggml's workers spin while they wait for each other).
                 val threads = System.getProperty("trimio.asr.threads")?.toIntOrNull() ?: Runtime.getRuntime().availableProcessors()
