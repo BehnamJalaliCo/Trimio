@@ -94,8 +94,9 @@ Unlike sounds, the director may now put third-party **animated pictures** into a
 licences that allow commercial use inside an app and in the creator's exported video pass
 (`ArtLicence`: CC0, public domain, MIT/ISC/BSD/Apache-2.0, CC BY with credit); ShareAlike,
 NonCommercial, NoDerivatives and unknown licences never enter the catalogue. Details and the
-sources reviewed and rejected (LottieFiles, OpenMoji, Pexels, Pixabay, Wikimedia Commons):
-`docs/ASSETS.md`, "Animated pictures".
+sources reviewed and rejected (OpenMoji, Pexels, Pixabay, Wikimedia Commons):
+`docs/ASSETS.md`, "Animated pictures". Free LottieFiles animations are fetched on demand, a few at
+a time, under the Lottie Simple License (commercial use, no credit required).
 
 | Component | Where | Licence | Credit |
 |---|---|---|---|
