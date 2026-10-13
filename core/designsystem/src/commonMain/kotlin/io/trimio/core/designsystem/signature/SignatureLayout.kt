@@ -242,25 +242,11 @@ fun SigStateBlock(icon: ImageVector, title: String, body: String, modifier: Modi
 }
 
 /**
- * Stand-in for footage that has no frame yet (preview builds, review renders): key light, cool
- * fill, bokeh and a rim-lit subject, so the layout reads as it will over real video.
+ * Stand-in for footage that has no frame yet (preview builds, review renders, projects without a
+ * poster): the theme-aware [GenerativeCanvas]; [generating] while a build is forming it.
  */
 @Composable
-fun FootagePlaceholder(modifier: Modifier = Modifier) {
-    Box(
-        modifier.background(Color(0xFF0D0C0B)).drawBehind {
-            val w = size.width
-            val h = size.height
-            drawRect(Brush.radialGradient(listOf(Color(0xA6FF965A), Color.Transparent), center = Offset(w * 0.74f, h * 0.26f), radius = w * 0.5f))
-            drawRect(Brush.radialGradient(listOf(Color(0x593C5AA0), Color.Transparent), center = Offset(w * 0.12f, h * 0.78f), radius = w * 0.55f))
-            val bokeh = Offset(w * 0.3f, h * 0.26f)
-            drawCircle(Brush.radialGradient(listOf(Color(0x8CFFD2A0), Color.Transparent), center = bokeh, radius = w * 0.14f), radius = w * 0.14f, center = bokeh)
-            val rim = Brush.horizontalGradient(listOf(Color(0xFF0B0908), Color(0xFF1C1512), Color(0xFF6B3A22)), startX = w * 0.22f, endX = w * 0.74f)
-            drawRoundRect(rim, topLeft = Offset(w * 0.22f, h * 0.48f), size = Size(w * 0.56f, h * 0.62f), cornerRadius = CornerRadius(w * 0.24f))
-            drawOval(rim, topLeft = Offset(w * 0.36f, h * 0.24f), size = Size(w * 0.28f, h * 0.27f))
-        },
-    )
-}
+fun FootagePlaceholder(modifier: Modifier = Modifier, generating: Boolean = false) = GenerativeCanvas(modifier, generating)
 
 /** A live dot (lime on noir, ink on paper) for "LIVE" and running states. */
 @Composable

@@ -193,7 +193,7 @@ private fun FormingFrame(previews: List<ImageBitmap>, modifier: Modifier, radius
         }
         Box(Modifier.fillMaxSize().clip(shape).border(1.dp, Sig.colors.lineStrong, shape)) {
             val newest = previews.lastOrNull()
-            if (newest != null) Image(newest, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else FootagePlaceholder(Modifier.fillMaxSize())
+            if (newest != null) Image(newest, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else FootagePlaceholder(Modifier.fillMaxSize(), generating = true)
             Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 LiveDot(size = 5.dp)
                 MicroLabel("LIVE", color = SigNoir.emphasis)
