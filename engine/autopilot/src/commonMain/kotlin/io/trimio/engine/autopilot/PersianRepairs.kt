@@ -196,7 +196,8 @@ internal class PersianRepairs(private val lex: PersianSpelling) {
         private const val MAX_ENDINGS = 3
         private const val SOUNDS_PER_SLIP = 3
         private const val HALF_SPACE_FAVOUR = 4
-        private const val LONG_VOWELS = "ویا"
+        // Only «و»: whisper writes a short «o» long («مودل», «دوشوار»); a written «ی» or «ا» is usually heard right («تذکیر» is no «تذکر»).
+        private const val LONG_VOWELS = "و"
         private const val WEAK = "اعویه"
         val GRADES = listOf("ترین", "تر")
         private val VERB_PREFIXES = listOf("نمی", "می")

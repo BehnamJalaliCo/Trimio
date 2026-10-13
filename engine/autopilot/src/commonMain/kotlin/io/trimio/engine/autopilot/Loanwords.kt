@@ -37,8 +37,16 @@ object Loanwords {
     )
 
 
-    /** The term two heard words stand for when they are a term written as one: «چت جی‌پی‌تی» → «چت‌جی‌پی‌تی». */
-    internal fun pair(a: String, b: String): String? = ALL_WRITTEN.firstOrNull { plain(it) == plain(a) + plain(b) && ZWNJ in it }
+    /**
+     * The term two heard words stand for when they are a term written as one, or one letter off it:
+     * «چت جی‌پی‌تی», «چتچی پیتی» → «چت‌جی‌پی‌تی».
+     */
+    internal fun pair(a: String, b: String): String? {
+        val heard = plain(a) + plain(b)
+        if (protected(a) && protected(b)) return null
+        return ALL_WRITTEN.firstOrNull { ZWNJ in it && plain(it) == heard }
+            ?: ALL_WRITTEN.firstOrNull { ZWNJ in it && plain(it).length >= FUZZY && PersianRepairs.distance(plain(it), heard) <= 1 }
+    }
 
     private val ALL_WRITTEN: Set<String> = TECH + CRYPTO + SOCIAL + PRODUCTS
     private val ALL: Set<String> = ALL_WRITTEN.map(::plain).toSet()
@@ -119,12 +127,14 @@ object Loanwords {
     private fun term(p: String): String? {
         if (p.length < MIN_STEM) return null
         val options = listOf(p) + (1 until p.length).filter { p[it] in "وای" }.map { p.removeRange(it, it + 1) }
-        // Or the term's last letter unheard: «دایرک» is «دایرکت».
+        // Or the term's last letter unheard («دایرک» is «دایرکت»), or one letter of a long term heard as another («استاب» is «استاپ»).
         return options.firstNotNullOfOrNull { o -> ALL_WRITTEN.firstOrNull { plain(it) == o } }
             ?: ALL_WRITTEN.firstOrNull { plain(it).length >= MIN_ALIAS + 1 && plain(it).dropLast(1) == p }
+            ?: ALL_WRITTEN.filter { plain(it).length >= FUZZY - 1 && plain(it).length == p.length && PersianRepairs.distance(plain(it), p) == 1 }.singleOrNull()
     }
 
     private const val MIN_ALIAS = 4
+    private const val FUZZY = 6
 
     private const val ZWNJ = '‌'
     private const val MIN_STEM = 2

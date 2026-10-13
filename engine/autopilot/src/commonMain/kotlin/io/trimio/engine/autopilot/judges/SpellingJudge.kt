@@ -35,10 +35,13 @@ class SpellingJudge : Judge {
             f += Bench.finding(0f, Severity.Note, "no lexicon: unknown-word check skipped", "-")
         } else {
             // Every word read on screen — graphics, captions, the cold open's, the end card — is a word, a term or a name.
-            val words = ScreenWords(lex, names(c))
-            val onScreen = shown(c).map { (t, s) -> Triple(t, s, "") } + Bench.captions(c).map { Triple(it.at, it.text, "caption ") }
-            f += onScreen.flatMap { (t, s, where) -> words.unknown(s).map { w -> Bench.finding(t, Severity.Major, "${where}«$w» is no word", "the right spelling, or another phrase") } }
-                .distinctBy { it.what }.capped(MAX_WORDS)
+            // Graphics strictly (words, terms, given names); captions may keep a probable name as said.
+            val graphic = ScreenWords(lex, names(c, repeated = false), strict = true)
+            val caption = ScreenWords(lex, names(c, repeated = true))
+            val onScreen = shown(c).map { (t, s) -> Triple(t, s, graphic) } + Bench.captions(c).map { Triple(it.at, it.text, caption) }
+            f += onScreen.flatMap { (t, s, check) ->
+                check.unknown(s).map { w -> Bench.finding(t, Severity.Major, "${if (check === caption) "caption " else ""}«$w» is no word", "the right spelling, or another phrase") }
+            }.distinctBy { it.what }.capped(MAX_WORDS)
         }
         val graphics = shown(c)
         f += graphics.flatMap { (t, s) -> halfSpaces(s, lex).map { (w, fix) -> Bench.finding(t, Severity.Minor, "«$w» on screen", "write «$fix»") } }.distinctBy { it.what }.capped()
@@ -67,10 +70,10 @@ class SpellingJudge : Judge {
     private fun screen(c: Jury.Context, lex: PersianSpelling) = ScreenSpelling(lex, (c.prelude + c.words).map { it.text }, c.prompt)
 
     /** Names the understanding, the brief and the speech itself give ([ScreenWords.namesIn]). */
-    private fun names(c: Jury.Context): List<String> {
+    private fun names(c: Jury.Context, repeated: Boolean): List<String> {
         val lex = c.lexicon ?: return emptyList()
         val heard = (c.prelude + c.words).map { it.text }
-        return c.understanding.entities.map { it.name } + c.prompt.split(' ', '\n', '،', ',') + ScreenWords.namesIn(heard) { ScreenWords(lex).shows(it) }
+        return c.understanding.entities.map { it.name } + c.prompt.split(' ', '\n', '،', ',') + ScreenWords.namesIn(heard, repeated) { ScreenWords(lex).shows(it) }
     }
 
     /** Every text a graphic shows, with when: the compiled text and the score's labels and items. */

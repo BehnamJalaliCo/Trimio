@@ -14,7 +14,8 @@ import io.trimio.engine.motion.score.Score
 class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>, prompt: String, own: Collection<String> = emptyList()) {
     private val brief: Set<String> = prompt.split(SEPARATORS).map(::core).filter { it.isNotEmpty() }.map(::plain).toSet()
     private val mine: Set<String> = own.flatMap { it.split(' ') }.map(::core).filter { it.isNotEmpty() }.map(::plain).toSet()
-    private val words = ScreenWords(lexicon, ScreenWords.namesIn(spoken) { w -> ScreenWords(lexicon).shows(w) })
+    // Graphics show only words, terms and given names ([ScreenWords.strict]).
+    private val words = ScreenWords(lexicon, ScreenWords.namesIn(spoken, repeated = false) { w -> ScreenWords(lexicon).shows(w) }, strict = true)
     private val heard: Map<String, String> = spoken.map(::core).filter { it.isNotEmpty() && words.shows(it) }.associateBy(::plain)
     private val bySound: Map<String, String> = heard.values.associateBy { Proofreader.key(it) }
 

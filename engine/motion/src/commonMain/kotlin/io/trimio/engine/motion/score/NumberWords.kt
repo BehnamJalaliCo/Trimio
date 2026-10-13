@@ -56,7 +56,8 @@ object NumberWords {
     }
 
     /** A number starting at word [i], or null. */
-    fun at(words: List<String>, i: Int): Found? = (digits(words, i) ?: spoken(words, i))?.let { it.copy(year = year(words, it)) }
+    fun at(words: List<String>, i: Int): Found? =
+        if (i !in words.indices) null else (digits(words, i) ?: spoken(words, i))?.let { it.copy(year = year(words, it)) }
 
     /**
      * A calendar year: a whole number of the Persian calendar's range said in Persian (1300–1499), or of

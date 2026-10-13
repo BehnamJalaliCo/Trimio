@@ -31,6 +31,15 @@ class CtaJudge(
     override fun score(c: Jury.Context): Verdict {
         val graphics = Bench.graphics(c)
         val comment = graphics.filter { it.recipe == Bench.COMMENT }.maxByOrNull { it.out }
+        // An ask for a keyword said mid-video («کلمه کد رو برام بفرست», with more to come): its field while it is said.
+        midAsk(c)?.let { (i, word) ->
+            val t = Bench.start(c.words, i)
+            val shown = graphics.any { it.recipe == Bench.COMMENT && it.at <= t + MID_NEAR && it.out >= t }
+            if (comment == null || comment.at < Bench.start(c.words, i) + MID_HOLD) {
+                val f = listOfNotNull(Bench.finding(t, Severity.Major, "the ask for «$word» at ${Bench.r1(t)}s is not shown", "the comment field while it is said").takeIf { !shown })
+                return Verdict.of(this, f)
+            }
+        }
         if (comment == null && !asked(c)) return Verdict.of(this, listOf(Bench.finding(0f, Severity.Note, "no call to action in the speech", "-")))
         if (comment == null) return Verdict.of(this, listOfNotNull(missing(c, graphics)))
         val f = mutableListOf<Finding>()
@@ -98,9 +107,27 @@ class CtaJudge(
         words[i].range.startMs / 1000f >= after - 0.2f && DM.any { norm(words[i].text).startsWith(it) }
     }
 
+    /**
+     * The keyword ask said well before the end (a quarter of the talk, and at least [MID_WORDS]
+     * words, still to come): its word index and the keyword; null when the keyword ask closes the piece.
+     */
+    private fun midAsk(c: Jury.Context): Pair<Int, String>? {
+        val texts = c.words.map { it.text }
+        val i = texts.indices.lastOrNull { k -> k + 1 < texts.size && k * 2 >= texts.size && norm(texts[k]) in MARKERS }?.plus(1) ?: return null
+        val word = texts[i].trim { ch -> !ch.isLetterOrDigit() }
+        val after = texts.size - i
+        return (i to word).takeIf { word.isNotEmpty() && after * MID_SHARE > texts.size && after >= MID_WORDS }
+    }
+
     override fun revise(c: Jury.Context, verdict: Verdict): Score? {
         val graphics = Bench.graphics(c)
         val comment = graphics.filter { it.recipe == Bench.COMMENT }.maxByOrNull { it.out }
+        // A mid-video ask: the comment field lands on its keyword and holds while it is said; the piece goes on.
+        midAsk(c)?.takeIf { (i, _) -> comment == null || comment.at < Bench.start(c.words, i) + MID_HOLD }?.let { (i, word) ->
+            val k = Bench.sceneAt(c.score, c.words, Bench.start(c.words, i))
+            return Bench.addBeat(c.score, k, BeatScore(recipe = Bench.COMMENT, at = i, text = word, hold = MID_HOLD, label = LABEL, place = "top"))
+                .takeIf { graphics.none { it.recipe == Bench.COMMENT } }
+        }
         var score = c.score
         val keyword = spokenKeyword(c)
         if (comment == null) return keyword?.let { ask(c, it) } ?: stampAsk(c)
@@ -177,6 +204,11 @@ class CtaJudge(
 
     private companion object {
         const val LABEL = "کامنت کن"
+        /** A keyword ask with more than a quarter of the talk after it is a mid-video ask. */
+        const val MID_SHARE = 4
+        const val MID_WORDS = 20
+        const val MID_HOLD = 4f
+        const val MID_NEAR = 1f
         const val STAMP_HOLD = 1.8f
         const val MIN_LEFT = 1f
         const val OUTRO_MARGIN = 0.2f

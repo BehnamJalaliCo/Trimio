@@ -14,13 +14,14 @@ internal object BenchmarkCount {
 
     fun lines(p: Autopilot.Production, voice: PcmAudio, lexicon: PersianSpelling): List<String> {
         val heard = p.bench?.transcript?.words.orEmpty().map { it.text }
-        val names = p.understanding.entities.map { it.name } + ScreenWords.namesIn(heard) { ScreenWords(lexicon).shows(it) }
-        val screen = ScreenWords(lexicon, names)
+        val given = p.understanding.entities.map { it.name } + p.bench?.prompt.orEmpty().split(' ')
+        val strict = ScreenWords(lexicon, given + ScreenWords.namesIn(heard, repeated = false) { ScreenWords(lexicon).shows(it) }, strict = true)
+        val screen = ScreenWords(lexicon, given + ScreenWords.namesIn(heard) { ScreenWords(lexicon).shows(it) })
         val beats = p.compiled.beats
         val graphics = beats.filter { it.recipe != "pop-captions" }
         val texts = graphics.map { it.text } + p.score.scenes.flatMap { s -> s.beats.flatMap { listOfNotNull(it.label) + it.items.map { i -> i.removePrefix(">") } } }
         val captions = beats.filter { it.recipe == "pop-captions" }.map { it.text }
-        val unknown = (texts + captions).flatMap { screen.unknown(it) }
+        val unknown = texts.flatMap { strict.unknown(it) } + captions.flatMap { screen.unknown(it) }
         val fragments = graphics.filter { it.recipe in Fragments.TITLES }.mapNotNull { g -> Fragments.fault(g.text)?.let { "«${g.text}» ($it)" } }
         val cuts = CutPoints(VoiceLevel.levelled(voice))
         val played = p.edit.played

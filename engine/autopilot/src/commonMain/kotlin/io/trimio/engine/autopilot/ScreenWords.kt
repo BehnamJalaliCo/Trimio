@@ -8,7 +8,16 @@ package io.trimio.engine.autopilot
  * misheard is none of these («کاراموز» is written «کارآموز»; «تذکیر», «پیتیت» are no words), so it
  * never reaches a graphic or a caption as heard.
  */
-internal class ScreenWords(private val lexicon: PersianSpelling, names: Collection<String> = emptyList()) {
+internal class ScreenWords(
+    private val lexicon: PersianSpelling,
+    names: Collection<String> = emptyList(),
+    /**
+     * For graphics: only words, terms and the names the understanding, the brief or a naming word
+     * gives. A caption may also show an unknown word that is probably a name ([probableName]); a
+     * graphic, set big for the viewer to read, never shows a word the app cannot vouch for.
+     */
+    private val strict: Boolean = false,
+) {
     private val repairs = PersianRepairs(lexicon)
     private val names: Set<String> = names.flatMap { it.split(' ') }.map { plain(core(it)) }.filter { it.isNotEmpty() }.toSet()
 
@@ -17,7 +26,7 @@ internal class ScreenWords(private val lexicon: PersianSpelling, names: Collecti
         val c = core(token)
         if (c.isEmpty() || !persian(c)) return true
         if (plain(c) in names) return true
-        return (known(c) && repairs.written(c) == null) || probableName(c)
+        return (known(c) && repairs.written(c) == null) || (!strict && probableName(c))
     }
 
     /**
@@ -68,15 +77,16 @@ internal class ScreenWords(private val lexicon: PersianSpelling, names: Collecti
 
         /**
          * Unknown words the speech itself gives as names: right after a naming word («مدل فیبل»),
-         * or said [REPEATED] times or more the same way; with [known] telling words the list has.
+         * or (when [repeated]: for captions, not graphics) said [REPEATED] times or more the same way;
+         * with [known] telling words the list has.
          */
-        fun namesIn(texts: List<String>, known: (String) -> Boolean): Set<String> {
+        fun namesIn(texts: List<String>, repeated: Boolean = true, known: (String) -> Boolean): Set<String> {
             val cores = texts.map(::core)
             val counts = cores.groupingBy { plain(it) }.eachCount()
             return cores.indices.mapNotNull { i ->
                 val c = cores[i]
                 val named = i > 0 && plain(cores[i - 1]) in NAMING
-                c.takeIf { persian(it) && !known(it) && it.length >= MIN_NAME && (named || (counts[plain(it)] ?: 0) >= REPEATED) }
+                c.takeIf { persian(it) && !known(it) && it.length >= MIN_NAME && (named || (repeated && (counts[plain(it)] ?: 0) >= REPEATED)) }
             }.toSet()
         }
 
