@@ -19,7 +19,8 @@ internal class PersianRepairs(private val lex: PersianSpelling) {
 
     /** A known word for the unknown [core] (followed by [next]), or null. */
     fun repair(core: String, next: String?): String? {
-        if (core.length < MIN_LENGTH || known(core)) return null
+        // A half-spaced word the list knows joined («نمی‌دی» as «نمیدی») is a word: never repaired into another.
+        if (core.length < MIN_LENGTH || known(core) || known(core.replace(ZWNJ_S, ""))) return null
         return whole(core, next) ?: underEndings(core)
     }
 

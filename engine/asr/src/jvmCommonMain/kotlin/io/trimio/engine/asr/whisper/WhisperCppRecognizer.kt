@@ -52,7 +52,8 @@ class WhisperCppRecognizer(
         require(audio.sampleRate == PcmAudio.WHISPER_RATE) { "Whisper needs 16 kHz audio, got ${audio.sampleRate}" }
         val started = System.nanoTime()
         // Speech only (Silero VAD): long silences are cut before decoding; token times come back to the source timeline.
-        val speech = vadModelPath?.let { speechOnly(audio, it, options.threads) }
+        // Any VAD failure falls back to the whole audio (exactly the path without the add-on) and is reported.
+        val speech = vadModelPath?.let { runCatching { speechOnly(audio, it, options.threads) }.getOrNull() }
         val input = speech?.audio ?: audio
         val ctx = ensureLoaded()
         val beam = beam()
@@ -94,7 +95,8 @@ class WhisperCppRecognizer(
         }
 
         val seconds = (System.nanoTime() - started) / NANOS
-        val vadFacts = speech?.let { listOf("vad" to "silero: ${it.speechSeconds.toInt()} s of speech in ${it.sourceSeconds.toInt()} s") }.orEmpty()
+        val vadFacts = speech?.let { listOf("vad" to "silero: ${it.speechSeconds.toInt()} s of speech in ${it.sourceSeconds.toInt()} s") }
+            ?: vadModelPath?.let { listOf("vad" to "silero failed or found no speech: whole audio decoded") }.orEmpty()
         runtime = runtimeOf(options.threads, beam, audio.samples.size / audio.sampleRate.toFloat(), seconds, vadFacts).also { System.err.println("trimio " + it.summary()) }
         val detected = Language.fromCode(WhisperNative.detectedLanguage(ctx)) ?: fallback
         // Re-assemble across segment boundaries so affixes split between segments still join.

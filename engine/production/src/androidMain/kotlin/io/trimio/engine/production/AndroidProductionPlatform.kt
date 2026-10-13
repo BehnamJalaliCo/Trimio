@@ -50,6 +50,8 @@ class AndroidProductionPlatform(
     private val lighter: suspend (String?) -> DirectorChoice = { DirectorChoice.Rules },
     /** The speech model recognition uses now ([LocalDirectors.speechModel]). */
     private val speech: () -> String? = { null },
+    /** The installed perception add-ons ([LocalDirectors.perception]). */
+    private val perception: () -> io.trimio.engine.perception.Perception? = { null },
 ) : ProductionPlatform {
     private val app = context.applicationContext
 
@@ -87,7 +89,7 @@ class AndroidProductionPlatform(
             else StillMedia(asset.id, decode(attached.source, maxOf(width, height)).asImageBitmap())
         }
         val footage = if (request.kind == SourceKind.Video) listOf(AndroidFootage(app, request.media, width, height)) else emptyList()
-        return MediaSources(sources + footage)
+        return MediaSources(sources + footage + FilmPictures)
     }
 
     override fun measurer() = TextMeasurer(createFontFamilyResolver(app), Density(1f), LayoutDirection.Ltr)
@@ -98,6 +100,8 @@ class AndroidProductionPlatform(
     override val previewShaders: Boolean get() = false
 
     override fun recognizer(): SpeechRecognizer? = recognizer.invoke()
+
+    override fun perception(): io.trimio.engine.perception.Perception? = runCatching { perception.invoke() }.getOrNull()
 
     override suspend fun director(choice: DirectorChoice): Director = directors(choice)
 

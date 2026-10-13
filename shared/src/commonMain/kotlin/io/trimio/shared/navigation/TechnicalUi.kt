@@ -133,6 +133,8 @@ object TechnicalUi {
         "direct" to "بارگذاری کارگردان", "listen" to "تحلیل گفتار", "understand" to "فهم", "research" to "جست‌وجو",
         "plan" to "برنامهٔ ادیت", "pictures" to "تصویرها", "compile" to "ساخت صحنه‌ها", "look" to "نگاه مدل",
         "jury" to "داوری", "sound" to "صدا و موسیقی", "render" to "رندر",
+        // The explainer film's stages (audio-only input).
+        "write" to "فیلم‌نامه و داوری فیلم", "draw" to "صحنه‌ها و تصویرها",
     )
 
     /** The creator's answers to the watchdog, as the runner notes them. */

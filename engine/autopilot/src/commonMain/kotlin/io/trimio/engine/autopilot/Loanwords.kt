@@ -43,7 +43,8 @@ object Loanwords {
      */
     internal fun pair(a: String, b: String): String? {
         val heard = plain(a) + plain(b)
-        if (protected(a) && protected(b)) return null
+        // A short word («و», «یه») is its own word, never half of a term.
+        if ((protected(a) && protected(b)) || a.length < MIN_PART || b.length < MIN_PART) return null
         return ALL_WRITTEN.firstOrNull { ZWNJ in it && plain(it) == heard }
             ?: ALL_WRITTEN.firstOrNull { ZWNJ in it && plain(it).length >= FUZZY && PersianRepairs.distance(plain(it), heard) <= 1 }
     }
@@ -135,6 +136,7 @@ object Loanwords {
 
     private const val MIN_ALIAS = 4
     private const val FUZZY = 6
+    private const val MIN_PART = 3
 
     private const val ZWNJ = '‌'
     private const val MIN_STEM = 2

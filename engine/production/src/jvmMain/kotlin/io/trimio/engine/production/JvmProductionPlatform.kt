@@ -41,6 +41,8 @@ class JvmProductionPlatform(
     private val lighter: suspend (String?) -> DirectorChoice = { DirectorChoice.Rules },
     /** The speech model recognition uses now ([LocalDirectors.speechModel]). */
     private val speech: () -> String? = { null },
+    /** The installed perception add-ons ([LocalDirectors.perception]). */
+    private val perception: () -> io.trimio.engine.perception.Perception? = { null },
 ) : ProductionPlatform {
 
     override suspend fun audio(media: String, rate: Int): PcmAudio = io { Media.audio(File(media), rate) }
@@ -53,7 +55,7 @@ class JvmProductionPlatform(
         // The creator's media answer to their own ids before the footage, which answers every id.
         val own = assets.map { UserMediaFiles.source(it.id, File(it.source), fps, width, height) }
         val footage = if (request.kind == SourceKind.Video) listOf(FfmpegFootage(File(request.media), fps, width, height)) else emptyList()
-        return MediaSources(own + footage)
+        return MediaSources(own + footage + FilmPictures)
     }
 
     override fun measurer() = TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr)
@@ -61,6 +63,8 @@ class JvmProductionPlatform(
     override fun speaker(): Speaker = JvmSpeaker()
 
     override fun recognizer(): SpeechRecognizer? = recognizer.invoke()
+
+    override fun perception(): io.trimio.engine.perception.Perception? = runCatching { perception.invoke() }.getOrNull()
 
     override suspend fun director(choice: DirectorChoice): Director = directors(choice)
 

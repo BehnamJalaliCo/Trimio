@@ -368,6 +368,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         val PERSIAN_NAMES = mapOf(
             "hook" to "هوک", "rhythm" to "ریتم", "motion" to "حرکت و تنوع", "typography" to "تایپوگرافی", "spelling" to "املا و خط",
             "layout" to "چیدمان", "sound" to "صدا", "music" to "موسیقی", "brief" to "پیروی از بریف", "cta" to "دعوت به اقدام",
+            // The explainer film's judges (phase 8c).
+            "metaphor" to "استعاره‌ی تصویری", "continuity" to "پیوستگی صحنه", "variety" to "تنوع", "timing" to "زمان‌بندی", "pace" to "ضرباهنگ",
         )
 
         /** Findings a round's report line lists at most. */

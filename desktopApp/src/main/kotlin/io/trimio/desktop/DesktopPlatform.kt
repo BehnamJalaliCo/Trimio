@@ -109,6 +109,7 @@ fun desktopPlatformModule(
         JvmProductionPlatform(
             dirs.output, recognizer = { recognizer }, directors = { choice -> directors().director(choice) },
             lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },
+            perception = { directors().perception() },
         )
     }
     single<AutoEditor> {

@@ -16,7 +16,6 @@ import io.trimio.engine.autopilot.SubjectGrounding
 import io.trimio.engine.autopilot.Taste
 import io.trimio.engine.autopilot.UserAsset
 import io.trimio.engine.autopilot.explainer.ExplainerPilot
-import io.trimio.engine.autopilot.explainer.StageRenderer
 import io.trimio.engine.autopilot.explainer.judges.FilmJury
 import io.trimio.engine.motion.explainer.IconResolver
 import io.trimio.engine.motion.MediaSource
@@ -25,6 +24,7 @@ import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.visual.VisualLibrary
+import io.trimio.engine.perception.AddOnPass
 import io.trimio.engine.production.diagnostics.Fact
 import io.trimio.engine.production.diagnostics.RenderTime
 import io.trimio.engine.production.diagnostics.RunOutcome
@@ -133,6 +133,8 @@ class Productions(
 
     override suspend fun reopen(request: ProductionRequest, overrides: EditOverrides): Opened = withContext(Dispatchers.Default) {
         val saved = checkpoints.load(request.key)
+        // An explainer film keeps no workbench: it is not changed in the editor (yet).
+        if (saved?.delivery == null && request.kind != SourceKind.Video && explainers) return@withContext Opened.Explainer
         val kept = saved?.delivery?.takeIf { it.version == Delivery.VERSION } ?: return@withContext Opened.NotKept
         // The creator's own files are read again: a video, recording or attachment that is gone is said so.
         val media = readable {
@@ -257,14 +259,16 @@ class Productions(
         val voice = recorder.native("decode sound") { platform.audio(request.media, VOICE_RATE) }
         val video = request.kind == SourceKind.Video
         val frames = if (video) recorder.native("decode frames") { platform.frames(request.media, SUBJECT_FRAMES, LOOK_W) } else emptyList()
-        val found = SubjectFinder.locate(frames)
+        // Installed perception add-ons only (none installed: null, and every hook below returns its input).
+        val addOns = platform.perception()?.let(::AddOnPass)
+        val found = addOns.located(frames, SubjectFinder.locate(frames))
         r.at(Stage.Prepare, HALF, "attachments")
         val assets = recorder.native("attachments") { request.assets.mapIndexed { i, a -> platform.asset(a.source, "asset-$i", a.caption) } }
 
         // The words: the previous edit's, the checkpoint's, or whisper's (unloaded before the director loads: phones hold one model).
         val saved = if (r.previous == null) checkpoints.load(request.key) else null
         val heard = r.previous?.transcript ?: saved?.transcript
-        val transcript = heard ?: transcribe(r, voice).also {
+        val transcript = heard ?: addOns.refined(transcribe(r, voice), voice, WHISPER_RATE).also {
             checkpoints.save(request.key, Checkpoints.Saved(it))
         }
 
@@ -274,7 +278,7 @@ class Productions(
             val model = d.model?.let(recorder::instrument)
             Director(model, d.eyes?.let { eyes -> if (eyes === d.model) model else recorder.instrument(eyes) })
         }
-        recorder.models(modelFacts(director, if (heard == null) platform.speechModel() else null, request.director))
+        recorder.models(modelFacts(director, if (heard == null) platform.speechModel() else null, request.director) + addOns.facts())
         val subject = director.eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
         r.at(Stage.Direct, 0f, "direct")
         val taste = r.feedback?.let { r.taste.adjust(Collaborator(director.model).read(it)) } ?: r.taste
@@ -292,7 +296,7 @@ class Productions(
         val production = if (!video && explainers) {
             // A voice alone becomes an explainer film: the screenwriter writes it, the stage draws it (phase 8c).
             val budget = (jury ?: Juries.forDevice(platform.device())).budget
-            val pilot = ExplainerPilot(StageRenderer(e.text, IconResolver.of(visuals)), director.model, FilmJury(budget = budget))
+            val pilot = ExplainerPilot(IllustratedStage(e.text, IconResolver.of(visuals)), director.model, FilmJury(budget = budget))
             pilot.produce(
                 ExplainerPilot.Request(transcript, voice, request.brief, request.seed, understanding, FPS, others = listOfNotNull(r.previous?.production?.film?.art)),
             ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }

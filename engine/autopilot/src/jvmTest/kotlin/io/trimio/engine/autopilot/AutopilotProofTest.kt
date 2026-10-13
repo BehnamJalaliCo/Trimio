@@ -8,9 +8,16 @@ import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.llm.local.LlamaLanguageModel
 import io.trimio.engine.models.ChatFormat
+import io.trimio.engine.models.MediaAddOns
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Score
+import io.trimio.engine.motion.score.Subject
 import io.trimio.engine.motion.visual.VisualLibrary
+import io.trimio.engine.onnx.OrtEngine
+import io.trimio.engine.perception.AddOnPass
+import io.trimio.engine.perception.Frame
+import io.trimio.engine.perception.ModelFiles
+import io.trimio.engine.perception.Perception
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -40,6 +47,9 @@ class AutopilotProofTest {
         val out = File(System.getProperty("auto.out") ?: "build/proof").apply { mkdirs() }
         val cache = File(out, "cache").apply { mkdirs() }
 
+        // -Pauto.addons=<dir>[,<dir>]: the add-ons installed there run as in the app (Silero VAD, AddOnPass); absent: none.
+        val addOns = AddOns(System.getProperty("auto.addons")?.split(',')?.map(::File)?.filter { it.isDirectory }.orEmpty())
+
         // 1. Speech, recognised by the app's own whisper.cpp (cached: it does not change between seeds).
         val transcriptFile = File(out, "transcript.json")
         val transcript = if (transcriptFile.isFile) {
@@ -48,7 +58,7 @@ class AutopilotProofTest {
         } else {
             val whisper = System.getProperty("auto.whisper") ?: error("set -Pauto.whisper")
             val t0 = System.nanoTime()
-            runBlocking { Studio.transcribe(video, whisper, prompt) }.also { t ->
+            runBlocking { addOns.transcribe(video, whisper, prompt) }.also { t ->
                 transcriptFile.writeText(json.encodeToString(ListSerializer(W.serializer()), t.words.map { W(it.text, it.range.startMs / 1000f, it.range.endMs / 1000f) }))
                 println("whisper: ${(System.nanoTime() - t0) / 1e9}s: ${t.words.joinToString(" ") { it.text }}")
             }
@@ -73,7 +83,7 @@ class AutopilotProofTest {
         val voice = Media.audio(video, Studio.RATE)
         for (seed in seeds) {
             val t0 = System.nanoTime()
-            val studio = Studio(brands, visuals, llm, knowledge)
+            val studio = Studio(brands, visuals, llm, knowledge, head = addOns::head)
             // -Pauto.reuse=<file>: plan from a saved reading (no model run), for fast iteration and variations.
             val reuse = System.getProperty("auto.reuse")?.let(::File)?.takeIf { it.isFile }?.let { json.decodeFromString(Understanding.serializer(), it.readText()) }
             val production = runBlocking { studio.produce(video, prompt, seed, transcript, reuse, assets) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
@@ -89,7 +99,8 @@ class AutopilotProofTest {
             val planned = (System.nanoTime() - t0) / 1e9
             // The real benchmark's acceptance counts (unknown words, fragments, cuts inside words, every graphic text).
             val counted = BenchmarkCount.lines(production, voice, runBlocking { PersianSpelling.load() })
-            File(out, "seed-$seed-report.txt").writeText(production.report.joinToString("\n") + "\n\n" + counted.joinToString("\n") + "\n\nplanned in ${planned}s\n")
+            val lines = production.report + "" + counted + "" + addOns.lines().let { if (it.isEmpty()) it else it + "" }
+            File(out, "seed-$seed-report.txt").writeText(lines.joinToString("\n") + "\nplanned in ${planned}s\n")
             println(counted.joinToString("\n"))
             File(out, "seed-$seed-score.json").writeText(Score.encode(production.score))
             File(out, "seed-$seed-understanding.json").writeText(json.encodeToString(Understanding.serializer(), production.understanding))
@@ -104,9 +115,33 @@ class AutopilotProofTest {
         llm?.close()
     }
 
+    /** The add-ons found in [dirs], run as the app runs them; with no dirs, none (the plain path). */
+    private class AddOns(private val dirs: List<File>) {
+        private fun file(name: String) = dirs.map { File(it, name) }.firstOrNull { it.isFile }?.path
+        private val pass = dirs.takeIf { it.isNotEmpty() }?.let { AddOnPass(Perception(OrtEngine(), ModelFiles { spec -> file(spec.fileName) })) }
+        private val vad = file(MediaAddOns.vad.fileName)
+
+        suspend fun transcribe(video: File, whisper: String, prompt: String): Transcript {
+            val t = Studio.transcribe(video, whisper, prompt, vad = vad)
+            return pass?.let { p -> t.copy(words = p.words(t.words, Media.audio(video, WHISPER_RATE), t.language)) } ?: t
+        }
+
+        suspend fun head(frames: List<io.trimio.engine.llm.RgbImage>, found: SubjectFinder.Found?): SubjectFinder.Found? {
+            val h = pass?.head(frames.mapIndexed { i, f -> Frame(f.width, f.height, f.rgb, i.toFloat()) }) ?: return found
+            return SubjectFinder.Found(Subject(h[0], h[1], h[2], h[3]), FACE_CONFIDENCE)
+        }
+
+        fun lines(): List<String> = listOfNotNull(vad?.let { "add-on vad: $it" }) + pass?.report.orEmpty().map { "add-on $it" }
+    }
+
     private class FileCache(private val dir: File) : KnowledgeCache {
         private fun file(key: String) = File(dir, key.hashCode().toUInt().toString(16) + "-" + key.length + ".txt")
         override fun get(key: String) = file(key).takeIf { it.isFile }?.readText()
         override fun put(key: String, value: String) = file(key).writeText(value)
+    }
+
+    private companion object {
+        const val WHISPER_RATE = 16_000
+        const val FACE_CONFIDENCE = 0.9f
     }
 }

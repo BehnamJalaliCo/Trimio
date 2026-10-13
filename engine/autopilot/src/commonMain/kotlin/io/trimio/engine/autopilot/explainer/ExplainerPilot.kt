@@ -32,6 +32,9 @@ import kotlin.time.Duration.Companion.minutes
 fun interface FilmStage {
     /** [film] laid out for [format] ("9:16", "16:9") at [fps], [duration] seconds long. */
     fun compose(film: ExplainerFilm, format: String, fps: Int, duration: Float): Composition
+
+    /** Gets what [film] draws ready before [compose] (its hero illustrations); answers report lines. */
+    suspend fun prepare(film: ExplainerFilm): List<String> = emptyList()
 }
 
 /**
@@ -84,15 +87,16 @@ class ExplainerPilot(
         val director: FilmDirector = model?.let { LlmDirector(it, budget = if (it.isLocal) budget else null) } ?: RulesDirector()
         val writer = Screenwriter(director, jury, askAgain = model?.isLocal == false || model == null)
         val written = writer.write(n, request.seed, request.others) { report += it }
-        val film = written.film
+        val film = leadIn(written.film)
         Beats.table(film).forEach { report += it }
 
         onStage("draw", 0.8f)
+        report += runCatching { stage.prepare(film) }.getOrElse { listOf("illustrations: failed (${it.message}); the stage draws its own glyphs") }
         val composition = stage.compose(film, request.format, request.fps, duration)
         onStage("sound", 0.9f)
         val music = ArtDirector.music(n, request.seed)
         val edit = EditPlan.identity(composition.duration)
-        val sound = Soundtrack(request.voice.sampleRate).master(request.voice, edit, transcript.words, composition.duration, music, request.seed.toInt(), cues = emptyList())
+        val sound = Soundtrack(request.voice.sampleRate).master(request.voice, edit, transcript.words, composition.duration, music, request.seed.toInt(), cues = cues(film))
         report += "sound: ${music?.id ?: "no music"} under the narration, ${round1(sound.lufs.toFloat())} LUFS"
         onStage("done", 1f)
         val score = Score(format = request.format, look = film.art.palette)
@@ -110,7 +114,29 @@ class ExplainerPilot(
             .getOrElse { RulesUnderstander.understand(transcript, request.prompt, lines) }
     }
 
+    /**
+     * No chapter stands empty under its heading while the voice already speaks: a chapter whose first
+     * beat comes later than [LEAD] after it opens has that beat brought in at the opening (diagram films;
+     * a news scene opens on its headline anyway).
+     */
+    private fun leadIn(film: ExplainerFilm): ExplainerFilm {
+        if (film.art.grammar != io.trimio.engine.motion.explainer.FilmGrammar.DiagramChapters.id) return film
+        return film.copy(
+            chapters = film.chapters.map { c ->
+                val first = c.beats.firstOrNull()?.takeIf { it.at - c.start > LEAD } ?: return@map c
+                c.copy(beats = listOf(first.copy(at = c.start + OPEN)) + c.beats.drop(1))
+            },
+        )
+    }
+
+    /** A soft whoosh where a new chapter (or news scene) arrives; nothing under the first one. */
+    private fun cues(film: ExplainerFilm): List<io.trimio.engine.motion.recipe.Sfx> =
+        film.chapters.drop(1).map { io.trimio.engine.motion.recipe.Sfx(it.start.toFloat(), io.trimio.engine.motion.recipe.SfxKind.Whoosh, CUE_GAIN) }
+
     private companion object {
+        const val CUE_GAIN = 0.55f
+        const val LEAD = 1.2
+        const val OPEN = 0.5
         val MODEL_BUDGET = 12.minutes
         val UNDERSTAND_BUDGET = 3.minutes
         fun round1(v: Float) = kotlin.math.round(v * 10f) / 10f

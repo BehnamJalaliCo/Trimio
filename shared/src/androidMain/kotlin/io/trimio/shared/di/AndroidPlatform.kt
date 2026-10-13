@@ -107,6 +107,7 @@ fun androidPlatformModule(
         AndroidProductionPlatform(
             app, { recognizer }, { choice -> directors().director(choice) }, device.tier,
             lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },
+            perception = { directors().perception() },
         )
     }
     single<AutoEditor> {

@@ -18,6 +18,9 @@ sealed interface Opened {
 
     /** This platform has no engine to open edits with (web previews). */
     data object Unsupported : Opened
+
+    /** An explainer film (made from a voice alone): it plays and exports, the editor does not change it yet. */
+    data object Explainer : Opened
 }
 
 /**

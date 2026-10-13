@@ -104,7 +104,8 @@ class EditorViewModel(
         val opened = edits.open(id)
         val edit = (opened as? Opened.Ready)?.edit?.takeIf { it.editable } ?: run {
             // An edit made without the director's workbench cannot be changed: as on a platform without the engine.
-            _state.value = State.Unavailable(if (opened is Opened.Ready) NotOpen.Unsupported else NotOpen.of(opened))
+            val film = (opened as? Opened.Ready)?.edit?.production?.film != null
+            _state.value = State.Unavailable(if (film) NotOpen.Explainer else if (opened is Opened.Ready) NotOpen.Unsupported else NotOpen.of(opened))
             return
         }
         original = edit

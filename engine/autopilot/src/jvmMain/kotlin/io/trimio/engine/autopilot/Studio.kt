@@ -11,6 +11,7 @@ import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.asr.whisper.WhisperCppRecognizer
 import io.trimio.engine.llm.LanguageModel
+import io.trimio.engine.llm.RgbImage
 import io.trimio.engine.motion.MotionFonts
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.export.Delivery
@@ -39,6 +40,8 @@ class Studio(
     private val taste: Taste = Taste(),
     /** The eyes: the director when it can see, or a separate light vision model. */
     private val eyes: LanguageModel? = model?.takeIf { it.canSee },
+    /** The installed face add-on's head over the pixel finder's (the app's AddOnPass); the default keeps the finder's. */
+    private val head: suspend (List<RgbImage>, SubjectFinder.Found?) -> SubjectFinder.Found? = { _, found -> found },
 ) {
     private val text = TextLayoutEngine(TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr), kotlinx.coroutines.runBlocking { MotionFonts.load() })
 
@@ -52,7 +55,7 @@ class Studio(
         val voice = Media.audio(video, RATE)
         // The head from the pixels; when the director can see, its own eyes check the box on a few frames.
         val frames = Media.frames(video)
-        val found = SubjectFinder.locate(frames)
+        val found = head(frames, SubjectFinder.locate(frames))
         val subject = eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
         return Autopilot(text, brands, visuals, model, knowledge, taste, eyes, eyes?.let { grabber(video, assets) }).produce(
             Autopilot.Request(transcript, voice, prompt, seed, footage = "main", subject = subject, understanding = understanding, assets = assets),
@@ -89,12 +92,12 @@ class Studio(
         private const val LOOK_H = 512
 
         /** Speech to words with whisper.cpp; the prompt's names and jargon condition the decoder. */
-        suspend fun transcribe(video: File, whisperModel: String, prompt: String, language: Language? = Language.Persian): Transcript {
+        suspend fun transcribe(video: File, whisperModel: String, prompt: String, language: Language? = Language.Persian, vad: String? = null): Transcript {
             val audio = Media.audio(video, 16_000)
             // A short, well-punctuated sentence in the spoken language naming the brief's names and the
             // field's terms: better punctuation, and the terms spelled as they are written ([Loanwords.prompt]).
             val hint = System.getProperty("auto.hint")?.takeIf { it == "plain" }?.let { "سلام دوستان، امروز می‌خواهم یک نکته‌ی مهم را بگویم." } ?: Loanwords.prompt(prompt)
-            return WhisperCppRecognizer(whisperModel).use { r ->
+            return WhisperCppRecognizer(whisperModel, vadModelPath = vad).use { r ->
                 // -Dtrimio.asr.threads: fewer threads than cores on a shared, busy machine (ggml's workers spin while they wait for each other).
                 val threads = System.getProperty("trimio.asr.threads")?.toIntOrNull() ?: Runtime.getRuntime().availableProcessors()
                 r.transcribe(audio, RecognitionOptions(language = language, initialPrompt = hint, threads = threads))

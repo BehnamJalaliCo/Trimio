@@ -21,6 +21,8 @@ kotlin {
             api(projects.engine.perception)
             // Music moods and beat grids for the editor's sound and cut tools.
             implementation(projects.engine.assets)
+            // Hero pictures of explainer films (the CC0 library in the film's look).
+            implementation(projects.engine.illustration)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.io.core)
         }
@@ -40,4 +42,8 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
     maxHeapSize = "3g"
+    // ExplainerFilmProofTest on a real narration: -Pexplainer.wav=<voice> -Pexplainer.transcript=<words.json> -Pexplainer.out=<dir>.
+    listOf("explainer.wav", "explainer.transcript", "explainer.out", "explainer.prompt").forEach { key ->
+        providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
+    }
 }
