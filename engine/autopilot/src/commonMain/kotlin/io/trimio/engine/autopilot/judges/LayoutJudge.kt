@@ -213,15 +213,26 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
             val at = Bench.locate(score, c.words, p) ?: continue
             // On its own stage a graphic goes to the middle first. Out of place (on a caption, the face, another
             // graphic): the other band first; badly drawn: another layout first.
-            val centre = Kind.Stage in kinds && score.scenes[at.first].beats[at.second].place != CENTER
+            val beat = score.scenes[at.first].beats[at.second]
+            val centre = (Kind.Stage in kinds && beat.place != CENTER) || stageable(score, at, beat, kinds)
             score = Bench.mapBeat(score, at) { b ->
                 if (centre) b.copy(place = CENTER) else Bench.Ladder.next(b, p, moveFirst = kinds.all { it in MOVABLE }, gentle = kinds == setOf(Kind.Tiny))
             }
+            // A figure the face leaves no room for in either band, already moved once, gets the whole frame for its line.
+            if (centre && Kind.Face in kinds) score = score.copy(scenes = score.scenes.mapIndexed { k, sc -> if (k == at.first) sc.copy(bg = STAGE, transition = sc.transition ?: ZOOM) else sc })
         }
         return score.takeIf { it != c.score }
     }
 
+    /** Whether a data graphic still over the face after a move can take a full-frame stage (never the opening scene or the ask's). */
+    private fun stageable(score: Score, at: Pair<Int, Int>, b: io.trimio.engine.motion.score.BeatScore, kinds: Set<Kind>): Boolean {
+        val scene = score.scenes[at.first]
+        return Kind.Face in kinds && b.variant != null && b.recipe in Bench.DATA && at.first > 0 && scene.bg == null && scene.beats.none { it.recipe == Bench.COMMENT }
+    }
+
     private companion object {
+        const val STAGE = "grid"
+        const val ZOOM = "zoom"
         const val MAX_EACH = 3
         const val TIME_TOL = 0.12f
         /** Two looks this close in time are the same moment. */

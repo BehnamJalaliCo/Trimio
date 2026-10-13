@@ -100,7 +100,8 @@ class MotionJudge(
         if (s.recipe !in Bench.TEXT) return null
         val line = c.lines.firstOrNull { l -> Bench.start(c.words, l.first) <= m.placed.at + LAND && Bench.start(c.words, l.last) >= m.placed.at - LAND } ?: return null
         val title = io.trimio.engine.autopilot.Phrases.title(c.words, line).ifBlank { return null }
-        return s.copy(text = title, at = line.first, until = null, time = null, emphasis = emptyList()).takeIf { title != s.text }
+        // It keeps its own landing (its scene and timing stay); only what it says changes.
+        return s.copy(text = title, emphasis = emptyList()).takeIf { title != s.text }
     }
 
     /** A counter as a slam of its number and unit («۵۰٬۰۰۰ بازدید»), in the piece's digits. */
