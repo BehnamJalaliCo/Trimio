@@ -245,7 +245,7 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         private const val ASCII = 128
         const val MIN_BEAT = 0.3
         private const val TOGETHER = 0.05
-        private const val EPS = 1e-3
+        private const val EPS = 0.011
 
         val CREATES = setOf(StageOp.Add, StageOp.Replace, StageOp.Morph)
         val WORDS_ONLY = setOf(Primitive.Heading, Primitive.Kicker, Primitive.BigWord, Primitive.Quote, Primitive.Note)

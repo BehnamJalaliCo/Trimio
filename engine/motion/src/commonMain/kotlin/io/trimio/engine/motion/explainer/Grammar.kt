@@ -108,9 +108,9 @@ class StageFrame(val width: Float, val height: Float, val grammar: StageGrammar,
         else -> if (portrait) 100f else 84f
     }
 
-    /** Where the chapter mark sits (its centre line) and the heading's centre. */
+    /** Where the chapter mark sits (its centre line) and the top of the heading. */
     val markY: Float
-    val titleY: Float
+    val titleTop: Float
     val titleX: Float
     val titleAlign: TextAlign
     val titleWidth: Float
@@ -128,26 +128,26 @@ class StageFrame(val width: Float, val height: Float, val grammar: StageGrammar,
         when (grammar) {
             StageGrammar.HeaderTop, StageGrammar.HeaderLeft -> {
                 markY = s.top + u * 14f
-                titleY = markY + u * 30f + titleSize * 0.72f
+                titleTop = markY + u * 26f
                 val centred = grammar == StageGrammar.HeaderTop
                 titleAlign = if (centred) TextAlign.Center else TextAlign.Start
                 titleWidth = s.width * if (centred) 0.9f else 0.8f
                 titleX = if (centred) s.centerX else startEdge
-                header = Box(s.left, s.top, s.right, titleY + titleSize * 0.75f)
+                header = Box(s.left, s.top, s.right, titleTop + titleSize * TITLE_LINE)
                 stage = Box(s.left + u * 10f, header.bottom + u * (if (portrait) 70f else 40f), s.right - u * 10f, bottom)
             }
             StageGrammar.Split -> if (portrait) {
                 markY = s.top + u * 14f
-                titleY = markY + u * 36f + titleSize * 0.75f
+                titleTop = markY + u * 30f
                 titleAlign = TextAlign.Start
                 titleWidth = s.width * 0.86f
                 titleX = startEdge
-                header = Box(s.left, s.top, s.right, titleY + titleSize * 0.8f + u * 30f)
+                header = Box(s.left, s.top, s.right, titleTop + titleSize * TITLE_LINE + u * 30f)
                 stage = Box(s.left + u * 10f, header.bottom + u * 70f, s.right - u * 10f, bottom)
             } else {
                 val column = s.width * 0.34f
-                titleY = (s.top + bottom) / 2f
-                markY = titleY - titleSize * 0.95f - u * 26f
+                markY = s.top + (bottom - s.top) * 0.3f
+                titleTop = markY + u * 30f
                 titleAlign = TextAlign.Start
                 titleWidth = column - u * 40f
                 titleX = startEdge
@@ -156,11 +156,11 @@ class StageFrame(val width: Float, val height: Float, val grammar: StageGrammar,
             }
             StageGrammar.FullBleed -> {
                 markY = s.top + u * 10f
-                titleY = markY + u * 22f + titleSize * 0.7f
+                titleTop = markY + u * 20f
                 titleAlign = TextAlign.Start
                 titleWidth = s.width * 0.6f
                 titleX = startEdge
-                header = Box(s.left, s.top, s.right, titleY + titleSize * 0.75f)
+                header = Box(s.left, s.top, s.right, titleTop + titleSize * TITLE_LINE)
                 stage = Box(s.left + u * 10f, header.bottom + u * 40f, s.right - u * 10f, bottom)
             }
         }
@@ -169,5 +169,8 @@ class StageFrame(val width: Float, val height: Float, val grammar: StageGrammar,
     companion object {
         /** Caption band thickness at u = 1. */
         const val BAND = 22f
+
+        /** A one-line heading's height, in its size. */
+        const val TITLE_LINE = 1.25f
     }
 }

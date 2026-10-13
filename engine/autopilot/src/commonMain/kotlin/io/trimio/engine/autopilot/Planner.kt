@@ -479,8 +479,10 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 reads[k - 1].show != "comment" &&
                 // Nor while the line before still holds its graphic (names, a figure, a list): the cut would end it early.
                 reach(k - 1) < k }
-                // The piece's big figures first; the rest by weight, varied by seed.
-                .sortedByDescending { k -> takeoverWeight(k) }
+                // The piece's big figures first; the rest by weight, varied by seed. Each weight is drawn
+                // once: a selector that draws a new random number on every comparison breaks the sort's
+                // contract (TimSort throws "Comparison method violates its general contract!" on 32+ lines).
+                .let { ks -> ks.associateWith { k -> takeoverWeight(k) }.let { w -> ks.sortedByDescending { w.getValue(it) } } }
             val chosen = mutableSetOf<Int>()
             var used = 0f
             for (k in candidates) {

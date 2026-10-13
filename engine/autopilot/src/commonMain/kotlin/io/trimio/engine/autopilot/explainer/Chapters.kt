@@ -97,7 +97,10 @@ object Chapters {
         fun fits(k: Int): Boolean {
             val lo = cuts.lastOrNull { it < k } ?: 0
             val hi = cuts.firstOrNull { it > k } ?: clauses.size
-            return span(clauses, lo, k) >= MIN_SECONDS && span(clauses, k, hi) >= MIN_SECONDS && k - lo >= MIN_CLAUSES && hi - k >= MIN_CLAUSES
+            // The opening may be one sentence (a hook before the first subject); every other chapter holds a stage.
+            val opening = lo == 0
+            val left = span(clauses, lo, k) >= (if (opening) OPENING_SECONDS else MIN_SECONDS) && k - lo >= (if (opening) 1 else MIN_CLAUSES)
+            return left && span(clauses, k, hi) >= MIN_SECONDS && hi - k >= MIN_CLAUSES
         }
         for ((k, score) in gaps.entries.sortedByDescending { it.value }) {
             if (cuts.size + 1 >= most || score < THRESHOLD) break
@@ -125,22 +128,44 @@ object Chapters {
         return first ?: said.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
     }
 
-    /** A chapter's heading: its subject's name, a step as counted, its most repeated phrase, or its strongest one. */
+    /**
+     * A chapter's heading: its subject's name, a step as counted, the noun it keeps coming back to
+     * («تورم», "savings"), or its first clause's strongest phrase — two or three words, never a
+     * verb or an adverb at its edges, English in title case.
+     */
     private fun title(n: Narration, r: IntRange, subject: String?, index: Int, used: Set<String>): String {
         if (subject != null && Phrases.key(subject) !in used) return subject
         val first = n.clauses[r.first]
         Enumerations.step(n.texts, Lines.Line(first.first, first.last))?.let { s ->
-            val t = s.joinToString(" ") { Phrases.clean(n.texts[it]) }
-            if (Phrases.key(t) !in used) return t
+            val t = edges(s.map { Phrases.clean(n.texts[it]) })
+            if (t.isNotBlank() && Phrases.key(t) !in used) return cased(n, t)
         }
-        if (index == 0) n.understanding.title.split(' ').take(MAX_TITLE_WORDS).joinToString(" ").takeIf { it.isNotBlank() && Phrases.key(it) !in used }?.let { return it }
         val words = r.flatMap { n.clauses[it].words }
-        val repeated = words.filter { Phrases.nounish(n.texts[it]) }.groupBy { Metaphors.bare(n.texts[it]).take(STEM) }
-            .filter { it.value.size >= 2 }.maxByOrNull { it.value.size }?.value?.first()
-        val line = Lines.Line(n.clauses[r.first].first, n.clauses[r.last].last)
-        val phrase = repeated?.let { Phrases.phraseAt(n.texts, line, it) } ?: Phrases.title(n.words, line, used)
-        return phrase.split(' ').take(MAX_TITLE_WORDS).joinToString(" ").ifBlank { Phrases.clean(n.texts[words.first()]) }
+        val nouns = words.filter { Phrases.nounish(n.texts[it]) && Metaphors.bare(n.texts[it]) !in EDGE_WORDS && Metaphors.bare(n.texts[it]).length >= MIN_NOUN }
+        val repeated = nouns.groupBy { stem(n.texts[it]) }.filter { it.value.size >= 2 && it.key !in used }.maxByOrNull { it.value.size }
+        if (repeated != null) return cased(n, repeated.value.map { Phrases.clean(n.texts[it]) }.minByOrNull { it.length }!!)
+        if (index == 0) {
+            val t = edges(n.understanding.title.split(' ').take(MAX_TITLE_WORDS))
+            if (t.isNotBlank() && Phrases.key(t) !in used) return cased(n, t)
+        }
+        val phrase = edges(Phrases.title(n.words, Lines.Line(first.first, first.last), used).split(' ').take(MAX_TITLE_WORDS))
+        return cased(n, phrase.ifBlank { nouns.firstOrNull()?.let { Phrases.clean(n.texts[it]) } ?: Phrases.clean(n.texts[words.first()]) })
     }
+
+    /** A phrase without verbs, modals or adverbs at its edges («باید پولت» → «پولت», "Finally avoid" → ""). */
+    private fun edges(words: List<String>): String {
+        fun weak(w: String) = Metaphors.bare(w) in EDGE_WORDS || Phrases.verb(Metaphors.bare(w)) || !Phrases.nounish(w)
+        return words.filter { it.isNotBlank() }.dropWhile(::weak).dropLastWhile(::weak).joinToString(" ")
+    }
+
+    /** A word's stem for counting repeats: «پولت», «پول» and «پولش» are one noun; "savings" and "saving" too. */
+    fun stem(w: String): String {
+        val b = Metaphors.bare(w)
+        val cut = STEM_SUFFIXES.firstOrNull { b.endsWith(it) && b.length - it.length >= MIN_NOUN }
+        return (if (cut != null) b.dropLast(cut.length) else b).take(STEM)
+    }
+
+    private fun cased(n: Narration, t: String) = if (n.persian) t else t.replaceFirstChar { it.uppercaseChar() }
 
     private val NAMED = setOf("brand", "product", "app", "person", "organization", "place")
     private val CALLED = setOf("اسمش", "اسم", "called", "named", "نام", "نامش")
@@ -169,6 +194,13 @@ object Chapters {
     private const val SHORT_REST = 0.45
     private const val THRESHOLD = 2.2f
     private const val MIN_SECONDS = 6.0
+    private const val OPENING_SECONDS = 2.5
+    private const val MIN_NOUN = 3
+    private val STEM_SUFFIXES = listOf("هایش", "هاشون", "هاتون", "های", "ها", "تون", "شون", "مون", "ات", "ت", "ش", "م", "ی", "s")
+    private val EDGE_WORDS = setOf(
+        "باید", "نباید", "شاید", "اگه", "اگر", "فقط", "حتی", "finally", "first", "then", "here", "also", "just", "really", "most", "every", "step", "number",
+        "one", "two", "three", "four", "suddenly", "whole", "great", "same", "دوم", "سوم", "اول",
+    )
     private const val MAX_SECONDS = 24.0
     private const val MIN_CLAUSES = 2
     private const val MAX_CHAPTERS = 9

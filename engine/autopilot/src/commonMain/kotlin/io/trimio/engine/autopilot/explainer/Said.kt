@@ -14,7 +14,7 @@ internal object Said {
     /** The noun phrase around word [at] of [c], at most [max] words, inside its clause and its comma. */
     fun around(n: Narration, c: Clause, at: Int, max: Int = MAX_PHRASE): String {
         val t = n.texts
-        fun noun(i: Int) = i in c.words && Phrases.nounish(t[i])
+        fun noun(i: Int) = i in c.words && Phrases.nounish(t[i]) && Metaphors.bare(t[i]) !in ADVERBS
         fun connector(i: Int) = i in c.words && Metaphors.bare(t[i]) in CONNECTORS
         fun breaks(i: Int) = t[i].trimEnd().lastOrNull()?.let { it in PUNCTUATION } == true
         var start = if (!noun(at) && noun(at + 1)) at + 1 else at
@@ -57,6 +57,14 @@ internal object Said {
         words.map { Phrases.clean(it).trim('«', '»', '"', '(', ')') }.filter { it.isNotBlank() }.dropWhile { Metaphors.bare(it) in CONNECTORS }
             .dropLastWhile { Metaphors.bare(it) in CONNECTORS || Metaphors.bare(it) in FUNCTION }.joinToString(" ")
 
+    /** The picture query for a thing said ([Concepts.visualOf], and the everyday tech words it lacks), or null. */
+    fun visualOf(word: String): String? = io.trimio.engine.autopilot.Concepts.visualOf(word) ?: Metaphors.bare(word).let { b ->
+        THINGS.entries.firstOrNull { (k, _) -> b == k || (k.length >= MIN_STEM && b.startsWith(k) && b.length - k.length <= 2) }?.value
+    }
+
+    /** A role a persona card can show («کارآموز», "assistant"), as said; null when [word] is not one. */
+    fun role(word: String): Boolean = Metaphors.bare(word).let { b -> ROLES.any { b == it || (it.length >= MIN_STEM && b.startsWith(it) && b.length - it.length <= 2) } }
+
     /** Example sets: what a kind of work or life is made of, by field, in the film's language. */
     fun examples(domain: String, persian: Boolean): List<Item> {
         val set = when (domain) {
@@ -72,6 +80,26 @@ internal object Said {
     private val MONEY = listOf(Triple("درآمد", "Income", "money bag"), Triple("خرج", "Spending", "receipt"), Triple("پس‌انداز", "Savings", "piggy bank"), Triple("سرمایه", "Investing", "chart increasing"))
     private val HEALTH = listOf(Triple("خواب", "Sleep", "bed"), Triple("تغذیه", "Food", "green salad"), Triple("ورزش", "Exercise", "person running"), Triple("آب", "Water", "droplet"))
     private val STUDY = listOf(Triple("مطالعه", "Reading", "books"), Triple("تمرین", "Practice", "pencil"), Triple("آزمون", "Tests", "memo"), Triple("مرور", "Review", "repeat button"))
+
+    private val THINGS = mapOf(
+        "server" to "desktop computer", "سرور" to "desktop computer", "app" to "mobile phone", "apps" to "mobile phone", "اپ" to "mobile phone",
+        "اپلیکیشن" to "mobile phone", "cache" to "card file box", "کش" to "card file box", "database" to "file cabinet", "دیتابیس" to "file cabinet",
+        "cloud" to "cloud", "ابر" to "cloud", "internet" to "globe with meridians", "اینترنت" to "globe with meridians", "email" to "e-mail", "ایمیل" to "e-mail",
+        "password" to "key", "رمز" to "key", "security" to "locked", "امنیت" to "locked", "bug" to "bug", "باگ" to "bug", "notebook" to "notebook",
+        "دفترچه" to "notebook", "chef" to "cook", "سرآشپز" to "cook", "request" to "outbox tray", "درخواست" to "outbox tray", "press" to "printer",
+        "books" to "books", "book" to "closed book", "ideas" to "light bulb", "مغز" to "brain", "انرژی" to "high voltage", "نور" to "light bulb",
+        "کافئین" to "hot beverage", "تورم" to "chart decreasing", "inflation" to "chart decreasing", "risk" to "warning", "ریسک" to "warning",
+        "water" to "droplet", "beans" to "beans", "coffee" to "hot beverage", "هوش" to "robot", "model" to "robot",
+    )
+    private val ROLES = setOf(
+        "کارآموز", "کاراموز", "دستیار", "کارمند", "مربی", "معلم", "استاد", "دکتر", "پزشک", "متخصص", "مشاور", "مدیر", "بچه", "دوست", "آشپز", "سرآشپز",
+        "راننده", "نگهبان", "دانشجو", "شاگرد", "intern", "assistant", "employee", "coach", "teacher", "professor", "doctor", "expert", "advisor",
+        "manager", "kid", "child", "friend", "chef", "cook", "driver", "guard", "beginner", "junior", "senior", "mentor", "student", "librarian",
+    )
+    private const val MIN_STEM = 3
+
+    /** Words that describe how (fast, slow, very): never part of a label. */
+    val ADVERBS = setOf("زود", "زودتر", "دیر", "دیرتر", "آروم", "اروم", "آرام", "سریع", "سریعتر", "کند", "کندتر", "خیلی", "کم", "کمتر", "بیشتر", "very", "slowly", "quickly", "faster")
 
     val CONNECTORS = setOf("و", "یا", "and", "or", "of")
     val FUNCTION = setOf(

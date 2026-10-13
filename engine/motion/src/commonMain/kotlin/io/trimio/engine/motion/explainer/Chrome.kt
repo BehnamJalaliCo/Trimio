@@ -51,7 +51,7 @@ internal class Header(
         val color = ColorAnim.tween(pal.muted, pal.ink, at + 0.15f, at + 0.95f, Easing.Standard)
         val node = TextNode(
             str, f.type, Fill.Solid(color), maxWidth = f.width + 2f, align = frame.titleAlign, rtl = rtl || Kit.persian(str),
-            animators = listOfNotNull(Kit.Reveal.Rise.animator(at)), transform = Transform(x = along(f.width).anim, y = frame.titleY.anim), name = "title",
+            animators = listOfNotNull(Kit.Reveal.Rise.animator(at)), transform = Transform(x = along(f.width).anim, y = frame.titleTop.anim, anchorY = 0f), name = "title",
         )
         node.onBody = true
         node.ground = pal.background

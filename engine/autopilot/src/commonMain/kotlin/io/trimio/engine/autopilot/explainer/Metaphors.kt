@@ -25,7 +25,9 @@ enum class Idea(val pictures: List<Pair<Primitive, Float>>) {
     Rank(listOf(Primitive.Bars to 0.65f, Primitive.Ladder to 0.35f)),
     Portion(listOf(Primitive.Blocks to 0.75f, Primitive.Dots to 0.25f)),
     Slow(listOf(Primitive.Clock to 1f)),
-    Fast(listOf(Primitive.Clock to 0.6f, Primitive.Meter to 0.4f)),
+    Fast(listOf(Primitive.Clock to 1f)),
+    /** Less and less: bars that fall, a meter that drains. */
+    Decline(listOf(Primitive.Bars to 0.5f, Primitive.Meter to 0.5f)),
     Compare(listOf(Primitive.Versus to 0.6f, Primitive.Scale to 0.4f)),
     Change(listOf(Primitive.BeforeAfter to 1f)),
     Steps(listOf(Primitive.Steps to 0.5f, Primitive.Flow to 0.3f, Primitive.Timeline to 0.2f)),
@@ -38,7 +40,7 @@ enum class Idea(val pictures: List<Pair<Primitive, Float>>) {
     Talk(listOf(Primitive.Chat to 1f)),
     Warning(listOf(Primitive.Badge to 0.6f, Primitive.Mark to 0.4f)),
     Goal(listOf(Primitive.Icon to 0.6f, Primitive.Badge to 0.4f)),
-    Money(listOf(Primitive.Stat to 0.6f, Primitive.Stack to 0.4f)),
+    Money(listOf(Primitive.Stack to 0.75f, Primitive.Icon to 0.25f)),
     Many(listOf(Primitive.Dots to 1f)),
     Place(listOf(Primitive.Map to 1f)),
     History(listOf(Primitive.Timeline to 1f)),
@@ -91,8 +93,8 @@ object Metaphors {
         cue(Idea.Tangle, 1.1f, "پیچیده*", "complex*", "complicated", "messy", "tangled", "tricky", "عمیق*", "deep", "گیر", "stuck", "سردرگم*", "confus*", "گره*", "knot*")
         cue(Idea.Tangle, 0.8f, "مسئله*", "مسائل*", "مساله*", "problem*", "مشکل*", "سخت", "hard")
         cue(
-            Idea.Rank, 1.3f, "قویترین", "بهترین مدل", "برترین*", "قدرتمندترین", "strongest", "most powerful", "the best", "top tier", "highest", "بزرگترین",
-            "biggest", "سریعترین", "fastest", "بالاترین",
+            Idea.Rank, 1.3f, "قویترین", "بهترین مدل", "برترین*", "قدرتمندترین", "strongest", "most powerful", "the best", "top tier", "سریعترین", "fastest",
+            "رتبه اول", "number one", "first place",
         )
         cue(Idea.Rank, 0.6f, "*ترین")
         cue(
@@ -107,17 +109,18 @@ object Metaphors {
         cue(Idea.Change, 1.1f, "قبلا", "قبلاً", "used to", "before and after", "تبدیل*", "turns into", "turned into", "عوض*", "changed", "transform*")
         cue(Idea.Steps, 1.1f, "مرحله*", "گام*", "قدم*", "step", "steps", "process", "فرایند*", "فرآیند*", "مراحل*")
         cue(Idea.Steps, 0.8f, "اول", "دوم", "سوم", "بعدش", "سپس", "در نهایت", "first", "second", "third", "then", "finally", "next")
-        cue(Idea.Cycle, 1.2f, "هر روز", "هرروز", "هر هفته", "عادت*", "چرخه*", "every day", "daily", "habit*", "cycle*", "loop*", "again and again", "repeat*")
+        cue(Idea.Cycle, 1.2f, "هر روز", "هرروز", "هر شب", "هر هفته", "هر صبح", "عادت*", "چرخه*", "every day", "every night", "every morning", "daily", "habit*", "cycle*", "loop*", "again and again", "repeat*")
         cue(Idea.Filter, 1.2f, "از بین", "فیلتر*", "filter*", "narrow*", "funnel", "only a few", "out of")
-        cue(Idea.Balance, 1.1f, "تعادل*", "توازن*", "balance*", "trade-off", "tradeoff", "ارزش*", "worth", "هزینه و فایده", "سود و ضرر", "pros and cons")
+        cue(Idea.Balance, 1.1f, "تعادل*", "توازن*", "balance*", "trade-off", "tradeoff", "هزینه و فایده", "سود و ضرر", "pros and cons")
+        cue(Idea.Decline, 1.1f, "کمتری", "کمتر میشه", "کاهش*", "افت*", "less and less", "decreas*", "declin*", "shrink*", "loses", "falls", "drops", "lower")
         cue(Idea.Accumulate, 1.1f, "جمع میشه", "روی هم", "پسانداز*", "انباشت*", "stack*", "pile*", "adds up", "add up", "build up", "builds up", "لایه*", "layer*", "savings")
         cue(Idea.Levels, 1.1f, "سطح*", "سطوح", "رده*", "level*", "tier*", "پله*", "نردبان*", "ladder", "ارتقا*", "upgrade*", "نسخه*", "version*")
-        cue(Idea.Talk, 1.0f, "بپرسی*", "بپرسید", "سوال کن*", "جواب میده", "جواب بده", "chat*", "ask*", "answer*", "reply", "conversation", "پیام*", "message*", "گفتگو*", "گفتوگو*")
+        cue(Idea.Talk, 1.0f, "بپرسی*", "بپرسید", "سوال کن*", "chat*", "ask*", "conversation", "پیام*", "message*", "گفتگو*", "گفتوگو*", "dialog*")
         cue(Idea.Warning, 1.2f, "مراقب*", "خطر*", "اشتباه*", "نکنید", "هرگز", "careful", "danger*", "mistake*", "never", "avoid*", "warning", "ریسک*", "risk*", "حواستون")
         cue(Idea.Goal, 1.0f, "هدف*", "goal*", "target*", "aim", "مقصد*", "رسیدن به", "reach")
         cue(Idea.Money, 1.0f, "پول*", "هزینه*", "قیمت*", "تومن*", "تومان*", "دلار*", "money", "cost*", "price*", "dollar*", "pay*", "پرداخت*", "سود*", "profit*", "درآمد*", "income")
-        cue(Idea.Many, 1.0f, "میلیونها", "خیلیها", "مردم", "people", "millions", "everyone", "users", "کاربرا*", "کاربران*")
-        cue(Idea.Place, 1.0f, "کشور*", "جهان*", "دنیا*", "country", "countries", "world*", "map", "منطقه*", "region*", "شهر*", "city", "cities")
+        cue(Idea.Many, 1.0f, "میلیونها", "هزاران", "صدها", "خیلیها", "مردم", "people", "millions", "thousands", "hundreds", "everyone", "users", "کاربرا*", "کاربران*")
+        cue(Idea.Place, 1.0f, "کشور*", "جهان*", "دنیا*", "country", "countries", "world*", "map", "منطقه*", "region*", "شهر*", "city", "cities", "spread*", "across", "همه جا", "everywhere", "پخش*")
         cue(Idea.History, 1.1f, "قرن*", "تاریخ*", "دوران*", "century", "centuries", "ago", "history", "era", "ancient", "سال پیش", "years ago", "قدیم*", "قبل از میلاد")
         cue(Idea.Quote, 1.0f, "میگه", "گفته", "گفت", "said", "says", "according to", "به گفته", "quote*")
         cue(Idea.Insight, 1.0f, "ایده*", "نکته*", "راز*", "idea*", "tip*", "secret*", "trick*", "insight*", "کلید*", "key")
