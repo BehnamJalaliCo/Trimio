@@ -108,7 +108,20 @@ object GoldenArchive {
         val admitted = current.filter { (k, e) ->
             old[k]?.let { was -> compare(Baseline(runs = mapOf(k to was)), mapOf(k to e)).isEmpty() } ?: (e.min >= 10f - EPS)
         }
-        val merged = Baseline(runs = (old + admitted).toSortedMap())
+        val merged = Baseline(note = load()?.note ?: Baseline().note, runs = (old + admitted).toSortedMap())
+        source.apply { parentFile.mkdirs() }.writeText(json.encodeToString(Baseline.serializer(), merged) + "\n")
+        return merged
+    }
+
+    /**
+     * A deliberate re-base when the jury itself got stricter: every archived run is rewritten with
+     * [current] (a drop included), new runs still enter only when unanimous, and [note] records why
+     * and what moved. After it the archive ratchets up again ([update]).
+     */
+    fun rebase(current: Map<String, Entry>, note: String): Baseline {
+        val old = load()?.runs ?: emptyMap()
+        val admitted = current.filter { (k, e) -> k in old || e.min >= 10f - EPS }
+        val merged = Baseline(note = note, runs = (old + admitted).toSortedMap())
         source.apply { parentFile.mkdirs() }.writeText(json.encodeToString(Baseline.serializer(), merged) + "\n")
         return merged
     }

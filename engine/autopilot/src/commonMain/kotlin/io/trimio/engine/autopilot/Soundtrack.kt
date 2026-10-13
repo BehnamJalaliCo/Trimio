@@ -88,13 +88,20 @@ class Soundtrack(private val rate: Int = 48_000) {
      */
     private fun loudnessAndPeak(mix: FloatArray, levels: Levels): FloatArray {
         val limiter = TruePeakLimiter(rate, levels.ceilingDb)
-        var gain = 1f
+        // Gain in dB, stepped by the secant through the last two passes: where the limiter is busy
+        // (dense hits) a dB of gain buys less than a dB of loudness, and a plain step falls short.
+        val maxDb = 20 * log10(MAX_GAIN.toDouble())
+        var gainDb = 0.0
+        var last: Pair<Double, Double>? = null
         var out = mix
         for (pass in 1..LOUDNESS_PASSES) {
+            val gain = 10.0.pow(gainDb / 20.0).toFloat()
             out = FloatArray(mix.size) { mix[it] * gain }.also { limiter.limit(it) }
             val measured = LoudnessMeter.measure(PcmAudio(out, rate)).integratedLufs
             if (!measured.isFinite() || abs(measured - levels.targetLufs) < LUFS_TOLERANCE) break
-            gain = (gain * 10.0.pow((levels.targetLufs - measured) / 20.0).toFloat()).coerceIn(1f / MAX_GAIN, MAX_GAIN)
+            val slope = last?.let { (g, m) -> ((measured - m) / (gainDb - g)).takeIf { it.isFinite() } }?.coerceIn(MIN_SLOPE, 1.0) ?: 1.0
+            last = gainDb to measured
+            gainDb = (gainDb + (levels.targetLufs - measured) / slope).coerceIn(-maxDb, maxDb)
         }
         return out
     }
@@ -236,8 +243,10 @@ class Soundtrack(private val rate: Int = 48_000) {
         const val HPF_HZ = 90f
         const val RATIO = 2.5f
         const val MAX_GAIN = 16f
-        const val LOUDNESS_PASSES = 5
+        const val LOUDNESS_PASSES = 6
         const val LUFS_TOLERANCE = 0.05
+        /** The least loudness a dB of gain is taken to buy (a limiter flattening every hit). */
+        const val MIN_SLOPE = 0.25
         const val FADE_OUT_S = 0.8f
         const val HALF_PI = 1.5707964f
         /** Pieces closer than this on the output clock are one join. */

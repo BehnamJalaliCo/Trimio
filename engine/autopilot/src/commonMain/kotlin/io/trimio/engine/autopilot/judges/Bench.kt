@@ -41,6 +41,10 @@ internal object Bench {
     /** How far a placed graphic may sit from the beat that asked for it. */
     private const val MATCH_S = 0.45f
 
+    /** How far from the asked time a punch-in may cut, and how long a graphic needs before a cut. */
+    private const val PUNCH_REACH = 1.2f
+    private const val MIN_READ = 1.0f
+
     fun graphics(c: Jury.Context) = c.compiled.beats.filter { it.recipe != CAPTIONS }
     fun captions(c: Jury.Context) = c.compiled.beats.filter { it.recipe == CAPTIONS }
 
@@ -90,9 +94,25 @@ internal object Bench {
      * there is none to cut on, or when the call to action is already up (its scene runs to the end).
      */
     fun punchAt(score: Score, words: List<Word>, t: Float): Score? {
-        val i = words.indices.minByOrNull { kotlin.math.abs(start(words, it) - t) }?.takeIf { it > 0 } ?: return null
-        if (score.scenes.any { it.from == i } || askedBy(score, words)?.let { start(words, i) >= it - SCENE_LEAD } == true) return null
-        val scenes = (score.scenes + SceneScore(from = i)).sortedBy { s -> s.time ?: s.from?.let { start(words, it) } ?: 0f }
+        val asked = askedBy(score, words)
+        val starts = sceneStarts(score, words)
+        // The word nearest [t] that is free to cut on: not already a cut, not under the call to
+        // action, and not just after a graphic lands (cutting there would end it before it is read).
+        val i = words.indices.filter { it > 0 && kotlin.math.abs(start(words, it) - t) <= PUNCH_REACH }
+            .sortedBy { kotlin.math.abs(start(words, it) - t) }
+            .firstOrNull { i ->
+                val cut = start(words, i) - SCENE_LEAD
+                val host = starts.indexOfLast { it <= cut }
+                score.scenes.none { it.from == i } && (asked == null || start(words, i) < asked - SCENE_LEAD) &&
+                    (host < 0 || score.scenes[host].beats.none { beatStart(it, host, score, words, starts) in (cut - MIN_READ)..cut })
+            } ?: return null
+        // Beats of the scene being cut that land after the cut go with the new scene: left behind,
+        // their scene would end before they land (a beat that holds for less than nothing).
+        val cut = start(words, i) - SCENE_LEAD
+        val host = starts.indexOfLast { it <= cut }
+        val moved = if (host < 0) emptyList() else score.scenes[host].beats.filter { beatStart(it, host, score, words, starts) > cut }
+        val kept = score.scenes.mapIndexed { k, s -> if (k == host) s.copy(beats = s.beats - moved.toSet()) else s }
+        val scenes = (kept + SceneScore(from = i, beats = moved)).sortedBy { s -> s.time ?: s.from?.let { start(words, it) } ?: 0f }
         return score.copy(scenes = scenes)
     }
 

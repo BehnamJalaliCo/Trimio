@@ -13,6 +13,7 @@ import kotlin.test.assertTrue
  *
  * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' [-Pgolden.only=fa-crypto,en-] [-Pgolden.seeds=1,2]
  * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' -Pgolden.update=true   (stores the baseline)
+ * ./gradlew :engine:autopilot:jvmTest --tests '*GoldenArchiveTest*' -Pgolden.rebase=<note file>   (re-base after a stricter jury)
  *
  * The style axis ([StyleAxis]: each of the 28 styles on two or three scenarios, `id~style/seed`)
  * runs too; `-Pgolden.styles=false` skips it, `-Pgolden.styles=only` runs nothing else, and
@@ -32,6 +33,12 @@ class GoldenArchiveTest {
         val table = GoldenArchive.table(runs, baseline)
         GoldenArchive.report.apply { parentFile.mkdirs() }.writeText(table)
         println(table)
+        // A re-base (the jury got stricter): the property names a file holding the note that records why and what moved.
+        System.getProperty("golden.rebase")?.let { path ->
+            val saved = GoldenArchive.rebase(current, java.io.File(path).readText().trim())
+            println("golden: re-based, ${current.size} runs written to ${GoldenArchive.source.absolutePath} (${saved.runs.size} in the archive)")
+            return
+        }
         if (System.getProperty("golden.update") == "true") {
             val saved = GoldenArchive.update(current)
             println("golden: ${current.size} runs written to ${GoldenArchive.source.absolutePath} (${saved.runs.size} in the archive)")

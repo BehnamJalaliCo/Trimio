@@ -33,10 +33,17 @@ internal class Shows(
         val norm = line.range.map { NumberWords.normalize(texts[it]).trimEnd('.', '،', ',', '!', '?', '؟') }
         val options = options(b, texts, line, norm, read, sense, takeover)
         val fresh = options.filter { (beat, _) -> beat.recipe !in used.takeLast(RECENT) }.ifEmpty { options }
-        val pick = fresh.firstOrNull { (_, p) -> rng.chance(p) }?.first ?: return b
+        // The same device as the line before reads as a loop: then a richer family the line allows is taken outright.
+        val again = b.recipe == last
+        val pick = fresh.firstOrNull { (_, p) -> again || rng.chance(p) }?.first
+        last = (pick ?: b).recipe
+        if (pick == null) return b
         used += pick.recipe
         return pick
     }
+
+    /** The recipe of the last primary beat seen. */
+    private var last: String? = null
 
     /** What the line could also be, each with how often the seed takes it. */
     private fun options(b: BeatScore, texts: List<String>, line: Lines.Line, norm: List<String>, read: LineRead, sense: Quantities.Sense, takeover: Boolean): List<Pair<BeatScore, Float>> {
