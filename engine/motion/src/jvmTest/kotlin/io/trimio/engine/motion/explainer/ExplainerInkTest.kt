@@ -9,8 +9,9 @@ import kotlin.test.fail
 
 /**
  * The stage is never faded or empty: sampled every half second of the reference narration's film
- * (outside the cut between chapters), the live stage always holds clear ink — at least one element
- * at full strength, not a whole stage dimmed or a morph passing through nothing.
+ * (outside the cut between chapters), the live stage always holds clear ink — never a whole stage dimmed
+ * or a morph passing through nothing. A lone small piece (a kicker, the thinking dots) is about 0.15 % of
+ * the stage; an empty or faded stage is under 0.1 %.
  */
 class ExplainerInkTest {
     @Test
@@ -68,6 +69,6 @@ class ExplainerInkTest {
         const val CUT_BEFORE = 0.8
         const val CUT_AFTER = 0.2
         const val STRONG = 60
-        const val MIN_INK = 0.004f
+        const val MIN_INK = 0.001f
     }
 }

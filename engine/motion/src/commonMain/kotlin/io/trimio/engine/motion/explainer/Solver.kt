@@ -103,7 +103,8 @@ internal class Solver(
         // On a tall stage a small set grows until it spans about two thirds of the width (the stage is used, not a corner of it).
         val fill = if (wide || fromTop) 1f else (stage.width * FILL / widest).coerceIn(1f, MAX_GROW)
         val room = if (fill > 1f) GROWN_ROOM else 1f
-        val scale = minOf(fill, stage.height * room / height(items), stage.width / widest)
+        // Grown pieces keep the same margin on the sides too: badges, shadows and labels reach past their box.
+        val scale = minOf(fill, stage.height * room / height(items), stage.width * room / widest)
         return scale to columnAt(items, cx, scale)
     }
 
@@ -123,8 +124,8 @@ internal class Solver(
         const val MAKE_ROOM = 0.5f
         const val CLOSE_RANKS = 0.6f
         const val LIFT = 0.04f
-        const val FILL = 0.66f
-        const val MAX_GROW = 1.5f
+        const val FILL = 0.6f
+        const val MAX_GROW = 1.25f
         const val GROWN_ROOM = 0.86f
         val GLIDE: Easing = Easing.Bezier(0.45f, 0f, 0.15f, 1f)
     }
