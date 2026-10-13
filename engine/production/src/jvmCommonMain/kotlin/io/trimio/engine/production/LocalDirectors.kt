@@ -79,9 +79,12 @@ class LocalDirectors(
 
     private fun installed(spec: ModelSpec): Boolean = runCatching { store.isInstalled(spec) }.getOrDefault(false)
 
-    /** Silero VAD's file when that add-on is installed (decoding then skips silence); else null: unchanged. */
+    /**
+     * Silero VAD's file when that add-on is installed AND `-Dtrimio.whisper.vad=on`; else null (unchanged).
+     * Off by default: on a 60 s Persian proof (long.mp4) whisper with VAD lost 43 of 152 words (a whole passage).
+     */
     private fun vadPath(): String? =
-        MediaAddOns.vad.takeIf { installed(it) }?.let { store.pathOf(it).toString() }
+        MediaAddOns.vad.takeIf { System.getProperty("trimio.whisper.vad") == "on" && installed(it) }?.let { store.pathOf(it).toString() }
 
     private fun speechSpec(preferredSpeech: () -> String?): ModelSpec? {
         val installed = catalog.filter { it.kind == ModelKind.Speech && store.isInstalled(it) }
