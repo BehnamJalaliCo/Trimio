@@ -28,3 +28,9 @@
 # Jackson's Java 8+ reflection helpers reference JDK types Android does not ship; they are never reached.
 -dontwarn java.lang.reflect.AnnotatedParameterizedType
 -dontwarn java.lang.reflect.AnnotatedType
+
+# ONNX Runtime: its native code builds Java objects (NodeInfo, OnnxTensor, …) by name and
+# constructor signature through JNI. Shrinking or renaming any of them aborts the process
+# (1.0.15/1.0.16: NoSuchMethodError for NodeInfo.<init> in OrtSession.getInputInfo).
+-keep class ai.onnxruntime.** { *; }
+-keepclassmembers class ai.onnxruntime.** { *; }

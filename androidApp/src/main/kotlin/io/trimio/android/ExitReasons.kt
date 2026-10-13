@@ -11,18 +11,28 @@ import io.trimio.core.data.CrashLog
  * llama.cpp, whisper or ONNX, an out-of-memory kill or a freeze leaves no Kotlin exception for
  * [CrashLog] to catch, so each such exit is written to the same crash log on the next start —
  * the reason, the system's description and, for native crashes and freezes, the top of the trace.
- * Settings shares the newest («ارسال آخرین گزارش»).
+ * Settings shares the newest («ارسال آخرین گزارش»). The log empties when a new version starts.
  */
 object ExitReasons {
     fun record(context: Context, log: CrashLog, version: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        // A new version starts with an empty log: what is listed afterwards is this version's own.
+        val fresh = prefs.getString(KEY_VERSION, null) != version
+        if (fresh) {
+            log.clear()
+            prefs.edit().putString(KEY_VERSION, version).apply()
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         runCatching {
-            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val seen = prefs.getLong(KEY_SEEN, 0L)
             val am = context.getSystemService(ActivityManager::class.java)
-            val exits = am.getHistoricalProcessExitReasons(context.packageName, 0, MAX).filter { it.timestamp > seen && it.reason in WORTH }
-            exits.sortedBy { it.timestamp }.forEach { log.recordText(text(it, version), it.timestamp) }
-            am.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()?.let { prefs.edit().putLong(KEY_SEEN, maxOf(seen, it.timestamp)).apply() }
+            val last = am.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()?.timestamp ?: seen
+            // Exits from before the update belong to the old version: skipped, not recorded under this one.
+            if (!fresh) {
+                val exits = am.getHistoricalProcessExitReasons(context.packageName, 0, MAX).filter { it.timestamp > seen && it.reason in WORTH }
+                exits.sortedBy { it.timestamp }.forEach { log.recordText(text(it, version), it.timestamp) }
+            }
+            prefs.edit().putLong(KEY_SEEN, maxOf(seen, last)).apply()
         }
     }
 
@@ -53,6 +63,7 @@ object ExitReasons {
     )
     private const val PREFS = "exit-reasons"
     private const val KEY_SEEN = "seen"
+    private const val KEY_VERSION = "version"
     private const val MAX = 16
     private const val TRACE_LINES = 200
     private const val KIB = 1024
