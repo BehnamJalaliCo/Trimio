@@ -178,31 +178,47 @@ private fun Header(ui: ModelsUi, actions: ModelActions) {
     }
 }
 
-/** Room taken: directors in ember, speech in the live colour, against free space when known. */
+/**
+ * Room taken: directors in ember, speech in the live colour, the quality add-ons in violet (the theme's emphasis is speech's lime on noir),
+ * and the «پیشنهاد برای این دستگاه» set still to download as a pale share of the free space.
+ */
 @Composable
 private fun Storage(ui: ModelsUi) {
     val c = Sig.colors
     val directors = ui.directors.filter { it.installed }.sumOf { it.sizeBytes }
     val speech = ui.speech.filter { it.installed }.sumOf { it.sizeBytes }
-    val total = (ui.freeBytes?.let { it + directors + speech } ?: (directors + speech)).coerceAtLeast(1)
+    val boosts = ui.boosts.flatMap { it.rows }.map { it.row }.filter { it.installed }.sumOf { it.sizeBytes }
+    val used = directors + speech + boosts
+    val planned = ui.boostPlan?.downloadBytes ?: 0L
+    val total = (ui.freeBytes?.let { it + used } ?: (used + planned)).coerceAtLeast(1)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SigSectionLabel(
             tr("فضای اشغال‌شده", "Storage used"),
-            trailing = "${gb(directors + speech)} USED" + (ui.freeBytes?.let { " · ${gb(it)} FREE" } ?: ""),
+            trailing = "${gb(used)} USED" + (ui.freeBytes?.let { " · ${gb(it)} FREE" } ?: ""),
         )
         Row(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(c.ink.copy(alpha = 0.08f))) {
             if (directors > 0) Box(Modifier.weight(directors.toFloat() / total).fillMaxHeight().background(c.action))
             if (speech > 0) Box(Modifier.weight(speech.toFloat() / total).fillMaxHeight().background(c.live))
-            val rest = total - directors - speech
+            if (boosts > 0) Box(Modifier.weight(boosts.toFloat() / total).fillMaxHeight().background(BOOST))
+            if (planned > 0) Box(Modifier.weight(planned.toFloat() / total).fillMaxHeight().background(BOOST.copy(alpha = 0.35f)))
+            val rest = total - used - planned
             if (rest > 0) Box(Modifier.weight(rest.toFloat() / total).fillMaxHeight())
         }
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Legend(c.action, tr("کارگردان", "Director"))
             Legend(c.live, tr("گفتار", "Speech"))
-            Text(localizedNumber(tr("این دستگاه · ${ui.ramGb} گیگ رم", "This device · ${ui.ramGb} GB RAM")), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted)
+            if (boosts > 0) Legend(BOOST, tr("تقویت کیفیت", "Quality boost"))
         }
+        // On its own line: the phrase is long and a phone row has no room for four legends.
+        if (planned > 0) {
+            Legend(BOOST.copy(alpha = 0.35f), localizedNumber(tr("پیشنهاد برای این دستگاه · ${gbFa(planned)} گیگ", "Suggested for this device · ${gb(planned)}")))
+        }
+        Text(localizedNumber(tr("این دستگاه · ${ui.ramGb} گیگ رم", "This device · ${ui.ramGb} GB RAM")), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted)
     }
 }
+
+/** The quality add-ons' colour in the storage bar: apart from ember (directors) and lime (speech) in both themes. */
+private val BOOST = Color(0xFF8B7BFF)
 
 /** «موتور: …»: the GPU (its name as the driver gives it) and the layers it takes, or the CPU threads; measured by the latest build. */
 @Composable
