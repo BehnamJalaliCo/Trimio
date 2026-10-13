@@ -81,3 +81,13 @@ first (rule: not one word lost); if it loses words, the full large-v3 encoder go
 - https://aihub.qualcomm.com/mobile/models/whisper_large_v3_turbo
 - https://central.sonatype.com/artifact/com.microsoft.onnxruntime/onnxruntime-android-qnn
 - https://onnxruntime.ai/docs/execution-providers/QNN-ExecutionProvider.html
+
+## Addendum — low-memory kill (same run)
+
+Crash log `crash-1791934459540` (1.0.17): «killed for low memory», 23:34:19 UTC — the run that started
+23:03:29 and was in «understand» (3/53) at 23:20. RSS at death 134 MB, PSS 0: the director's weights
+sat in GPU (OpenCL) buffers, which are pinned and invisible to RSS, so the system could not reclaim
+them and killed the app once the owner used other apps. On the CPU the weights are a read-only mmap
+that the kernel can drop and re-read. A retry keeps the transcript (checkpoint after speech) but
+redoes all 53 «understand» chunks. Fix in 9.5: memory budget per phone before loading (free memory +
+GPU memory), onTrimMemory, GPU memory in the report, «understand» checkpointed per chunk.
