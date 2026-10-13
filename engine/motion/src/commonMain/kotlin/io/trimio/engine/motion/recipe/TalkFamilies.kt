@@ -263,7 +263,7 @@ object TalkFamilies {
             }
         }
 
-        private fun avatar(look: Look, cue: Cue, fit: Fitter, p: Kit.Plan, name: String, cx: Float, cy: Float, d: Float, at: Float): List<Node> {
+        private fun avatar(look: Look, fit: Fitter, p: Kit.Plan, name: String, cx: Float, cy: Float, d: Float, at: Float): List<Node> {
             // The accent disc with a ring of heat: the initial on it is the look's on-accent ink.
             val disc = ShapeNode(
                 ShapeSpec.Ellipse(d.anim, d.anim), fill = look.accent.fill(), stroke = Stroke(look.hot.fill(), d * 0.06f),
@@ -294,7 +294,7 @@ object TalkFamilies {
             val land = typing + 0.6f
             val ink = Kit.inkOn(look, fill)
             val nodes = mutableListOf<Node>()
-            nodes += avatar(look, cue, fit, p, name, ax, by + bh / 2f - d / 2f, d, p.at)
+            nodes += avatar(look, fit, p, name, ax, by + bh / 2f - d / 2f, d, p.at)
             nodes += Kit.words(
                 name, nameF, free(look, cue)?.let { Kit.quiet(look, it) } ?: look.ink, Kit.fromStart(bubbleStart, nameF.width, p.rtl), top + nameF.height / 2f,
                 p.at + 0.1f, free(look, cue), p.rtl, Kit.Reveal.Fade, name = "bubble-name",
@@ -305,13 +305,13 @@ object TalkFamilies {
                 fill = fill.fill(), stroke = Stroke(look.cardRim.fill(), 1.5f),
                 transform = Transform(x = (bubbleStart).anim, y = (by + bh / 2f).anim, anchorX = if (p.rtl) 1f else 0f, anchorY = 1f), name = "bubble",
             )
-            nodes += dots(look, ink, bubbleStart + p.dir * size * 1.3f, by + bh / 2f - size * 0.8f, size, typing, land)
+            nodes += dots(ink, bubbleStart + p.dir * size * 1.3f, by + bh / 2f - size * 0.8f, size, typing, land)
             nodes += Kit.words(cue.text, f, ink, bx, by, land + 0.15f, fill, p.rtl, Kit.Reveal.Fade, name = "bubble-text")
             return Kit.built(cue, look, p, b, nodes, name, listOf(Sfx(typing, SfxKind.Tick, 0.25f), Sfx(land, SfxKind.Pop, 0.5f)))
         }
 
         /** Three typing dots bouncing until [until]. */
-        private fun dots(look: Look, ink: Color, x: Float, y: Float, size: Float, at: Float, until: Float): List<Node> = (0 until 3).map { i ->
+        private fun dots(ink: Color, x: Float, y: Float, size: Float, at: Float, until: Float): List<Node> = (0 until 3).map { i ->
             val d = size * 0.3f
             val phase = at + i * 0.09f
             val bounce = anim(0f, phase) { while (time + 0.26f <= until) { by(-d * 0.6f, 0.13f, Easing.SineInOut); by(0f, 0.13f, Easing.SineInOut) } }
@@ -337,7 +337,7 @@ object TalkFamilies {
             val card = Box(b.left, b.centerY - h / 2f, b.right, b.centerY + h / 2f)
             val nodes = Kit.panel(look, cue, s, card.centerX, card.centerY, card.width, card.height, pad, "comment-card").toMutableList()
             val ax = Kit.startX(card, p.rtl, pad + d / 2f)
-            nodes += avatar(look, cue, fit, p, name, ax, card.top + pad + d / 2f, d, p.at + 0.1f)
+            nodes += avatar(look, fit, p, name, ax, card.top + pad + d / 2f, d, p.at + 0.1f)
             val textEdge = Kit.startX(card, p.rtl, pad * 1.6f + d)
             val headY = card.top + pad + nf.height / 2f
             nodes += Kit.words(name, nf, ink, Kit.fromStart(textEdge, nf.width, p.rtl), headY, p.at + 0.15f, s.ground, p.rtl, Kit.Reveal.Fade, name = "comment-name")
@@ -420,7 +420,7 @@ object TalkFamilies {
             }
         }
 
-        private fun header(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, q: String, b: Box, ground: Color, ink: Color, size: Float): Pair<Node, Float> {
+        private fun header(look: Look, fit: Fitter, p: Kit.Plan, q: String, b: Box, ground: Color, ink: Color, size: Float): Pair<Node, Float> {
             val f = Kit.fit(fit, q, Kit.titleVoice(look, p.typo), size, b.width * 0.88f, size * 2.6f, lines = 2)
             return Kit.words(q, f, ink, b.centerX, b.top + size * 0.5f + f.height / 2f, p.at + 0.1f, ground, p.rtl, name = "poll-question") to f.height + size
         }
@@ -430,7 +430,7 @@ object TalkFamilies {
             val s = Kit.surface(look, cue)
             val ink = Kit.inkOn(look, s.ground)
             val nodes = Kit.panel(look, cue, s, b.centerX, b.centerY, b.width, b.height, b.height * 0.08f, "poll-card").toMutableList()
-            val (head, headH) = header(cue, look, fit, p, q, b, s.ground, ink, b.height * 0.1f)
+            val (head, headH) = header(look, fit, p, q, b, s.ground, ink, b.height * 0.1f)
             nodes += head
             val pad = b.width * 0.05f
             val rowH = (b.height - headH - pad) / options.size

@@ -24,9 +24,6 @@ import io.trimio.core.designsystem.signature.SigGlass
 import io.trimio.core.designsystem.theme.localizedNumber
 import io.trimio.core.designsystem.theme.tr
 
-/** The suggestion on home once setup is done: the libraries that make edits richer, how many and how big. */
-data class LibraryHint(val packs: Int, val sizeBytes: Long)
-
 /** «کتابخانه‌ها را بگیر»: opens the library screen; the close mark dismisses it for good. */
 @Composable
 internal fun LibraryCard(hint: LibraryHint, onOpen: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
@@ -40,7 +37,7 @@ internal fun LibraryCard(hint: LibraryHint, onOpen: () -> Unit, onDismiss: () ->
                 Text(
                     localizedNumber(
                         tr(
-                            "${hint.packs} کتابخانهٔ پیشنهادی (ایموجی و آیکون متحرک، افکت صوتی) · حدود $mb مگابایت؛ بعد از دانلود بدون اینترنت کار می‌کند.",
+                            "${hint.packs} کتابخانهٔ پیشنهادی (ایموجی و آیکون متحرک، افکت صوتی)، حدود $mb مگابایت؛ بعد از دانلود بدون اینترنت کار می‌کند.",
                             "${hint.packs} suggested libraries (animated emoji and icons, sound effects) · about $mb MB; offline once downloaded.",
                         ),
                     ),

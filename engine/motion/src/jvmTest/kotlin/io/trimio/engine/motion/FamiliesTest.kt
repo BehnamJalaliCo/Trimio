@@ -1,6 +1,7 @@
 package io.trimio.engine.motion
 
 import io.trimio.engine.motion.recipe.Cue
+import io.trimio.engine.motion.recipe.Family
 import io.trimio.engine.motion.recipe.Kit
 import io.trimio.engine.motion.recipe.Look
 import io.trimio.engine.motion.recipe.Recipes
@@ -20,7 +21,7 @@ import kotlin.test.assertTrue
  * of the cue; every word held to 4.5:1 on what it sits on; no distortion filter over words; no
  * English words of the family's own on a Persian piece; nothing touching the frame's edge at any
  * moment of the entrance, the hold or the exit; and the treatment chosen deterministically from
- * the seed and the content. Stills of each family land in build/family-shots/.
+ * the seed and the content. With TRIMIO_SHOTS set, stills of each family land in build/family-shots/.
  */
 class FamiliesTest {
     private val families = FamilyLab.families()
@@ -53,22 +54,26 @@ class FamiliesTest {
     @Test
     fun everyTreatmentBuildsReadablyInEveryDirection() {
         val problems = mutableListOf<String>()
-        for (f in families) for (look in looks) for (rtl in listOf(true, false)) for (over in listOf(false, true)) for (v in 0 until f.variants) {
-            val cue = FamilyLab.cue(f.name, rtl, over, v)
-            val built = runCatching { f.build(cue, look, FamilyLab.fitter) }.getOrElse { problems += "${f.name}#$v ${look.name} rtl=$rtl over=$over: ${it.message}"; continue }
-            val where = "${f.name}#$v ${look.name} ${if (rtl) "fa" else "en"}${if (over) " over" else ""}"
-            if (built.nodes.isEmpty()) problems += "$where draws nothing"
-            if (built.sfx.isEmpty()) problems += "$where is silent"
-            for (n in built.nodes) {
-                if (n.end > cue.out + 0.05f) problems += "$where outlives its cue"
-                if (n.transform.opacity.at(cue.out) > 0.01f) problems += "$where has not faded by its out"
-            }
-            val box = built.box
-            if (box == null || !box.inside(FamilyLab.W.toFloat(), FamilyLab.H.toFloat(), 4f)) problems += "$where box $box leaves the frame"
-            walk(built.nodes) { node -> check(node, cue, rtl, where, problems) }
-        }
+        val ways = looks.flatMap { look -> listOf(true, false).flatMap { rtl -> listOf(false, true).map { over -> Triple(look, rtl, over) } } }
+        for (f in families) for ((look, rtl, over) in ways) for (v in 0 until f.variants) treatment(f, look, rtl, over, v, problems)
         val kinds = problems.distinct().groupBy { it.substringAfter(": ", it.substringAfter(" box ")).take(40) }.values.map { it.first() }
         assertTrue(problems.isEmpty(), kinds.take(60).joinToString("\n") + "\n(${problems.size} problems)")
+    }
+
+    /** One treatment of [f] built and checked: it draws, sounds, leaves on time, stays in frame, reads. */
+    private fun treatment(f: Family, look: Look, rtl: Boolean, over: Boolean, v: Int, problems: MutableList<String>) {
+        val cue = FamilyLab.cue(f.name, rtl, over, v)
+        val built = runCatching { f.build(cue, look, FamilyLab.fitter) }.getOrElse { problems += "${f.name}#$v ${look.name} rtl=$rtl over=$over: ${it.message}"; return }
+        val where = "${f.name}#$v ${look.name} ${if (rtl) "fa" else "en"}${if (over) " over" else ""}"
+        if (built.nodes.isEmpty()) problems += "$where draws nothing"
+        if (built.sfx.isEmpty()) problems += "$where is silent"
+        for (n in built.nodes) {
+            if (n.end > cue.out + 0.05f) problems += "$where outlives its cue"
+            if (n.transform.opacity.at(cue.out) > 0.01f) problems += "$where has not faded by its out"
+        }
+        val box = built.box
+        if (box == null || !box.inside(FamilyLab.W.toFloat(), FamilyLab.H.toFloat(), 4f)) problems += "$where box $box leaves the frame"
+        walk(built.nodes) { node -> check(node, cue, rtl, where, problems) }
     }
 
     private fun walk(nodes: List<Node>, visit: (Node) -> Unit) {
@@ -106,22 +111,23 @@ class FamiliesTest {
     /** Nothing reaches the frame's edge at any moment: entrance, hold, exit. */
     @Test
     fun nothingTouchesTheFrameEdge() {
-        val out = File("build/family-shots").apply { mkdirs() }
+        val out = System.getenv("TRIMIO_SHOTS")?.let { File("build/family-shots").apply { mkdirs() } }
         val problems = mutableListOf<String>()
-        for (f in families) for (layout in 0 until f.layouts) {
-            val v = layout + (layout % f.moves.size) * f.layouts
-            for (over in listOf(true, false)) {
-                val cue = FamilyLab.cue(f.name, true, over, v)
-                for (dt in listOf(0.12f, 0.3f, 2.2f)) {
-                    val img = FamilyLab.alone(f.name, Look.Noir, cue, cue.at + dt)
-                    edge(img)?.let { problems += "${f.name} L$layout${if (over) " over" else ""} at +${dt}s: $it" }
-                    if (dt == 2.2f && !over) out.resolve("${f.name}-L$layout.png").writeBytes(FamilyLab.frame(f.name, Look.Noir, cue, cue.at + dt).encodeToData(EncodedImageFormat.PNG)!!.bytes)
-                }
-                val exit = FamilyLab.alone(f.name, Look.Noir, cue, cue.out - Kit.EXIT / 2f)
-                edge(exit)?.let { problems += "${f.name} L$layout${if (over) " over" else ""} exit: $it" }
-            }
-        }
+        for (f in families) for (layout in 0 until f.layouts) for (over in listOf(true, false)) edges(f, layout, over, out, problems)
         assertTrue(problems.isEmpty(), problems.take(80).joinToString("\n") + "\n(${problems.size} problems)")
+    }
+
+    /** Layout [layout] of [f] at its entrance, hold and exit: where it reaches the frame's edge. */
+    private fun edges(f: Family, layout: Int, over: Boolean, out: File?, problems: MutableList<String>) {
+        val v = layout + (layout % f.moves.size) * f.layouts
+        val cue = FamilyLab.cue(f.name, true, over, v)
+        for (dt in listOf(0.12f, 0.3f, 2.2f)) {
+            val img = FamilyLab.alone(f.name, Look.Noir, cue, cue.at + dt)
+            edge(img)?.let { problems += "${f.name} L$layout${if (over) " over" else ""} at +${dt}s: $it" }
+            if (dt == 2.2f && !over && out != null) out.resolve("${f.name}-L$layout.png").writeBytes(FamilyLab.frame(f.name, Look.Noir, cue, cue.at + dt).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        }
+        val exit = FamilyLab.alone(f.name, Look.Noir, cue, cue.out - Kit.EXIT / 2f)
+        edge(exit)?.let { problems += "${f.name} L$layout${if (over) " over" else ""} exit: $it" }
     }
 
     /** Where a drawn pixel sits within [EDGE] px of the frame's edge, or null. */

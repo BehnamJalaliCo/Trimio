@@ -53,8 +53,8 @@ object Transitions {
         overlays += EffectNode(Effect.LightLeak(warm, Anim.tween(0f, 1f, s - 0.3f, s + 0.6f, Easing.SineInOut), strength), start = s - 0.32f, end = s + 0.65f, name = "burn")
         val flicker = Anim.keys(
             listOf(
-                Anim.Key(s - 0.1f, 0f, Easing.Hold), Anim.Key(s - 0.066f, 0.55f, Easing.Hold), Anim.Key(s - 0.033f, 0.1f, Easing.Hold),
-                Anim.Key(s, 0.8f, Easing.Hold), Anim.Key(s + 0.033f, 0.3f, Easing.Hold), Anim.Key(s + 0.2f, 0f, Easing.ExpoOut),
+                Anim.Key(s - 0.1f, 0f, Easing.Hold), Anim.Key(s - 0.066f, 0.4f, Easing.Hold), Anim.Key(s - 0.033f, 0.1f, Easing.Hold),
+                Anim.Key(s, 0.55f, Easing.Hold), Anim.Key(s + 0.033f, 0.25f, Easing.Hold), Anim.Key(s + 0.2f, 0f, Easing.ExpoOut),
             ),
         )
         overlays += EffectNode(Effect.Flash(androidx.compose.ui.graphics.lerp(warm, look.hot, 0.3f), flicker), start = s - 0.11f, end = s + 0.22f, name = "burn-flicker")

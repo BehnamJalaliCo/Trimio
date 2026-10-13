@@ -90,11 +90,10 @@ private class LottieFilesOnline(private val api: LottieFilesApi) : OnlineArt {
         answers[q]?.let { return it }
         val page = api.search(q, (limit * 2).coerceAtMost(LottieFilesApi.PAGE)) ?: return emptyList()
         val hits = mutableListOf<OnlineHit>()
-        for (a in page.items) {
+        for (a in page.items.take(limit * 2)) {
             if (hits.size >= limit) break
-            val doc = fetch(a.jsonUrl) ?: continue
-            if (MotionArts.readOrWhy(MotionArt.FORMAT_LOTTIE, doc).first == null) continue
-            hits += OnlineHit(ArtEntry(SOURCE, a.id.toString(), a.name.ifBlank { q }, listOf(q) + a.name.lowercase().split(' ').filter { it.length > 1 }), doc)
+            val doc = fetch(a.jsonUrl)?.takeIf { MotionArts.readOrWhy(MotionArt.FORMAT_LOTTIE, it).first != null }
+            if (doc != null) hits += OnlineHit(ArtEntry(SOURCE, a.id.toString(), a.name.ifBlank { q }, listOf(q) + a.name.lowercase().split(' ').filter { it.length > 1 }), doc)
         }
         answers[q] = hits
         return hits

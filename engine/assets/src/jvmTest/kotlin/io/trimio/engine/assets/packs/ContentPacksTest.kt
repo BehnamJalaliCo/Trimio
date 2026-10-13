@@ -8,6 +8,7 @@ import java.nio.file.Files
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -18,9 +19,12 @@ import kotlin.test.assertTrue
 class ContentPacksTest {
     private val root = Files.createTempDirectory("content").toFile()
 
+    @BeforeTest
+    fun clean() = ContentPacks.reset()
+
     @AfterTest
     fun reset() {
-        ContentPacks.use(emptyList())
+        ContentPacks.reset()
         root.deleteRecursively()
     }
 

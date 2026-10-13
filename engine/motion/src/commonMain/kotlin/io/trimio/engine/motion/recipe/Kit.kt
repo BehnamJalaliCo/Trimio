@@ -113,7 +113,8 @@ object Kit {
         // Calm languages do not bounce; sharp Swiss ones neither.
         val calm = look.settle == Easing.SineInOut
         val bounce = move == Move.Pop || move == Move.Drop
-        return base * if (bounce && (calm || look.roundness == 0f && look.settle == Easing.QuintOut)) CALM_BOUNCE else 1f
+        val swiss = look.roundness == 0f && look.settle == Easing.QuintOut
+        return base * if (bounce && (calm || swiss)) CALM_BOUNCE else 1f
     }
 
     /** The type treatment: the look's own first (its headline role decides), the others with a variety seed. */

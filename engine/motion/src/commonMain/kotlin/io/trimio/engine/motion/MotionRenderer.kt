@@ -386,7 +386,7 @@ class MotionRenderer(
             Decoration.Scribble.Kind.Double -> listOf(line.baseline + d.offset * size * 0.8f, line.baseline + d.offset * size * 0.8f + d.thickness * size * 2.4f)
             Decoration.Scribble.Kind.Strike -> listOf((line.inkTop + line.inkBottom) / 2f + size * 0.04f)
         }
-        val amp = if (d.kind == Decoration.Scribble.Kind.Wave) size * 0.07f else size * 0.012f
+        val amp = if (d.kind == Decoration.Scribble.Kind.Wave) size * 0.09f else size * 0.012f
         val period = size * 0.42f
         for ((k, y) in rows.withIndex()) {
             val path = androidx.compose.ui.graphics.Path()

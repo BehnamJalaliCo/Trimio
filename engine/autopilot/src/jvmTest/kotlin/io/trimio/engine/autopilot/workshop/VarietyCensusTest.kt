@@ -44,7 +44,8 @@ class VarietyCensusTest {
         // The mix: each family's share of all graphics (no kind may dominate).
         val shares = all.groupingBy { it.recipe }.eachCount().entries.sortedByDescending { it.value }
         appendLine("share of graphics by family: " + shares.joinToString(", ") { "${it.key} ${"%.1f".format(100.0 * it.value / all.size.coerceAtLeast(1))}%" })
-        appendLine("largest share in any one edit: " + runs.filter { it.graphics.size >= 4 }.maxOfOrNull { r -> r.graphics.groupingBy { it.recipe }.eachCount().values.max() * 100 / r.graphics.size }?.let { "$it%" })
+        val largest = runs.filter { it.graphics.size >= 4 }.map { r -> r.graphics.groupingBy { it.recipe }.eachCount().values.max() * 100 / r.graphics.size }
+        appendLine("largest share in any one edit: ${largest.maxOrNull()}%, mean ${"%.0f".format(largest.average())}%")
         appendLine("bands: ${all.groupingBy { it.zone }.eachCount().toSortedMap()}")
         val transitions = runs.flatMap { it.transitions }
         appendLine("transitions: ${transitions.groupingBy { it }.eachCount().toSortedMap()}")

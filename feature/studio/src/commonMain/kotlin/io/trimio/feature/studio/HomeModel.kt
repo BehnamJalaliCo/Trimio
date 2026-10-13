@@ -118,3 +118,6 @@ data class Idea(
 
 /** What onboarding's device card shows: real numbers, or nothing where the platform cannot tell. */
 data class OnboardingDevice(val ramGb: Int, val cores: Int = 0, val freeBytes: Long? = null)
+
+/** The suggestion on home once setup is done: the libraries that make edits richer, how many and how big. */
+data class LibraryHint(val packs: Int, val sizeBytes: Long)

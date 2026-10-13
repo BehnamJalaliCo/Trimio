@@ -72,8 +72,8 @@ class PackIndexClient(
         for (base in channel.bases) {
             val text = withTimeoutOrNull(timeoutMs) {
                 runCatching { client.get(base.trimEnd('/') + "/" + PackChannel.INDEX).takeIf { it.status.isSuccess() }?.bodyAsText() }.getOrNull()
-            } ?: continue
-            val packs = runCatching { parse(text) }.getOrNull() ?: continue
+            }
+            val packs = text?.let { t -> runCatching { parse(t) }.getOrNull() } ?: continue
             cache?.let { path -> runCatching { save(path, text) } }
             return packs
         }

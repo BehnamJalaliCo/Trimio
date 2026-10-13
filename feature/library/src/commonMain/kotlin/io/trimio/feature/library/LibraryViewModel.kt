@@ -61,7 +61,7 @@ class LibraryViewModel(
         viewModelScope.launch { lottie.update { it.copy(hasKey = !secrets.read(LOTTIE_KEY).isNullOrBlank()) } }
     }
 
-    private fun snapshot(states: Map<String, PackState>, l: LottieUi, n: String?): LibraryUi {
+    private fun snapshot(states: Map<String, PackState>, l: LottieUi, n: Words?): LibraryUi {
         val all = packs.all()
         val sizes = packs.active.value.associate { it.id to (all.firstOrNull { m -> m.id == it.id }?.let { m -> maxOf(m.size, m.unpacked) } ?: 0L) }
         return LibraryUi(

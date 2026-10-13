@@ -130,7 +130,10 @@ object PackArchive {
     /** Walks the container's entries, checking every path and size against what is left of [length]. */
     private fun entries(source: Source, length: Long, onFile: (String, Long, Source) -> Unit): Int {
         var left = length
-        fun need(n: Long) { if (n < 0 || n > left) broken("truncated pack"); left -= n }
+        fun need(n: Long) {
+            if (n < 0 || n > left) broken("truncated pack")
+            left -= n
+        }
         need(MAGIC.size.toLong() + 4)
         if (!source.readByteArray(MAGIC.size).contentEquals(MAGIC)) broken("not a pack")
         val count = source.readInt().toLong() and 0xffffffffL
@@ -301,7 +304,8 @@ class PackStore(
     private fun sameRelease(a: PackManifest, b: PackManifest) = a.version == b.version && a.sha256.equals(b.sha256, true) && a.keyId == b.keyId
 
     private fun checkId(id: String) {
-        if (!PackArchive.safe(id) || '/' in id || id == DOWNLOADS || id.startsWith(".")) broken("bad pack id $id")
+        val reserved = id == DOWNLOADS || id.startsWith(".")
+        if (!PackArchive.safe(id) || '/' in id || reserved) broken("bad pack id $id")
     }
 
     private fun commit(manifest: PackManifest, current: InstalledPack?, staging: Path): Path {

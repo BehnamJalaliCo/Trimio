@@ -137,7 +137,7 @@ private fun Storage(ui: LibraryUi) {
         }
         // The folder of animations the director fetched on demand (emptied from Settings).
         Text(
-            localizedNumber(tr("انیمیشن‌های ذخیره‌شده از جستجوی آنلاین: ${size(ui.animationBytes)}", "Animations kept from online search: ${size(ui.animationBytes)}")),
+            localizedNumber(tr("انیمیشن‌های ذخیره‌شده از جستجوی آنلاین: ${sizeFa(ui.animationBytes)}", "Animations kept from online search: ${size(ui.animationBytes)}")),
             style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted,
         )
     }
@@ -168,12 +168,12 @@ private fun DownloadAll(ui: LibraryUi, actions: LibraryActions) {
                 )
                 ui.downloading -> {
                     val rows = ui.packs.filter { it.state is PackState.Downloading || it.state == PackState.Queued || it.state == PackState.Installing }
-                    Text(localizedNumber(tr("در حال دانلود · ${rows.size} کتابخانه در صف", "Downloading · ${rows.size} in the queue")), style = Sig.type.bodyStrong, color = c.ink)
+                    Text(localizedNumber(tr("در حال دانلود؛ ${rows.size} کتابخانه در صف", "Downloading · ${rows.size} in the queue")), style = Sig.type.bodyStrong, color = c.ink)
                     SigSecondaryButton(tr("توقف همه", "Pause all"), actions.onPauseAll, Modifier.fillMaxWidth(), icon = TrimioIcons.Pause)
                 }
                 else -> {
                     Text(
-                        localizedNumber(tr("دانلود همه · ${sizeFa(ui.remainingBytes)}", "Download all · ${size(ui.remainingBytes)}")),
+                        localizedNumber(tr("دانلود همه: ${sizeFa(ui.remainingBytes)}", "Download all · ${size(ui.remainingBytes)}")),
                         style = Sig.type.title, color = c.ink,
                     )
                     Text(
@@ -274,16 +274,16 @@ private fun Progress(fraction: Float, paused: Boolean) {
 
 @Composable
 private fun status(row: PackRow): String {
-    val count = if (row.items > 0) tr("${row.items} مورد · ", "${row.items} items · ") else ""
+    val count = if (row.items > 0) tr("${row.items} مورد، ", "${row.items} items · ") else ""
     return localizedNumber(
         when (val s = row.state) {
-            is PackState.Downloading -> tr("دانلود · ${sizeFa(s.bytes)} از ${sizeFa(s.total)}", "Downloading · ${size(s.bytes)} of ${size(s.total)}")
-            is PackState.Paused -> tr("متوقف · ${sizeFa(s.bytes)} از ${sizeFa(s.total)}", "Paused · ${size(s.bytes)} of ${size(s.total)}")
-            PackState.Queued -> tr("در صف · ${sizeFa(row.sizeBytes)}", "Queued · ${size(row.sizeBytes)}")
+            is PackState.Downloading -> tr("دانلود: ${sizeFa(s.bytes)} از ${sizeFa(s.total)}", "Downloading · ${size(s.bytes)} of ${size(s.total)}")
+            is PackState.Paused -> tr("متوقف: ${sizeFa(s.bytes)} از ${sizeFa(s.total)}", "Paused · ${size(s.bytes)} of ${size(s.total)}")
+            PackState.Queued -> tr("در صف: ${sizeFa(row.sizeBytes)}", "Queued · ${size(row.sizeBytes)}")
             PackState.Installing -> tr("در حال نصب…", "Installing…")
-            is PackState.NoSpace -> tr("فضا کم است · ${sizeFa(s.needed)} لازم، ${sizeFa(s.free)} آزاد", "Not enough room · needs ${size(s.needed)}, ${size(s.free)} free")
+            is PackState.NoSpace -> tr("فضا کم است: ${sizeFa(s.needed)} لازم، ${sizeFa(s.free)} آزاد", "Not enough room · needs ${size(s.needed)}, ${size(s.free)} free")
             is PackState.Failed -> tr("دانلود ناموفق؛ دوباره تلاش کن", "Download failed; try again")
-            is PackState.Installed -> s.update?.let { u -> tr("نسخهٔ تازه آماده است · ${sizeFa(u.size)}", "New version ready · ${size(u.size)}") }
+            is PackState.Installed -> s.update?.let { u -> tr("نسخهٔ تازه آماده است: ${sizeFa(u.size)}", "New version ready · ${size(u.size)}") }
                 ?: "$count${tr(sizeFa(row.sizeBytes), size(row.sizeBytes))}"
             is PackState.Available -> "$count${tr(sizeFa(row.sizeBytes), size(row.sizeBytes))}"
         },

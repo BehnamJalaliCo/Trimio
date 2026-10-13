@@ -42,33 +42,38 @@ internal class Shows(
     private fun options(b: BeatScore, texts: List<String>, line: Lines.Line, norm: List<String>, read: LineRead, sense: Quantities.Sense, takeover: Boolean): List<Pair<BeatScore, Float>> {
         val crypto = domain in TRADING
         val out = mutableListOf<Pair<BeatScore, Float>>()
-        fun has(words: Set<String>) = norm.any { it in words }
         when (b.recipe) {
-            "counter" -> {
-                val q = sense.quantities.firstOrNull { b.value != null && kotlin.math.abs(it.value - b.value!!) < 0.01 }
-                if (crypto && has(SIDES) && sense.money != null) out += order(b, norm, sense) to 0.6f
-                if (sense.social.isNotEmpty()) out += b.copy(recipe = "social-proof", points = sense.social.map { it.value.toFloat() }) to 0.5f
-                if (q?.kind == Quantities.Kind.Percent && (b.value ?: 0f) in 1f..100f) out += b.copy(recipe = "ring", prefix = null, suffix = null) to 0.5f
-                if (q?.kind == Quantities.Kind.Money && (sense.price || has(PRICE))) out += b.copy(recipe = "price-tag") to 0.5f
-                val many = sense.quantities.filter { !it.year && it.value >= 1 }
-                if (many.size in 2..4) out += b.copy(recipe = "stat-stack", points = many.map { it.value.toFloat() }, items = many.map { it.unit }, value = null, prefix = null, suffix = null) to 0.35f
-            }
-            "list" -> {
-                val items = b.text?.split(" | ")?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
-                if (items.size >= 2) {
-                    val steps = read.role == "steps" || has(ORDINALS)
-                    if (steps) out += b.copy(recipe = "steps", items = items, text = null) to 0.6f
-                    if (has(RANKING)) out += b.copy(recipe = "ranking", items = items, text = null) to 0.6f
-                    if (items.count { it.any(Char::isDigit) } >= 2) out += b.copy(recipe = "timeline", items = items, text = null) to 0.6f
-                    if (read.role == "comparison" && items.size == 2) out += b.copy(recipe = "versus", items = items, text = null) to 0.6f
-                }
-            }
+            "counter" -> figure(b, norm, sense, crypto, out)
+            "list" -> list(b, norm, read, out)
             "chart" -> if (crypto) out += b.copy(recipe = "candles", label = b.label?.takeIf { it.isNotBlank() } ?: pair(texts, line)) to 0.6f
             "stamp" -> out += b.copy(recipe = "burst", icon = if (mood == "playful") "heart" else "fire") to 0.35f
             "logos" -> tickers(b.items)?.takeIf { crypto && it.size >= 2 }?.let { out += b.copy(recipe = "tape", items = it) to 0.4f }
             "headline", "mask-rise", "slam", "stack", "flip", "spread", "blur-in", "type-on", "glitch" -> headline(b, texts, line, norm, read, takeover, out)
         }
         return out
+    }
+
+    /** What a figure could be instead: an order, social proof, a ring, a price tag, a stack of stats. */
+    private fun figure(b: BeatScore, norm: List<String>, sense: Quantities.Sense, crypto: Boolean, out: MutableList<Pair<BeatScore, Float>>) {
+        fun has(words: Set<String>) = norm.any { it in words }
+        val q = sense.quantities.firstOrNull { b.value != null && kotlin.math.abs(it.value - b.value!!) < 0.01 }
+        if (crypto && has(SIDES) && sense.money != null) out += order(b, norm, sense) to 0.6f
+        if (sense.social.isNotEmpty()) out += b.copy(recipe = "social-proof", points = sense.social.map { it.value.toFloat() }) to 0.5f
+        if (q?.kind == Quantities.Kind.Percent && (b.value ?: 0f) in 1f..100f) out += b.copy(recipe = "ring", prefix = null, suffix = null) to 0.5f
+        if (q?.kind == Quantities.Kind.Money && (sense.price || has(PRICE))) out += b.copy(recipe = "price-tag") to 0.5f
+        val many = sense.quantities.filter { !it.year && it.value >= 1 }
+        if (many.size in 2..4) out += b.copy(recipe = "stat-stack", points = many.map { it.value.toFloat() }, items = many.map { it.unit }, value = null, prefix = null, suffix = null) to 0.35f
+    }
+
+    /** What a list could be instead: steps, a ranking, a timeline, a versus. */
+    private fun list(b: BeatScore, norm: List<String>, read: LineRead, out: MutableList<Pair<BeatScore, Float>>) {
+        fun has(words: Set<String>) = norm.any { it in words }
+        val items = b.text?.split(" | ")?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        if (items.size < 2) return
+        if (read.role == "steps" || has(ORDINALS)) out += b.copy(recipe = "steps", items = items, text = null) to 0.6f
+        if (has(RANKING)) out += b.copy(recipe = "ranking", items = items, text = null) to 0.6f
+        if (items.count { it.any(Char::isDigit) } >= 2) out += b.copy(recipe = "timeline", items = items, text = null) to 0.6f
+        if (read.role == "comparison" && items.size == 2) out += b.copy(recipe = "versus", items = items, text = null) to 0.6f
     }
 
     /** What a headline line could be instead: a trade, a wallet, a place, a step card, a poll, a kinetic quote. */
@@ -88,7 +93,8 @@ internal class Shows(
         if (read.role == "question" && title.split(' ').size >= 2) out += b.copy(recipe = "poll", items = emptyList()) to 0.35f
         val words = line.range.count()
         val loud = (b.energy ?: 0.5f) >= LOUD
-        if (!takeover && read.role in QUOTABLE && words in QUOTE_WORDS && loud) {
+        val quotable = read.role in QUOTABLE && words in QUOTE_WORDS
+        if (!takeover && quotable && loud) {
             out += b.copy(recipe = "quote", text = line.range.joinToString(" ") { texts[it] }, at = line.first, until = line.last, label = null) to 0.2f
         }
         if (mood in PLAYFUL && loud && title.split(' ').size <= 2) out += b.copy(recipe = "burst", icon = "star") to 0.25f
@@ -160,10 +166,10 @@ internal class Shows(
         /** Families that show data: held long enough to be read, like the planner's own figures. */
         val DATA = setOf("ranking", "timeline", "steps", "versus", "pros-cons", "before-after", "stat-stack", "ring", "social-proof", "price-tag", "candles", "order", "tape", "poll", "receipt")
 
-        /** The edit's variety seed (never 0, which keeps every device in its signature form). */
         /** Off for an A/B of the jury with every device in its signature form (tests only). */
         var enabled = true
 
+        /** The edit's variety seed (never 0, which keeps every device in its signature form). */
         fun variety(seed: Long): Int = if (!enabled) 0 else (seed xor (seed ushr 32)).toInt().let { it * -0x61c88647 + 0x2545F491 }.let { if (it == 0) 1 else it }
 
         private const val RECENT = 2

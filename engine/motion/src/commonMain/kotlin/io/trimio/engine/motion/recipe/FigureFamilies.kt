@@ -58,7 +58,10 @@ object FigureFamilies {
             val nf = Kit.fit(fit, sample(cue), Kit.numberVoice(look, p.typo), b.height * 0.56f, b.width * (if (l != null) 0.55f else 0.84f), b.height * 0.7f)
             val nx = Kit.fromStart(Kit.startX(b, p.rtl, pad), nf.width, p.rtl)
             val figure = Kit.tint(look, color(look, cue), s.ground)
-            nodes += Kit.number(cue.value ?: 0f, cue.from ?: 0f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size, figure, nx, b.centerY, p.at + 0.15f, settle, s.ground, p.rtl)
+            nodes += Kit.number(
+                cue.value ?: 0f, cue.from ?: 0f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size, figure, nx, b.centerY,
+                p.at + 0.15f, settle, s.ground, p.rtl,
+            )
             if (l != null) {
                 val room = b.width - nf.width - pad * 3f
                 val lf = Kit.fit(fit, l, Kit.titleVoice(look, p.typo), b.height * 0.2f, room, b.height * 0.7f, lines = 2)
@@ -80,11 +83,17 @@ object FigureFamilies {
             var y = b.centerY - total / 2f
             val nodes = mutableListOf<Node>()
             if (l != null && ef != null) {
-                nodes += Kit.words(l, ef, ground?.let { Kit.tint(look, look.accent, it) } ?: look.accent, Kit.fromStart(Kit.startX(b, p.rtl, 0f), ef.width, p.rtl), y + ef.height / 2f, p.at, ground, p.rtl, Kit.Reveal.Fade, name = "counter-eyebrow")
+                nodes += Kit.words(
+                    l, ef, ground?.let { Kit.tint(look, look.accent, it) } ?: look.accent, Kit.fromStart(Kit.startX(b, p.rtl, 0f), ef.width, p.rtl),
+                    y + ef.height / 2f, p.at, ground, p.rtl, Kit.Reveal.Fade, name = "counter-eyebrow",
+                )
                 y += ef.height * 1.3f
             }
             val nx = Kit.fromStart(Kit.startX(b, p.rtl, 0f), nf.width, p.rtl)
-            nodes += Kit.number(cue.value ?: 0f, cue.from ?: 0f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size, inkFree(look, cue), nx, y + nf.height / 2f, p.at + 0.1f, settle, ground, p.rtl)
+            nodes += Kit.number(
+                cue.value ?: 0f, cue.from ?: 0f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size, inkFree(look, cue), nx,
+                y + nf.height / 2f, p.at + 0.1f, settle, ground, p.rtl,
+            )
             y += nf.height + barH
             val land = p.at + 0.1f + settle
             nodes += ShapeNode(
@@ -123,12 +132,18 @@ object FigureFamilies {
             val ground = free(look, cue)
             val parts = listOf(
                 ShapeNode(ShapeSpec.Ellipse(d.anim, d.anim), stroke = Stroke(color.fill(), d * 0.035f), transform = Transform(x = b.centerX.anim, y = b.centerY.anim), name = "seal-ring"),
-                ShapeNode(ShapeSpec.Ellipse((d * 0.84f).anim, (d * 0.84f).anim), stroke = Stroke(color.fill(), d * 0.012f), transform = Transform(x = b.centerX.anim, y = b.centerY.anim), name = "seal-ring-inner"),
+                ShapeNode(
+                    ShapeSpec.Ellipse((d * 0.84f).anim, (d * 0.84f).anim), stroke = Stroke(color.fill(), d * 0.012f),
+                    transform = Transform(x = b.centerX.anim, y = b.centerY.anim), name = "seal-ring-inner",
+                ),
                 Kit.words(word, f, color, b.centerX, b.centerY, p.at, ground, p.rtl, Kit.Reveal.None, name = "seal-text"),
             )
             val seal = Kit.pivot(
                 parts, b.centerX, b.centerY, b,
-                Transform(scale = Anim.tween(2.4f, 1f, p.at, land, Easing.ExpoIn), rotation = Anim.tween(-30f * p.dir, -9f * p.dir, p.at, land, Easing.ExpoIn), opacity = Anim.tween(0f, 1f, p.at, p.at + 0.08f)),
+                Transform(
+                    scale = Anim.tween(2.4f, 1f, p.at, land, Easing.ExpoIn), rotation = Anim.tween(-30f * p.dir, -9f * p.dir, p.at, land, Easing.ExpoIn),
+                    opacity = Anim.tween(0f, 1f, p.at, p.at + 0.08f),
+                ),
                 "seal",
             )
             return Kit.built(cue, look, p, b, listOf(seal), name, listOf(Sfx(land, SfxKind.Boom, 1f)), listOf(Craft.punch(land, 0.05f), Craft.shake(land, 10f, cue.seed)))

@@ -93,6 +93,9 @@ object ContentPacks {
      */
     fun addCatalogue(index: String) = update(snapshot.dirs, snapshot.extra + index)
 
+    /** Back to nothing installed and no extra catalogues (tests). */
+    internal fun reset() = update(emptyList(), emptyList())
+
     private fun update(dirs: List<PackDir>, extra: List<String>) {
         if (dirs == snapshot.dirs && extra == snapshot.extra) return
         snapshot = Snapshot(dirs, snapshot.generation + 1, extra)

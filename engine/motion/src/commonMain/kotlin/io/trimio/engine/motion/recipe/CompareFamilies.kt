@@ -184,7 +184,7 @@ object CompareFamilies {
             return listOf(Kit.dot(cx, cy, d, ground, "point-disc"), Kit.icon(if (con) "close" else "check", cx, cy, d * 0.56f, Look.textOn(ground), at, d * 0.07f))
         }
 
-        private fun heading(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, con: Boolean, cx: Float, top: Float, w: Float, size: Float, ground: Color?): Pair<Node, Float> {
+        private fun heading(look: Look, fit: Fitter, p: Kit.Plan, con: Boolean, cx: Float, top: Float, w: Float, size: Float, ground: Color?): Pair<Node, Float> {
             val word = if (con) Kit.say(p.rtl, "معایب", "Cons") else Kit.say(p.rtl, "مزایا", "Pros")
             val f = Kit.fit(fit, word, Kit.labelVoice(look, p.typo).copy(weight = 800), size, w, size * 1.5f)
             val color = ground?.let { Kit.tint(look, if (con) look.negative else look.positive, it) } ?: if (con) look.negative else look.positive
@@ -197,7 +197,7 @@ object CompareFamilies {
             return Kit.uniform(fit, points.map { it.second }, Kit.titleVoice(look, p.typo), h * 0.42f, w - d * 1.5f, h * 0.9f, lines = 2).minOf { it.type.size }
         }
 
-        private fun row(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, point: Pair<Boolean, String>, box: Box, ground: Color?, at: Float, name: String, size: Float): Group {
+        private fun row(look: Look, fit: Fitter, p: Kit.Plan, point: Pair<Boolean, String>, box: Box, ground: Color?, at: Float, name: String, size: Float): Group {
             val d = minOf(box.height * 0.62f, 64f)
             val ink = ground?.let { Kit.inkOn(look, it) } ?: look.ink
             val mx = Kit.startX(box, p.rtl, d / 2f)
@@ -217,7 +217,7 @@ object CompareFamilies {
             for (con in listOf(false, true)) {
                 val col = if (con == p.rtl) Box(box.left, box.top, box.left + w, box.bottom) else Box(box.right - w, box.top, box.right, box.bottom)
                 nodes += Kit.panel(look, cue, s, col.centerX, col.centerY, col.width, col.height, w * 0.08f, "column")
-                val (head, headH) = heading(cue, look, fit, p, con, col.centerX, col.top + w * 0.06f, w * 0.8f, box.height * 0.075f, s.ground)
+                val (head, headH) = heading(look, fit, p, con, col.centerX, col.top + w * 0.06f, w * 0.8f, box.height * 0.075f, s.ground)
                 nodes += head
                 val mine = points.filter { it.first == con }
                 val most = maxOf(points.count { it.first }, points.count { !it.first }).coerceAtLeast(1)
@@ -225,7 +225,7 @@ object CompareFamilies {
                 val sz = size(fit, look, p, points, w * 0.88f, rowH)
                 for ((i, pt) in mine.withIndex()) {
                     val top = col.top + w * 0.06f + headH + i * rowH
-                    nodes += row(cue, look, fit, p, pt, Box(col.left + w * 0.06f, top, col.right - w * 0.06f, top + rowH), s.ground, Kit.itemAt(cue, k, p.at + 0.2f, 0.25f), "point-${k++}", sz)
+                    nodes += row(look, fit, p, pt, Box(col.left + w * 0.06f, top, col.right - w * 0.06f, top + rowH), s.ground, Kit.itemAt(cue, k, p.at + 0.2f, 0.25f), "point-${k++}", sz)
                 }
             }
             return Kit.built(cue, look, p, box, nodes, name, points.indices.map { Sfx(Kit.itemAt(cue, it, p.at + 0.2f, 0.25f), SfxKind.Click, 0.4f) })
@@ -238,7 +238,7 @@ object CompareFamilies {
             val sz = size(fit, look, p, points, box.width, rowH)
             val nodes = points.mapIndexed { i, pt ->
                 val top = box.top + i * rowH
-                row(cue, look, fit, p, pt, Box(box.left, top, box.right, top + rowH), ground, Kit.itemAt(cue, i, p.at + 0.1f, 0.25f), "point-$i", sz)
+                row(look, fit, p, pt, Box(box.left, top, box.right, top + rowH), ground, Kit.itemAt(cue, i, p.at + 0.1f, 0.25f), "point-$i", sz)
             }
             return Kit.built(cue, look, p, box, nodes, name, points.indices.map { Sfx(Kit.itemAt(cue, it, p.at + 0.1f, 0.25f), SfxKind.Click, 0.4f) })
         }
@@ -259,14 +259,14 @@ object CompareFamilies {
                 val edge = Kit.rect(Kit.startX(card, p.rtl, 4f), card.centerY, 8f, h, if (con) look.negative else look.positive, 4f * look.roundness, "point-edge")
                 nodes += Kit.panel(look, cue, s, card.centerX, card.centerY, card.width, card.height, unit * 0.3f, "point-card") + edge
                 val (head, headH) = heading(
-                    cue, look, fit, p, con, Kit.fromStart(Kit.startX(card, p.rtl, unit * 0.5f), card.width * 0.3f, p.rtl), card.top + unit * 0.12f,
+                    look, fit, p, con, Kit.fromStart(Kit.startX(card, p.rtl, unit * 0.5f), card.width * 0.3f, p.rtl), card.top + unit * 0.12f,
                     card.width * 0.3f, unit * 0.36f, s.ground,
                 )
                 nodes += head
                 for ((i, pt) in mine.withIndex()) {
                     val top = card.top + unit * 0.12f + headH + i * unit
                     nodes += row(
-                        cue, look, fit, p, pt, Box(card.left + unit * 0.4f, top, card.right - unit * 0.4f, top + unit * 0.92f), s.ground,
+                        look, fit, p, pt, Box(card.left + unit * 0.4f, top, card.right - unit * 0.4f, top + unit * 0.92f), s.ground,
                         Kit.itemAt(cue, k, p.at + 0.2f, 0.25f), "point-${k++}", sz,
                     )
                 }

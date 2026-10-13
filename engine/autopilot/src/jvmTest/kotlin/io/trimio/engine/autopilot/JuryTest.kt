@@ -317,7 +317,7 @@ class JuryTest {
         val english = v.findings.filter { "Persian video" !in it.what }
         assertTrue(english.none { "They're" in it.what || "«AI»" in it.what || "tuned" in it.what }, "contractions, acronyms, inflections are English: $english")
         // …but English text on a Persian video is a defect of its own (8b): only names the brief gives in Latin stay.
-        assertTrue(v.findings.any { "«tuned»" in it.what && "Persian video" in it.what }, "${v.findings}")
+        assertTrue(v.findings.count { "Persian video" in it.what } >= 3, "${v.findings}")
         assertTrue(v.findings.none { "Nobitex" in it.what && "Persian video" in it.what }, "the brief's own name is welcome")
         val fixed = SpellingJudge().revise(context(latin, prompt = "$prompt کمپین Nobitex", lexicon = lexicon), v)!!
         assertTrue(fixed.scenes[1].beats.single().text!!.contains("Nobitex"))

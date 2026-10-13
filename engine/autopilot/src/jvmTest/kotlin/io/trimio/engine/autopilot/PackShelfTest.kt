@@ -1,5 +1,9 @@
 package io.trimio.engine.autopilot
 
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
 import io.trimio.engine.assets.art.ArtEntry
 import io.trimio.engine.assets.art.ArtLicence
 import io.trimio.engine.assets.art.ArtSource
@@ -50,7 +54,7 @@ class PackShelfTest {
         assertTrue("hot-air-balloon" !in before)
         install()
         val found = BundledArt().animations("hot air balloon", "", ArtFlavour.Emoji, 3)
-        assertEquals("hot-air-balloon", found.first().icon.id, "found: ${found.map { it.entry.id to it.relevance }}")
+        assertEquals("team:hot-air-balloon", found.first().entry.id, "found: ${found.map { it.entry.id to it.relevance }}")
         assertEquals("team", found.first().entry.source.id)
         assertTrue(found.first().icon.animated)
         // The Persian line finds it by its Persian keyword too.
@@ -61,11 +65,13 @@ class PackShelfTest {
     fun onlineIsAskedOnlyWhenNothingHereShowsTheQuery() = runBlocking {
         val asked = mutableListOf<String>()
         val source = ArtSource("lottiefiles", "LottieFiles", "", ArtLicence.of("Lottie-Simple-License"), null, "", "lottiefiles:{id}", "lottie", 100f, 100f, true)
-        ContentPacks.online = io.trimio.engine.assets.packs.OnlineArt { q, _, _ ->
-            asked += q
-            listOf(OnlineHit(ArtEntry(source, "42", "zebra crossing", listOf("zebra", "crossing", "street")), lottie))
+        ContentPacks.online = object : io.trimio.engine.assets.packs.OnlineArt {
+            override suspend fun search(query: String, limit: Int, fetch: suspend (String) -> String?): List<OnlineHit> {
+                asked += query
+                return listOf(OnlineHit(ArtEntry(source, "42", "zebra crossing", listOf("zebra", "crossing", "street")), lottie))
+            }
         }
-        val web = WebKnowledge(io.ktor.client.HttpClient(io.ktor.client.engine.mock.MockEngine { io.ktor.client.engine.mock.respondError(io.ktor.http.HttpStatusCode.NotFound) }))
+        val web = WebKnowledge(HttpClient(MockEngine { respond("", HttpStatusCode.NotFound) }))
         val zebra = web.animations("zebra crossing", "", ArtFlavour.Emoji, 2)
         assertEquals("lottiefiles:42", zebra.first().entry.id)
         // A query the bundled pictures answer well never reaches the service.

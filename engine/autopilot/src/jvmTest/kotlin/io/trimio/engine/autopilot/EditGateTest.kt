@@ -167,7 +167,7 @@ class EditGateTest {
     @Test
     fun aPersianWordTheBriefWritesStaysPersian() {
         val heard = listOf("کلمه", "تتر", "رو", "کامنت", "کن")
-        val fixes = Proofreader.fromBrief(heard, "کلمهٔ «تتر» رو کامنت کنن. واژه‌نامه: تتر (Tether)", PersianSpelling.load())
+        val fixes = Proofreader.fromBrief(heard, "کلمهٔ «تتر» رو کامنت کنن. واژه‌نامه: تتر (Tether)", runBlocking { PersianSpelling.load() })
         assertTrue(fixes[1] == null, "«تتر» is not turned into Tether: $fixes")
     }
 

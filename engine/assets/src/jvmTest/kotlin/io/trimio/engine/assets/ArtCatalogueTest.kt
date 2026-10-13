@@ -28,9 +28,11 @@ class ArtCatalogueTest {
         assertTrue(ArtLicence.of("CC BY 3.0").attribution)
         assertFalse(ArtLicence.of("MIT").attribution)
         assertFalse(ArtLicence.of("CC0").attribution)
-        for (no in listOf("CC BY-SA 4.0", "CC-BY-SA-4.0", "CC BY-NC 4.0", "CC-BY-NC-SA-4.0", "CC BY-ND 4.0", "GPL-3.0", "Lottie Simple License", "Free for personal use", "", null, "Attribution")) {
+        for (no in listOf("CC BY-SA 4.0", "CC-BY-SA-4.0", "CC BY-NC 4.0", "CC-BY-NC-SA-4.0", "CC BY-ND 4.0", "GPL-3.0", "Free for personal use", "", null, "Attribution")) {
             assertFalse(ArtLicence.of(no).allowed, "$no")
         }
+        // LottieFiles' free animations (commercial use, no attribution) and the creator's own imports: owner's decision, phase 8b.
+        assertTrue(ArtLicence.of("Lottie Simple License").allowed && ArtLicence.of("LicenseRef-Owner").allowed)
     }
 
     @Test

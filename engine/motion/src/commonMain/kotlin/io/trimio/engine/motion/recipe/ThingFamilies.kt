@@ -685,7 +685,9 @@ object ThingFamilies {
 
         /** A drawn map in [box]: blocks, a river, a grid of roads and two diagonals. */
         private fun map(look: Look, box: Box, seed: Int, at: Float): List<Node> {
-            val (land, block, road, water) = palette(look)
+            val colours = palette(look)
+            val (land, block, road) = colours
+            val water = colours[3]
             val nodes = mutableListOf<Node>(Kit.rect(box.centerX, box.centerY, box.width, box.height, land, 0f, "map-land"))
             val cell = box.width / 6f
             var k = seed * 13 + 1
