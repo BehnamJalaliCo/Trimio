@@ -73,6 +73,13 @@ class PersianSpellingTest {
     }
 
     @Test
+    fun aScaleHeardAsAnotherWordAfterANumberIsThatScale() {
+        // The owner's video: «دو میلیون و هفتصد ازار تومنه» once became «اظهار» on screen.
+        assertEquals("هزار", spelling.correct("دو میلیون و هفتصد ازار تومنه".split(' '))[4])
+        assertTrue(spelling.correct("اذیت و ازار نکن".split(' '))[2] != "هزار", "no number around: not a scale")
+    }
+
+    @Test
     fun latinDigitsAndPunctuationAreKept() {
         val words = listOf("Claude", "Code", "۳۵۰", "350", "سررافی؟", "«سبتنام»")
         assertEquals(mapOf(4 to "صرافی؟", 5 to "«ثبت‌نام»"), spelling.correct(words))

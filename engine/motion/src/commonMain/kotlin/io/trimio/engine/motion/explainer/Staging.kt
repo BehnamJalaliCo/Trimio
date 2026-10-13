@@ -124,11 +124,10 @@ internal object Staging {
      */
     fun holdTillNext(versions: List<Version>) {
         val stage = versions.filter { !it.overlay }
-        for (v in stage.sortedBy { it.leave }) {
-            if (!v.leave.isFinite()) continue
+        for (v in stage.filter { it.leave.isFinite() }.sortedBy { it.leave }) {
             val alone = stage.none { o -> o !== v && o.enter <= v.gone && o.gone > v.gone }
-            val next = stage.filter { it.enter > v.leave }.minByOrNull { it.enter } ?: continue
-            if (!alone) continue
+            val next = stage.filter { it.enter > v.leave }.minByOrNull { it.enter }
+            if (!alone || next == null) continue
             v.leave = next.enter + HAND_OVER
             v.gone = v.leave + OUT_REPLACE
             for (m in versions) if (m.target === v) {

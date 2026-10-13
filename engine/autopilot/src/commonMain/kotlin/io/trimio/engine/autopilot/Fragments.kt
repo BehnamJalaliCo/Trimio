@@ -23,11 +23,8 @@ internal object Fragments {
         if (words.any { w -> w.any { it.isDigit() } }) return null
         val first = words.first()
         val last = words.last()
-        return when {
-            words.size == 1 -> lone(first)
-            first in OPENERS || first in ADVERBS || first in QUANTIFIERS || first in MODALS -> "starts mid-phrase on «$first»"
-            first in COMPLEMENTS -> "starts on «$first» without its verb"
-            Phrases.verb(key(first)) -> "starts on the verb «$first»"
+        if (words.size == 1) return lone(first)
+        return start(first) ?: when {
             last in CLOSERS || last in ADVERBS || last in QUANTIFIERS || last in MODALS -> "ends on «$last»"
             last in COMPLEMENTS -> "ends on «$last» without its verb"
             (Phrases.verb(key(last)) || last in LIGHT) && !whole(words) -> "ends on the verb «$last»"
@@ -37,6 +34,14 @@ internal object Fragments {
             words.size == 2 && plural(first) && Phrases.nounish(last) -> "two nouns side by side («$first» «$last»)"
             else -> null
         }
+    }
+
+    /** Why a phrase cannot start on [first], or null when it can. */
+    private fun start(first: String): String? = when {
+        first in OPENERS || first in ADVERBS || first in QUANTIFIERS || first in MODALS -> "starts mid-phrase on «$first»"
+        first in COMPLEMENTS -> "starts on «$first» without its verb"
+        Phrases.verb(key(first)) -> "starts on the verb «$first»"
+        else -> null
     }
 
     /** Whether [w] can carry a phrase: not a connector, adverb, quantifier, modal, light verb or half of a compound verb. */

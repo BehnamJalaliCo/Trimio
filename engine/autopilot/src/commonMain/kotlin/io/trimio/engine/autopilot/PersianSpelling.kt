@@ -285,8 +285,10 @@ class PersianSpelling(
     private fun numberSlip(core: String, around: Around): String? {
         val meant = NUMBER_SLIPS[core] ?: return null
         val next = around.next
-        val counting = next in NUMBER_WORDS || next in SCALES || (next == "و" && around.after in NUMBER_WORDS)
-        val measured = next in MEASURES && core != "هشتا"
+        // «هفتصد ازار تومنه»: a scale heard as another word after a number is that scale.
+        val scaled = meant in SCALES && around.prev in NUMBER_WORDS
+        val counting = scaled || next in NUMBER_WORDS || next in SCALES || (next == "و" && around.after in NUMBER_WORDS)
+        val measured = (next in MEASURES || next?.removeSuffix("ه") in MEASURES) && core != "هشتا"
         return meant.takeIf { count(core) == 0 || counting || measured }
     }
 
@@ -478,7 +480,7 @@ class PersianSpelling(
 
         /** Number words whisper writes as another word, or as none. */
         private val NUMBER_SLIPS = mapOf(
-            "سد" to "صد", "شست" to "شصت", "دویس" to "دویست", "هشتا" to "هشتاد", "چارصد" to "چهارصد", "پونزه" to "پونزده", "دوازه" to "دوازده",
+            "سد" to "صد", "شست" to "شصت", "ازار" to "هزار", "دویس" to "دویست", "هشتا" to "هشتاد", "چارصد" to "چهارصد", "پونزه" to "پونزده", "دوازه" to "دوازده",
         )
         /** Words that measure a number said before them. */
         private val MEASURES = setOf(

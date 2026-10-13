@@ -15,29 +15,27 @@ import kotlin.test.fail
 class ExplainerInkTest {
     @Test
     fun theStageAlwaysHoldsInk() {
-        for (lang in listOf("fa", "en")) {
-            val film = ExplainerLab.film("assistants-$lang")
-            val out = ExplainerLab.compose(film, 1080, 1920)
-            val stage = out.report.frame.stage
-            val bg = PaletteBook.named(film.art.palette).background
-            val chapters = film.chapters.sortedBy { it.start }
-            val first = chapters.first().beats.minOf { it.at } + SETTLE
-            val cuts = chapters.drop(1).map { it.start }
-            val end = out.composition.duration - 0.1
-            val low = ArrayList<String>()
-            ExplainerLab.frames(out.composition, SCALE).use { frames ->
-                var t = first
-                while (t < end) {
-                    val nearCut = cuts.any { c -> t > c - CUT_BEFORE && t < c + CUT_AFTER }
-                    val opening = chapters.any { c -> t >= c.start && t < (c.beats.minOfOrNull { it.at } ?: c.start) + SETTLE }
-                    if (!nearCut && !opening) {
-                        val share = ink(frames.draw(t.toFloat()), stage, bg)
-                        if (share < MIN_INK) low += "$lang ${"%.1f".format(t)}s ink ${"%.4f".format(share)}"
-                    }
-                    t += STEP
-                }
+        val low = listOf("fa", "en").flatMap(::faded)
+        if (low.isNotEmpty()) fail("faded or empty stage:\n" + low.joinToString("\n"))
+    }
+
+    /** The sampled moments of the [lang] reference film whose stage holds too little ink. */
+    private fun faded(lang: String): List<String> {
+        val film = ExplainerLab.film("assistants-$lang")
+        val out = ExplainerLab.compose(film, 1080, 1920)
+        val stage = out.report.frame.stage
+        val bg = PaletteBook.named(film.art.palette).background
+        val chapters = film.chapters.sortedBy { it.start }
+        val cuts = chapters.drop(1).map { it.start }
+        fun skipped(t: Double) = cuts.any { c -> t > c - CUT_BEFORE && t < c + CUT_AFTER } ||
+            chapters.any { c -> t >= c.start && t < (c.beats.minOfOrNull { it.at } ?: c.start) + SETTLE }
+        val times = generateSequence(chapters.first().beats.minOf { it.at } + SETTLE) { it + STEP }
+            .takeWhile { it < out.composition.duration - 0.1 }.filterNot(::skipped).toList()
+        return ExplainerLab.frames(out.composition, SCALE).use { frames ->
+            times.mapNotNull { t ->
+                val share = ink(frames.draw(t.toFloat()), stage, bg)
+                if (share < MIN_INK) "$lang ${"%.1f".format(t)}s ink ${"%.4f".format(share)}" else null
             }
-            if (low.isNotEmpty()) fail("faded or empty stage:\n" + low.joinToString("\n"))
         }
     }
 
