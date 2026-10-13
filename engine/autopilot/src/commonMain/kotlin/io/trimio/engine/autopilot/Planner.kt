@@ -121,7 +121,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val styling = StyleChoices(style, taste)
         val look = style.id
         val paced = styling.paced
-        val music = chooseMusic(style)
+        val music = chooseMusic(style, taste, u.brief, mood, lookRng)
         val mark = markRng.weighted(style.captions.marks.toList())
         val usedRecipes = mutableListOf<String>()
         val usedTransitions = mutableListOf<String>()
@@ -769,23 +769,6 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         private fun outOfTakeover(): List<Pair<String, Float>> = styling.outOf(listOf("whip" to 1f, "zoom" to 0.5f, "cut" to 0.6f))
 
-        private fun chooseMusic(style: io.trimio.engine.motion.style.StyleLanguage): MusicMood? {
-            if (!taste.music || u.brief.music == "none") return null
-            MusicMood.fromId(u.brief.music)?.let { return it }
-            val options = when (mood) {
-                "energetic", "urgent" -> listOf(MusicMood.Energetic to 1f, MusicMood.Uplifting to 0.6f)
-                "calm" -> listOf(MusicMood.Chill to 1f, MusicMood.Cinematic to 0.4f)
-                "luxury", "inspiring" -> listOf(MusicMood.Cinematic to 1f, MusicMood.Chill to 0.6f, MusicMood.Uplifting to 0.4f)
-                "serious" -> listOf(MusicMood.Corporate to 1f, MusicMood.Cinematic to 0.6f, MusicMood.Tense to 0.3f)
-                "playful" -> listOf(MusicMood.Uplifting to 1f, MusicMood.Energetic to 0.5f)
-                else -> listOf(MusicMood.Uplifting to 1f, MusicMood.Corporate to 0.6f, MusicMood.Energetic to 0.5f)
-            }
-            // The brief's energy decides which moods fit; the style's own sound picks among them.
-            val styled = io.trimio.engine.assets.SoundPresets.forTag(style.sound)?.moods.orEmpty()
-            val fitting = options.filter { (m, _) -> m in styled }.map { (m, w) -> m to w * 2f }
-            return lookRng.weighted(fitting.ifEmpty { options })
-        }
-
         // ------------------------------------------------------------ word helpers
 
         /** Where [quote] is said inside [line] (word indices), if it is. */
@@ -895,6 +878,24 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             "tech" to listOf("api", "ui", "db", "cloud", "auth", "data", "docs"),
             "ai" to listOf("model", "data", "prompt", "tools", "memory", "agent"),
         )
+
+        /** The cue: the brief's mood when it names one, else what the mood calls for, tilted to the style's own sound. */
+        fun chooseMusic(style: io.trimio.engine.motion.style.StyleLanguage, taste: Taste, brief: BriefRead, mood: String, rng: Rng): MusicMood? {
+            if (!taste.music || brief.music == "none") return null
+            MusicMood.fromId(brief.music)?.let { return it }
+            val options = when (mood) {
+                "energetic", "urgent" -> listOf(MusicMood.Energetic to 1f, MusicMood.Uplifting to 0.6f)
+                "calm" -> listOf(MusicMood.Chill to 1f, MusicMood.Cinematic to 0.4f)
+                "luxury", "inspiring" -> listOf(MusicMood.Cinematic to 1f, MusicMood.Chill to 0.6f, MusicMood.Uplifting to 0.4f)
+                "serious" -> listOf(MusicMood.Corporate to 1f, MusicMood.Cinematic to 0.6f, MusicMood.Tense to 0.3f)
+                "playful" -> listOf(MusicMood.Uplifting to 1f, MusicMood.Energetic to 0.5f)
+                else -> listOf(MusicMood.Uplifting to 1f, MusicMood.Corporate to 0.6f, MusicMood.Energetic to 0.5f)
+            }
+            // The brief's energy decides which moods fit; the style's own sound picks among them.
+            val styled = io.trimio.engine.assets.SoundPresets.forTag(style.sound)?.moods.orEmpty()
+            val fitting = options.filter { (m, _) -> m in styled }.map { (m, w) -> m to w * 2f }
+            return rng.weighted(fitting.ifEmpty { options })
+        }
 
         fun moodEnergy(mood: String) = when (mood) {
             "energetic", "urgent" -> 0.85f

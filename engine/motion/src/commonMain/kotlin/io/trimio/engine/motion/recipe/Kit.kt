@@ -301,8 +301,8 @@ object Kit {
         else -> look.number
     }
 
-    /** Persian is never tracked (letter spacing breaks its joins). */
-    fun voiceFor(v: Look.Voice, text: String): Look.Voice = if (persian(text)) v.copy(tracking = 0f) else v
+    /** Persian is never tracked (letter spacing breaks its joins), and its dots and tails need a little more leading. */
+    fun voiceFor(v: Look.Voice, text: String): Look.Voice = if (persian(text)) v.copy(tracking = 0f, lineHeight = maxOf(v.lineHeight, PERSIAN_LEADING)) else v
 
     fun persian(s: String) = s.any { it in '؀'..'ۿ' }
 
@@ -541,6 +541,7 @@ object Kit {
     private const val MIN_PAD = 60f
     private const val PIVOT_PAD = 80f
     private const val POSTER_LEADING = 1.08f
+    private const val PERSIAN_LEADING = 1.16f
     private const val PAD_SHARE = 0.15f
     private const val ENTER_CALM = 0.8f
     private const val ENTER_HOT = 0.5f

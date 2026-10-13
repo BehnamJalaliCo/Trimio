@@ -56,7 +56,8 @@ internal class Script(private val c: Jury.Context) {
     fun persian(b: BeatScore): BeatScore? {
         fun clean(s: String?) = s?.split(' ')?.filter { ok(core(it)) }?.joinToString(" ")?.trim()?.ifBlank { null }
         val cleaned = b.copy(text = clean(b.text), label = clean(b.label), items = b.items.filter { ok(core(it.removePrefix(">"))) })
-        if (cleaned != b && (cleaned.text != null || cleaned.items.isNotEmpty() || cleaned.value != null)) return cleaned
+        val left = cleaned.text != null || cleaned.items.isNotEmpty() || cleaned.value != null
+        if (cleaned != b && left) return cleaned
         return Bench.Ladder.plain(cleaned)?.takeIf { p -> listOfNotNull(p.text, p.label).all { t -> t.split(' ').all { ok(core(it)) } } }
     }
 

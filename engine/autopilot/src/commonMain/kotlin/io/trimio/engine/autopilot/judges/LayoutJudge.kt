@@ -68,7 +68,8 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
         if (g.placed.recipe in SMALL_BY_DESIGN) return emptyList()
         val area = g.rest?.area ?: return emptyList()
         val share = area / (frame.w * frame.h)
-        return if (share < TINY) listOf(Fault(g.placed, Kind.Tiny, "${g.placed.recipe} takes ${pct(area, frame.w * frame.h)}% of the frame: too small to read on a phone", Severity.Major)) else emptyList()
+        val what = "${g.placed.recipe} takes ${pct(area, frame.w * frame.h)}% of the frame: too small to read on a phone"
+        return if (share < TINY) listOf(Fault(g.placed, Kind.Tiny, what, Severity.Major)) else emptyList()
     }
 
     private fun faults(c: Jury.Context): List<Fault> {

@@ -144,7 +144,9 @@ class Geometry(
                 scale(scale, scale, pivot = Offset.Zero) { translate(c.width * pad, c.height * pad) { renderer.render(this, t) } }
             }
             image.readPixels(pixels, 0, 0, pw, ph)
-            Sample(t, ink(pixels, pw, ph)?.let { (l, tp, r, b) -> Ink(l / scale - c.width * pad, tp / scale - c.height * pad, r / scale - c.width * pad, b / scale - c.height * pad) })
+            val dx = c.width * pad
+            val dy = c.height * pad
+            Sample(t, ink(pixels, pw, ph)?.let { box -> Ink(box[0] / scale - dx, box[1] / scale - dy, box[2] / scale - dx, box[3] / scale - dy) })
         }
     }
 

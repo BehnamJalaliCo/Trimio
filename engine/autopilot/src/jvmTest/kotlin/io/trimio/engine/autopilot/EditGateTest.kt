@@ -157,7 +157,8 @@ class EditGateTest {
         val monotone = Score(
             look = "noir", auto = false,
             scenes = titles.map { t -> at(t.split(' ').first()) }.distinct().sorted().mapIndexed { k, i ->
-                SceneScore(from = if (k == 0) 0 else i, beats = listOf(BeatScore(if (k % 2 == 0) "mask-rise" else "slam", at = i, text = titles.first { at(it.split(' ').first()) == i }, place = "top")))
+                val title = titles.first { at(it.split(' ').first()) == i }
+                SceneScore(from = if (k == 0) 0 else i, beats = listOf(BeatScore(if (k % 2 == 0) "mask-rise" else "slam", at = i, text = title, place = "top")))
             },
         )
         val v = MotionJudge().score(context(monotone))
