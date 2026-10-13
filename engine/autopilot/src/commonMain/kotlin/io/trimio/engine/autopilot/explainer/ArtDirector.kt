@@ -4,6 +4,10 @@ import io.trimio.engine.assets.MusicMood
 import io.trimio.engine.autopilot.RulesUnderstander
 import io.trimio.engine.autopilot.Rng
 import io.trimio.engine.motion.explainer.ArtDirection
+import io.trimio.engine.motion.explainer.CaptionStyle
+import io.trimio.engine.motion.explainer.ChapterMark
+import io.trimio.engine.motion.explainer.PaletteBook
+import io.trimio.engine.motion.explainer.StageGrammar
 
 /**
  * The film's look, from what it is about and the seed: a palette, a layout grammar, a chapter
@@ -14,34 +18,36 @@ import io.trimio.engine.motion.explainer.ArtDirection
  */
 object ArtDirector {
 
-    /** Palettes of the stage's palette book; light ones first. */
-    val LIGHT = listOf("paper-sand", "paper-mint", "paper-rose", "paper-sky", "sun-cream")
-    val DARK = listOf("ink-night", "ink-forest", "ink-plum", "chalk-slate", "mono-graphite")
-    val PALETTES = LIGHT + DARK
-    val LAYOUTS = listOf("header-top", "header-left", "center-stack", "split", "wide-margin")
-    val MARKS = listOf("dashes", "numerals", "rule", "dots", "tab")
-    val CAPTIONS = listOf("band-pill", "plain-lower", "underline", "box-top")
-    const val NO_CAPTIONS = "none"
+    /** The stage's palette book ([PaletteBook]): light grounds and dark ones. */
+    val LIGHT: List<String> get() = PaletteBook.all.filter { !it.dark }.map { it.id }
+    val DARK: List<String> get() = PaletteBook.all.filter { it.dark }.map { it.id }
+    val PALETTES: List<String> get() = PaletteBook.ids
+
+    /** The stage's layout grammars, chapter marks and caption treatments (the reference's own first). */
+    val LAYOUTS: List<String> get() = StageGrammar.entries.map { it.id }
+    val MARKS: List<String> get() = ChapterMark.entries.filter { it != ChapterMark.None }.map { it.id }
+    val CAPTIONS: List<String> get() = CaptionStyle.entries.filter { it != CaptionStyle.None }.map { it.id }
+    val NO_CAPTIONS: String get() = CaptionStyle.None.id
 
     /** How many accents a palette has: neighbouring chapters take different ones. */
     const val ACCENTS = 4
 
     /** Palettes each field leans to (three times as likely as the rest). */
     private val AFFINITY = mapOf(
-        "tech" to listOf("paper-sand", "ink-night", "mono-graphite", "chalk-slate"),
-        "ai" to listOf("paper-sand", "ink-night", "ink-plum", "mono-graphite"),
-        "software" to listOf("paper-sky", "ink-night", "mono-graphite", "chalk-slate"),
-        "finance" to listOf("ink-forest", "paper-mint", "mono-graphite", "sun-cream"),
-        "crypto" to listOf("ink-forest", "ink-night", "mono-graphite"),
-        "business" to listOf("paper-sand", "ink-forest", "mono-graphite", "paper-sky"),
-        "health" to listOf("paper-mint", "paper-sky", "sun-cream", "ink-forest"),
-        "medical" to listOf("paper-mint", "paper-sky", "chalk-slate"),
-        "fitness" to listOf("sun-cream", "ink-plum", "paper-mint"),
-        "education" to listOf("paper-sand", "chalk-slate", "paper-rose", "paper-sky"),
-        "news" to listOf("paper-sand", "chalk-slate", "mono-graphite"),
-        "food" to listOf("sun-cream", "paper-rose", "paper-sand"),
-        "travel" to listOf("paper-sky", "sun-cream", "ink-forest"),
-        "lifestyle" to listOf("paper-rose", "sun-cream", "ink-plum"),
+        "tech" to listOf("paper-warm", "ink-night", "mono", "slate"),
+        "ai" to listOf("paper-warm", "ink-night", "dusk", "mono"),
+        "software" to listOf("linen-blue", "ink-night", "mono", "slate"),
+        "finance" to listOf("mint", "slate", "mono", "sand"),
+        "crypto" to listOf("ink-night", "slate", "chalk"),
+        "business" to listOf("paper-warm", "linen-blue", "mono", "slate"),
+        "health" to listOf("mint", "linen-blue", "sand", "plum"),
+        "medical" to listOf("mint", "linen-blue", "slate"),
+        "fitness" to listOf("sand", "dusk", "mint"),
+        "education" to listOf("paper-warm", "chalk", "plum", "linen-blue"),
+        "news" to listOf("paper-warm", "slate", "mono"),
+        "food" to listOf("sand", "plum", "paper-warm"),
+        "travel" to listOf("linen-blue", "sand", "chalk"),
+        "lifestyle" to listOf("plum", "sand", "dusk"),
     )
 
     fun choose(n: Narration, seed: Long): ArtDirection {
@@ -51,7 +57,7 @@ object ArtDirector {
             "noir" -> DARK
             "paper", "lumen" -> LIGHT
             else -> PALETTES
-        }
+        }.ifEmpty { PALETTES }
         val leaning = AFFINITY[n.understanding.domain].orEmpty()
         val palette = rng.weighted(pool.map { it to if (it in leaning) LEAN else 1f })
         val layout = rng.weighted(LAYOUTS.mapIndexed { i, l -> l to if (i == 0) FIRST else 1f })
