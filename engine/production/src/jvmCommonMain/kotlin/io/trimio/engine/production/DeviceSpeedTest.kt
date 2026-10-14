@@ -75,7 +75,10 @@ internal class DeviceSpeedTest(
             GPU_SHARES.forEach { share -> add(Step.Gpu(share) to call) }
             add(Step.Mtp to call)
         }
-        voice?.let { v -> speechOptions().forEach { t -> add(Step.Speech(t) to (BenchStep.SPEECH_SECONDS * SPEECH_FACTOR * (BenchStep.SPEECH_REPEATS + 1) + File(v).length() / GB * LOAD_SECONDS_PER_GB)) } }
+        voice?.let { v ->
+            val load = File(v).length() / GB * LOAD_SECONDS_PER_GB
+            speechOptions().forEach { t -> add(Step.Speech(t) to (BenchStep.SPEECH_SECONDS * SPEECH_FACTOR * (BenchStep.SPEECH_REPEATS + 1) + load)) }
+        }
         picture?.let { files ->
             val gb = files.sumOf { File(it).length() } / GB
             add(Step.Devices to DEVICES_SECONDS)
@@ -107,22 +110,7 @@ internal class DeviceSpeedTest(
         }
         val bestCpu = cpu.minByOrNull { (_, r) -> callSeconds(r) }
         val threads = bestCpu?.first ?: return null.also { GPU_SHARES.forEach { work.skip(Step.Gpu(it)) }; work.skip(Step.Mtp) }
-        // The GPU, with as many of the layers as the free memory holds now (the rest stay on the processor).
-        val gpu = ArrayList<Pair<Int, BenchResult>>()
-        val levels = gpuLevels(model, bestCpu.second)
-        GPU_SHARES.forEachIndexed { i, share ->
-            val layers = levels.getOrNull(i)
-            if (layers == null) {
-                work.skip(Step.Gpu(share))
-                return@forEachIndexed
-            }
-            val r = work.run(Step.Gpu(share)) { bench.run(BenchStep.Director(model, threads, layers)) }
-            val label = "کارت گرافیک · ${digits(layers)} از ${digits(bestCpu.second.totalLayers)} لایه"
-            onRow(if (r.ok && !r.onGpu) note(label, "روی کارت گرافیک ننشست") else directorRow(label, r))
-            if (r.ok && r.onGpu) gpu += layers to r
-        }
-        if (levels.isEmpty()) onRow(note("کارت گرافیک", if (!bestCpu.second.gpuBuild) "این گوشی کارت گرافیکِ قابل استفاده ندارد" else "حافظهٔ آزاد کافی نیست"))
-        val bestGpu = gpu.minByOrNull { (_, r) -> callSeconds(r) }
+        val bestGpu = gpuRows(model, threads, bestCpu.second, work, onRow)
         // The GPU only when it wins clearly: its weights are pinned, the processor's can be paged out under pressure.
         val gpuWins = bestGpu != null && callSeconds(bestGpu.second) * GPU_MARGIN < callSeconds(bestCpu.second)
         val layers = if (gpuWins) bestGpu!!.first else 0
@@ -136,6 +124,28 @@ internal class DeviceSpeedTest(
         val way = (if (gpuWins) "CPU ${digits(threads)} هسته + کارت گرافیک ${digits(layers)} لایه" else "CPU · ${digits(threads)} هسته") + (if (draft != null) " · MTP" else "")
         onRow(SpeedRow(SpeedRow.Kind.Director, "کارگردان", "$way · ${rates(chosen)}", best = true))
         return threads
+    }
+
+    /**
+     * The GPU, with as many of the layers as the free memory holds now (the rest stay on the processor); returns the
+     * fastest layer count that really ran there (null when none did).
+     */
+    private suspend fun gpuRows(model: String, threads: Int, cpu: BenchResult, work: Work, onRow: (SpeedRow) -> Unit): Pair<Int, BenchResult>? {
+        val gpu = ArrayList<Pair<Int, BenchResult>>()
+        val levels = gpuLevels(model, cpu)
+        GPU_SHARES.forEachIndexed { i, share ->
+            val layers = levels.getOrNull(i)
+            if (layers == null) {
+                work.skip(Step.Gpu(share))
+                return@forEachIndexed
+            }
+            val r = work.run(Step.Gpu(share)) { bench.run(BenchStep.Director(model, threads, layers)) }
+            val label = "کارت گرافیک · ${digits(layers)} از ${digits(cpu.totalLayers)} لایه"
+            onRow(if (r.ok && !r.onGpu) note(label, "روی کارت گرافیک ننشست") else directorRow(label, r))
+            if (r.ok && r.onGpu) gpu += layers to r
+        }
+        if (levels.isEmpty()) onRow(note("کارت گرافیک", if (!cpu.gpuBuild) "این گوشی کارت گرافیکِ قابل استفاده ندارد" else "حافظهٔ آزاد کافی نیست"))
+        return gpu.minByOrNull { (_, r) -> callSeconds(r) }
     }
 
     /**

@@ -329,8 +329,9 @@ class Autopilot(
         }
         var looks = emptyList<VisionCritic.Look>()
         val looker = eyes
-        if (look && lean()) log("look: skipped (lean run: little free memory, or an earlier attempt was killed here)")
-        if (look && !lean() && looker != null && grabber != null) {
+        val lookNow = look && !lean()
+        if (look && !lookNow) log("look: skipped (lean run: little free memory, or an earlier attempt was killed here)")
+        if (lookNow && looker != null && grabber != null) {
             onStage("look", 0.85f)
             val (seen, revised) = VisionCritic(looker).review(score, compiled, output, grabber, log)
             rest(looker)

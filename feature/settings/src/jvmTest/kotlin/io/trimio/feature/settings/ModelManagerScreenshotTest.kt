@@ -13,6 +13,7 @@ import io.trimio.engine.models.DeviceMemory
 import io.trimio.engine.models.ModelCatalog
 import io.trimio.engine.models.ModelFit
 import io.trimio.engine.models.ModelState
+import io.trimio.engine.models.SpeedRow
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -97,23 +98,22 @@ class ModelManagerScreenshotTest {
         val offered = shelf.boosts.flatMap { it.rows }.map { it.row.id }
         val a = io.trimio.engine.models.IllustrationAddOns
         assertTrue(listOf(a.sdxs.id, a.klein.id).all { it in offered }, "illustrators offered on a 12 GB phone: $offered")
-        val k = io.trimio.engine.models.SpeedRow.Kind
-        fun r(kind: io.trimio.engine.models.SpeedRow.Kind, label: String, value: String, best: Boolean = false) = io.trimio.engine.models.SpeedRow(kind, label, value, best)
+        fun r(kind: SpeedRow.Kind, label: String, value: String, best: Boolean = false) = SpeedRow(kind, label, value, best)
         // The owner's S26 Ultra as 1.0.21 measured it, and what the deeper test adds (GPU layers, the picture engine).
         val speed = SpeedUi(
             listOf(
-                r(k.Memory, "حافظه (رم)", "۳۳٫۲ گیگابایت بر ثانیه"),
-                r(k.Director, "CPU · ۸ هسته", "خواندن ۱۰۹٫۱ · نوشتن ۲۷٫۵ توکن/ثانیه"),
-                r(k.Director, "CPU · ۷ هسته", "خواندن ۵۵٫۸ · نوشتن ۱۱٫۴ توکن/ثانیه"),
-                r(k.Director, "CPU · ۴ هسته", "خواندن ۸۹٫۲ · نوشتن ۳۱٫۸ توکن/ثانیه"),
-                r(k.Director, "کارت گرافیک · ۹ از ۳۷ لایه", "خواندن ۱۲۴٫۰ · نوشتن ۲۹٫۱ توکن/ثانیه"),
-                r(k.Note, "کارت گرافیک · ۱۸ از ۳۷ لایه", "از کار افتاد؛ این حالت استفاده نمی‌شود"),
-                r(k.Director, "کارگردان", "CPU · ۸ هسته · خواندن ۱۰۹٫۱ · نوشتن ۲۷٫۵ توکن/ثانیه", best = true),
-                r(k.Speech, "Whisper · ۸ هسته", "۱٫۱ برابر زمان صدا"),
-                r(k.Speech, "گفتار", "Whisper · ۸ هسته · ۱٫۱ برابر زمان صدا", best = true),
-                r(k.Note, "تصویرساز · CPU", "۴۱٫۲ ثانیه برای یک تصویر کوچک"),
-                r(k.Note, "تصویرساز · CPU + کارت گرافیک", "۹٫۸ ثانیه برای یک تصویر کوچک"),
-                r(k.Note, "تصویرساز", "کارت گرافیک + متن روی CPU · ۹٫۸ ثانیه", best = true),
+                r(SpeedRow.Kind.Memory, "حافظه (رم)", "۳۳٫۲ گیگابایت بر ثانیه"),
+                r(SpeedRow.Kind.Director, "CPU · ۸ هسته", "خواندن ۱۰۹٫۱ · نوشتن ۲۷٫۵ توکن/ثانیه"),
+                r(SpeedRow.Kind.Director, "CPU · ۷ هسته", "خواندن ۵۵٫۸ · نوشتن ۱۱٫۴ توکن/ثانیه"),
+                r(SpeedRow.Kind.Director, "CPU · ۴ هسته", "خواندن ۸۹٫۲ · نوشتن ۳۱٫۸ توکن/ثانیه"),
+                r(SpeedRow.Kind.Director, "کارت گرافیک · ۹ از ۳۷ لایه", "خواندن ۱۲۴٫۰ · نوشتن ۲۹٫۱ توکن/ثانیه"),
+                r(SpeedRow.Kind.Note, "کارت گرافیک · ۱۸ از ۳۷ لایه", "از کار افتاد؛ این حالت استفاده نمی‌شود"),
+                r(SpeedRow.Kind.Director, "کارگردان", "CPU · ۸ هسته · خواندن ۱۰۹٫۱ · نوشتن ۲۷٫۵ توکن/ثانیه", best = true),
+                r(SpeedRow.Kind.Speech, "Whisper · ۸ هسته", "۱٫۱ برابر زمان صدا"),
+                r(SpeedRow.Kind.Speech, "گفتار", "Whisper · ۸ هسته · ۱٫۱ برابر زمان صدا", best = true),
+                r(SpeedRow.Kind.Note, "تصویرساز · CPU", "۴۱٫۲ ثانیه برای یک تصویر کوچک"),
+                r(SpeedRow.Kind.Note, "تصویرساز · CPU + کارت گرافیک", "۹٫۸ ثانیه برای یک تصویر کوچک"),
+                r(SpeedRow.Kind.Note, "تصویرساز", "کارت گرافیک + متن روی CPU · ۹٫۸ ثانیه", best = true),
             ),
             done = true,
         )

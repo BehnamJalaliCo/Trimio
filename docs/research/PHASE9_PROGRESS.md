@@ -236,3 +236,24 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   sat at 14 % for five minutes on the single-core call and jumped 61 → 100; now it follows the clock (expected times
   re-estimated as calls end) and went 0 → 100 evenly in 219 s, about half a percent a second. The single-core call
   is gone on multi-core devices (never the fastest; 3.7 min instead of 11).
+
+## 14 Oct — the owner on 1.0.21: the GPU never ran, and a kill at «برنامهٔ ادیت» 52 %
+
+- The speed test never touched the GPU: the director was timed all on it or not at all (the phone's free memory held
+  only part of the model), and the picture engine had no GPU build. Now the director is timed on the processor (three
+  or four thread counts) and with a quarter, half, three quarters and all of the layers the free memory holds on the
+  GPU, the rest on the processor; each way three times, the median kept (every pass starts with its own words, so the
+  prompt cache cannot fake a fast read). The GPU is kept only when it wins by 15 %. The picture engine has an OpenCL
+  build for Adreno (`:androidSdGpu`) and is timed on the processor, mixed (text encoder on the processor) and on the
+  GPU when it fits. The chosen ways are shown with a check mark under «هر ساخت با این تنظیم اجرا می‌شود».
+- Without a crash: the measuring runs in its own process (`:bench`). A way that the system kills there becomes a row
+  «کرش کرد»; the app and the rest of the test go on, and a way that hangs is ended after 15 minutes.
+- The kill (1.0.21, S26 Ultra, «killed for low memory», 52 %): 52 % is the director's «pictures» step. At that moment
+  the phone held the director, its eyes' projector (about 1 GB, loaded for the speaker and never freed), the art
+  library's embedder and reranker (loaded for the music pick and kept), the live preview's decoder, and the picture
+  engine loading. Now the eyes' projector is freed after each look (and after the speaker is found), the art library
+  after its pick and after the pictures, and the system's own low-memory warning (`onTrimMemory`) makes a running
+  edit drop its optional parts at once (the look, web animations, live previews). The reading is saved the moment it is
+  done, and the attempt after a kill inside the director is a lean run (no eyes, no previews, offline visuals) that
+  starts from the plan; the report says so («lean run»). Host test: a run whose last attempt died «in pictures» in
+  another process finishes, lean, without previews (`aRunKilledForMemoryInsideTheDirectorFinishesLean`).

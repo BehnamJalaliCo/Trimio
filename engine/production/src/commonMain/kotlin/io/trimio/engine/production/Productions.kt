@@ -307,14 +307,9 @@ class Productions(
         val director = directorOf(request.director, recorder)
         recorder.models(
             modelFacts(director, if (heard == null) platform.speechModel() else null, request.director) + addOns.facts() +
-                listOfNotNull(
-                    Fact("add-on", "skipped: the app ended inside an add-on on an earlier attempt").takeIf { skipAddOns },
-                    Fact("lean run", if (directorDeath(recorder)) "the system ended an earlier attempt inside the director" else "little free memory").takeIf { lean },
-                ),
+                runFacts(skipAddOns, lean, directorDeath(recorder)),
         )
-        val subject = director.eyes?.takeUnless { lean }?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
-        // The eyes found the speaker: their projector (about 1 GB) is freed until they look again.
-        director.eyes?.let { eyes -> runCatching { if (eyes === director.model) eyes.releaseSight() else eyes.release() } }
+        val subject = speaker(director, frames, found, lean)
         r.at(Stage.Direct, 0f, "direct")
         val taste = r.feedback?.let { r.taste.adjust(Collaborator(director.model).read(it)) } ?: r.taste
         val latest = MutableStateFlow<Compiler.Output?>(null)
@@ -387,6 +382,22 @@ class Productions(
         val understanding: io.trimio.engine.autopilot.Understanding?,
         val draft: io.trimio.engine.autopilot.UnderstandingDraft?,
     )
+
+    /** What this attempt left out and why: add-ons after a death inside one, the lean run after a kill or on low memory. */
+    private fun runFacts(skipAddOns: Boolean, lean: Boolean, killed: Boolean): List<Fact> = listOfNotNull(
+        Fact("add-on", "skipped: the app ended inside an add-on on an earlier attempt").takeIf { skipAddOns },
+        Fact("lean run", if (killed) "the system ended an earlier attempt inside the director" else "little free memory").takeIf { lean },
+    )
+
+    /**
+     * Where the speaker is: the director's eyes find them (not in a lean run), then their projector (about 1 GB) is freed
+     * until they look again; the rules' subject otherwise.
+     */
+    private suspend fun speaker(director: Director, frames: List<io.trimio.engine.llm.RgbImage>, found: SubjectFinder.Found?, lean: Boolean): io.trimio.engine.motion.score.Subject? {
+        val subject = director.eyes?.takeUnless { lean }?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
+        director.eyes?.let { eyes -> runCatching { if (eyes === director.model) eyes.releaseSight() else eyes.release() } }
+        return subject
+    }
 
     /** The director the request asked for, every call of it (and of its eyes) on the run's record. */
     private suspend fun directorOf(choice: DirectorChoice, recorder: RunRecorder): Director {
