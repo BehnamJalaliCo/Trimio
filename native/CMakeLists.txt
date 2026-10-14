@@ -121,6 +121,10 @@ if(TRIMIO_SD)
         set(SD_OPENCL ON CACHE BOOL "" FORCE)
     endif()
     add_subdirectory(third_party/stable-diffusion.cpp sd-build EXCLUDE_FROM_ALL)
+    # Only the tokenizer data our picture models read (sd/vocab_lean.cpp): the rest weighed about 26 MB per library.
+    get_target_property(SD_SOURCES stable-diffusion SOURCES)
+    list(FILTER SD_SOURCES EXCLUDE REGEX "tokenizers/vocab/vocab\\.cpp$")
+    set_property(TARGET stable-diffusion PROPERTY SOURCES ${SD_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/sd/vocab_lean.cpp)
 
     add_library(${TRIMIO_SD_TARGET} SHARED sd/trimio_sd_jni.cpp)
     target_link_libraries(${TRIMIO_SD_TARGET} PRIVATE stable-diffusion)
