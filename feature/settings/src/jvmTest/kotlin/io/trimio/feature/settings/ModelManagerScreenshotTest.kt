@@ -52,6 +52,24 @@ class ModelManagerScreenshotTest {
         assertEquals(14.2f, ModelShelf.build(ModelCatalog.all, states, DeviceMemory(12), null, null, speeds = speeds).directors.first { it.id == "qwen3.5-4b-q4km" }.measuredTokensPerSecond)
     }
 
+    /** «دانلود همه»: seventeen items in a laptop window; the confirm and cancel buttons stay on screen (the list scrolls). */
+    @Test
+    fun downloadAllDialog() {
+        val many = ModelCatalog.all.filter { it.addOn != null }.take(17)
+        shoot("models-fa-download-all-desktop", paper = false, width = 1280, height = 720, density = 1.25f) {
+            Box(Modifier.fillMaxSize()) {
+                ModelManagerScreen(ui(32, desktop = true), ModelActions())
+                DownloadDialog(many, {}, {})
+            }
+        }
+        shoot("models-fa-download-all-phone", paper = true) {
+            Box(Modifier.fillMaxSize()) {
+                ModelManagerScreen(ui(12), ModelActions())
+                DownloadDialog(many, {}, {})
+            }
+        }
+    }
+
     @Test
     fun desktop() = shoot("models-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { ModelManagerScreen(ui(32, desktop = true), ModelActions()) }
 

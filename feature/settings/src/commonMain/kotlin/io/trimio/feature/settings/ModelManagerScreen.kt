@@ -104,7 +104,7 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
 
 /** «دانلود شود؟»: the models and their total size; nothing starts until the creator confirms. */
 @Composable
-private fun DownloadDialog(specs: List<ModelSpec>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+internal fun DownloadDialog(specs: List<ModelSpec>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val c = Sig.colors
     val shape = RoundedCornerShape(24.dp)
     val bytes = specs.sumOf { it.sizeBytes }
@@ -123,8 +123,14 @@ private fun DownloadDialog(specs: List<ModelSpec>, onConfirm: () -> Unit, onDism
             Box(Modifier.size(44.dp).clip(CircleShape).background(c.action.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                 TrimioIcon(TrimioIcons.Download, null, tint = c.action, size = 20.dp)
             }
-            Text(tr("دانلود شود؟", "Download?"), style = Sig.type.title.copy(fontSize = 19.sp), color = c.ink)
-            specs.forEach { Text(tr(it.titleFa, it.titleEn), style = Sig.type.body.copy(fontSize = 14.sp), color = c.ink) }
+            Text(
+                if (specs.size > 1) localizedNumber(tr("${specs.size} مورد دانلود شود؟", "Download ${specs.size} items?")) else tr("دانلود شود؟", "Download?"),
+                style = Sig.type.title.copy(fontSize = 19.sp), color = c.ink,
+            )
+            // A long list scrolls inside the card: the buttons below stay on screen however many items there are.
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                specs.forEach { Text(tr(it.titleFa, it.titleEn), style = Sig.type.body.copy(fontSize = 14.sp), color = c.ink) }
+            }
             Text(
                 tr("حجم: $size. دانلود فقط با تأیید تو شروع می‌شود.", "Size: $size. The download starts only when you confirm."),
                 style = Sig.type.body.copy(fontSize = 13.sp), color = c.muted,
