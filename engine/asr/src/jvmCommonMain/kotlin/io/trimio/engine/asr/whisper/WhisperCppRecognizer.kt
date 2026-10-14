@@ -122,7 +122,7 @@ class WhisperCppRecognizer(
     /**
      * The beam: `-Dtrimio.whisper.beam` (1 is greedy), else 3. Greedy decodes about 2.5× faster on
      * a CPU (measured with the tiny model) but spells rare Persian words worse, and spelling is
-     * what creators notice; phones get their speed from the turbo model instead.
+     * what creators notice. Turbo is no shortcut either: it dropped whole phrases of the owner's talks.
      */
     private fun beam(): Int = System.getProperty("trimio.whisper.beam")?.toIntOrNull()?.coerceIn(1, MAX_BEAM) ?: BEAM
 

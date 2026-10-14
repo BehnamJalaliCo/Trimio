@@ -202,3 +202,14 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   the sign's frame): a shop, office or bank is now asked for with a plain blank signboard — drawn again, clean.
 - Final run: whole headlines, the queue in front of the office drawn by klein in the film's pencil look, every other
   scene from the library; the report lists every picture and its source.
+
+## 14 Oct — Whisper turbo against large-v3 on the owner's five talks (`SpeechModelsOnRealVideosRun`)
+
+- Host, four cores, beam 3: large-v3 Q5_0 65 / 47 / 194 / 174 / 437 s for 26 / 13 / 64 / 67 / 155 s of sound; turbo Q8_0
+  30 / 21 / 74 / 70 / 153 s (2.2–2.9× faster).
+- Word by word against large-v3: most differences are spellings («کاربر‌ها» / «کاربرا», «اسمشو» / «اسمش رو»), some
+  turbo's better («جیپیتی»), but turbo left out a whole phrase of the 155 s talk («سرمایه اولیه میدیم پنجاه دولار کف
+  ورودیمونه») and two words of the 13 s one. The rule is not one word lost: turbo is not the default. The phone no longer
+  prefers it either; it takes the most accurate speech model installed that fits, as the desktop does.
+- Left for the phone: large-v3 on the NPU (ORT QNN) or a Q8_0 large-v3 for the KleidiAI path (needs our own server to
+  host it, phase 10).

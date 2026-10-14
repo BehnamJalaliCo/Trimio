@@ -122,8 +122,9 @@ class LocalDirectors(
     private fun speechSpec(preferredSpeech: () -> String?): ModelSpec? {
         val installed = catalog.filter { it.kind == ModelKind.Speech && store.isInstalled(it) }
         val fits = installed.filter { DeviceFit.of(it, device) <= ModelFit.Experimental }
+        // The most accurate that fits, phones too: turbo reads 2.2–2.9× faster but dropped a whole phrase of the owner's
+        // 154.7 s talk («سرمایه اولیه میدیم پنجاه دولار …», SpeechModelsOnRealVideosRun), and not one word may be lost.
         return installed.firstOrNull { it.id == preferredSpeech() }
-            ?: PHONE_SPEECH.takeUnless { device.desktop }?.firstNotNullOfOrNull { id -> fits.firstOrNull { it.id == id } }
             ?: fits.maxByOrNull { it.sizeBytes }
             ?: installed.minByOrNull { it.sizeBytes }
     }
@@ -131,8 +132,5 @@ class LocalDirectors(
     private companion object {
         /** The perception add-ons the production uses ([AddOnStages]). */
         val PERCEPTION = listOf(MediaAddOns.faces, MediaAddOns.aligner, MediaAddOns.punctuation)
-
-        /** The phone's default speech models, best first: turbo decodes fast enough for a phone's CPU. */
-        val PHONE_SPEECH = listOf(ModelCatalog.whisperTurboQ8.id, ModelCatalog.whisperTurboQ5.id)
     }
 }
