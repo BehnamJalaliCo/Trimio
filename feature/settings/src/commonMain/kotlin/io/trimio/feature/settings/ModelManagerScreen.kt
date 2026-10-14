@@ -253,7 +253,7 @@ private fun Hardware(line: HardwareLine) {
  * cores and the GPU, the memory, Whisper), the chosen way marked; builds use the chosen ways from now on.
  */
 @Composable
-private fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
+internal fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
     val c = Sig.colors
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SigSecondaryButton(

@@ -68,10 +68,9 @@ class LocalDirectors(
     }
 
     /**
-     * Whisper with the installed speech model: [preferredSpeech] when installed; else, on a phone,
-     * the large-v3 turbo (4 decoder layers instead of 32: several times faster to decode on a phone's
-     * CPU) when it is installed; else the largest that fits. Fit is the real memory check the
-     * models screen shows ([DeviceFit]), not the coarse RAM tier.
+     * Whisper with the installed speech model: [preferredSpeech] when installed, else the most accurate
+     * (largest) that fits. Fit is the real memory check the models screen shows ([DeviceFit]), not the
+     * coarse RAM tier.
      */
     fun recognizer(preferredSpeech: () -> String? = { null }) = InstalledWhisperRecognizer {
         speechSpec(preferredSpeech)?.let { store.pathOf(it).toString() }

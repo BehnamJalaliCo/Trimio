@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.trimio.core.designsystem.signature.DirectorDot
-import io.trimio.core.designsystem.signature.DisplayText
+import io.trimio.core.designsystem.signature.DisplayFigure
 import io.trimio.core.designsystem.signature.FootagePlaceholder
 import io.trimio.core.designsystem.signature.Hairline
 import io.trimio.core.designsystem.signature.LiveDot
@@ -167,7 +167,7 @@ private fun Readout(build: LiveBuild, showFrame: Boolean) {
         BoxWithConstraints(Modifier.weight(1f)) {
             val fits = with(LocalDensity.current) { (maxWidth / (PERCENT_DIGITS * DIGIT_EM)).toSp().value }
             val size = minOf(PERCENT_SP, fits)
-            DisplayText(localizedNumber("${pct.toInt()}"), style = Sig.type.giant.copy(fontSize = size.sp, lineHeight = (size * PERCENT_LEADING).sp), maxLines = 1)
+            DisplayFigure(localizedNumber("${pct.toInt()}"), style = Sig.type.giant.copy(fontSize = size.sp, lineHeight = (size * PERCENT_LEADING).sp))
         }
         if (showFrame) FormingFrame(build.previews, Modifier.size(92.dp, 150.dp))
     }

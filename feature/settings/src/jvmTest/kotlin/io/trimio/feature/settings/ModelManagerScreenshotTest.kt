@@ -86,6 +86,31 @@ class ModelManagerScreenshotTest {
         }
     }
 
+    /**
+     * The owner's phone as 1.0.20 shows it (12 GB, Gemma E4B and large-v3 installed): the speed test at the top of the
+     * screen, and both illustrators offered among the add-ons (the fast one and the studio one with its two companions).
+     */
+    @Test
+    fun ownersPhone() {
+        val mine = mapOf("gemma-4-e4b-qat-q4" to ModelState.Installed, "whisper-large-v3-q5" to ModelState.Installed)
+        val shelf = ModelShelf.build(ModelCatalog.all, mine, DeviceMemory(12), "gemma-4-e4b-qat-q4", null)
+        val offered = shelf.boosts.flatMap { it.rows }.map { it.row.id }
+        val a = io.trimio.engine.models.IllustrationAddOns
+        assertTrue(listOf(a.sdxs.id, a.klein.id).all { it in offered }, "illustrators offered on a 12 GB phone: $offered")
+        val speed = SpeedUi(
+            listOf(io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Director, "کارگردان · ۸ هسته", "۲۸ توکن در ثانیه", best = true),
+                io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Speech, "Whisper · ۸ هسته", "۰٫۹× زمان واقعی"),),
+            done = true,
+        )
+        shoot("models-fa-owners-phone", paper = true, height = 3400) { ModelManagerScreen(shelf, ModelActions(onSpeedTest = {}, speed = speed)) }
+        shoot("settings-fa-speed-test", paper = true, height = 1400) {
+            SettingsScreen(
+                SettingsUi(io.trimio.core.data.AppSettings(), emptyMap(), io.trimio.core.data.DeviceInfo(12, "Android 17", "1.0.21", 1)),
+                SettingsActions(onModels = {}, onSpeedTest = {}, speed = SpeedUi(running = true)),
+            )
+        }
+    }
+
     @Test
     fun desktop() = shoot("models-fa-desktop", paper = false, width = 1280, height = 800, density = 1.5f) { ModelManagerScreen(ui(32, desktop = true), ModelActions()) }
 

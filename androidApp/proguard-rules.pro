@@ -5,6 +5,10 @@
 -keepclassmembers class * implements io.trimio.engine.llm.local.LlamaCallback { boolean onText(byte[]); }
 -keep interface io.trimio.engine.asr.whisper.WhisperCallback { *; }
 -keepclassmembers class * implements io.trimio.engine.asr.whisper.WhisperCallback { *; }
+# The image engine reports each denoising step through onStep(int, int) (1.0.20 shipped without it: R8 dropped the
+# name, so a picture that takes minutes on a phone moved no progress).
+-keep interface io.trimio.engine.illustration.generate.SdNative$StepListener { *; }
+-keepclassmembers class * implements io.trimio.engine.illustration.generate.SdNative$StepListener { *; }
 
 # --- kotlinx.serialization (projects, timelines, style packs, plans) --------------------------
 -keepattributes *Annotation*, InnerClasses, Signature, EnclosingMethod

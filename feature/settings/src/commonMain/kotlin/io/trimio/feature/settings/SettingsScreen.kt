@@ -105,6 +105,9 @@ data class SettingsActions(
     val onRestore: () -> Unit = {},
     /** «پاک کردن کش انیمیشن‌ها». */
     val onClearAnimations: () -> Unit = {},
+    /** «سنجش سرعت این دستگاه», here as well as on the models screen; null where the device has no engine to time. */
+    val onSpeedTest: (() -> Unit)? = null,
+    val speed: SpeedUi = SpeedUi(),
 )
 
 @Composable
@@ -114,6 +117,7 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit, onModels: ((
     val keys by viewModel.keys.collectAsStateWithLifecycle()
     val offer by viewModel.offer.collectAsStateWithLifecycle()
     val animations by viewModel.animations.collectAsStateWithLifecycle()
+    val speed by viewModel.speed.collectAsStateWithLifecycle()
     val device = viewModel.device
     val desktop = listOf("Android", "iOS", "Web").none { device.platform.startsWith(it) }
     val shelf = ModelShelf.build(viewModel.models.catalog, states, DeviceMemory(device.ramGb, desktop), settings.localModelId, settings.speechModelId)
@@ -125,6 +129,7 @@ fun SettingsRoute(viewModel: SettingsViewModel, onBack: () -> Unit, onModels: ((
             onSaveKey = { p, k -> viewModel.saveKey(p, k) }, onRemoveKey = { viewModel.removeKey(it) },
             onShareCrash = viewModel::shareLatestCrash, onBuyPro = viewModel::buyPro, onRestore = viewModel::restorePurchases,
             onClearAnimations = viewModel::clearAnimationCache,
+            onSpeedTest = if (viewModel.canTestSpeed) viewModel::testSpeed else null, speed = speed,
         ),
     )
 }
@@ -240,6 +245,12 @@ private fun DirectorSection(ui: SettingsUi, actions: SettingsActions, keysOpen: 
         )
         SettingRow(tr("مدل کارگردان", "Director model"), directorHint(ui.director), onClick = actions.onModels) {
             if (actions.onModels != null) Lead(tr("مدیریت", "Manage"))
+        }
+        actions.onSpeedTest?.let { run ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                SpeedTestPanel(actions.speed, run)
+            }
+            Hairline()
         }
         actions.onLibrary?.let { open ->
             SettingRow(tr("کتابخانه‌ها", "Libraries"), tr("ایموجی و آیکون متحرک، صدا و بافت", "Animated emoji and icons, sound, textures"), onClick = open) {

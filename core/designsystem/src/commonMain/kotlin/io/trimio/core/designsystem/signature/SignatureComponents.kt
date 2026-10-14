@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -260,3 +261,20 @@ fun DisplayText(
 @Composable
 fun DisplayText(text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier, color: Color = Sig.colors.ink, maxLines: Int = Int.MAX_VALUE) =
     DisplayText(AnnotatedString(text), style, modifier, color, maxLines)
+
+/**
+ * A giant figure (the build's «۱۲») that can never break: one glyph per text, side by side, digits read left to right
+ * and the row held to the start of the screen. Android's line breaker split «۱۲» over two lines on a phone even with
+ * one line asked for; a single glyph has nothing to break.
+ */
+@Composable
+fun DisplayFigure(text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier, color: Color = Sig.colors.ink) {
+    val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
+        Row(modifier.fillMaxWidth(), horizontalArrangement = if (rtl) Arrangement.End else Arrangement.Start) {
+            text.forEach { glyph ->
+                DisplayText(glyph.toString(), style, Modifier.wrapContentWidth(unbounded = true), color, maxLines = 1)
+            }
+        }
+    }
+}
