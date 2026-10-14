@@ -54,11 +54,13 @@ internal class DeviceSpeedTest(
 
     private suspend fun measure(model: String?, voice: String?, pictureFiles: List<String>?, work: Work, onRow: (SpeedRow) -> Unit) {
         work.run(Step.Memory) { onRow(memory()) }
+        // Where the picture engine can run is known first: the ways it cannot run leave the plan now, not as a jump at the end.
+        val gpu = pictureFiles?.let { pictureDevice(it, work) }
         val chosen = ArrayList<SpeedRow>()
         val keep = { row: SpeedRow -> onRow(row); if (row.best) chosen += row }
         val cpuThreads = if (model == null) null.also { onRow(note("کارگردان", "نصب نیست")) } else directorRows(model, work, keep)
         if (voice == null) onRow(note("Whisper", "نصب نیست")) else speechRows(voice, work, keep)
-        val placed = pictureFiles?.let { pictureRows(it, cpuThreads ?: threadOptions().first(), work, keep) }
+        val placed = pictureFiles?.let { pictureRows(it, gpu, cpuThreads ?: threadOptions().first(), work, keep) }
         profile?.let { SpeedProfile(chosen.map { SpeedProfile.Chosen(it.kind.name, it.label, it.value) }, cpuThreads, placed).save(it) }
     }
 
@@ -174,9 +176,18 @@ internal class DeviceSpeedTest(
     }
 
     /** The picture engine each way it can run here; returns the fastest way (null when none drew). */
-    private suspend fun pictureRows(files: List<String>, threads: Int, work: Work, onRow: (SpeedRow) -> Unit): SpeedProfile.PictureWay? {
+    /** The picture engine's GPU (null: none); the ways that cannot run here leave the plan at once. */
+    private suspend fun pictureDevice(files: List<String>, work: Work): String? {
         val devices = work.run(Step.Devices) { bench.run(BenchStep.Devices, null) }
         val gpuName = devices.devices.firstOrNull { !it.equals("CPU", ignoreCase = true) }
+        val modelBytes = files.sumOf { File(it).length() }
+        val free = freeBytes()
+        val budget = free?.let { ((it - GPU_HEADROOM) / GIB).coerceAtLeast(0.0) }
+        PictureWay.entries.filter { it.place(gpuName, modelBytes, free, budget, 1) == null }.forEach { work.skip(Step.Picture(it)) }
+        return gpuName
+    }
+
+    private suspend fun pictureRows(files: List<String>, gpuName: String?, threads: Int, work: Work, onRow: (SpeedRow) -> Unit): SpeedProfile.PictureWay? {
         val modelBytes = files.sumOf { File(it).length() }
         val free = freeBytes()
         val budget = free?.let { ((it - GPU_HEADROOM) / GIB).coerceAtLeast(0.0) }

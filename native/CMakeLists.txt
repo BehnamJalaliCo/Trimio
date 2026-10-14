@@ -68,6 +68,51 @@ if(TRIMIO_OPENCL)
     set(GGML_OPENCL ON CACHE BOOL "" FORCE)
     set(GGML_OPENCL_USE_ADRENO_KERNELS ON CACHE BOOL "" FORCE)
     set(GGML_OPENCL_EMBED_KERNELS ON CACHE BOOL "" FORCE)
+
+    # On Adreno a model's kernels hold the GPU the screen draws with: the owner's phone froze for seconds while the
+    # speed test drew a picture there. Qualcomm's low priority hint (cl_qcom_priority_hint) lets the screen go first;
+    # it goes into ggml's OpenCL context (both copies) only when the device offers it and the driver accepts it.
+    function(trimio_opencl_low_priority file)
+        if(NOT EXISTS "${file}")
+            return()
+        endif()
+        file(READ "${file}" text)
+        set(old [=[cl_context_properties properties[] = { (intptr_t) CL_CONTEXT_PLATFORM, (intptr_t) default_device->platform->id, 0 };]=])
+        string(FIND "${text}" "${old}" at)
+        if(at EQUAL -1)
+            string(FIND "${text}" "cl_qcom_priority_hint" patched)
+            if(patched EQUAL -1)
+                message(WARNING "OpenCL low priority hint: the context line was not found in ${file}")
+            endif()
+            return()
+        endif()
+        set(new [=[cl_context_properties properties[] = { (intptr_t) CL_CONTEXT_PLATFORM, (intptr_t) default_device->platform->id, 0, 0, 0 };
+    // Trimio: Qualcomm's low priority hint, so the screen draws first while a model runs; kept only if the driver takes it.
+    {
+        size_t ext_size = 0;
+        if (clGetDeviceInfo(default_device->id, CL_DEVICE_EXTENSIONS, 0, NULL, &ext_size) == CL_SUCCESS && ext_size > 0) {
+            std::string ext(ext_size, ' ');
+            clGetDeviceInfo(default_device->id, CL_DEVICE_EXTENSIONS, ext_size, &ext[0], NULL);
+            if (ext.find("cl_qcom_priority_hint") != std::string::npos) {
+                properties[2] = (cl_context_properties) 0x40C9; // CL_CONTEXT_PRIORITY_HINT_QCOM
+                properties[3] = (cl_context_properties) 0x40CC; // CL_PRIORITY_HINT_LOW_QCOM
+                cl_int hint_err = CL_SUCCESS;
+                cl_context probe = clCreateContext(properties, device_ids.size(), device_ids.data(), NULL, NULL, &hint_err);
+                if (hint_err == CL_SUCCESS && probe != NULL) {
+                    clReleaseContext(probe);
+                    GGML_LOG_INFO("ggml_opencl: low priority hint, the screen draws first\n");
+                } else {
+                    properties[2] = 0;
+                    properties[3] = 0;
+                }
+            }
+        }
+    }]=])
+        string(REPLACE "${old}" "${new}" text "${text}")
+        file(WRITE "${file}" "${text}")
+    endfunction()
+    trimio_opencl_low_priority("${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/src/ggml-opencl/ggml-opencl.cpp")
+    trimio_opencl_low_priority("${CMAKE_CURRENT_SOURCE_DIR}/third_party/stable-diffusion.cpp/ggml/src/ggml-opencl/ggml-opencl.cpp")
 endif()
 
 # One ggml for both engines, from llama.cpp (the more recent of the two): whisper.cpp and llama.cpp
