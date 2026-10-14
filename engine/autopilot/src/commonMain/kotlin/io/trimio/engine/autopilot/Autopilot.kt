@@ -93,6 +93,8 @@ class Autopilot(
         val film: io.trimio.engine.motion.explainer.ExplainerFilm? = null,
         /** What a long-form (YouTube) edit ships with: chapters, subtitle files, titles, Shorts ([io.trimio.engine.autopilot.longform.LongFormPilot]). */
         val youtube: io.trimio.engine.autopilot.longform.YouTubePackage? = null,
+        /** An explainer film laid out again for another frame ("16:9") and rate: its stage draws the same film there. */
+        val restage: ((format: String, fps: Int) -> Compiler.Output)? = null,
     ) {
         /**
          * This edit laid out for [format] ("9:16", "16:9", "1:1", "4:5") at [fps]: the same score,
@@ -104,6 +106,7 @@ class Autopilot(
             val c = compiled.composition
             val same = score.format.trim() == format.trim()
             if (same && c.fps == fps) return compiled
+            if (!same && restage != null) return restage.invoke(format, fps)
             val s = source ?: return if (same) compiled.copy(composition = c.withFps(fps)) else null
             return s.compiler.compile(s.input.copy(score = score.copy(format = format), edit = edit, fps = fps))
         }
@@ -136,8 +139,10 @@ class Autopilot(
         val read = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report, request.draft) { done, total ->
             onStage("understand $done/$total", UNDERSTAND_FROM + (UNDERSTAND_TO - UNDERSTAND_FROM) * done / total.coerceAtLeast(1))
         }
-        // What the brief says in so many words («پرانرژی», «کلمه‌به‌کلمه») wins over the model's reading of it.
-        val understanding = read.copy(brief = RulesUnderstander.brief(request.prompt).over(read.brief))
+        // What the brief says in so many words («پرانرژی», «کلمه‌به‌کلمه») wins over the model's reading of it;
+        // music the brief leaves open is matched by meaning when the retrieval add-on is installed.
+        val opening = analysis.transcript.words.take(OPENING_WORDS).joinToString(" ") { it.text }
+        val understanding = MusicShelf.pick(read.copy(brief = RulesUnderstander.brief(request.prompt).over(read.brief)), opening) { report += it }
         // The director's line-by-line spelling, aligned word for word to what was heard.
         val texts = analysis.transcript.words.map { it.text }
         val lexicon = PersianSpelling.load()
@@ -333,11 +338,15 @@ class Autopilot(
                 // A late ask's end hold: the edit runs on past the last word (picture and music) for its card.
                 val edit = fix.outro?.let { cut.withOutro(it, r.request.voice.samples.size / r.request.voice.sampleRate.toFloat()) } ?: cut
                 fix.outro?.let { report += "jury: an end hold of ${round1(it)}s for the call to action" }
-                // Words move with a new cut; a longer edit is a new cue: its ending moves, and the grid with it.
+                // Words move with a new cut; a longer edit (or another bed the music judge asked for) is a new cue:
+                // its ending moves, and the grid with it.
                 val output = if (cut === d.edit) d.output else edit.remap(r.transcript).words
-                val music = if (edit === d.edit) d.music else MusicEdit.arrange(d.plan.music, edit, output, r.lines, r.understanding)
-                val score = if (edit === d.edit) fix.score else MusicEdit.gridded(fix.score, music)
-                d.copy(score = score, edit = edit, music = music, output = output, compiled = compile(d.compiler, score, r.shown, edit, r.request))
+                val mood = fix.music ?: d.plan.music
+                fix.music?.let { report += "jury: the music becomes ${it.id} (${it.bpm} bpm) for the brief" }
+                val same = edit === d.edit && mood == d.plan.music
+                val music = if (same) d.music else MusicEdit.arrange(mood, edit, output, r.lines, r.understanding)
+                val score = if (same) fix.score else MusicEdit.gridded(fix.score, music)
+                d.copy(plan = d.plan.copy(music = mood), score = score, edit = edit, music = music, output = output, compiled = compile(d.compiler, score, r.shown, edit, r.request))
             },
             vary = { k -> draft(r, r.request.seed * VARIATION_STRIDE + k, look = false, onStage = { _, _ -> }) { report += "variation $k: $it" } },
             log = { report += it },
@@ -447,6 +456,7 @@ class Autopilot(
 
     private companion object {
         const val CRITIC_PASSES = 2
+        const val OPENING_WORDS = 60
         /** Masterings the sound judge may ask for after the first (each a mix and a sitting). */
         const val REMASTERS = 2
 

@@ -53,7 +53,7 @@ internal object Remedies {
             }
         }
         val recut = edit?.takeIf { it.segments != c.edit?.segments }
-        return Jury.Revision(score, base?.outro, recut).takeIf { score != c.score || recut != null }
+        return Jury.Revision(score, base?.outro, recut, base?.music).takeIf { score != c.score || recut != null }
     }
 
     /** The graphic [f] is about, one step further down the ladder (left out from [REMOVE_AT] rounds on). */

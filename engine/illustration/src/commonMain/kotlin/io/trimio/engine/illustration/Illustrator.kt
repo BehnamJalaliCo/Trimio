@@ -46,6 +46,11 @@ class Illustrator(
         return best?.takeIf { it.fit >= minFit }
     }
 
+    /** Frees what the generator holds (its model) once a film's pictures are drawn; it loads again for the next film. */
+    fun release() {
+        generator?.release()
+    }
+
     /** A film's pictures with the jury's style report (one look, no foreign colour, even density, subjects shown, no text). */
     suspend fun film(requests: List<IllustrationRequest>, look: FilmLook, size: Int = IllustrationSource.DEFAULT_SIZE): Pair<List<Illustration?>, StyleCheck.Report> {
         val pictures = requests.map { illustrate(it, look, size) }

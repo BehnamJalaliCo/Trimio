@@ -69,7 +69,11 @@ class IllustratedStage(
         if (requests.isEmpty()) return emptyList()
         val look = lookOf(film)
         val maker = drawn ?: illustrator().also { drawn = it }
-        val shown = requests.count { (encoded, line) -> draw(maker, look, encoded, line, film.language) }
+        val shown = try {
+            requests.count { (encoded, line) -> draw(maker, look, encoded, line, film.language) }
+        } finally {
+            maker.release()
+        }
         return listOf("illustrations: $shown of ${requests.size} scenes drawn from the library (${look.style.name.lowercase()})")
     }
 

@@ -112,6 +112,11 @@ class GeneratorSource(
         return null
     }
 
+    /** Frees the engine's model (an engine that holds one is [AutoCloseable]). */
+    fun release() {
+        (engine as? AutoCloseable)?.close()
+    }
+
     /** The template on white at the generator's size (models expect an opaque picture). */
     private fun flatten(r: Raster, w: Int, h: Int): Raster {
         val canvas = Raster.filled(w, h, Colors.WHITE)

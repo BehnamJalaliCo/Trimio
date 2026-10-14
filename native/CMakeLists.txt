@@ -18,6 +18,8 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(TRIMIO_WHISPER "Build the whisper.cpp speech engine" ON)
 option(TRIMIO_LLAMA "Build the llama.cpp language engine" ON)
+# The illustration generator add-on (SDXS-512 through stable-diffusion.cpp on the same ggml).
+option(TRIMIO_SD "Build the stable-diffusion.cpp image engine" ON)
 # Android GPU variant (:androidGpu): llama.cpp on the Adreno GPU through OpenCL, as its own library
 # so a phone without OpenCL simply keeps the CPU one (LlamaNative loads the GPU one when it can).
 option(TRIMIO_OPENCL "Build llama.cpp with the OpenCL (Adreno) backend" OFF)
@@ -65,7 +67,7 @@ endif()
 
 # One ggml for both engines, from llama.cpp (the more recent of the two): whisper.cpp and llama.cpp
 # both skip their own copy when a `ggml` target already exists, so their CMake targets never clash.
-if(TRIMIO_WHISPER OR TRIMIO_LLAMA)
+if(TRIMIO_WHISPER OR TRIMIO_LLAMA OR TRIMIO_SD)
     add_subdirectory(third_party/llama.cpp/ggml ggml-build EXCLUDE_FROM_ALL)
 endif()
 
@@ -96,4 +98,20 @@ if(TRIMIO_WHISPER)
     add_library(trimio_whisper SHARED whisper/trimio_whisper_jni.cpp)
     target_link_libraries(trimio_whisper PRIVATE whisper)
     trimio_jni_library(trimio_whisper)
+endif()
+
+if(TRIMIO_SD)
+    # stable-diffusion.cpp takes the existing ggml target (upstream ggml: its INT8/FP8 extensions are off, which
+    # SDXS Q8_0 does not use); no examples, no WebP/WebM, no server.
+    set(SD_GGML_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml" CACHE PATH "" FORCE)
+    set(SD_USE_UPSTREAM_GGML ON CACHE BOOL "" FORCE)
+    set(SD_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(SD_WEBP OFF CACHE BOOL "" FORCE)
+    set(SD_WEBM OFF CACHE BOOL "" FORCE)
+    set(SD_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    add_subdirectory(third_party/stable-diffusion.cpp sd-build EXCLUDE_FROM_ALL)
+
+    add_library(trimio_sd SHARED sd/trimio_sd_jni.cpp)
+    target_link_libraries(trimio_sd PRIVATE stable-diffusion)
+    trimio_jni_library(trimio_sd)
 endif()

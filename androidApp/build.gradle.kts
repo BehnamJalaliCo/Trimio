@@ -31,6 +31,8 @@ android {
                     "-DGGML_OPENMP=OFF",
                     "-DTRIMIO_WHISPER=ON",
                     "-DTRIMIO_LLAMA=ON",
+                    // The illustration generator add-on's engine (stable-diffusion.cpp, SDXS-512).
+                    "-DTRIMIO_SD=ON",
                 )
                 cppFlags += listOf("-O3")
             }

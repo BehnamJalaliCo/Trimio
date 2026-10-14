@@ -91,6 +91,8 @@ class ExplainerPilot(
         Beats.table(film).forEach { report += it }
 
         onStage("draw", 0.8f)
+        // The director's memory goes before the pictures are drawn: a phone holds one big model at a time (the generator add-on).
+        runCatching { model?.release() }
         report += runCatching { stage.prepare(film) }.getOrElse { listOf("illustrations: failed (${it.message}); the stage draws its own glyphs") }
         val composition = stage.compose(film, request.format, request.fps, duration)
         onStage("sound", 0.9f)
@@ -103,7 +105,11 @@ class ExplainerPilot(
         val choices = Choices(request.seed, film.art.palette, music?.id, film.chapters.flatMap { c -> c.beats.mapNotNull { it.primitive?.let(Drafts::serial) } }.distinct(), emptyList())
         val plan = Planner.Plan(score, music, choices, emptyList())
         val compiled = Compiler.Output(composition, emptyList(), emptyList(), listOf("explainer film"))
-        return Autopilot.Production(compiled, score, plan, understanding, sound, edit, report, written.panel, film = film)
+        // The same film in another frame (the export screen's 16:9 for YouTube): the stage lays it out again.
+        val restage = { format: String, fps: Int ->
+            Compiler.Output(stage.compose(film, format, fps, duration), emptyList(), emptyList(), listOf("explainer film $format"))
+        }
+        return Autopilot.Production(compiled, score, plan, understanding, sound, edit, report, written.panel, film = film, restage = restage)
     }
 
     /** A cloud model reads the lines (English gists help the metaphors); on the device the rules read them (the director reads everything). */

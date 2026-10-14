@@ -43,6 +43,8 @@ class JvmProductionPlatform(
     private val speech: () -> String? = { null },
     /** The installed perception add-ons ([LocalDirectors.perception]). */
     private val perception: () -> io.trimio.engine.perception.Perception? = { null },
+    /** The image generator add-on, when installed (SDXS through stable-diffusion.cpp). */
+    private val diffusion: () -> io.trimio.engine.illustration.generate.DiffusionEngine? = { null },
 ) : ProductionPlatform {
 
     override suspend fun audio(media: String, rate: Int): PcmAudio = io { Media.audio(File(media), rate) }
@@ -65,6 +67,8 @@ class JvmProductionPlatform(
     override fun recognizer(): SpeechRecognizer? = recognizer.invoke()
 
     override fun perception(): io.trimio.engine.perception.Perception? = runCatching { perception.invoke() }.getOrNull()
+
+    override fun diffusion(): io.trimio.engine.illustration.generate.DiffusionEngine? = runCatching { diffusion.invoke() }.getOrNull()
 
     override suspend fun director(choice: DirectorChoice): Director = directors(choice)
 

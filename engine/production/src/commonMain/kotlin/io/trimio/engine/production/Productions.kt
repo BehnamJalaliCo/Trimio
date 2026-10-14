@@ -311,7 +311,8 @@ class Productions(
         val production = if (!video && explainers) {
             // A voice alone becomes an explainer film: the screenwriter writes it, the stage draws it (phase 8c).
             val budget = (jury ?: Juries.forDevice(platform.device())).budget
-            val pilot = ExplainerPilot(IllustratedStage(e.text, IconResolver.of(visuals)), director.model, FilmJury(budget = budget))
+            val stage = IllustratedStage(e.text, IconResolver.of(visuals)) { io.trimio.engine.illustration.Illustrator.create(engine = platform.diffusion()) }
+            val pilot = ExplainerPilot(stage, director.model, FilmJury(budget = budget))
             pilot.produce(
                 ExplainerPilot.Request(transcript, voice, request.brief, request.seed, understanding, FPS, others = listOfNotNull(r.previous?.production?.film?.art)),
             ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }

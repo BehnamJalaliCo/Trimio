@@ -71,6 +71,9 @@ interface ProductionPlatform {
     /** The installed perception add-ons ([LocalDirectors.perception]); null (the default) runs without them. */
     fun perception(): io.trimio.engine.perception.Perception? = null
 
+    /** The image generator add-on (SDXS through stable-diffusion.cpp) when installed and this build has its engine; null otherwise. */
+    fun diffusion(): io.trimio.engine.illustration.generate.DiffusionEngine? = null
+
     /** The next lighter director after the model [current] (a smaller installed one, else the rules). */
     suspend fun lighter(current: String?): DirectorChoice = DirectorChoice.Rules
 

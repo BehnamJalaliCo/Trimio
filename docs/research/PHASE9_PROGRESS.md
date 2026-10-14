@@ -55,6 +55,20 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   `SourceMusic.tempo` (steady 50–200 bpm over 60 % of the video) → reel brief gets "no music", score bpm = the video's own.
 - Live percent fix (115 sp, 3-digit fit, one line).
 
+### Also in code (not compiled yet)
+
+- 9.6 music: `Judge.remood` + `Jury.Revision.music`; MusicJudge offers the calm/driving/named mood for "a calm brief under
+  …" findings (the 9B gap); the loop re-arranges the bed. 8d.3: `MusicShelf` (retrieval `PictureRecall.music`) names the
+  bed by meaning when the brief leaves it open and it fits the energy; DI shares one recall for pictures and music.
+- 9.2: `native/third_party/stable-diffusion.cpp` (submodule, d763dae) + `native/sd/trimio_sd_jni.cpp` + CMake `TRIMIO_SD`
+  (Android app ON, Windows CPU ON, Vulkan/macOS/androidGpu/host OFF); `SdNative`/`SdxsEngine` (engine/production
+  jvmCommonMain, package illustration.generate); `ProductionPlatform.diffusion()`, `LocalDirectors.diffusion`, DI;
+  IllustratedStage gets `Illustrator.create(engine = platform.diffusion())`, `Illustrator.release()` after each film,
+  ExplainerPilot frees the director before drawing. CI checkouts: `submodules: true` (sd.cpp's own are not needed).
+  Terms: clause 8 (downloaded models, OpenRAIL++-M).
+- 9.1: explainer `Production.restage` → 16:9 exports re-laid by the stage.
+- ORT slim build: not done (needs ORT-format models and a source build; ~10 MB); reported as a decision.
+
 ## Next steps
 
 1. Compile everything (`compileKotlinJvm`, `compileKotlinWasmJs`, Android `compileDebugKotlin`), fix, detekt.

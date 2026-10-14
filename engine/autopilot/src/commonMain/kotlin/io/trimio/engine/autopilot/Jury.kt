@@ -76,6 +76,9 @@ interface Judge {
 
     /** The cut with this judge's findings fixed, when they are fixed by cutting differently (a pause kept); null otherwise. */
     fun recut(c: Jury.Context, verdict: Verdict): EditPlan? = null
+
+    /** Another music bed, when this judge's findings are fixed by changing the music itself (its mood); null otherwise. */
+    fun remood(c: Jury.Context, verdict: Verdict): io.trimio.engine.assets.MusicMood? = null
 }
 
 /** Lines a text takes when laid out at [type] inside [maxWidth] (the real text engine, when the caller has one). */
@@ -110,9 +113,9 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
     }
 
     /** What the judges' fixes change: the score, the end hold the edit should carry and the cut (null: as they are). */
-    data class Revision(val score: Score, val outro: Float? = null, val edit: EditPlan? = null) {
+    data class Revision(val score: Score, val outro: Float? = null, val edit: EditPlan? = null, val music: io.trimio.engine.assets.MusicMood? = null) {
         /** What makes two revisions the same edit. */
-        internal val key: Any get() = Triple(score, outro, edit?.segments)
+        internal val key: Any get() = listOf(score, outro, edit?.segments, music)
     }
 
     /** Everything the judges look at. Words and [lines] share indices; [words] are on the output clock. */
@@ -209,6 +212,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         var score = c.score
         var outro: Float? = null
         var edit: EditPlan? = null
+        var music: io.trimio.engine.assets.MusicMood? = null
         val held = c.edit?.outro?.length ?: 0f
         // A judge whose fix throws is skipped (its finding stays for the report): the jury never stops the edit.
         for (v in failing(panel)) {
@@ -216,8 +220,9 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             score = runCatching { judge.revise(c.copy(score = score, edit = edit ?: c.edit), v) }.getOrNull() ?: score
             runCatching { judge.recut(c.copy(edit = edit ?: c.edit), v) }.getOrNull()?.let { edit = it }
             runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }?.let { outro = maxOf(outro ?: 0f, it) }
+            runCatching { judge.remood(c, v) }.getOrNull()?.takeIf { it != c.music }?.let { music = it }
         }
-        return Revision(score, outro, edit).takeIf { score != c.score || outro != null || edit != null }
+        return Revision(score, outro, edit, music).takeIf { score != c.score || outro != null || edit != null || music != null }
     }
 
     /** The judges below 10, lowest score first (scores are plain numbers: a NaN counts as 0). */
@@ -237,7 +242,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
             val score = runCatching { judge.revise(c, v) }.getOrNull() ?: c.score
             val outro = runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }
             val edit = runCatching { judge.recut(c, v) }.getOrNull()
-            (v.judge to Revision(score, outro, edit)).takeIf { score != c.score || outro != null || edit != null }
+            val music = runCatching { judge.remood(c, v) }.getOrNull()?.takeIf { it != c.music }
+            (v.judge to Revision(score, outro, edit, music)).takeIf { score != c.score || outro != null || edit != null || music != null }
         }
         // A lone fix equal to the joint one (only one judge could fix anything) is not tried twice.
         return (together + alone.filter { a -> together.none { it.second == a.second } }).take(MAX_TRIES)

@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          submodules: recursive
+          submodules: true
 
       - uses: actions/setup-java@v5
         with:
@@ -73,9 +73,9 @@ jobs:
           cmake -S native -B build/native-cpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \
             -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF
-          cmake --build build/native-cpu --target trimio_llama trimio_whisper
+          cmake --build build/native-cpu --target trimio_llama trimio_whisper trimio_sd
           mkdir -p "$NATIVE_OUT/cpu"
-          cp build/native-cpu/trimio_llama.dll build/native-cpu/trimio_whisper.dll "$NATIVE_OUT/cpu/"
+          cp build/native-cpu/trimio_llama.dll build/native-cpu/trimio_whisper.dll build/native-cpu/trimio_sd.dll "$NATIVE_OUT/cpu/"
 
       - name: Vulkan SDK
         if: github.event_name != 'workflow_dispatch' || inputs.vulkan
@@ -100,7 +100,7 @@ jobs:
           cmake --install build/spirv
           cmake -S native -B build/native-vulkan -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_PREFIX_PATH="$PWD/build/spirv-install" \
-            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF -DGGML_VULKAN=ON
+            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF -DGGML_VULKAN=ON -DTRIMIO_SD=OFF
           cmake --build build/native-vulkan --target trimio_llama trimio_whisper
           mkdir -p "$NATIVE_OUT/vulkan"
           cp build/native-vulkan/trimio_llama.dll build/native-vulkan/trimio_whisper.dll "$NATIVE_OUT/vulkan/"
@@ -221,7 +221,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          submodules: recursive
+          submodules: true
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -229,7 +229,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Native engines (arm64, Metal)
         run: |
-          cmake -S native -B build/native-metal -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON
+          cmake -S native -B build/native-metal -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DTRIMIO_SD=OFF
           cmake --build build/native-metal --target trimio_llama trimio_whisper
           mkdir -p desktopApp/resources/macos/native/metal
           cp build/native-metal/libtrimio_llama.dylib build/native-metal/libtrimio_whisper.dylib desktopApp/resources/macos/native/metal/

@@ -24,6 +24,7 @@ android {
                     "-DGGML_CPU_KLEIDIAI=ON",
                     "-DGGML_OPENMP=OFF",
                     "-DTRIMIO_WHISPER=OFF",
+                    "-DTRIMIO_SD=OFF",
                     "-DTRIMIO_LLAMA=ON",
                     "-DTRIMIO_OPENCL=ON",
                     "-DTRIMIO_LLAMA_TARGET=trimio_llama_gpu",

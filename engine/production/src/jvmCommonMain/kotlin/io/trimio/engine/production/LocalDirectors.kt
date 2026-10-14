@@ -87,11 +87,18 @@ class LocalDirectors(
         return runCatching { Perception(OrtEngine(), files) }.getOrNull()
     }
 
+    /** The image generator add-on (SDXS-512) when it is installed and this build carries its engine; null otherwise. */
+    fun diffusion(threads: Int): io.trimio.engine.illustration.generate.DiffusionEngine? {
+        val spec = io.trimio.engine.models.IllustrationAddOns.sdxs
+        if (!installed(spec) || !io.trimio.engine.illustration.generate.SdNative.available) return null
+        return io.trimio.engine.illustration.generate.SdxsEngine(store.pathOf(spec).toString(), threads)
+    }
+
     /**
      * The picture search's retrieval add-on ([io.trimio.engine.autopilot.ArtShelf.recall]): answers
      * only while the embedder is installed (the vector pack ships; the reranker joins when installed).
      */
-    fun pictureRecall(): ArtShelf.Recall = PictureRecall {
+    fun pictureRecall(): PictureRecall = PictureRecall {
         val encoders = LocalEncoders(store, device)
         (encoders.embedder() as? LlamaEmbedder)?.let { e ->
             runCatching {
@@ -99,7 +106,7 @@ class LocalDirectors(
                 Retrieval.open(Corpora.pictures(ArtShelf.indexJson()), e, encoders.reranker())
             }.onFailure { e.close() }.getOrNull()
         }
-    }.let { r -> ArtShelf.Recall(r::search) }
+    }
 
     private fun installed(spec: ModelSpec): Boolean = runCatching { store.isInstalled(spec) }.getOrDefault(false)
 

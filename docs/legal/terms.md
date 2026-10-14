@@ -1,6 +1,6 @@
 # شرایط استفاده از Trimio
 
-**تاریخ اجرا:** ۱۷ مهر ۱۴۰۵ (۹ اکتبر ۲۰۲۶)
+**تاریخ اجرا:** ۲۲ مهر ۱۴۰۵ (۱۴ اکتبر ۲۰۲۶)
 
 1. **محتوای شما مال خودتان است.** ویدیو، صدا و خروجی‌هایی که می‌سازید متعلق به شماست. مسئولیت داشتن حق استفاده از محتوای ورودی با شماست.
 2. **دارایی‌های داخلی بدون محدودیت.** همه‌ی صداها، موسیقی‌ها، آیکون‌ها و سبک‌های داخل اپ اختصاصی Trimio هستند و می‌توانید خروجی‌ها را بدون پرداخت حق نشر، حتی تجاری، منتشر کنید. فروش یا توزیع جداگانه‌ی خود این دارایی‌ها (بدون ویدیوی شما) مجاز نیست.
@@ -9,12 +9,13 @@
 5. **استفاده‌ی ممنوع.** استفاده برای محتوای غیرقانونی، فریبنده (مثل جعل هویت) یا ناقض حقوق دیگران مجاز نیست.
 6. **بدون ضمانت.** اپ «همان‌طور که هست» ارائه می‌شود. ما تلاش می‌کنیم پروژه‌ها سالم بمانند، ولی از فایل‌های مهم نسخه‌ی پشتیبان داشته باشید.
 7. **تغییرات.** این شرایط ممکن است به‌روز شود؛ تاریخ اجرا بالای صفحه تغییر می‌کند.
+8. **مدل‌های دانلودی.** هر مدل هوش مصنوعی که دانلود می‌کنید مجوز خودش را دارد و در صفحه‌ی مدل‌ها نوشته شده است. مدل ساخت تصویر (SDXS) مجوز OpenRAIL++-M دارد: تصاویرش را نباید برای آسیب‌زدن، فریب، اطلاعات نادرست، آزار، تبعیض، جعل تصویر افراد واقعی بدون رضایت آن‌ها یا هر کار غیرقانونی به کار ببرید؛ همین محدودیت‌ها به هر کسی که خروجی را به او می‌دهید هم منتقل می‌شود.
 
 ---
 
 # Trimio Terms of Use
 
-**Effective:** 9 October 2026
+**Effective:** 14 October 2026
 
 1. **Your content is yours.** The videos, audio and exports you make belong to you. You are responsible for having the right to use your input content.
 2. **Built-in assets, no strings.** All sounds, music, icons and styles in the app are Trimio originals; you may publish your exports royalty-free, including commercially. Selling or redistributing the assets on their own (without your video) is not allowed.
@@ -23,3 +24,4 @@
 5. **Prohibited use.** No illegal content, deception (such as impersonation) or infringing others' rights.
 6. **No warranty.** The app is provided "as is". We work hard to keep projects safe, but keep backups of important files.
 7. **Changes.** These terms may be updated; the effective date above will change.
+8. **Downloaded models.** Every AI model you download carries its own licence, named on the models screen. The picture generator (SDXS) is under OpenRAIL++-M: its images must not be used to harm, deceive, spread disinformation, harass, discriminate, depict real people without their consent, or for anything unlawful; these restrictions pass on to anyone you give the output to.

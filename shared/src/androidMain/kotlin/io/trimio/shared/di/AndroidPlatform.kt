@@ -105,11 +105,15 @@ fun androidPlatformModule(
         )
         val recognizer = directors().recognizer { settings.settings.value.speechModelId }
         // The retrieval add-on widens the picture search only while its embedder is installed (else the word search alone).
-        io.trimio.engine.autopilot.ArtShelf.recall = directors().pictureRecall()
+        // One retrieval add-on for pictures and the music bed (text↔picture and text↔sound by meaning).
+        val recall = directors().pictureRecall()
+        io.trimio.engine.autopilot.ArtShelf.recall = io.trimio.engine.autopilot.ArtShelf.Recall(recall::search)
+        io.trimio.engine.autopilot.MusicShelf.recall = recall::music
         AndroidProductionPlatform(
             app, { recognizer }, { choice -> directors().director(choice) }, device.tier,
             lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },
             perception = { directors().perception() },
+            diffusion = { directors().diffusion(get<io.trimio.core.data.DeviceProfile>().threads) },
         )
     }
     // «سنجش سرعت این دستگاه»: the director and speech model timed every way this device runs them; the best is kept.

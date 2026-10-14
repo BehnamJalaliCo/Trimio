@@ -33,7 +33,7 @@ val buildHostNative by tasks.registering(Exec::class) {
     outputs.dir(out)
     commandLine(
         "bash", "-c",
-        "cmake -S '$src' -B '$out' -G Ninja -DCMAKE_BUILD_TYPE=Release -DTRIMIO_WHISPER=OFF -DTRIMIO_LLAMA=ON " +
+        "cmake -S '$src' -B '$out' -G Ninja -DCMAKE_BUILD_TYPE=Release -DTRIMIO_WHISPER=OFF -DTRIMIO_LLAMA=ON -DTRIMIO_SD=OFF " +
             "&& cmake --build '$out' --target trimio_llama -j 4",
     )
 }

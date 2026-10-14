@@ -113,6 +113,23 @@ class MusicJudge(
 
     private fun r1(v: Double) = kotlin.math.round(v * 10.0) / 10.0
 
+    /**
+     * A bed whose mood the brief wants (the 9B director picked an uplifting 118 bpm bed for a calm brief and no fix
+     * reached it): the named mood, else for a calm brief the calm mood nearest in tempo under [calmBpm], for a
+     * high-energy one the driving mood at [fastBpm]+ nearest in tempo. Null when the mood is not what is wrong.
+     */
+    override fun remood(c: Jury.Context, verdict: Verdict): MusicMood? {
+        val music = c.music ?: return null
+        val wrong = verdict.findings.map { it.what }
+        val named = MusicMood.fromId(c.understanding.brief.music)
+        return when {
+            named != null && wrong.any { "the brief asks for" in it } -> named
+            wrong.any { it.startsWith("a calm brief under") } -> CALM.filter { it.bpm <= calmBpm }.minByOrNull { kotlin.math.abs(it.bpm - music.bpm) }
+            wrong.any { it.startsWith("a high-energy brief under") } -> DRIVING.filter { it.bpm >= fastBpm }.minByOrNull { kotlin.math.abs(it.bpm - music.bpm) }
+            else -> null
+        }?.takeIf { it != music }
+    }
+
     override fun revise(c: Jury.Context, verdict: Verdict): Score? {
         val music = c.music ?: return null
         val arr = c.arrangement ?: return c.score.copy(bpm = music.bpm.toFloat()).takeIf { it != c.score }

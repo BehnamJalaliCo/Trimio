@@ -52,6 +52,8 @@ class AndroidProductionPlatform(
     private val speech: () -> String? = { null },
     /** The installed perception add-ons ([LocalDirectors.perception]). */
     private val perception: () -> io.trimio.engine.perception.Perception? = { null },
+    /** The image generator add-on, when installed (SDXS through stable-diffusion.cpp). */
+    private val diffusion: () -> io.trimio.engine.illustration.generate.DiffusionEngine? = { null },
 ) : ProductionPlatform {
     private val app = context.applicationContext
 
@@ -102,6 +104,8 @@ class AndroidProductionPlatform(
     override fun recognizer(): SpeechRecognizer? = recognizer.invoke()
 
     override fun perception(): io.trimio.engine.perception.Perception? = runCatching { perception.invoke() }.getOrNull()
+
+    override fun diffusion(): io.trimio.engine.illustration.generate.DiffusionEngine? = runCatching { diffusion.invoke() }.getOrNull()
 
     override suspend fun director(choice: DirectorChoice): Director = directors(choice)
 
