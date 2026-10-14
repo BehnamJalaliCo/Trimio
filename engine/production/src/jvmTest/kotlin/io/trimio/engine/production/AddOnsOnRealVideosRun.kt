@@ -37,6 +37,12 @@ class AddOnsOnRealVideosRun {
             val heard = platform.audio(video.path, WHISPER)
             val voices = pass.voices(Transcript(Language.Persian, sounding(heard)), heard, WHISPER)
             val speakers = voices.groupBy { it.speaker }.mapValues { (_, turns) -> turns.sumOf { (it.to - it.from).toDouble() } }
+            beats?.let { b -> File("build/beats-${video.nameWithoutExtension}.txt").writeText(b.joinToString("\n")) }
+            beats?.zipWithNext { a, b -> b - a }?.takeIf { it.isNotEmpty() }?.let { gaps ->
+                val median = gaps.sorted()[gaps.size / 2]
+                println("addons gaps ${video.name}: median ${"%.3f".format(median)} s, first ${"%.2f".format(beats.first())}, last ${"%.2f".format(beats.last())}, " +
+                    gaps.take(GAPS_SHOWN).joinToString(" ") { "%.2f".format(it) })
+            }
             println(
                 "addons ${video.name}: ${"%.1f".format(seconds)} s | beats ${beats?.size ?: 0} | tempo ${tempo?.let { "%.1f bpm".format(it.first) } ?: "none"} | " +
                     "voices ${speakers.size.coerceAtLeast(1)} ${speakers.entries.joinToString { (k, v) -> "#$k ${"%.1f".format(v)} s" }}",
@@ -60,5 +66,6 @@ class AddOnsOnRealVideosRun {
         const val WHISPER = 16_000
         const val QUIET = 0.01
         const val HALF_MS = 500L
+        const val GAPS_SHOWN = 40
     }
 }

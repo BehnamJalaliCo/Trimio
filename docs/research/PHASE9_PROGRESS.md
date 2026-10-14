@@ -181,3 +181,9 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   also gets a Vulkan build of the engine (a laptop GPU draws in seconds).
 - Drawn pictures are kept beside the checkpoints (`FilmPictureFiles`): a film opened again after a restart, or exported
   in 16:9, takes them from disk instead of drawing them again. The report says how many each source drew.
+- 9.3 measured (`AddOnsOnRealVideosRun`, the add-ons downloaded and re-hashed): the owner's five videos — no tempo, one
+  voice each (nothing changes their edits). Positive cases built from the owner's talk: two voices taking turns (the
+  second pitched) → two speakers, 16.7 and 15.2 s, right; a 100 bpm drum bed under the talk → Beat This! heard 106 of 107
+  beats but the interval rule (8 % spread) said «no music» (missed beats and voice onsets). Now a beat grid (tempo and
+  phase holding the most beats within 70 ms, most of its lines heard): 100.0 bpm on the bed (60 % / 60 %), none on the
+  five talks (13–45 % of beats, a third of the lines). `SourceMusicTest` keeps both sides.
