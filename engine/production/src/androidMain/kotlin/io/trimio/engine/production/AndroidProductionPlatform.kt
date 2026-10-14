@@ -133,7 +133,11 @@ class AndroidProductionPlatform(
             Fact("chip", soc),
             Fact("os", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"),
             ram?.let { Fact("memory", "${it.totalMem / MB} MB total · ${it.availMem / MB} MB free now" + if (it.lowMemory) " · low" else "") },
-            Fact("cores", "${Runtime.getRuntime().availableProcessors()} (fast: ${io.trimio.engine.llm.local.FastCores.count() ?: "?"})"),
+            Fact(
+                "cores",
+                "${Runtime.getRuntime().availableProcessors()} (fast: ${io.trimio.engine.llm.local.FastCores.count() ?: "?"}, " +
+                    "allowed now: ${io.trimio.engine.llm.local.AllowedCores.count() ?: "?"})",
+            ),
             Fact("tier", tier.name),
             Fact("thermal", app.getSystemService(PowerManager::class.java)?.currentThermalStatus?.toString() ?: "?"),
         )

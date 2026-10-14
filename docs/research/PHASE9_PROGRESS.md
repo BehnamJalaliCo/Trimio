@@ -257,3 +257,20 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   done, and the attempt after a kill inside the director is a lean run (no eyes, no previews, offline visuals) that
   starts from the plan; the report says so («lean run»). Host test: a run whose last attempt died «in pictures» in
   another process finishes, lean, without previews (`aRunKilledForMemoryInsideTheDirectorFinishesLean`).
+
+## 14 Oct — the owner on 1.0.22 and 1.0.23: a speed test of half an hour
+
+- 1.0.22: 21 % after 25 minutes. Every way loaded the director again (eight loads), timed four passes of 1000 tokens,
+  the picture model loaded three times for two drawings, a GPU way could hang for 15 minutes. 1.0.23: one load per
+  placement for every thread count (`LlamaNative.setThreads`), the better of two 400-token passes, the GPU at all the
+  layers that fit and half, MTP only when the model has the head, one small one-step picture, GPU ways stopped at a
+  minute plus three times the processor's time. The test machine: 318 s instead of 860.
+- 1.0.23 on the phone: 35 minutes and 10 % of the battery; the director «crashed», Whisper 9.2× and 6× the sound
+  (1.1× in 1.0.21, measured inside the app). The measuring process was bound as an ordinary service: a background
+  process's cores and its place in the low-memory killer's order. ggml's threads meet at a spinning barrier, so eight
+  threads on fewer cores wait on each other (this repo's 4-core server once took 600 s for 4.5 s of work that way). And
+  Whisper ran the count kept by the last test, not the one being timed. Now the process is bound `BIND_IMPORTANT` (it
+  runs as the app in front does), the screen stays on during the test, a way the system ends says why in its row
+  (low memory or a crash), Whisper runs the exact count timed — and every build caps the director's and Whisper's
+  threads to the cores Android allows the process at that moment (`Cpus_allowed_list`: fewer with the screen off),
+  which the run report now shows.

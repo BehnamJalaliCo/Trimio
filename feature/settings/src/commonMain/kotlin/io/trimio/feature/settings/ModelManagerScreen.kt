@@ -256,6 +256,8 @@ private fun Hardware(line: HardwareLine) {
 internal fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
     val c = Sig.colors
     val percent = localizedNumber("${(speed.progress * 100).toInt()}")
+    // The test runs as the app in front does (all the cores): the screen stays on until it ends.
+    io.trimio.core.designsystem.screen.KeepScreenOn(speed.running)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SigSecondaryButton(
             when {

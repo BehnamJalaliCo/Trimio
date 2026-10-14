@@ -50,8 +50,9 @@ class WhisperCppRecognizer(
         val started = System.nanoTime()
         val ctx = ensureLoaded()
         val beam = beam()
-        // The speed test's fastest count for this model on this device, when it has run.
-        val threads = SpeechThreads.cached(modelPath) ?: options.threads
+        // The speed test's fastest count for this model on this device, when it has run (the test itself times each
+        // count exactly); never more than the cores Android lets this process use now (fewer off the screen).
+        val threads = SpeechThreads.allowed((if (options.exactThreads) null else SpeechThreads.cached(modelPath)) ?: options.threads)
         val fallback = options.language ?: Language.Persian
         val callerJob = coroutineContext.job
         val tokens = ArrayList<RecognizedToken>()

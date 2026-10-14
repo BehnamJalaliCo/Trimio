@@ -150,7 +150,7 @@ object LocalBench : BenchRunner {
         return BenchResult(ok = true, seconds = rates.minOf { it.seconds }, rates = rates)
     }
 
-    private fun options(threads: Int) = RecognitionOptions(Language.Persian, threads = threads)
+    private fun options(threads: Int) = RecognitionOptions(Language.Persian, threads = threads, exactThreads = true)
 
     private fun picture(s: BenchStep.Picture): BenchResult {
         SdNative.wantGpu = s.gpuLibrary

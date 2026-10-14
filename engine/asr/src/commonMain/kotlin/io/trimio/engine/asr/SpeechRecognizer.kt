@@ -14,6 +14,8 @@ data class RecognitionOptions(
      */
     val initialPrompt: String? = null,
     val threads: Int = 4,
+    /** Run at [threads] exactly (the speed test timing each count), not the count the speed test kept for the model. */
+    val exactThreads: Boolean = false,
 )
 
 /**

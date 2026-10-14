@@ -177,6 +177,7 @@ class LlamaLanguageModel(
     override suspend fun generate(request: GenerationRequest, onText: (String) -> Unit): Generation = mutex.withLock {
         withContext(dispatcher) {
             val engine = ensureLoaded()
+            fitThreads(engine)
             val prompt = formatPrompt(engine, request)
             val grammar = request.schema?.let(JsonSchemaGrammar::compile)
             val imageTokens = if (canSee) request.messages.sumOf { it.images.size } * (maxImageTokens + IMAGE_FRAME_TOKENS) else 0
@@ -240,11 +241,28 @@ class LlamaLanguageModel(
             else -> null
         }
         val layers = if (LlamaNative.measuresPlacement) placement?.gpuLayers ?: LlamaNative.gpuLayers else LlamaNative.gpuLayers
-        handle = LlamaNative.init(modelPath, contextSize, placement?.threads ?: threads, layers, LlamaNative.options(placement?.draft))
+        chosenThreads = placement?.threads ?: threads
+        runningThreads = AllowedCores.cap(chosenThreads)
+        handle = LlamaNative.init(modelPath, contextSize, runningThreads, layers, LlamaNative.options(placement?.draft))
         if (handle == 0L) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Could not load $modelPath")
         info = LlamaRuntime.lines(LlamaNative.runtimeInfo(handle)) + listOfNotNull(placement?.let { "placement" to listOf(it.line) })
         runtime?.let { System.err.println("trimio " + it.summary()) }
         return handle
+    }
+
+    private var chosenThreads = threads
+    private var runningThreads = threads
+
+    /**
+     * No more threads than the cores Android lets this process use now: fewer once the app leaves the screen, all of
+     * them (up to the chosen count) when it is back. Changing the count needs no reload.
+     */
+    private fun fitThreads(engine: Long) {
+        val now = AllowedCores.cap(chosenThreads)
+        if (now == runningThreads) return
+        LlamaNative.setThreads(engine, now)
+        runningThreads = now
+        if (log) System.err.println("trimio llm: $now threads (cores allowed now)")
     }
 
     /** This device's measured choice for this model ([Placement]): the kept one, or a probe each way now (once per engine build). */

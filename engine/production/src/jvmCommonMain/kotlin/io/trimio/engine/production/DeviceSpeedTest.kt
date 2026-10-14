@@ -235,6 +235,7 @@ internal class DeviceSpeedTest(
             label,
             when {
                 r.tooSlow -> "خیلی کندتر از CPU؛ قطع شد"
+                r.crashed && "low memory" in r.note -> "سیستم برای کمبود حافظه بستش؛ این حالت استفاده نمی‌شود"
                 r.crashed -> "از کار افتاد؛ این حالت استفاده نمی‌شود"
                 else -> "اجرا نشد" + (r.note.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")
             },

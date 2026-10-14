@@ -1,6 +1,7 @@
 package io.trimio.engine.production.bench
 
 import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.app.Service
 import android.content.ComponentName
 import android.content.Context
@@ -14,6 +15,7 @@ import android.os.Message
 import android.os.Messenger
 import android.os.Process
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -62,9 +64,24 @@ class BenchService : Service() {
 class IsolatedBench(private val context: Context, private val timeoutMs: Long = TIMEOUT_MS) : BenchRunner, AutoCloseable {
     override suspend fun run(step: BenchStep, limitMs: Long?): BenchResult = withContext(Dispatchers.Main) {
         val limit = limitMs?.coerceAtMost(timeoutMs) ?: timeoutMs
-        withTimeoutOrNull(limit) { once(step) } ?: run {
+        val started = System.currentTimeMillis()
+        val result = withTimeoutOrNull(limit) { once(step) } ?: run {
             kill()
             if (limit < timeoutMs) BenchResult(ok = false, tooSlow = true, note = "stopped after ${limit / SECOND} s") else BenchResult.crash("no answer in ${limit / MINUTE} min")
+        }
+        if (result.crashed && !result.tooSlow) result.copy(note = why(started) ?: result.note) else result
+    }
+
+    /** Why the system says the measuring process ended (its record lands a moment after the death): low memory, a crash. */
+    private suspend fun why(since: Long): String? {
+        delay(EXIT_RECORD_MS)
+        val manager = context.getSystemService(ActivityManager::class.java) ?: return null
+        val exit = runCatching { manager.getHistoricalProcessExitReasons(context.packageName, 0, EXITS) }.getOrNull().orEmpty()
+            .firstOrNull { it.processName.endsWith(PROCESS) && it.timestamp >= since } ?: return null
+        return when (exit.reason) {
+            ApplicationExitInfo.REASON_LOW_MEMORY -> "killed for low memory"
+            ApplicationExitInfo.REASON_CRASH_NATIVE -> "native crash"
+            else -> "exit reason ${exit.reason}"
         }
     }
 
@@ -101,7 +118,9 @@ class IsolatedBench(private val context: Context, private val timeoutMs: Long = 
 
             override fun onBindingDied(name: ComponentName) = finish(BenchResult.crash("the measuring process ended"))
         }
-        val bound = context.bindService(Intent(context, BenchService::class.java), connection, Context.BIND_AUTO_CREATE)
+        // Important to the app: the measuring process runs as the app does (all its cores, its place in the memory
+        // killer's order), not as a background service on fewer cores and first in line to be killed.
+        val bound = context.bindService(Intent(context, BenchService::class.java), connection, Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT)
         if (!bound) finish(BenchResult(ok = false, note = "the measuring process did not start"))
         cont.invokeOnCancellation { if (!done) runCatching { context.unbindService(connection) } }
     }
@@ -119,5 +138,7 @@ class IsolatedBench(private val context: Context, private val timeoutMs: Long = 
         const val TIMEOUT_MS = 15 * 60_000L
         const val MINUTE = 60_000L
         const val SECOND = 1000L
+        const val EXIT_RECORD_MS = 700L
+        const val EXITS = 5
     }
 }
