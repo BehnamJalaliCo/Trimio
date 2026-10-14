@@ -187,3 +187,18 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   beats but the interval rule (8 % spread) said «no music» (missed beats and voice onsets). Now a beat grid (tempo and
   phase holding the most beats within 70 ms, most of its lines heard): 100.0 bpm on the bed (60 % / 60 %), none on the
   five talks (13–45 % of beats, a third of the lines). `SourceMusicTest` keeps both sides.
+
+## 14 Oct — pictures drawn during film making, on the owner's news voice
+
+- The news film (`ExplainerFilmProofTest.aVoiceAlone…`, FLUX.2 klein installed) drew 5 of 5 scenes. Found on the frames
+  and fixed: headlines cut by letters («… کاربران را») — now the whole sentence up to nine words and sixty letters, cut
+  only by whole words where a phrase ends; «و» between nouns was dropped («طلا دلار»); a scene with no request of its
+  own («جلوی دفتر صرافی صف کشیده‌اند») reused the money bag before it; «office building» became a hammer and wrench (a
+  word stem), a businessman was not a person.
+- The illustrator now: a queue or a protest (an action no pose shows) caps the library's fit below good enough, so the
+  generator draws it; a building among the objects stands behind the people; a library picture already shown in the
+  film is drawn fresh by the generator (without one, the repeat stays). klein wrote «CUNPIA EXOAPNCONFE» on the
+  exchange office's sign (a distilled model ignores the negative prompt; the letter check missed letters joined to
+  the sign's frame): a shop, office or bank is now asked for with a plain blank signboard — drawn again, clean.
+- Final run: whole headlines, the queue in front of the office drawn by klein in the film's pencil look, every other
+  scene from the library; the report lists every picture and its source.
