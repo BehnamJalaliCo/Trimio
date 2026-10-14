@@ -80,6 +80,8 @@ data class BenchResult(
     val seconds: Double = 0.0,
     val devices: List<String> = emptyList(),
     val crashed: Boolean = false,
+    /** Given up past its time limit: far slower than the way it was measured against. */
+    val tooSlow: Boolean = false,
     val note: String = "",
     /** Each thread count timed on the one load (director: read and write; speech: [Rate.seconds]). */
     val rates: List<Rate> = emptyList(),
@@ -102,12 +104,18 @@ data class BenchResult(
 
 /** Runs [BenchStep]s: here ([LocalBench]), or in a process of their own on a phone. */
 fun interface BenchRunner {
-    suspend fun run(step: BenchStep): BenchResult
+    /** Runs [step]; a runner that can stop a measurement gives it up after [limitMs] ([BenchResult.tooSlow]). */
+    suspend fun run(step: BenchStep, limitMs: Long?): BenchResult
 }
 
-/** The measurements in this process: the desktop's speed test, and the phone's bench process itself. */
+/**
+ * The measurements in this process: the desktop's speed test, and the phone's bench process itself. A native call
+ * cannot be stopped in the middle here, so the time limit is not kept.
+ */
 object LocalBench : BenchRunner {
-    override suspend fun run(step: BenchStep): BenchResult = runCatching {
+    override suspend fun run(step: BenchStep, limitMs: Long?): BenchResult = run(step)
+
+    suspend fun run(step: BenchStep): BenchResult = runCatching {
         when (step) {
             is BenchStep.Director -> director(step)
             is BenchStep.Speech -> speech(step)

@@ -55,12 +55,17 @@ class BenchService : Service() {
 
 /**
  * [BenchRunner] through [BenchService]: binds, sends the step, waits for its answer. The process dying (a native crash,
- * the system's low-memory killer) or no answer within [timeoutMs] gives [BenchResult.crash]; the next step starts a fresh
- * process. [close] ends the process when the test is over, so nothing it held stays in memory.
+ * the system's low-memory killer) or no answer within [timeoutMs] gives [BenchResult.crash]; a step past its own limit
+ * (a GPU way far slower than the processor) is ended the same way and marked [BenchResult.tooSlow]. The next step starts
+ * a fresh process. [close] ends the process when the test is over, so nothing it held stays in memory.
  */
 class IsolatedBench(private val context: Context, private val timeoutMs: Long = TIMEOUT_MS) : BenchRunner, AutoCloseable {
-    override suspend fun run(step: BenchStep): BenchResult = withContext(Dispatchers.Main) {
-        withTimeoutOrNull(timeoutMs) { once(step) } ?: BenchResult.crash("no answer in ${timeoutMs / MINUTE} min").also { kill() }
+    override suspend fun run(step: BenchStep, limitMs: Long?): BenchResult = withContext(Dispatchers.Main) {
+        val limit = limitMs?.coerceAtMost(timeoutMs) ?: timeoutMs
+        withTimeoutOrNull(limit) { once(step) } ?: run {
+            kill()
+            if (limit < timeoutMs) BenchResult(ok = false, tooSlow = true, note = "stopped after ${limit / SECOND} s") else BenchResult.crash("no answer in ${limit / MINUTE} min")
+        }
     }
 
     private suspend fun once(step: BenchStep): BenchResult = suspendCancellableCoroutine { cont ->
@@ -113,5 +118,6 @@ class IsolatedBench(private val context: Context, private val timeoutMs: Long = 
         const val PROCESS = ":bench"
         const val TIMEOUT_MS = 15 * 60_000L
         const val MINUTE = 60_000L
+        const val SECOND = 1000L
     }
 }
