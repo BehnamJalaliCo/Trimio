@@ -135,14 +135,15 @@ class NewsWriter(private val visuals: Visuals = Visuals.Lexicon) {
         val punchFrom = turn ?: if (bang) maxOf(s.first + 1, s.last - 2) else null
         val boxed = terms(n, s)
         val body = words.filter { (punchFrom == null || it < punchFrom) && (boxed == null || it < boxed || boxed == s.first) }.filter { Metaphors.bare(n.texts[it]) !in FILLERS }
+            .dropWhile { Metaphors.bare(n.texts[it]) in JOINS }
         // A kicker: the people or thing the sentence opens with («کاربرا», «گزارش»), when the line goes on after it.
         val kickerAt = body.firstOrNull()?.takeIf { body.size >= KICKER_MIN && KICKERS.any { k -> Metaphors.bare(n.texts[it]).startsWith(k) } }
         // Two sentences in one scene: the first is the main line, the second the grey line under it.
         val split = body.firstOrNull { it < s.last && n.texts[it].trimEnd().last() in ENDS }
         fun shown(i: Int) = Phrases.clean(n.texts[i]) + if (question(n, i)) (if (n.persian) "؟" else "?") else ""
-        fun loose(i: Int) = Metaphors.bare(n.texts[i]).let { it in TURNS || it in Said.FUNCTION || it in FILLERS }
+        fun loose(i: Int) = Metaphors.bare(n.texts[i]).let { it in TURNS || it in Said.FUNCTION || it in FILLERS || it in JOINS }
         val main = body.filter { it != kickerAt && (split == null || it <= split) }.dropWhile(::loose).dropLastWhile(::loose).map(::shown).filter { it.isNotBlank() }
-        val rest = if (split == null) emptyList() else body.filter { it > split }.map(::shown).filter { it.isNotBlank() }
+        val rest = if (split == null) emptyList() else body.filter { it > split }.dropWhile(::loose).map(::shown).filter { it.isNotBlank() }
         val punch = punchFrom?.let { p -> (p..s.last).take(PUNCH_WORDS).joinToString(" ") { Phrases.clean(n.texts[it]) } + if (bang) "!!" else "" }.orEmpty()
         // A headline is a whole phrase: the sentence when it is short, else cut where a phrase ends (never on an ezafe,
         // a preposition or a number without its noun); the grey line likewise.
@@ -240,7 +241,10 @@ class NewsWriter(private val visuals: Visuals = Visuals.Lexicon) {
         const val SOFT = "،,;؛"
         val TRANSITIONS = listOf("circle" to 0.4f, "push" to 0.35f, "peel" to 0.25f)
         val TURNS = setOf("ولی", "اما", "ولیکن", "but", "however", "yet")
-        val FILLERS = setOf("خب", "یعنی", "حالا", "اینکه", "so", "well", "now", "و", "and")
+        val FILLERS = setOf("خب", "یعنی", "حالا", "اینکه", "so", "well", "now")
+
+        /** «و» between two nouns stays («طلا و دلار»); at either end of a line it goes. */
+        val JOINS = setOf("و", "and")
         val DAY_WORDS = setOf("روز", "روزکاری", "روزه", "ساعت", "هفته", "day", "days", "hours", "weeks")
         val RULES = listOf("مهلت", "شرایط", "قانون", "طبق", "deadline", "withdrawal", "terms", "policy", "according")
         val STATUS = listOf("انتظار", "هنوز", "تسویه", "waiting", "pending", "still", "frozen", "میگن", "گفته", "says", "said")

@@ -45,15 +45,19 @@ class LibrarySource(
 
     suspend fun plan(request: IllustrationRequest, look: FilmLook): Plan {
         val cast = People.cast(request.subject, request.action, request.mood, request.count)
-        val place = request.place.takeIf { it.isNotBlank() }?.let { best(it, PLACES) }
+        // A building among the objects («an exchange office») stands behind the people as the place, never as a prop
+        // («building» read as a tool).
+        val backdrop = if (request.place.isBlank()) request.objects.firstNotNullOfOrNull { o -> placeOf(o)?.let { o to it } } else null
+        val place = request.place.takeIf { it.isNotBlank() }?.let { best(it, PLACES) } ?: backdrop?.second
         val hero = if (cast.isEmpty) best(request.subject, null) ?: best(request.line, null) else null
         val held = held(cast)
-        val props = request.objects.mapNotNull { o -> best(o, OBJECTS)?.takeIf { p -> held.none { it in p.keys } } }
-            .filter { it != hero }.distinctBy { it.id }.take(MAX_PROPS)
+        val props = request.objects.filter { it != backdrop?.first }.mapNotNull { o -> best(o, OBJECTS)?.takeIf { p -> held.none { it in p.keys } } }
+            .filter { it != hero && it != place }.distinctBy { it.id }.take(MAX_PROPS)
         val peeps = if (cast.isEmpty) emptyList() else People.dress(cast, library, look.seed xor request.id.hashCode().toLong(), request.language, place != null)
         val (shown, missing) = coverage(request, cast, listOfNotNull(hero, place) + props)
         val weight = shown.size + missing.size
-        val fit = if (weight == 0) NEUTRAL_FIT else shown.size.toFloat() / weight
+        // What happens in the scene is half the picture: unposed, the library's version is never good enough beside a generator.
+        val fit = (if (weight == 0) NEUTRAL_FIT else shown.size.toFloat() / weight).let { if (request.action in missing) minOf(it, UNPOSED_FIT) else it }
         return Plan(cast, peeps, hero, place, props, shown, missing, fit)
     }
 
@@ -82,6 +86,13 @@ class LibrarySource(
     private suspend fun best(query: String, kinds: Set<String>?): LibraryItem? =
         ranker.rank(query, library.items, kinds, 1).firstOrNull()?.takeIf { it.score >= floor }?.item
 
+    /** [query] as a place when it reads better as one than as an object. */
+    private suspend fun placeOf(query: String): LibraryItem? {
+        val place = ranker.rank(query, library.items, PLACES, 1).firstOrNull()?.takeIf { it.score >= floor } ?: return null
+        val thing = ranker.rank(query, library.items, OBJECTS, 1).firstOrNull()
+        return place.item.takeIf { thing == null || place.score > thing.score }
+    }
+
     /** Words a pose already shows in the figure's hands (a phone, a paper, a cup): no second copy as a prop. */
     private fun held(cast: Cast): List<String> = cast.poses.flatMap { HELD[it].orEmpty() }
 
@@ -90,7 +101,10 @@ class LibrarySource(
         val keys = items.flatMap { it.keys } + cast.words + PeopleWords.PERSON.takeIf { !cast.isEmpty }.orEmpty() +
             cast.poses.flatMap { HELD[it].orEmpty() } + cast.faces.takeIf { it.isNotEmpty() }?.let { feelingWords(request) }.orEmpty()
         val (shown, missing) = wanted.partition { t -> Words.best(t, keys) > 0f || t in MODIFIERS }
-        return shown to missing
+        // An action no pose or face shows (a queue, a protest) is part of the request the library misses: a generator draws it.
+        val acts = Words.terms(request.action)
+        val posed = acts.isEmpty() || acts.any { t -> (PeopleWords.POSES + PeopleWords.FACES).any { (set, _) -> Words.best(t, set) > 0f } }
+        return shown to (if (posed) missing else missing + request.action)
     }
 
     private fun feelingWords(request: IllustrationRequest): List<String> = Words.terms("${request.subject} ${request.mood}")
@@ -197,6 +211,7 @@ class LibrarySource(
         private const val HUE_BIN = 30f
         private const val HUE_SPREAD = 28f
         private val PLACES = setOf("place", "nature")
+        private const val UNPOSED_FIT = 0.7f
         private val OBJECTS = setOf("object", "symbol", "food", "health", "transport", "nature")
 
         /** Words of request text that only qualify (sizes, ages), never a missing picture. */

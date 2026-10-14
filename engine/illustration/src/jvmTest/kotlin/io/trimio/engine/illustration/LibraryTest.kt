@@ -192,6 +192,13 @@ class LibraryTest {
         assertEquals("library", withGenerator.illustrate(bag, look, 256)!!.source)
         val libraryOnly = Illustrator(LibrarySource(library))
         repeat(2) { assertEquals("library", libraryOnly.illustrate(bag, look, 256)!!.source) }
+        // A queue no pose can show: the generator draws it; the office stands behind the people, never a hammer for «building».
+        val queue = IllustrationRequest("group of people", "standing in a long queue in front of a building", listOf("office building", "currency exchange office"), id = "q")
+        val plan = LibrarySource(library).plan(queue, look)
+        assertTrue(plan.fit < Illustrator.GOOD_ENOUGH && queue.action in plan.missing, "${plan.fit} ${plan.missing}")
+        assertEquals("fluent:office-building", plan.place?.src)
+        assertTrue(plan.items.none { "hammer" in it }, "${plan.items}")
+        assertEquals("generator", withGenerator.illustrate(queue, look, 256)!!.source)
     }
 
     @Test

@@ -50,17 +50,18 @@ object Words {
 object PeopleWords {
     val PERSON = set(
         "person man woman people user users customer customers employee worker manager boss student doctor nurse girl boy guy lady programmer",
+        "businessman businesswoman expert experts",
         "investor trader buyer seller owner citizen crowd team family colleague client someone everyone he she they kid child",
         "آدم شخص فرد مرد زن خانم آقا مردم کاربر کاربران مشتری مشتریان کارمند کارگر مدیر رئیس دانشجو دانش‌آموز دکتر پزشک پرستار",
         "دختر پسر سرمایه‌گذار سرمایه‌گذاران معامله‌گر تریدر خریدار فروشنده صاحب شهروند جمعیت تیم خانواده همکار ارباب‌رجوع کسی همه بچه",
         "نفر نفرات کاربرا مشتریا آدما کارمندا مردا زنا",
     )
-    val WOMAN = set("woman women lady girl mother nurse she her wife", "زن زنان زنا خانم خانما دختر دخترا مادر پرستار همسر")
-    val MAN = set("man men guy boy father he him husband", "مرد مردان مردا آقا آقایان پسر پسرا پدر شوهر")
+    val WOMAN = set("woman women lady girl mother nurse she her wife businesswoman", "زن زنان زنا خانم خانما دختر دخترا مادر پرستار همسر")
+    val MAN = set("man men guy boy father he him husband businessman", "مرد مردان مردا آقا آقایان پسر پسرا پدر شوهر")
     val OLD = set("old elderly grandfather grandmother retired senior pensioner", "پیر پیرمرد پیرزن مسن بازنشسته سالمند پدربزرگ مادربزرگ")
     val DOCTOR = set("doctor physician nurse surgeon medic dentist", "دکتر پزشک پرستار جراح دندانپزشک")
     val GROUP = set(
-        "people users customers crowd team group investors employees citizens family everyone colleagues clients buyers they",
+        "people users customers crowd team group investors employees citizens family everyone colleagues clients buyers they experts",
         "مردم کاربران مشتریان جمعیت تیم گروه سرمایه‌گذاران کارمندان شهروندان خانواده همه همکاران خریداران آنها",
         "کاربرا مشتریا آدما کارمندا مردان زنان نفرات پزشکان",
     )

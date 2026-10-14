@@ -40,6 +40,10 @@ class NewsFilmTest {
         heads.forEach { println("headline «${it.main}» / «${it.second}»") }
         assertEquals("صرافی بزرگ دیروز برداشت همه‌ی کاربران را متوقف کرد", heads[0].main)
         assertTrue(heads[1].main.endsWith("نگرفته‌اند"), heads[1].main)
+        // «و» joins two nouns and stays; it never opens or closes a line.
+        val joined = Narrations.of("کارشناسان می‌گویند طلا و دلار امن‌ترند.", persian = true)
+        assertEquals("کارشناسان می‌گویند طلا و دلار امن‌ترند", writer.headline(joined, writer.scenes(joined).first()).main)
+        assertTrue(heads.none { it.main.startsWith("و ") || it.main.endsWith(" و") }, "$heads")
         // Slower speech (the production proof's timing): a sentence split for length and joined back stays whole.
         var t = 0.3
         val slow = n.words.map { w ->
