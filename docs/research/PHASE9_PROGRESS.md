@@ -213,3 +213,9 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   prefers it either; it takes the most accurate speech model installed that fits, as the desktop does.
 - Left for the phone: large-v3 on the NPU (ORT QNN) or a Q8_0 large-v3 for the KleidiAI path (needs our own server to
   host it, phase 10).
+
+## 14 Oct — verified before 1.0.20
+
+- Local: `detekt jvmTest :server:test` (every module) green but one detekt finding (headline complexity, fixed), then
+  detekt and the changed modules again: autopilot 197, production 54, asr 14 tests, no failure; `compileKotlinWasmJs` green.
+- Real output seen: the news film with the studio illustrator (frames above), the queue scene drawn alone, the speech A/B.
