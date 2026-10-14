@@ -36,7 +36,10 @@ class PromptWriter(private val library: Library) {
             .filter { it.isNotBlank() }
             .map { if (englishOnly) english(it) else it }
             .filter { it.isNotBlank() }
-        return (parts + STYLE.getValue(look.style)).joinToString(", ")
+        // A distilled model ignores the negative prompt: a shop or an office is asked for with a blank sign, or it writes
+        // pseudo-letters on it. The film writes the said name itself ([io.trimio.engine.illustration.Illustration.signSlot]).
+        val signed = SIGNED.any { s -> parts.any { Words.terms(it).any { t -> t.startsWith(s) } } }
+        return (parts + listOfNotNull(BLANK_SIGN.takeIf { signed }) + STYLE.getValue(look.style)).joinToString(", ")
     }
 
     fun negative(): String = NEGATIVE
@@ -53,6 +56,9 @@ class PromptWriter(private val library: Library) {
             ArtStyle.Ink to "pen and ink illustration, fine line art, cross-hatching, black and white, plain white background, centered, single subject",
             ArtStyle.Flat to "simple flat illustration, clean outlines, grey tones, plain white background, centered, single subject",
         )
+        /** Places that carry a sign. */
+        private val SIGNED = listOf("office", "shop", "store", "bank", "exchange", "building", "cafe", "restaurant", "pharmacy", "market", "hotel", "station")
+        const val BLANK_SIGN = "plain blank signboard and blank windows, the building has no lettering"
         const val NEGATIVE = "text, letters, words, writing, caption, watermark, signature, logo, brand, colorful, photo, frame, border, blurry, cropped, deformed hands"
         private val PEOPLE = listOf(
             "مرد" to "man", "زن" to "woman wearing a headscarf", "خانم" to "woman wearing a headscarf", "آقا" to "man", "پسر" to "young man",

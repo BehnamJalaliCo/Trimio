@@ -47,9 +47,9 @@ tasks.withType<Test>().configureEach {
     listOf("explainer.wav", "explainer.transcript", "explainer.out", "explainer.prompt").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
-    // SdEngineTest: -Psd.model=<sdxs gguf> / -Psd.klein=<dir> [-Psd.out=dir]; DeviceSpeedTestRun: -Pspeed.director=<gguf>
+    // SdEngineTest: -Psd.model=<sdxs gguf> / -Psd.klein=<dir> [-Psd.out=dir] [-Psd.only=queue,camel]; DeviceSpeedTestRun: -Pspeed.director=<gguf>
     // [-Pspeed.whisper=<bin>]; both with -Pauto.native=<host build of the native libraries>.
-    listOf("sd.model", "sd.klein", "sd.out", "speed.director", "speed.whisper").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
+    listOf("sd.model", "sd.klein", "sd.out", "sd.only", "speed.director", "speed.whisper").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
     // AddOnsOnRealVideosRun: -Paddons.dir=<add-on models> -Paddons.videos=<a.mp4,b.mp4>.
     listOf("addons.dir", "addons.videos").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
     providers.gradleProperty("auto.native").orNull?.let { systemProperty("trimio.native.dir", it) }

@@ -20,6 +20,7 @@ import kotlin.test.assertTrue
  * ./gradlew :engine:production:jvmTest --tests '*SdEngineTest*' -Pauto.native=<host build of trimio_sd> [-Psd.out=dir]
  *   -Psd.model=<sdxs gguf>                     the fast illustrator (SDXS-512)
  *   -Psd.klein=<dir with the three klein files> the studio illustrator (FLUX.2 klein 4B, Qwen3-4B, small decoder)
+ *   -Psd.only=queue,camel                       only these scenes
  */
 class SdEngineTest {
     private val scenes = mapOf(
@@ -27,7 +28,10 @@ class SdEngineTest {
         "rocket" to IllustrationRequest("a rocket", action = "taking off"),
         "chef" to IllustrationRequest("a chef", action = "cooking rice", objects = listOf("pot")),
         "trader" to IllustrationRequest("a man", action = "looking at a falling price chart on his phone", mood = "worried"),
+        // The news film's queue: a sign the model must leave blank (it once wrote «CUNPIA EXOAPNCONFE» on it).
+        "queue" to IllustrationRequest("group of people", action = "standing in a long queue in front of a building", objects = listOf("office building", "currency exchange office")),
     )
+    private val only = System.getProperty("sd.only")?.split(',')?.map { it.trim() }?.toSet()
 
     @Test
     fun theFastIllustratorDraws() = runBlocking {
@@ -50,7 +54,7 @@ class SdEngineTest {
         val source = GeneratorSource(engine, Library.bundled())
         val look = FilmLook(seed = 1402)
         try {
-            for ((scene, request) in scenes) {
+            for ((scene, request) in scenes.filterKeys { only == null || it in only }) {
                 val started = System.nanoTime()
                 val picture = source.illustrate(request, look, SIZE)
                 println("$name $scene: ${(System.nanoTime() - started) / 1_000_000} ms, ${picture?.items}")
