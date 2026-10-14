@@ -27,6 +27,7 @@ import kotlin.test.Test
  * each device shows (subtitles, chapter cards, the subscribe ask, a push-in) and the YouTube text written beside them.
  *
  * ./gradlew :engine:autopilot:jvmTest --tests '*LongFormProofTest*' -Plong.video=… [-Plong.format=16:9] [-Plong.out=…]
+ *   [-Pauto.llm=<director gguf> -Pauto.llm.id=… -Pauto.native=…] (the director titles the chapters and the video)
  */
 class LongFormProofTest {
     @Serializable
@@ -40,10 +41,17 @@ class LongFormProofTest {
         val saved = Json.decodeFromString(ListSerializer(W.serializer()), javaClass.getResource("/real/owner-155s.json")!!.readText())
         val words = saved.map { Word(it.w, TimeRange((it.s * MS).toLong(), (it.e * MS).toLong()), language = Language.Persian) }
         val voice = Media.audio(video, RATE)
-        val pilot = LongFormPilot(text, runBlocking { BrandLibrary.load() }, VisualLibrary.Empty)
+        val llm = System.getProperty("auto.llm")?.let {
+            io.trimio.engine.llm.local.LlamaLanguageModel(
+                System.getProperty("auto.llm.id") ?: "qwen3.5-9b", it, io.trimio.engine.models.ChatFormat.ChatMl,
+                contextSize = 8192, threads = System.getProperty("auto.threads")?.toIntOrNull() ?: 4,
+            )
+        }
+        val pilot = LongFormPilot(text, runBlocking { BrandLibrary.load() }, VisualLibrary.Empty, llm)
         val production = runBlocking {
             pilot.produce(LongFormPilot.Request(Transcript(Language.Persian, words), voice, "", 1L, LongFormKind.Pro, format = format))
         }
+        llm?.close()
         val c = production.compiled.composition
         val beats = production.compiled.beats
         // One frame inside each kind of device, plus plain subtitles early, mid and late.
@@ -59,6 +67,7 @@ class LongFormProofTest {
         File(out, "description.txt").writeText(pack.description)
         File(out, "titles.txt").writeText(pack.titles.joinToString("\n"))
         File(out, "subtitles.srt").writeText(pack.srt)
+        File(out, "report.txt").writeText(production.report.joinToString("\n"))
         File(out, "beats.txt").writeText(beats.joinToString("\n") { "${it.recipe} ${it.at}–${it.out}" })
         println("long-form ${c.width}x${c.height} ${c.duration}s: ${beats.groupingBy { it.recipe }.eachCount()}")
     }

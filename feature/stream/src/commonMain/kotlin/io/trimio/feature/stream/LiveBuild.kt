@@ -84,6 +84,8 @@ data class LiveBuild(
     /** Words of the director's note set on the lime block. */
     val noteEmphasis: List<String> = emptyList(),
     val judges: List<JudgeScore> = JudgeScore.Panel,
+    /** Why no model directs this run (the rules alone: their 10s mean less), or null when one does. */
+    val rulesOnly: String? = null,
     /** The transcript's tail as the words arrive, with the emphasised ones. */
     val transcript: String = "",
     val transcriptEmphasis: List<String> = emptyList(),
@@ -108,6 +110,8 @@ data class BuildResult(
     val effects: Int,
     val lufs: Float,
     val judges: List<JudgeScore>,
+    /** Why no model directed this edit (the rules alone), or null when one did. */
+    val rulesOnly: String? = null,
     /** The jury's notes (what it fixed or would still polish), one per line. */
     val findings: List<String> = emptyList(),
     val poster: ImageBitmap? = null,

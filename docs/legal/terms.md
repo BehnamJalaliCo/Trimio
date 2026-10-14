@@ -9,7 +9,7 @@
 5. **استفاده‌ی ممنوع.** استفاده برای محتوای غیرقانونی، فریبنده (مثل جعل هویت) یا ناقض حقوق دیگران مجاز نیست.
 6. **بدون ضمانت.** اپ «همان‌طور که هست» ارائه می‌شود. ما تلاش می‌کنیم پروژه‌ها سالم بمانند، ولی از فایل‌های مهم نسخه‌ی پشتیبان داشته باشید.
 7. **تغییرات.** این شرایط ممکن است به‌روز شود؛ تاریخ اجرا بالای صفحه تغییر می‌کند.
-8. **مدل‌های دانلودی.** هر مدل هوش مصنوعی که دانلود می‌کنید مجوز خودش را دارد و در صفحه‌ی مدل‌ها نوشته شده است. مدل ساخت تصویر (SDXS) مجوز OpenRAIL++-M دارد: تصاویرش را نباید برای آسیب‌زدن، فریب، اطلاعات نادرست، آزار، تبعیض، جعل تصویر افراد واقعی بدون رضایت آن‌ها یا هر کار غیرقانونی به کار ببرید؛ همین محدودیت‌ها به هر کسی که خروجی را به او می‌دهید هم منتقل می‌شود.
+8. **مدل‌های دانلودی.** هر مدل هوش مصنوعی که دانلود می‌کنید مجوز خودش را دارد و در صفحه‌ی مدل‌ها نوشته شده است؛ شرایط همان مجوز درباره‌ی آن مدل و خروجی‌اش برقرار است.
 
 ---
 
@@ -24,4 +24,4 @@
 5. **Prohibited use.** No illegal content, deception (such as impersonation) or infringing others' rights.
 6. **No warranty.** The app is provided "as is". We work hard to keep projects safe, but keep backups of important files.
 7. **Changes.** These terms may be updated; the effective date above will change.
-8. **Downloaded models.** Every AI model you download carries its own licence, named on the models screen. The picture generator (SDXS) is under OpenRAIL++-M: its images must not be used to harm, deceive, spread disinformation, harass, discriminate, depict real people without their consent, or for anything unlawful; these restrictions pass on to anyone you give the output to.
+8. **Downloaded models.** Every AI model you download carries its own licence, named on the models screen; that licence's terms apply to the model and its output.

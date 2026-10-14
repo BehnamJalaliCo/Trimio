@@ -6,19 +6,23 @@ import io.trimio.engine.motion.score.NumberWords
 
 /**
  * Shorts from a long video: the [COUNT] strongest stretches of [MIN_SECONDS]–[MAX_SECONDS] that start and end on
- * a sentence, never overlapping. Strong means said with weight (prosody), carrying figures, and asking or
- * promising something; a stretch that starts mid-thought (a pronoun, «و») scores lower.
+ * a sentence (on a breath, for a speaker who seldom ends one), never overlapping. Strong means said with weight
+ * (prosody), carrying figures, and asking or promising something; a stretch that starts mid-thought (a pronoun, «و»)
+ * scores lower.
  */
 object ShortPicker {
     fun pick(words: List<Word>, lines: List<Lines.Line>, chapters: List<Chapter>): List<ShortClip> {
         if (words.isEmpty()) return emptyList()
         val texts = words.map { it.text }
-        val starts = lines.map { it.first }.filter { it == 0 || words[it - 1].endsSentence }
+        // Sentence ends where the speaker makes them; a line's end (a breath) where they rarely do.
+        val sentences = words.count { it.endsSentence } * SENTENCE_WORDS >= words.size
+        val ends = if (sentences) words.indices.filter { words[it].endsSentence }.toSet() else lines.map { it.last }.toSet()
+        val starts = lines.map { it.first }.filter { it == 0 || it - 1 in ends }
         val candidates = starts.mapNotNull { s ->
             val from = words[s].range.startMs / MS
             val end = (s + 1 until words.size).lastOrNull { j ->
                 val t = words[j].range.endMs / MS - from
-                t in MIN_SECONDS..MAX_SECONDS && words[j].endsSentence
+                t in MIN_SECONDS..MAX_SECONDS && j in ends
             } ?: return@mapNotNull null
             Triple(s, end, strength(words, texts, s, end))
         }.sortedByDescending { it.third }
@@ -45,6 +49,8 @@ object ShortPicker {
 
     private const val MS = 1000f
     private const val COUNT = 3
+    /** At least one sentence end in this many words, or the speaker's breaths stand in for them. */
+    private const val SENTENCE_WORDS = 40
     private const val MIN_SECONDS = 30f
     private const val MAX_SECONDS = 60f
     private const val MAX_FIGURES = 3

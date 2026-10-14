@@ -166,7 +166,8 @@ class Autopilot(
         val readings = AssetReader(eyes).read(request.assets, request.prompt, persian) { report += it }
 
         onStage("plan", 0.55f)
-        val reading = Reading(request, analysis.edit, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks, checked.shown)
+        val cut = onOwnBeat(analysis.edit, request.sourceTempo, report)
+        val reading = Reading(request, cut, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks, checked.shown)
         val first = draft(reading, request.seed, look = true, onStage) { report += it }
         // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
         // Whatever goes wrong inside the jury, the edit is still delivered (the first cut), and the report says why.
@@ -231,6 +232,12 @@ class Autopilot(
     }
 
     /** What every variation of one request shares: the words, their lines and reading, the silence cut, the marks, the lexicon. */
+    /** The video's own music under the voice: every cut skips whole beats, so the music runs on in time (phase 9.3). */
+    private fun onOwnBeat(cut: EditPlan, tempo: Pair<Float, Float>?, report: MutableList<String>): EditPlan {
+        val (bpm, _) = tempo ?: return cut
+        return cut.onBeat(SECONDS_PER_MINUTE / bpm).also { report += "cuts: on the video's own beat (${round1(bpm)} bpm), ${it.cutCount} cuts" }
+    }
+
     private class Reading(
         val request: Request,
         val cut: EditPlan,
@@ -457,6 +464,7 @@ class Autopilot(
     private companion object {
         const val CRITIC_PASSES = 2
         const val OPENING_WORDS = 60
+        const val SECONDS_PER_MINUTE = 60f
         /** Masterings the sound judge may ask for after the first (each a mix and a sitting). */
         const val REMASTERS = 2
 

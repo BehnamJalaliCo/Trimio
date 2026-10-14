@@ -84,7 +84,7 @@ interface ProductionPlatform {
         assets: List<UserAsset>,
         out: String,
         onFrame: (Int, Int) -> Unit,
-    ): String = render(production.compiled.composition, production.soundtrack.audio, request, assets, out, 1f, onFrame)
+    ): String = render(production.compiled.composition, production.soundtrack.audio, request, assets, out, 1f, onFrame, production.sourceSound(request))
 
     /**
      * Renders [composition] (an edit as delivered, or laid out again for another frame or rate)
@@ -99,6 +99,8 @@ interface ProductionPlatform {
         out: String,
         scale: Float,
         onFrame: (Int, Int) -> Unit,
+        /** A source whose own sound the file carries as recorded instead of [sound] (a long-form edit, [sourceSound]). */
+        sourceAudio: String? = null,
     ): String
 
     /**
@@ -138,8 +140,11 @@ data class SourceFacts(
     val fps: Int = 0,
 )
 
-/** Who directs and who looks at frames (the director itself when it can see). */
-data class Director(val model: LanguageModel?, val eyes: LanguageModel? = model?.takeIf { it.canSee }) {
+/**
+ * Who directs and who looks at frames (the director itself when it can see); [note] says why no model directs
+ * (none installed, or too big for this memory) for the technical report.
+ */
+data class Director(val model: LanguageModel?, val eyes: LanguageModel? = model?.takeIf { it.canSee }, val note: String? = null) {
     companion object {
         val None = Director(null, null)
     }
@@ -164,4 +169,14 @@ object Juries {
         state.hot || state.lowBattery -> Jury.forDevice(DeviceTier.Standard)
         else -> Jury.forDevice(state.tier)
     }
+}
+
+/**
+ * The source whose recorded sound a long-form edit's file keeps (its [request] media), or null: a YouTube edit plays
+ * as recorded, so the original track goes in untouched (a long video's sound is never held in memory whole, and is
+ * analysed at the speech rate only). Any cut (a retouch) and the edit's own soundtrack is used again.
+ */
+fun Autopilot.Production.sourceSound(request: ProductionRequest): String? {
+    val whole = edit.segments.singleOrNull()?.let { it.sourceStart == 0f && it.outStart == 0f } == true && edit.opening.isEmpty() && edit.outro == null
+    return request.media.takeIf { whole && request.kind == SourceKind.Video && request.edit != EditKind.Reel }
 }

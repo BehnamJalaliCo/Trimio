@@ -168,6 +168,7 @@ private fun Body(result: BuildResult, actions: ResultActions) {
     Column(Modifier.padding(top = 6.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Stats(result)
         JurySummary(result)
+        result.rulesOnly?.let { RulesOnly(it) }
         result.youtube?.let { YouTubeCard(it) }
         // The run's technical report (device, engine, every stage's time, speeds), kept with the project.
         actions.onDetails?.let { SigTextButton(tr("جزئیات فنی این ساخت", "This build's technical details"), it) }

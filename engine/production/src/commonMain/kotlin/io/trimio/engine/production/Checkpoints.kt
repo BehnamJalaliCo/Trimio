@@ -34,6 +34,11 @@ class Checkpoints(private val dir: Path?) {
         val delivery: Delivery? = null,
         /** The reading in progress, group by group: a run the system killed resumes from it instead of from the first line. */
         val draft: UnderstandingDraft? = null,
+        /**
+         * The director that made [understanding] and [draft] (its model id; null: the rules, or a file of an earlier
+         * version). A reading is reused only by the same director: installing a model reads the video again.
+         */
+        val by: String? = null,
     )
 
     fun load(key: String): Saved? = read(file(key)) { json.decodeFromString(Saved.serializer(), it) }

@@ -140,7 +140,7 @@ class Productions(
         val kept = saved?.delivery?.takeIf { it.version == Delivery.VERSION } ?: return@withContext Opened.NotKept
         // The creator's own files are read again: a video, recording or attachment that is gone is said so.
         val media = readable {
-            val voice = platform.audio(request.media, VOICE_RATE)
+            val voice = platform.audio(request.media, voiceRate(request))
             check(voice.samples.isNotEmpty()) { "no sound in ${request.media}" }
             voice to request.assets.mapIndexed { i, a -> platform.asset(a.source, "asset-$i", a.caption) }
         } ?: return@withContext Opened.SourceMissing
@@ -258,8 +258,8 @@ class Productions(
         val recorder = r.recorder
         r.at(Stage.Prepare, 0f, "prepare")
         val e = engines()
-        val voice = recorder.native("decode sound") { platform.audio(request.media, VOICE_RATE) }
         val video = request.kind == SourceKind.Video
+        val voice = recorder.native("decode sound") { platform.audio(request.media, voiceRate(request)) }
         val frames = if (video) recorder.native("decode frames") { platform.frames(request.media, SUBJECT_FRAMES, LOOK_W) } else emptyList()
         // Installed perception add-ons only (none installed: null, and every hook below returns its input).
         // Each runs under its own marker; an attempt after a death inside one runs without them.
@@ -301,12 +301,15 @@ class Productions(
             e.text, e.brands, visuals, director.model, knowledge, taste, director.eyes, grabber,
             jury = recorder.instrument(jury ?: Juries.forDevice(platform.device())),
             onCompiled = { job?.ensureActive(); latest.value = it },
-            onDraft = { d -> checkpoints.save(request.key, Checkpoints.Saved(transcript, draft = d)) },
+            onDraft = { d -> checkpoints.save(request.key, Checkpoints.Saved(transcript, draft = d, by = director.model?.id)) },
         )
-        val understanding = r.previous?.production?.understanding ?: saved?.understanding
-        val material = Material(transcript, voice, frames, assets, subject, voices, tempo, understanding, saved?.draft)
+        // A reading kept from an earlier run is reused only when the same director made it: a run without a model
+        // (or with another one) never stands in for the director now loaded.
+        val kept = saved?.takeIf { it.by == director.model?.id }
+        val understanding = r.previous?.production?.understanding ?: kept?.understanding
+        val material = Material(transcript, voice, frames, assets, subject, voices, tempo, understanding, kept?.draft)
         val production = direct(r, material, director, autopilot, e) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
-        if (understanding == null) checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding))
+        if (understanding == null) checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, by = director.model?.id))
         latest.value = production.compiled
         r.state.update { it.copy(panel = production.panel?.let(PanelSummary::of), report = production.report) }
         previews.cancel()
@@ -330,7 +333,7 @@ class Productions(
         // A long-form edit's subtitle files and its YouTube text go beside the video.
         production.youtube?.let { YouTubeFiles.write(out, it, persian(transcript)) }
         // The finished edit is kept whole: it opens again after a restart (editor, exports) without whisper or the model.
-        checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, production.delivery()))
+        checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, production.delivery(), by = director.model?.id))
         recorder.finish(RunOutcome.Done)
         checkpoints.reports.saveEngine(recorder.engine(runtime, checkpoints.reports.engine()))
         r.state.update {
@@ -359,7 +362,7 @@ class Productions(
         val d = platform.director(choice)
         val model = d.model?.let(recorder::instrument)
         val eyes = d.eyes?.let { if (it === d.model) model else recorder.instrument(it) }
-        return Director(model, eyes)
+        return Director(model, eyes, d.note)
     }
 
     /**
@@ -414,7 +417,7 @@ class Productions(
     private suspend fun transcribe(r: Run, voice: io.trimio.core.model.audio.PcmAudio): Transcript {
         r.at(Stage.Transcribe, 0f, "transcribe")
         val recognizer = platform.recognizer() ?: error("No speech model is installed: download one in Settings → Models")
-        val audio = io.trimio.engine.audio.Resampler().resample(voice, WHISPER_RATE)
+        val audio = if (voice.sampleRate == WHISPER_RATE) voice else io.trimio.engine.audio.Resampler().resample(voice, WHISPER_RATE)
         val threads = threads()
         val start = clock()
         return try {
@@ -432,6 +435,13 @@ class Productions(
         }
     }
 
+    /**
+     * The rate the voice is read at: a long-form edit keeps the recording's own sound in its file ([sourceSound]), so
+     * its voice is only heard at the speech rate (an hour at 48 kHz would not fit a phone's heap).
+     */
+    private fun voiceRate(request: ProductionRequest): Int =
+        if (request.kind == SourceKind.Video && request.edit != EditKind.Reel) WHISPER_RATE else VOICE_RATE
+
     /** Whether the footage is wider than tall (its sampled frames), so a long-form edit keeps its 16:9 frame. */
     private fun landscape(frames: List<io.trimio.engine.llm.RgbImage>): Boolean = frames.firstOrNull()?.let { it.width >= it.height } ?: true
 
@@ -442,7 +452,7 @@ class Productions(
 
     /** Who directed, who looked and who listened, for the technical report. */
     private fun modelFacts(director: Director, speech: String?, choice: DirectorChoice): List<Fact> = listOfNotNull(
-        Fact(RunReport.DIRECTOR, director.model?.let { "${it.id} (${if (it.isLocal) "on device" else "cloud"})" } ?: "rules (no model)"),
+        Fact(RunReport.DIRECTOR, director.model?.let { "${it.id} (${if (it.isLocal) "on device" else "cloud"})" } ?: ("rules (no model)" + (director.note?.let { ": $it" } ?: ""))),
         Fact("asked for", choice.toString()),
         director.eyes?.let { Fact(RunReport.EYES, if (it === director.model) "${it.id} (the director's own)" else it.id) },
         speech?.let { Fact(RunReport.SPEECH, it) },

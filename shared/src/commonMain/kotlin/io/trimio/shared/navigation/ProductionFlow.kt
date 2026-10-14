@@ -131,9 +131,14 @@ object ProductionUi {
             framesDone = done, framesTotal = total, linesDone = read, linesTotal = lines, etaSeconds = eta,
             directorNote = s.report.lastOrNull()?.takeIf { stage >= BuildStage.Jury } ?: note(stage, persian),
             judges = judges(s),
+            rulesOnly = rulesOnly(s),
             stall = s.stall?.let { BuildStall(it.minutes, it.step, stage) },
         )
     }
+
+    /** Why no model directed the run (its report says «rules (no model)…»), or null when one did. */
+    private fun rulesOnly(s: ProductionState): String? = s.technical?.models
+        ?.firstOrNull { it.name == io.trimio.engine.production.diagnostics.RunReport.DIRECTOR }?.value?.takeIf { it.startsWith("rules") }
 
     fun result(s: ProductionState, seconds: Int, version: Int, styleName: String?, saved: Boolean, persian: Boolean): BuildResult? {
         val edit = s.edit ?: return null
@@ -150,6 +155,7 @@ object ProductionUi {
             effects = compiled.sfx.size,
             lufs = MASTER_LUFS,
             judges = judges(s),
+            rulesOnly = rulesOnly(s),
             findings = s.panel?.findings.orEmpty(),
             poster = s.previews.lastOrNull(),
             version = version,

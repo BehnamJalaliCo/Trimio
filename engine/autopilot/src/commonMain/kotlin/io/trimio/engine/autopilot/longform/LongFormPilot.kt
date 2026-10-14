@@ -3,6 +3,7 @@ package io.trimio.engine.autopilot.longform
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
+import io.trimio.engine.audio.LoudnessMeter
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Choices
 import io.trimio.engine.autopilot.Glossary
@@ -60,7 +61,8 @@ data class ShortClip(val from: Float, val to: Float, val title: String)
  * The long-form edit (phase 9.7, docs/research/YOUTUBE_LONGFORM.md): the video plays as recorded — no cuts, no
  * silence removed, no cold open — with accurate subtitles; [LongFormKind.Pro] adds the channel's watermark, one
  * subscribe ask after the first real point, a card at every chapter and a slow push-in now and then. Built for an
- * hour of speech: the director only titles the chapters and the video (a few short calls), never reads it line by line.
+ * hour of speech: the director only titles the chapters and the video (a few short calls), never reads it line by line,
+ * and the file keeps the recording's own sound.
  */
 class LongFormPilot(
     private val text: TextLayoutEngine,
@@ -103,18 +105,25 @@ class LongFormPilot(
         onStage("chapters", CHAPTERS_AT)
         val lines = Lines.split(words, pauses = heard.pauses)
         val chapters = chapters(words, lines, duration, report) { done, total -> onStage("chapters $done/$total", CHAPTERS_AT + CHAPTERS_SPAN * done / total.coerceAtLeast(1)) }
-        val (titles, thumbnail) = headlines(words, chapters, report)
+        // The director's titles and thumbnail lines; without one (or when it fails), the chapter titles.
+        val written = headlines(words, chapters, report)
+        val fallback = chapters.map { it.title }.take(HEADLINES)
+        val titles = written?.titles ?: fallback
+        val thumbnail = written?.thumbnail ?: fallback.map { it.split(' ').take(THUMB_WORDS).joinToString(" ") }
         val shorts = ShortPicker.pick(words, lines, chapters)
 
         onStage("compile", COMPILE_AT)
-        val score = score(request, words, chapters, duration)
+        val score = score(request, words, chapters, duration, written?.titles?.firstOrNull())
         val edit = EditPlan.identity(duration)
         val compiled = Compiler(text, brands, visuals).compile(
             Compiler.Input(score, checked.shown, duration = duration, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices),
         )
         onStage("sound", SOUND_AT)
-        val sound = Soundtrack(request.voice.sampleRate).master(request.voice, edit, words, compiled.composition.duration, null, request.seed.toInt(), cues = compiled.sfx)
-        report += "sound: the voice alone, ${round1(sound.lufs.toFloat())} LUFS"
+        // The file carries the recording's own sound (copied at export); the voice stands in for it in the editor's
+        // preview. Nothing is mastered: an hour of sound mixed in memory would not fit a phone.
+        val measured = LoudnessMeter.measure(request.voice)
+        val sound = Soundtrack.Result(request.voice, measured.integratedLufs, measured.samplePeakDb)
+        report += "sound: as recorded, ${round1(sound.lufs.toFloat())} LUFS"
         val cues = SubtitleFiles.cues(checked.shown.words)
         val pack = YouTubePackage(chapters, YouTubeChapters.description(chapters), SubtitleFiles.srt(cues), SubtitleFiles.vtt(cues), titles, thumbnail, shorts)
         report += "youtube: ${chapters.size} chapters, ${cues.size} subtitles, ${shorts.size} shorts"
@@ -130,10 +139,10 @@ class LongFormPilot(
         return starts.mapIndexed { i, first ->
             val end = starts.getOrNull(i + 1) ?: words.size
             val span = words.subList(first, end)
-            val title = model?.let { m -> runCatching { title(m, span) }.onFailure { report += "chapters: title failed (${it.message})" }.getOrNull() }
-                ?.takeIf { it.isNotBlank() } ?: YouTubeChapters.rulesTitle(span)
+            val named = model?.let { m -> runCatching { title(m, span) }.onFailure { report += "chapters: title failed (${it.message})" }.getOrNull() }
+                ?.takeIf { it.isNotBlank() }
             onDone(i + 1, starts.size)
-            Chapter(words[first].range.startMs / MS, title)
+            Chapter(words[first].range.startMs / MS, named ?: YouTubeChapters.rulesTitle(span), named = named != null)
         }.also { c -> c.forEach { report += "chapter ${YouTubeChapters.stamp(it.at)} ${it.title}" } }
     }
 
@@ -143,12 +152,14 @@ class LongFormPilot(
             schema = TITLE_SCHEMA, maxTokens = TITLE_TOKENS, temperature = 0.2f,
         ),
         Titled.serializer(),
-    ).title.trim().take(TITLE_MAX)
+    ).title.let(::clean).take(TITLE_MAX)
 
-    /** Three titles for the video and three thumbnail lines, from the chapters and the opening (rules: the chapter titles). */
-    private suspend fun headlines(words: List<Word>, chapters: List<Chapter>, report: MutableList<String>): Pair<List<String>, List<String>> {
-        val fallback = chapters.map { it.title }.take(HEADLINES)
-        val m = model ?: return fallback to fallback.map { it.split(' ').take(THUMB_WORDS).joinToString(" ") }
+    /** A model's line without the stray marks a grammar lets through around it (a leading comma, quotes, a full stop). */
+    private fun clean(line: String): String = line.trim().trim(',', '،', '.', '"', '«', '»', '\'', '-', ':', ' ').trim()
+
+    /** Three titles for the video and three thumbnail lines from the chapters and the opening, by the director (null: none, or it failed). */
+    private suspend fun headlines(words: List<Word>, chapters: List<Chapter>, report: MutableList<String>): Headlines? {
+        val m = model ?: return null
         return runCatching {
             val opening = words.joinToString(" ") { it.text }.take(OPENING_CHARS)
             val brief = "Chapters: " + chapters.joinToString(" | ") { it.title } + "\nOpening: " + opening
@@ -156,13 +167,16 @@ class LongFormPilot(
                 GenerationRequest(system = HEADLINE_SYSTEM, messages = listOf(ChatMessage(ChatRole.User, brief)), schema = HEADLINE_SCHEMA, maxTokens = HEADLINE_TOKENS, temperature = 0.4f),
                 Headlines.serializer(),
             )
-            got.titles.map(String::trim).filter(String::isNotEmpty).take(HEADLINES) to got.thumbnail.map(String::trim).filter(String::isNotEmpty).take(HEADLINES)
+            Headlines(got.titles.map(::clean).filter(String::isNotEmpty).take(HEADLINES), got.thumbnail.map(::clean).filter(String::isNotEmpty).take(HEADLINES))
         }.onFailure { report += "headlines: failed (${it.message}); the chapter titles instead" }
-            .getOrDefault(fallback to fallback)
+            .getOrNull()?.takeIf { it.titles.isNotEmpty() }.also { if (it == null) report += "headlines: none from the director; the chapter titles instead" }
     }
 
-    /** The score: subtitles always; for [LongFormKind.Pro] the watermark, a subscribe ask, chapter cards and slow push-ins. */
-    private fun score(request: Request, words: List<Word>, chapters: List<Chapter>, duration: Float): Score {
+    /**
+     * The score: subtitles always; for [LongFormKind.Pro] the watermark, the video's [title] as it opens (when the
+     * director wrote one), a subscribe ask, chapter cards, the numbers and brands said, and slow push-ins.
+     */
+    private fun score(request: Request, words: List<Word>, chapters: List<Chapter>, duration: Float, title: String?): Score {
         val captions = CaptionScore(show = true, recipe = "subtitles", place = "lower", maxWords = SubtitleFiles.MAX_WORDS)
         if (request.kind == LongFormKind.Subtitles) {
             return Score(format = request.format, look = LOOK, captions = captions, scenes = listOf(SceneScore(from = 0, bg = "media", camera = "still")), auto = false)
@@ -173,10 +187,13 @@ class LongFormPilot(
             request.logo?.let { (media, aspect) ->
                 if (endScreen > WATERMARK_FROM + MIN_WATERMARK) add(BeatScore("watermark", time = WATERMARK_FROM, hold = endScreen - WATERMARK_FROM, place = "top", media = media, aspect = aspect))
             }
-            subscribeAt(words, duration)?.let { add(BeatScore("subscribe", time = it, hold = SUBSCRIBE_HOLD, place = "top")) }
-            chapters.drop(1).forEachIndexed { i, c ->
-                if (c.at + CHAPTER_HOLD < endScreen) add(BeatScore("chapter", time = c.at + CHAPTER_DELAY, hold = CHAPTER_HOLD, place = "top", text = c.title, label = chapterLabel(i + 2, rtl)))
-            }
+            // A card only for a title the director wrote: opening words read as a broken sentence on screen.
+            val cards = chapters.drop(1).mapIndexedNotNull { i, c -> (i to c).takeIf { c.named && c.at + CHAPTER_HOLD < endScreen } }
+            cards.forEach { (i, c) -> add(BeatScore("chapter", time = c.at + CHAPTER_DELAY, hold = CHAPTER_HOLD, place = "top", text = c.title, label = chapterLabel(i + 2, rtl))) }
+            subscribeAt(words, duration, cards.map { it.second.at })?.let { add(BeatScore("subscribe", time = it, hold = SUBSCRIBE_HOLD, place = "top")) }
+            title?.takeIf { duration > MIN_SUBSCRIBE_VIDEO }?.let { add(BeatScore("lower-third", time = TITLE_AT, hold = TITLE_HOLD, place = "top", text = it)) }
+            val busy = filter { it.recipe != "watermark" }.mapNotNull { b -> b.time?.let { it..(it + (b.hold ?: 0f)) } }
+            addAll(SpokenFacts.beats(words, brands, busy, endScreen))
         }
         // A slow push-in at every chapter and every half minute or so in between; the frame rests otherwise.
         val pushes = pushStarts(words, chapters, endScreen)
@@ -187,12 +204,20 @@ class LongFormPilot(
         return Score(format = request.format, look = LOOK, captions = captions, scenes = scenes.sortedBy { it.from ?: 0 }.distinctBy { it.from }, auto = false)
     }
 
-    /** The subscribe ask lands on a sentence start after the first minute (the first value given), never in the last minutes. */
-    private fun subscribeAt(words: List<Word>, duration: Float): Float? {
+    /**
+     * The subscribe ask lands on a sentence start after the first minute (the first value given), never in the last
+     * minutes and never while a chapter card (starting at [cards]) is up: both sit at the top of the frame.
+     */
+    private fun subscribeAt(words: List<Word>, duration: Float, cards: List<Float>): Float? {
         if (duration < MIN_SUBSCRIBE_VIDEO) return null
         val after = minOf(SUBSCRIBE_AFTER, duration * SUBSCRIBE_SHARE)
-        val k = (1 until words.size).firstOrNull { i -> words[i].range.startMs / MS >= after && words[i - 1].endsSentence } ?: return null
-        return words[k].range.startMs / MS
+        val clear = { t: Float -> cards.none { c -> t < c + CHAPTER_DELAY + CHAPTER_HOLD + GAP && t + SUBSCRIBE_HOLD + GAP > c } }
+        // A sentence start, or (a speaker who rarely ends one) the word after a breath.
+        val k = (1 until words.size).firstOrNull { i ->
+            val t = words[i].range.startMs / MS
+            t >= after && clear(t) && (words[i - 1].endsSentence || t - words[i - 1].range.endMs / MS >= BREATH)
+        } ?: return null
+        return (words[k].range.startMs / MS).takeIf { it + SUBSCRIBE_HOLD < duration - END_SCREEN }
     }
 
     /** Word ranges for the push-ins: from a sentence start, about [PUSH_LENGTH] long, one every [PUSH_EVERY]. */
@@ -245,6 +270,10 @@ class LongFormPilot(
         const val MIN_SUBSCRIBE_VIDEO = 120f
         const val CHAPTER_DELAY = 0.6f
         const val CHAPTER_HOLD = 4f
+        const val GAP = 1f
+        const val BREATH = 0.35f
+        const val TITLE_AT = 2f
+        const val TITLE_HOLD = 4.5f
         const val PUSH_EVERY = 30f
         const val PUSH_LENGTH = 8f
         const val TITLE_CHARS = 1500
@@ -274,8 +303,9 @@ class LongFormPilot(
         val HEADLINE_SCHEMA: JsonObject = buildJsonObject {
             put("type", "object")
             putJsonObject("properties") {
-                putJsonObject("titles") { put("type", "array"); putJsonObject("items") { put("type", "string") } }
-                putJsonObject("thumbnail") { put("type", "array"); putJsonObject("items") { put("type", "string") } }
+                // Three of each, never an empty list (a small model under a grammar otherwise closes the array at once).
+                putJsonObject("titles") { put("type", "array"); put("minItems", HEADLINES); put("maxItems", HEADLINES); putJsonObject("items") { put("type", "string") } }
+                putJsonObject("thumbnail") { put("type", "array"); put("minItems", HEADLINES); put("maxItems", HEADLINES); putJsonObject("items") { put("type", "string") } }
             }
         }
 

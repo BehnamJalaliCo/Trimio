@@ -4,8 +4,10 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
+import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.net.Uri
 import android.view.Surface
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -34,7 +36,8 @@ import kotlin.math.roundToInt
 /**
  * The motion engine's own export on Android: every frame drawn by [MotionRenderer] straight onto
  * the H.264 encoder's input surface through a hardware canvas (runtime shaders render as in the
- * preview), the mastered soundtrack encoded to AAC, both muxed by [MediaMuxer] into an MP4.
+ * preview), the mastered soundtrack encoded to AAC (or a long-form edit's source sound, copied as recorded), both
+ * muxed by [MediaMuxer] into an MP4.
  *
  * The encoder runs without B-frames, so its output is in input order and every sample gets its
  * exact frame time (a canvas-posted buffer carries the wall clock, not the edit's).
@@ -51,8 +54,11 @@ class AndroidMotionExporter(private val context: Context) {
         onFrame: (Int, Int) -> Unit,
         /** Output pixels per composition pixel: 2 for 4K, 2/3 for 720p from the 1080-wide layout. */
         outputScale: Float = 1f,
+        /** A source whose AAC track goes in untouched instead of [sound] (a long-form edit plays as recorded). */
+        sourceAudio: Uri? = null,
     ): File = withContext(Dispatchers.Default) {
-        val (audioFormat, audio) = encodeAudio(sound)
+        val source = sourceAudio?.let { SourceAudio.open(context, it) }
+        val (audioFormat, audio) = source?.let { it.format to it } ?: encodeAudio(sound).let { (f, samples) -> f to samples.iterator() }
         out.absoluteFile.parentFile?.mkdirs()
         val fps = composition.fps
         val w = even(composition.width * outputScale)
@@ -93,6 +99,7 @@ class AndroidMotionExporter(private val context: Context) {
             surface.release()
             runCatching { if (writer.started) muxer.stop() }
             muxer.release()
+            source?.close()
         }
         out
     }
@@ -107,12 +114,12 @@ class AndroidMotionExporter(private val context: Context) {
     }
 
     /** Muxes encoded video as it comes and the audio samples up to each video time between them. */
-    private class Writer(private val muxer: MediaMuxer, private val audioFormat: MediaFormat, private val audio: List<Sample>, private val fps: Int) {
+    private class Writer(private val muxer: MediaMuxer, private val audioFormat: MediaFormat, private val audio: Iterator<Sample>, private val fps: Int) {
         private val info = MediaCodec.BufferInfo()
         private var videoTrack = -1
         private var audioTrack = -1
         private var frames = 0L
-        private var nextAudio = 0
+        private var held: Sample? = null
         var started = false
             private set
 
@@ -152,14 +159,64 @@ class AndroidMotionExporter(private val context: Context) {
 
         private fun audioUpTo(us: Long) {
             val info = MediaCodec.BufferInfo()
-            while (nextAudio < audio.size && audio[nextAudio].ptsUs <= us) {
-                val s = audio[nextAudio++]
+            while (true) {
+                val s = held ?: (if (audio.hasNext()) audio.next() else return)
+                if (s.ptsUs > us) {
+                    held = s
+                    return
+                }
+                held = null
                 info.set(0, s.data.size, s.ptsUs, s.flags)
                 muxer.writeSampleData(audioTrack, ByteBuffer.wrap(s.data), info)
             }
         }
 
         fun finish() = audioUpTo(Long.MAX_VALUE)
+    }
+
+    /**
+     * A source's AAC track, read one sample at a time as the video catches up: a long video's sound is never held
+     * whole. [open] gives null for a file without one (or another codec), and the edit's own soundtrack is used.
+     */
+    private class SourceAudio private constructor(private val extractor: MediaExtractor, val format: MediaFormat) : Iterator<Sample>, AutoCloseable {
+        private val buffer = ByteBuffer.allocate(if (format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) else MAX_SAMPLE)
+        private var last = -1L
+        private var next: Sample? = read()
+
+        private fun read(): Sample? {
+            buffer.clear()
+            val n = extractor.readSampleData(buffer, 0)
+            if (n < 0) return null
+            val bytes = ByteArray(n)
+            buffer.duplicate().apply { position(0); limit(n) }.get(bytes)
+            val sync = extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0
+            // The muxer takes rising times only (a priming sample can sit before zero).
+            last = maxOf(extractor.sampleTime, last + 1)
+            return Sample(bytes, last, if (sync) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0).also { extractor.advance() }
+        }
+
+        override fun hasNext(): Boolean = next != null
+
+        override fun next(): Sample = (next ?: throw NoSuchElementException()).also { next = read() }
+
+        override fun close() = extractor.release()
+
+        companion object {
+            private const val MAX_SAMPLE = 1 shl 16
+
+            fun open(context: Context, uri: Uri): SourceAudio? {
+                val extractor = MediaExtractor()
+                return runCatching {
+                    extractor.setDataSource(context, uri, null)
+                    val track = (0 until extractor.trackCount).first { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME) == MediaFormat.MIMETYPE_AUDIO_AAC }
+                    extractor.selectTrack(track)
+                    SourceAudio(extractor, extractor.getTrackFormat(track)).takeIf { it.hasNext() }
+                }.getOrNull() ?: run {
+                    extractor.release()
+                    null
+                }
+            }
+        }
     }
 
     /** The mono soundtrack to AAC-LC, all of it (a minute is about 1.5 MB), with its format. */

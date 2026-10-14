@@ -20,7 +20,8 @@ class SdxsEngine(private val modelPath: String, private val threads: Int) : Diff
 
     override suspend fun generate(job: DiffusionJob): Raster? = mutex.withLock {
         withContext(Dispatchers.Default) {
-            if (handle == 0L) handle = runCatching { SdNative.init(modelPath, threads) }.getOrDefault(0L)
+            // The library loads with the first look at it; the engine never calls into one that is not there.
+            if (handle == 0L && SdNative.available) handle = runCatching { SdNative.init(modelPath, threads) }.getOrDefault(0L)
             if (handle == 0L) return@withContext null
             val rgb = SdNative.generate(handle, job.prompt, job.negative, job.width, job.height, job.seed, job.steps, job.cfg) ?: return@withContext null
             if (rgb.size < job.width * job.height * CHANNELS) return@withContext null

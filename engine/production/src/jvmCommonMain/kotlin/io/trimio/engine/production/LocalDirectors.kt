@@ -63,7 +63,7 @@ class LocalDirectors(
     fun speechModel(preferredSpeech: () -> String? = { null }): String? = speechSpec(preferredSpeech)?.id
 
     private fun local(id: String?): Director {
-        val model = local.best(id) ?: return Director.None
+        val model = local.best(id) ?: return Director(null, null, note = local.whyNone())
         return Director(model, local.eyes(model))
     }
 

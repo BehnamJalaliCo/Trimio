@@ -58,8 +58,9 @@ class AndroidProductionPlatform(
     private val app = context.applicationContext
 
     override suspend fun audio(media: String, rate: Int): PcmAudio {
-        val decoded = AndroidAudioDecoder(app).decodeMono(MediaUri(mediaUri(media).toString()))
-        return withContext(Dispatchers.Default) { Resampler().resample(decoded, rate) }
+        // Brought down to [rate] while decoding (a long video's sound at the source rate would not fit the heap).
+        val decoded = AndroidAudioDecoder(app).decodeMono(MediaUri(mediaUri(media).toString()), rate)
+        return if (decoded.sampleRate == rate) decoded else withContext(Dispatchers.Default) { Resampler().resample(decoded, rate) }
     }
 
     override suspend fun frames(media: String, count: Int, width: Int): List<RgbImage> =
@@ -182,12 +183,13 @@ class AndroidProductionPlatform(
         out: String,
         scale: Float,
         onFrame: (Int, Int) -> Unit,
+        sourceAudio: String?,
     ): String {
         val c = composition
         // Footage decoded at the output size, so a 4K file gets 4K pictures, not stretched 1080p ones.
         val media = media(request, assets, c.fps, (c.width * scale).roundToInt(), (c.height * scale).roundToInt())
         return try {
-            AndroidMotionExporter(app).export(c, media, sound, File(out), onFrame, scale).path
+            AndroidMotionExporter(app).export(c, media, sound, File(out), onFrame, scale, sourceAudio?.let(::mediaUri)).path
         } finally {
             (media as? AutoCloseable)?.close()
         }

@@ -10,6 +10,10 @@ import io.trimio.core.model.time.TimeRange
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.autopilot.Lines
+import io.trimio.engine.llm.Generation
+import io.trimio.engine.llm.GenerationRequest
+import io.trimio.engine.llm.LanguageModel
+import io.trimio.engine.llm.StopReason
 import io.trimio.engine.motion.MotionFonts
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.recipe.BrandLibrary
@@ -91,19 +95,57 @@ class LongFormTest {
         assertTrue(pack.shorts.isNotEmpty() && pack.shorts.all { it.to - it.from in 30f..61f }, pack.shorts.toString())
     }
 
+    /** A director that titles each chapter (and the video) in a few words. */
+    private class Titler : LanguageModel {
+        override val id = "titler"
+        override val isLocal = true
+        override suspend fun generate(request: GenerationRequest, onText: (String) -> Unit): Generation {
+            val text = if ("titles" in request.system) {
+                """{"titles":["سه موضوع در پنج دقیقه"],"thumbnail":["سه موضوع"]}"""
+            } else {
+                """{"title":"${request.messages.last().text.split(' ').first()} در یک نگاه"}"""
+            }
+            onText(text)
+            return Generation(text, StopReason.EndTurn, id)
+        }
+    }
+
     @Test
     fun theProKindAddsYouTubesDevicesInTheirPlaces() = runBlocking {
-        val pilot = LongFormPilot(text, BrandLibrary.load(), VisualLibrary.Empty)
+        val pilot = LongFormPilot(text, BrandLibrary.load(), VisualLibrary.Empty, Titler())
         val out = pilot.produce(LongFormPilot.Request(Transcript(Language.Persian, words), voice, "", 1L, LongFormKind.Pro))
         val placed = out.compiled.beats
         val subscribe = placed.filter { it.recipe == "subscribe" }
         assertEquals(1, subscribe.size, "one subscribe ask")
         assertTrue(subscribe.single().at >= 59f, "after the first minute: ${subscribe.single().at}")
-        assertTrue(placed.count { it.recipe == "chapter" } >= 2, "a card at every chapter after the first")
+        val cards = placed.filter { it.recipe == "chapter" }
+        assertTrue(cards.size >= 2, "a card at every chapter after the first")
+        // Both sit at the top of the frame: never up together.
+        assertTrue(cards.none { c -> c.at < subscribe.single().out && subscribe.single().at < c.out }, "the ask and a card overlap: $placed")
         val endScreen = out.compiled.composition.duration - 20f
         assertTrue(placed.filter { it.recipe != "subtitles" }.all { it.out <= endScreen + 0.5f }, "the end screen is kept clear")
         // Subtitles never yield to the devices (they sit at the top).
         assertTrue(placed.count { it.recipe == "subtitles" } >= 80)
+    }
+
+    @Test
+    fun spokenNumbersAndBrandsShowOneAtATime() = runBlocking {
+        fun said(text: String, from: Long) = text.split(' ').mapIndexed { i, w -> Word(w, TimeRange(from + i * 400L, from + i * 400L + 350), language = Language.Persian) }
+        val words = said("سود ما بیست درصد بود.", 10_000) + said("سال ۱۴۰۳ شروع کردیم.", 15_000) + said("روی Binance خریدیم.", 50_000) +
+            said("سیگنال تلگرام داریم.", 90_000) + said("پنجاه درصد دیگه.", 95_000)
+        val beats = SpokenFacts.beats(words, BrandLibrary.load(), busy = listOf(94f..99f), endScreen = 200f)
+        assertEquals(listOf("counter", "logos"), beats.map { it.recipe }, beats.toString())
+        assertEquals(20f, beats[0].value, "twenty percent, not the year")
+        assertEquals(listOf("Binance"), beats[1].items)
+    }
+
+    @Test
+    fun withoutADirectorNoChapterCardIsShown() = runBlocking {
+        // The rules title a chapter by its opening words: fine in the description, a broken sentence on screen.
+        val pilot = LongFormPilot(text, BrandLibrary.load(), VisualLibrary.Empty)
+        val out = pilot.produce(LongFormPilot.Request(Transcript(Language.Persian, words), voice, "", 1L, LongFormKind.Pro))
+        assertTrue(out.compiled.beats.none { it.recipe == "chapter" })
+        assertTrue(out.youtube!!.chapters.size >= 3, "the description still lists them")
     }
 
     private companion object {

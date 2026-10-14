@@ -8,7 +8,23 @@
 
 #include "stable-diffusion.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#else
+#include <cstdio>
+#endif
+
 namespace {
+
+// The engine's own lines (what it loads, each stage, any failure) go to logcat / stderr beside the app's report.
+void log_line(enum sd_log_level_t level, const char * text, void *) {
+    if (level < SD_LOG_INFO || text == nullptr) return;
+#ifdef __ANDROID__
+    __android_log_write(level >= SD_LOG_ERROR ? ANDROID_LOG_ERROR : level >= SD_LOG_WARN ? ANDROID_LOG_WARN : ANDROID_LOG_INFO, "trimio-sd", text);
+#else
+    std::fputs(text, stderr);
+#endif
+}
 
 std::string str(JNIEnv * env, jstring s) {
     if (s == nullptr) return {};
@@ -25,6 +41,7 @@ extern "C" {
 JNIEXPORT jlong JNICALL
 Java_io_trimio_engine_illustration_generate_SdNative_init(JNIEnv * env, jobject, jstring jpath, jint threads) {
     const std::string path = str(env, jpath);
+    sd_set_log_callback(log_line, nullptr);
     sd_ctx_params_t p;
     sd_ctx_params_init(&p);
     p.model_path = path.c_str();

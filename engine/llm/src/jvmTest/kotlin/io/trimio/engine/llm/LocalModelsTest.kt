@@ -43,6 +43,19 @@ class LocalModelsTest {
     }
 
     @Test
+    fun anInstalledDirectorAlwaysDirectsEvenAnExperimentalOne() {
+        // The owner's laptop: only the 35B-A3B installed (its projector not), 32 GB. It used to fall to the rules.
+        install(ModelCatalog.qwen36_35bA3b)
+        val laptop = LocalModels(store, 32, device = io.trimio.engine.models.DeviceMemory.desktop(32))
+        assertEquals(ModelCatalog.qwen36_35bA3b.id, laptop.best()?.id)
+        assertEquals(null, laptop.whyNone())
+        // Nothing that fits: the report says why the rules direct.
+        val small = LocalModels(store, 8, device = io.trimio.engine.models.DeviceMemory.desktop(8))
+        assertEquals(null, small.best())
+        assertTrue(small.whyNone()!!.contains("too big"), small.whyNone())
+    }
+
+    @Test
     fun gemma4GetsItsOwnTurnLayout() {
         val text = ChatTemplates.format(ChatFormat.Gemma4, "sys", listOf(ChatMessage(ChatRole.User, "hi")))
         assertEquals("<|turn>system\nsys<turn|>\n<|turn>user\nhi<turn|>\n<|turn>model\n", text)

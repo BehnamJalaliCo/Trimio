@@ -251,6 +251,7 @@ private fun Details(build: LiveBuild) {
         build.directorNote?.let { DirectorNote(build.stage, it, build.noteEmphasis) }
         StageList(build)
         JuryRow(build.judges, active = build.stage == BuildStage.Jury)
+        build.rulesOnly?.let { RulesOnly(it) }
         if (build.transcript.isNotBlank()) {
             Text(
                 emphasised(build.transcript, *build.transcriptEmphasis.toTypedArray()),
@@ -365,4 +366,20 @@ private const val PERCENT_SP = 115f
 private const val PERCENT_DIGITS = 3
 private const val DIGIT_EM = 0.62f
 private const val PERCENT_LEADING = 0.94f
+
+/**
+ * No model directs this run: the rules alone read, plan and judge it, and their 10s cannot see a misspelling or a
+ * weak idea. Said plainly under the jury, with the reason (none installed, or too big for this memory).
+ */
+@Composable
+internal fun RulesOnly(reason: String) {
+    val c = Sig.colors
+    Text(
+        tr(
+            "این ساخت بدون مدل کارگردان انجام شد (فقط قاعده‌ها)؛ نمرهٔ داوران بدون مدل چیز زیادی نمی‌گوید. علت: ",
+            "No director model ran this build (rules only); the jury's scores mean little without one. Why: ",
+        ) + reason.removePrefix("rules (no model)").removePrefix(": ").ifBlank { tr("نامعلوم", "unknown") },
+        style = Sig.type.meta.copy(fontSize = 11.sp), color = c.action,
+    )
+}
 

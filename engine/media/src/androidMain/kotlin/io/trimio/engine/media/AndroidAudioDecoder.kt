@@ -16,10 +16,18 @@ import java.nio.ByteOrder
 /**
  * Hardware/software decode of the first audio track through MediaCodec (synchronous mode),
  * downmixed to mono float. Handles 16-bit and float decoder output and mid-stream format changes.
+ * The samples gather in small blocks joined once at the end: an hour of sound needs its own size in
+ * memory, not two or three times it.
  */
 class AndroidAudioDecoder(private val context: Context) : AudioDecoder {
 
-    override suspend fun decodeMono(uri: MediaUri, onProgress: (Float) -> Unit): PcmAudio = withContext(Dispatchers.IO) {
+    override suspend fun decodeMono(uri: MediaUri, onProgress: (Float) -> Unit): PcmAudio = decodeMono(uri, rate = null, onProgress)
+
+    /**
+     * As [decodeMono], brought down to [rate] while decoding when the track is faster (each output sample the mean
+     * of the source samples it covers); a slower track comes back at its own rate for the caller to resample.
+     */
+    suspend fun decodeMono(uri: MediaUri, rate: Int?, onProgress: (Float) -> Unit = {}): PcmAudio = withContext(Dispatchers.IO) {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -40,7 +48,7 @@ class AndroidAudioDecoder(private val context: Context) : AudioDecoder {
                 configure(input, null, null, 0)
                 start()
             }
-            val out = GrowableFloats((durationUs * sampleRate / 1_000_000L + sampleRate).toInt())
+            var out: Downmix? = null
             val info = MediaCodec.BufferInfo()
             var inputDone = false
             var outputDone = false
@@ -75,19 +83,21 @@ class AndroidAudioDecoder(private val context: Context) : AudioDecoder {
                         val buffer = codec.getOutputBuffer(outIndex)!!.order(ByteOrder.nativeOrder())
                         buffer.position(info.offset)
                         buffer.limit(info.offset + info.size)
+                        // The rate is known for sure once output flows (HE-AAC doubles it in the decoder).
+                        val sink = out ?: Downmix(sampleRate, rate?.takeIf { it <= sampleRate } ?: sampleRate).also { out = it }
                         if (floatPcm) {
                             val fb = buffer.asFloatBuffer()
                             while (fb.remaining() >= channels) {
                                 var sum = 0f
                                 repeat(channels) { sum += fb.get() }
-                                out.add(sum / channels)
+                                sink.add(sum / channels)
                             }
                         } else {
                             val sb = buffer.asShortBuffer()
                             while (sb.remaining() >= channels) {
                                 var sum = 0
                                 repeat(channels) { sum += sb.get() }
-                                out.add(sum / (32768f * channels))
+                                sink.add(sum / (32768f * channels))
                             }
                         }
                         codec.releaseOutputBuffer(outIndex, false)
@@ -96,7 +106,7 @@ class AndroidAudioDecoder(private val context: Context) : AudioDecoder {
                 }
             }
             onProgress(1f)
-            PcmAudio(out.toArray(), sampleRate)
+            out?.audio() ?: PcmAudio(FloatArray(0), rate ?: sampleRate)
         } catch (e: MediaFormatException) {
             throw e
         } catch (e: IllegalStateException) {
@@ -107,19 +117,50 @@ class AndroidAudioDecoder(private val context: Context) : AudioDecoder {
         }
     }
 
-    private class GrowableFloats(initial: Int) {
-        private var data = FloatArray(initial.coerceAtLeast(1024))
-        private var size = 0
+    /** Mono samples at [from] Hz kept at [to] Hz (each kept sample the mean of those it covers), in blocks. */
+    private class Downmix(private val from: Int, private val to: Int) {
+        private val blocks = ArrayList<FloatArray>()
+        private var block = FloatArray(BLOCK)
+        private var used = 0
+        private var sum = 0f
+        private var count = 0
+        private var phase = 0
 
         fun add(v: Float) {
-            if (size == data.size) data = data.copyOf(data.size + data.size / 2)
-            data[size++] = v
+            sum += v
+            count++
+            phase += to
+            if (phase < from) return
+            phase -= from
+            keep(sum / count)
+            sum = 0f
+            count = 0
         }
 
-        fun toArray(): FloatArray = data.copyOf(size)
+        private fun keep(v: Float) {
+            if (used == BLOCK) {
+                blocks += block
+                block = FloatArray(BLOCK)
+                used = 0
+            }
+            block[used++] = v
+        }
+
+        /** One array, filled block by block as each is let go. */
+        fun audio(): PcmAudio {
+            val all = FloatArray(blocks.size * BLOCK + used)
+            for (i in blocks.indices) {
+                blocks[i].copyInto(all, i * BLOCK)
+                blocks[i] = EMPTY
+            }
+            block.copyInto(all, blocks.size * BLOCK, 0, used)
+            return PcmAudio(all, to)
+        }
     }
 
     private companion object {
         const val TIMEOUT_US = 10_000L
+        const val BLOCK = 1 shl 20
+        val EMPTY = FloatArray(0)
     }
 }

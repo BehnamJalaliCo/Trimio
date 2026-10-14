@@ -68,6 +68,29 @@ class EditPlan(
 
     val cutCount: Int get() = (segments.size - 1).coerceAtLeast(0) + opening.size
 
+    /**
+     * The cuts made musical for footage with its own music under the voice: every jump skips a whole number of
+     * beats ([period] seconds), so the music runs on in time across the cut. The next piece starts a little earlier,
+     * in the pause the cut was taking out; a skip shorter than a beat is no cut at all.
+     */
+    fun onBeat(period: Float): EditPlan {
+        if (period <= 0f || segments.size < 2) return this
+        val joined = mutableListOf<Segment>()
+        var out = segments.first().outStart
+        for (s in segments) {
+            val last = joined.lastOrNull()
+            val start = if (last == null) s.sourceStart else last.sourceEnd + kotlin.math.floor((s.sourceStart - last.sourceEnd) / period) * period
+            if (last != null && start <= last.sourceEnd + SAME) {
+                joined[joined.lastIndex] = Segment(last.sourceStart, s.sourceEnd, last.outStart)
+                out = last.outStart + s.sourceEnd - last.sourceStart
+            } else {
+                joined += Segment(start, s.sourceEnd, out)
+                out += s.sourceEnd - start
+            }
+        }
+        return EditPlan(joined, opening, outro)
+    }
+
     /** Everything that plays, in output order (the cold open first): what footage and voice follow. */
     val played: List<Segment> get() = opening + segments
 
@@ -140,6 +163,7 @@ class EditPlan(
     companion object {
         /** The longest end hold: past it a frozen frame reads as a mistake. */
         const val MAX_OUTRO = 2.5f
+        private const val SAME = 0.001f
 
         /**
          * Recognisers stretch a word across the pause before or after it. Words are clipped to

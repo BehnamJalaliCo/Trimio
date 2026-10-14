@@ -19,7 +19,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 option(TRIMIO_WHISPER "Build the whisper.cpp speech engine" ON)
 option(TRIMIO_LLAMA "Build the llama.cpp language engine" ON)
 # The illustration generator add-on (SDXS-512 through stable-diffusion.cpp on the same ggml).
-option(TRIMIO_SD "Build the stable-diffusion.cpp image engine" ON)
+option(TRIMIO_SD "Build the stable-diffusion.cpp image engine (off: it does not run on our ggml yet)" OFF)
 # Android GPU variant (:androidGpu): llama.cpp on the Adreno GPU through OpenCL, as its own library
 # so a phone without OpenCL simply keeps the CPU one (LlamaNative loads the GPU one when it can).
 option(TRIMIO_OPENCL "Build llama.cpp with the OpenCL (Adreno) backend" OFF)

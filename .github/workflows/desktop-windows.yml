@@ -72,10 +72,10 @@ jobs:
         run: |
           cmake -S native -B build/native-cpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \
-            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF
-          cmake --build build/native-cpu --target trimio_llama trimio_whisper trimio_sd
+            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF -DTRIMIO_SD=OFF
+          cmake --build build/native-cpu --target trimio_llama trimio_whisper
           mkdir -p "$NATIVE_OUT/cpu"
-          cp build/native-cpu/trimio_llama.dll build/native-cpu/trimio_whisper.dll build/native-cpu/trimio_sd.dll "$NATIVE_OUT/cpu/"
+          cp build/native-cpu/trimio_llama.dll build/native-cpu/trimio_whisper.dll "$NATIVE_OUT/cpu/"
 
       - name: Vulkan SDK
         if: github.event_name != 'workflow_dispatch' || inputs.vulkan

@@ -55,4 +55,23 @@ class EditPlanTest {
         assertEquals(1.15f + 0.1f, opening.last().range.startMs / 1000f, 0.002f)
         assertEquals(plain.cutCount + 2, cold.cutCount)
     }
+
+    @Test
+    fun cutsOnTheVideosOwnBeatSkipWholeBeats() {
+        // Three pieces with pauses of 1.3 s and 0.3 s cut out, music at 120 bpm (a beat every 0.5 s).
+        val plan = EditPlan(listOf(EditPlan.Segment(0f, 4f, 0f), EditPlan.Segment(5.3f, 8f, 4f), EditPlan.Segment(8.3f, 10f, 6.7f)))
+        val beat = plan.onBeat(0.5f)
+        // 1.3 s skipped becomes 1.0 s (two beats): the second piece starts 0.3 s earlier, in its pause.
+        assertEquals(2, beat.segments.size, "a skip under a beat is no cut: ${beat.segments}")
+        assertEquals(5.0f, beat.segments[1].sourceStart, 1e-4f)
+        assertEquals(4f, beat.segments[1].outStart, 1e-4f)
+        assertEquals(10f, beat.segments[1].sourceEnd, 1e-4f)
+        beat.segments.zipWithNext { a, b ->
+            val skip = b.sourceStart - a.sourceEnd
+            assertEquals(0f, skip % 0.5f, 1e-3f, "skip $skip is whole beats")
+            assertEquals(a.outEnd, b.outStart, 1e-4f, "the output runs on without a gap")
+        }
+        // 4 s, then 5.0..10 s: one cut, 9 s in all.
+        assertEquals(9f, beat.segments.last().outEnd, 1e-3f)
+    }
 }

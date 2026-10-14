@@ -6,6 +6,7 @@ import io.trimio.engine.models.DeviceFit
 import io.trimio.engine.models.DeviceMemory
 import io.trimio.engine.models.DirectorProfile
 import io.trimio.engine.models.ModelCatalog
+import io.trimio.engine.models.ModelFit
 import io.trimio.engine.models.ModelKind
 import io.trimio.engine.models.ModelSpec
 import io.trimio.engine.models.ModelStore
@@ -25,14 +26,30 @@ class LocalModels(
     private fun byId(id: String) = catalog.firstOrNull { it.id == id } ?: ModelCatalog.byId(id)
 
     fun installed(): List<ModelSpec> =
-        catalog.filter { it.kind == ModelKind.Language && DeviceFit.of(it, device, ::byId).runnable && store.isInstalled(it) }
+        catalog.filter { it.kind == ModelKind.Language && fit(it).runnable && store.isInstalled(it) }
 
-    /** The director a build runs: the user's pick when it fits, else the largest that fits comfortably, else the smallest. */
+    /** How [spec] fits here, its eyes counted (the settings screen's badge). */
+    fun fit(spec: ModelSpec): ModelFit = DeviceFit.of(spec, device, ::byId)
+
+    /**
+     * The director a build runs: the user's pick when it fits, else the largest that fits comfortably, else the
+     * smallest calibrated one, else (the creator installed only an experimental one) that one. A model on the
+     * device always directs: the rules alone are never chosen over it.
+     */
     fun bestSpec(preferredId: String? = null): ModelSpec? {
         val candidates = installed()
         return candidates.firstOrNull { it.id == preferredId }
-            ?: candidates.filter { DeviceFit.of(it, device, ::byId).comfortable }.maxByOrNull { it.sizeBytes }
+            ?: candidates.filter { fit(it).comfortable }.maxByOrNull { it.sizeBytes }
             ?: candidates.filterNot { it.experimental }.minByOrNull { it.sizeBytes }
+            ?: candidates.minByOrNull { it.sizeBytes }
+    }
+
+    /** Why no model directs here (null when one does): none installed, or each one installed is too big for this memory. */
+    fun whyNone(): String? {
+        if (installed().isNotEmpty()) return null
+        val there = catalog.filter { it.kind == ModelKind.Language && store.isInstalled(it) }
+        if (there.isEmpty()) return "no director model installed"
+        return there.joinToString("; ") { "${it.id} is too big for ${device.ramGb} GB of memory" }
     }
 
     fun best(preferredId: String? = null): LanguageModel? {

@@ -74,9 +74,8 @@ class EditExports(private val platform: ProductionPlatform) {
             return edit.output
         }
         val output = laidOut(edit, spec)
-        return platform.render(output.composition, edit.production.soundtrack.audio, edit.request, assets(edit), out, spec.scale) { done, total ->
-            onProgress(done / total.coerceAtLeast(1).toFloat())
-        }
+        val progress = { done: Int, total: Int -> onProgress(done / total.coerceAtLeast(1).toFloat()) }
+        return platform.render(output.composition, edit.production.soundtrack.audio, edit.request, assets(edit), out, spec.scale, progress, edit.production.sourceSound(edit.request))
     }
 
     /**

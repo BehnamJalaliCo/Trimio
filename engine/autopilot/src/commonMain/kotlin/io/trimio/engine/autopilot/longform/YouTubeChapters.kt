@@ -8,7 +8,8 @@ import kotlin.math.max
 
 /** A chapter of a long video: where it starts (seconds, the source's clock) and its title. */
 @Serializable
-data class Chapter(val at: Float, val title: String)
+/** A chapter's start (seconds) and title; [named] when the director wrote the title (only then is it shown as a card). */
+data class Chapter(val at: Float, val title: String, val named: Boolean = false)
 
 /**
  * Chapters for a long video, by YouTube's rules (docs/research/YOUTUBE_LONGFORM.md): the first at 0:00, at least

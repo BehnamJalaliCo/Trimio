@@ -75,3 +75,31 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
 2. Tests: llm PlacementTest, autopilot UnderstandingDraftTest + longform, production DiagnosticsTest, motion (recipes
    list grew — gallery/golden tests), screenshot tests for create/stream/settings.
 3. Remaining: ORT slim (assess), 9B music-mood fixer, image/audio matching, 9.1 explainer, 9.2 SDXS, real-video runs.
+
+## 14 Oct — verification pass
+
+- Detekt clean: `Productions.work` split (`directorOf`, `direct`, `Material`, `persian`); targeted tests green
+  (PlacementTest, UnderstandingDraftTest, LongFormTest, JuryTest, DiagnosticsTest).
+- YouTube proof on the owner's 155 s talk (`LongFormProofTest`, 16:9, Qwen3.5-9B director on the host): frames seen.
+  Found and fixed on real output:
+  - the chapter card and the subscribe ask were up together and stacked over the face → the ask never overlaps a card;
+  - without a director a card showed the chapter's opening words (a broken sentence) → cards only for titles the
+    director wrote (`Chapter.named`); the description still lists every chapter;
+  - this speaker seldom ends a sentence → no subscribe ask and no Shorts; both now also take a breath as a boundary;
+  - the 9B's titles came back empty (grammar) or with a leading «, » → `minItems/maxItems 3`, `clean()`.
+  - Added (9.7 «عنوان، عدد و نام»): the video's title as it opens (lower-third, director-written only); spoken
+    figures as counters and Latin brand names with a real mark (`SpokenFacts`), one every 30 s, never beside
+    another top device, never on the end screen; Persian names left alone («سیگنال» is not the messenger).
+  - Result: title 0:02, counter «۲٬۷۰۰٬۰۰۰» at 0:19, subscribe 0:40, cards «بررسی واقعیت ربات تریدر» 1:09 and
+    «شفافیت و عضویت در کانال» 1:37; chapters 0:00/1:08/1:36; 2 Shorts.
+- Long videos (30–60 min) on the phone: the voice was decoded whole at 48 kHz (an hour = 690 MB, two copies) → OOM.
+  Now a long-form edit reads its voice at 16 kHz, brought down while decoding (`AndroidAudioDecoder.decodeMono(rate)`,
+  blocks joined once: 1× memory), whisper takes it as is, nothing is mastered (`LoudnessMeter` only), and the file
+  carries the recording's own AAC track untouched (`ProductionPlatform.render(sourceAudio)`, Android `SourceAudio`
+  streamed sample by sample; desktop ffmpeg maps the source's audio). A retouched (cut) long-form edit uses its
+  soundtrack again (`Production.sourceSound`).
+- 9.3 cuts on the beat: with the video's own music, every cut skips whole beats (`EditPlan.onBeat`), the next piece
+  starting a little earlier in its pause, so the music runs on in time across each cut.
+- 9.2 SDXS through JNI on the host (`SdxsEngineTest`): the engine called into `trimio_sd` without loading it (only
+  `LocalDirectors` touched `SdNative.available`) → `SdxsEngine` checks it first. sd.cpp logs go to logcat/stderr.
+

@@ -103,19 +103,21 @@ class JvmProductionPlatform(
         out: String,
         scale: Float,
         onFrame: (Int, Int) -> Unit,
+        sourceAudio: String?,
     ): String = io {
         val file = File(out).absoluteFile
         file.parentFile.mkdirs()
         val c = composition
-        val wav = File(file.parentFile, file.nameWithoutExtension + ".mix.wav")
-        Media.writeWav(sound, wav)
+        // A long-form edit carries the recording's own sound (ffmpeg reads the source's audio track directly).
+        val source = sourceAudio?.let(::File)?.takeIf { it.isFile }
+        val wav = source ?: File(file.parentFile, file.nameWithoutExtension + ".mix.wav").also { Media.writeWav(sound, it) }
         // Footage decoded at the output size, so a 4K file gets 4K pictures, not stretched 1080p ones.
         val w = (c.width * scale).roundToInt()
         val h = (c.height * scale).roundToInt()
         try {
             MotionExporter(c, { media(request, assets, c.fps, w, h) }, delivery, scale).export(file, wav, onProgress = onFrame)
         } finally {
-            wav.delete()
+            if (wav !== source) wav.delete()
         }
         file.path
     }

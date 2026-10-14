@@ -31,8 +31,9 @@ android {
                     "-DGGML_OPENMP=OFF",
                     "-DTRIMIO_WHISPER=ON",
                     "-DTRIMIO_LLAMA=ON",
-                    // The illustration generator add-on's engine (stable-diffusion.cpp, SDXS-512).
-                    "-DTRIMIO_SD=ON",
+                    // The image generator (stable-diffusion.cpp) is left out until it runs on the app's ggml
+                    // (an upstream-ggml assertion in its text encoder): docs/research/PHASE9_PROGRESS.md.
+                    "-DTRIMIO_SD=OFF",
                 )
                 cppFlags += listOf("-O3")
             }

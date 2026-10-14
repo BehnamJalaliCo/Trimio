@@ -47,4 +47,8 @@ tasks.withType<Test>().configureEach {
     listOf("explainer.wav", "explainer.transcript", "explainer.out", "explainer.prompt").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
     }
+    // SdxsEngineTest: -Psd.model=<sdxs gguf> [-Psd.out=dir]; DeviceSpeedTestRun: -Pspeed.director=<gguf> [-Pspeed.whisper=<bin>];
+    // both with -Pauto.native=<host build of the native libraries>.
+    listOf("sd.model", "sd.out", "speed.director", "speed.whisper").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
+    providers.gradleProperty("auto.native").orNull?.let { systemProperty("trimio.native.dir", it) }
 }
