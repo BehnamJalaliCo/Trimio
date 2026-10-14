@@ -14,6 +14,8 @@ enum class EditorTool { Text, Style, Sound, Elements, Cut }
  */
 data class EditorUi(
     val tool: EditorTool = EditorTool.Text,
+    /** The tools this edit has, in the bar's order ([EditorUi.tools]). */
+    val tools: List<EditorTool> = EditorTool.entries,
     /** Seconds on the edit's clock. */
     val position: Float = 0f,
     val duration: Float = 0f,
@@ -44,10 +46,12 @@ data class EditorUi(
             val duration = facts.duration
             return EditorUi(
                 position = position.coerceIn(0f, duration), duration = duration,
-                text = text(facts, position, selection),
+                tools = tools(facts),
+                text = text(facts, position, selection).copy(cuts = !facts.recorded),
                 style = StyleTool(
                     styles = facts.styles, selected = facts.style, director = facts.directorStyle,
                     energy = (facts.energy * PERCENT).toInt().coerceIn(0, PERCENT), density = facts.captions, comparing = comparing,
+                    palettes = facts.film,
                 ),
                 sound = SoundTool(
                     moods = facts.moods.map { MoodRow(it.id, it.nameFa, it.nameEn, it.bpm) }, selected = facts.music, director = facts.directorMusic,
@@ -58,6 +62,16 @@ data class EditorUi(
                 cut = cut(facts),
                 warning = facts.warnings.firstOrNull(),
             )
+        }
+
+        /**
+         * The tools an edit has: an explainer film changes its palette and sound (its words are the narration's); a YouTube
+         * video its words, look and devices (its recording's own sound and whole length stay); every other edit all five.
+         */
+        fun tools(facts: EditFacts): List<EditorTool> = when {
+            facts.film -> listOf(EditorTool.Style, EditorTool.Sound)
+            facts.recorded -> listOf(EditorTool.Text, EditorTool.Style, EditorTool.Elements)
+            else -> EditorTool.entries
         }
 
         private fun text(facts: EditFacts, position: Float, selection: IntRange?): TextTool {
@@ -153,6 +167,8 @@ data class TextTool(
     val hit: Boolean = false,
     val cut: Boolean = false,
     val hasNumber: Boolean = false,
+    /** Words can be cut and hit (not in a YouTube video, whose recording plays whole). */
+    val cuts: Boolean = true,
 )
 
 /** One or more words ([index]..[last]) as a chip. */
@@ -170,6 +186,8 @@ data class StyleTool(
     val density: CaptionDensity = CaptionDensity.Phrase,
     /** The director's edit is showing (before), for comparison. */
     val comparing: Boolean = false,
+    /** [styles] are an explainer film's palettes (no motion energy or caption density to set). */
+    val palettes: Boolean = false,
 )
 
 data class MoodRow(val id: String, val nameFa: String, val nameEn: String, val bpm: Int)

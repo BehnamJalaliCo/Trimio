@@ -116,12 +116,12 @@ private fun ExportPill(onClick: () -> Unit) {
     }
 }
 
-/** The five tools as a glass rail over the footage; the open one in acid. Tapping it again folds the panel. */
+/** The edit's tools as a glass rail over the footage; the open one in acid. Tapping it again folds the panel. */
 @Composable
-internal fun ToolRail(tool: EditorTool, folded: Boolean, onTool: (EditorTool) -> Unit, modifier: Modifier = Modifier) {
+internal fun ToolRail(tool: EditorTool, folded: Boolean, onTool: (EditorTool) -> Unit, modifier: Modifier = Modifier, tools: List<EditorTool> = EditorTool.entries) {
     SigGlass(modifier.width(52.dp), shape = RoundedCornerShape(26.dp), overMedia = true) {
         Column(Modifier.padding(vertical = 12.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            EditorTool.entries.forEach { t ->
+            tools.forEach { t ->
                 val on = t == tool && !folded
                 val tint = if (on) SigNoir.emphasis else InkSoft
                 Column(

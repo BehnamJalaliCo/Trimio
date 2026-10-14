@@ -85,26 +85,41 @@ internal fun SubtitleChoiceRow(selected: SubtitleChoice, onPick: (SubtitleChoice
 @Composable
 internal fun EditChoiceRow(selected: EditChoice, onEdit: (EditChoice) -> Unit, modifier: Modifier = Modifier) {
     val c = Sig.colors
-    Row(
-        modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(14.dp)).background(c.surface).background(c.ink.copy(alpha = 0.04f)).padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    // Two by two: every name and its note in full on a phone.
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).background(c.ink.copy(alpha = 0.04f)).padding(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        EditChoice.entries.forEach { choice ->
-            val on = choice == selected
-            Column(
-                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(10.dp)).background(if (on) c.ink else c.surface.copy(alpha = 0f))
-                    .clickable { onEdit(choice) }.padding(horizontal = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    tr(choice.fa, choice.en), style = Sig.type.body.copy(fontSize = 13.5.sp, fontWeight = FontWeight(800)),
-                    color = if (on) c.canvas else c.ink, maxLines = 1, textAlign = TextAlign.Center,
-                )
-                Text(
-                    tr(choice.faNote, choice.enNote), style = Sig.type.meta.copy(fontSize = 9.5.sp),
-                    color = if (on) c.canvas.copy(alpha = 0.75f) else c.muted, maxLines = 1, textAlign = TextAlign.Center,
-                )
+        EditChoice.entries.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth().height(50.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                pair.forEach { choice ->
+                    val on = choice == selected
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(10.dp)).background(if (on) c.ink else c.surface.copy(alpha = 0f))
+                            .clickable { onEdit(choice) }.padding(horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            tr(choice.fa, choice.en), style = Sig.type.body.copy(fontSize = 13.5.sp, fontWeight = FontWeight(800)),
+                            color = if (on) c.canvas else c.ink, maxLines = 1, textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            tr(choice.faNote, choice.enNote), style = Sig.type.meta.copy(fontSize = 10.sp),
+                            color = if (on) c.canvas.copy(alpha = 0.75f) else c.muted, maxLines = 1, textAlign = TextAlign.Center,
+                        )
+                    }
+                }
             }
         }
+    }
+}
+
+/** What the video becomes and, for a subtitled edit, how its subtitles look: a section of the brief. */
+@Composable
+internal fun EditKindBlock(edit: EditChoice, subtitles: SubtitleChoice?, onEdit: (EditChoice) -> Unit, onSubtitles: (SubtitleChoice) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        io.trimio.core.designsystem.signature.SigSectionLabel(tr("نوع ادیت", "Kind of edit"))
+        EditChoiceRow(edit, onEdit)
+        if (edit.subtitled) SubtitleChoiceRow(subtitles ?: SubtitleChoice.default(edit), onSubtitles)
     }
 }

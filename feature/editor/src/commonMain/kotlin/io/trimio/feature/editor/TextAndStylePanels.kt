@@ -80,11 +80,13 @@ internal fun TextPanel(ui: EditorUi, actions: EditorActions) {
                 Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ActionTile(EditorIcons.Star, tr("تأکید", "Emphasis"), t.emphasised, actions.onEmphasise, Modifier.weight(1f))
                     ActionTile(TrimioIcons.Text, tr("ویرایش", "Edit"), false, { editing = true }, Modifier.weight(1f))
-                    ActionTile(EditorIcons.Bolt, tr("ضربه", "Hit"), t.hit, actions.onHit, Modifier.weight(1f))
-                    ActionTile(
-                        if (t.cut) EditorIcons.Restore else EditorIcons.Cut, if (t.cut) tr("بازگردانی", "Restore") else tr("حذف", "Delete"),
-                        false, actions.onDelete, Modifier.weight(1f),
-                    )
+                    if (t.cuts) {
+                        ActionTile(EditorIcons.Bolt, tr("ضربه", "Hit"), t.hit, actions.onHit, Modifier.weight(1f))
+                        ActionTile(
+                            if (t.cut) EditorIcons.Restore else EditorIcons.Cut, if (t.cut) tr("بازگردانی", "Restore") else tr("حذف", "Delete"),
+                            false, actions.onDelete, Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -210,6 +212,7 @@ internal fun Composer(hint: String, initial: String, onSend: (String) -> Unit, o
 @Composable
 internal fun StylePanel(ui: EditorUi, actions: EditorActions) {
     val s = ui.style
+    if (s.palettes) return PalettePanel(ui, actions)
     Column {
         PanelHeader(tr("سبک", "Style")) {
             StyleBook.of(s.director)?.let { DirectorLine(tr("کارگردان: ${it.nameFa.substringBefore(' ')} بهترین است", "Director: ${it.nameEn} fits best")) }
@@ -226,6 +229,60 @@ internal fun StylePanel(ui: EditorUi, actions: EditorActions) {
         DensitySegments(s.density, actions.onDensity, Modifier.padding(top = 8.dp))
         Transport(ui, actions.onPlay, link = tr("مقایسهٔ قبل و بعد", "Compare before and after"), onLink = { actions.onCompare(!s.comparing) })
     }
+}
+
+/** An explainer film's look: its palettes (the director's marked), each a card of its ground, ink and accents. */
+@Composable
+private fun PalettePanel(ui: EditorUi, actions: EditorActions) {
+    val s = ui.style
+    Column {
+        PanelHeader(tr("رنگ‌بندی", "Palette")) {
+            DirectorLine(tr("کارگردان: ${FilmPalettes.name(s.director).first}", "Director: ${FilmPalettes.name(s.director).second}"))
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            s.styles.forEach { id -> PaletteTile(id, id == s.selected) { actions.onStyle(id) } }
+        }
+        Transport(ui, actions.onPlay, link = tr("مقایسهٔ قبل و بعد", "Compare before and after"), onLink = { actions.onCompare(!s.comparing) })
+    }
+}
+
+/** A palette as a card of its ground with a line of its ink and its accents as dots; the chosen one in the ember ring. */
+@Composable
+private fun PaletteTile(id: String, selected: Boolean, onClick: () -> Unit) {
+    val p = io.trimio.engine.motion.explainer.PaletteBook.named(id)
+    val shape = RoundedCornerShape(14.dp)
+    val (fa, en) = FilmPalettes.name(id)
+    Box(
+        Modifier.size(86.dp, 110.dp).clip(shape).background(p.background)
+            .let { if (selected) it.border(2.dp, SigNoir.action, shape) else it }
+            .clickable(role = Role.RadioButton, onClick = onClick),
+    ) {
+        Column(Modifier.align(Alignment.TopStart).padding(start = 9.dp, end = 8.dp, top = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(46.dp, 6.dp).clip(RoundedCornerShape(3.dp)).background(p.ink))
+            Box(Modifier.size(30.dp, 6.dp).clip(RoundedCornerShape(3.dp)).background(p.muted))
+            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                p.accents.take(4).forEach { a -> Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(a)) }
+            }
+        }
+        Text(
+            tr(fa, en), style = Sig.type.meta.copy(fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = FontWeight(700)),
+            color = p.ink, maxLines = 1,
+            modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 8.dp, vertical = 7.dp),
+        )
+    }
+}
+
+/** The explainer palettes' names in both languages. */
+internal object FilmPalettes {
+    private val names = mapOf(
+        "paper-warm" to ("کاغذ گرم" to "Warm paper"), "ink-night" to ("شب" to "Night"), "chalk" to ("تخته" to "Chalk"),
+        "mint" to ("نعنایی" to "Mint"), "dusk" to ("غروب" to "Dusk"), "mono" to ("سیاه و سفید" to "Mono"),
+        "sand" to ("شنی" to "Sand"), "plum" to ("آلویی" to "Plum"), "slate" to ("سربی" to "Slate"),
+        "news-gold" to ("خبری طلایی" to "News gold"), "news-red" to ("خبری قرمز" to "News red"), "news-teal" to ("خبری فیروزه‌ای" to "News teal"),
+        "linen-blue" to ("کتان آبی" to "Linen blue"),
+    )
+
+    fun name(id: String): Pair<String, String> = names[io.trimio.engine.motion.explainer.PaletteBook.named(id).id] ?: (id to id)
 }
 
 /** A style as a still of its own look (canvas, light, a word in its headline voice, its mark), its short name at the foot; the chosen one in the ember ring. */

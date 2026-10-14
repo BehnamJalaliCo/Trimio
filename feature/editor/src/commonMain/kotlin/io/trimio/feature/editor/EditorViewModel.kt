@@ -115,6 +115,8 @@ class EditorViewModel(
         history = EditHistory(edit.overrides)
         playback = runCatching { editor.playback(edit) }.getOrNull()
         facts = withContext(Dispatchers.Default) { EditFacts.of(edit) }
+        // An explainer film opens on its palette (it has no text tool).
+        facts?.let { f -> EditorUi.tools(f).takeIf { tool !in it }?.let { tool = it.first() } }
         // Changes left unsaved last time are back, one undo away from the version.
         val draft = drafts?.draft(id)?.takeIf { it != committed }
         if (draft != null) render(history.restore(draft)) else publish()

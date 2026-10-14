@@ -95,6 +95,8 @@ class Autopilot(
         val youtube: io.trimio.engine.autopilot.longform.YouTubePackage? = null,
         /** An explainer film laid out again for another frame ("16:9") and rate: its stage draws the same film there. */
         val restage: ((format: String, fps: Int) -> Compiler.Output)? = null,
+        /** What an explainer film is drawn and mixed again with (the editor, a reopen after a restart). */
+        val filmBench: io.trimio.engine.autopilot.explainer.FilmBench? = null,
     ) {
         /**
          * This edit laid out for [format] ("9:16", "16:9", "1:1", "4:5") at [fps]: the same score,
@@ -218,12 +220,13 @@ class Autopilot(
         val icons = kept.icons.map { it.icon() }
         val compiler = Compiler(text, library, visuals.withIcons(icons))
         val edit = kept.cut.plan()
-        val input = input(kept.score, kept.transcript, edit, request)
+        val input = input(kept.score, kept.transcript, edit, request).copy(duration = kept.duration)
         val compiled = compiler.compile(input)
         val pauses = kept.pauses.map { it.from..it.to }
+        // A plain edit (subtitles, YouTube) is not a reel: the reel jury does not sit on the creator's changes to it.
         val bench = Workbench(
-            kept.transcript, kept.lines, pauses, request, kept.understanding, PersianSpelling.load(), compiler, jury,
-            { library.find(it)?.isMonogram == false }, measure, kept.levels, kept.marks, icons,
+            kept.transcript, kept.lines, pauses, request, kept.understanding, PersianSpelling.load(), compiler, jury.takeUnless { kept.plain },
+            { library.find(it)?.isMonogram == false }, measure, kept.levels, kept.marks, icons, kept.plain, kept.recorded, kept.duration,
         )
         val mood = kept.music?.let(io.trimio.engine.assets.MusicMood::fromId)
         val sound = bench.master(compiled, edit, kept.transcript, mood, bench.arrange(mood, edit, kept.transcript), kept.levels)

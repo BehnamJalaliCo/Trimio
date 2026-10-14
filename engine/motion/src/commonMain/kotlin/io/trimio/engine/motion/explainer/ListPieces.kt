@@ -40,6 +40,9 @@ internal class Flow(val centres: List<Pair<Float, Float>>, val w: Float, val h: 
  * pick them out in the chapter's accent.
  */
 internal object ListPieces {
+    /** How far an unticked tile's text lines go from the track toward the muted ink. */
+    private const val IDLE_TEXT = 0.5f
+
     private fun labels(s: Spec, h: Hand, fallback: Int = 0): List<String> =
         s.labels.map { h.say(it) }.ifEmpty { if (fallback > 0) List(fallback) { "" } else listOf(h.say(s.text.ifEmpty { "…" })) }
 
@@ -138,9 +141,11 @@ internal object ListPieces {
                 val cy = cyAll - (th + lh) / 2f + th / 2f
                 val at = t.revealAt(i)
                 val done = t.doneAt(i, n)
+                // A tile's text lines read as text before they are ticked (the track alone faded into the card on dark grounds).
+                val idle = lerp(h.pal.track, h.muted, IDLE_TEXT)
                 val lines = listOf(0.58f, 0.72f, 0.46f).mapIndexed { k, f ->
                     val y = cy - th / 2f + 30f * h.u + k * 22f * h.u
-                    val c = done?.let { d -> ColorAnim.tween(h.pal.track, lerp(h.pal.track, h.accent, 0.55f), d, d + Track.TURN) } ?: ColorAnim.of(h.pal.track)
+                    val c = done?.let { d -> ColorAnim.tween(idle, lerp(idle, h.accent, 0.6f), d, d + Track.TURN) } ?: ColorAnim.of(idle)
                     h.rect(cx - h.dir * (tw * (0.72f - f) / 2f), y, tw * f, 9f * h.u, 4.5f * h.u, c)
                 }
                 val tick = done?.let { h.tick(cx + h.dir * (tw / 2f - 6f * h.u), cy + th / 2f - 6f * h.u, 38f * h.u, it) }

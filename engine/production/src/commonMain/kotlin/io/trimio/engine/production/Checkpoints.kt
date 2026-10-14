@@ -39,6 +39,8 @@ class Checkpoints(private val dir: Path?) {
          * version). A reading is reused only by the same director: installing a model reads the video again.
          */
         val by: String? = null,
+        /** The finished explainer film as the director wrote it (a voice alone): it opens again without the director. */
+        val film: io.trimio.engine.autopilot.explainer.FilmCut? = null,
     )
 
     fun load(key: String): Saved? = read(file(key)) { json.decodeFromString(Saved.serializer(), it) }

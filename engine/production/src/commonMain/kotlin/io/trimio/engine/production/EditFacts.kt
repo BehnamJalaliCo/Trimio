@@ -4,6 +4,8 @@ import io.trimio.core.model.audio.PcmAudio
 import io.trimio.engine.assets.MusicMood
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Workbench
+import io.trimio.engine.autopilot.explainer.FilmBench
+import io.trimio.engine.motion.explainer.PaletteBook
 import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.NumberWords
@@ -39,9 +41,19 @@ class EditFacts private constructor(
     val style: String get() = production.score.look
     val directorStyle: String get() = director.score.look
 
-    /** Styles to offer: the director's pick first, then the ones that fit the piece's domain and mood best. */
+    /** An explainer film: its palette, music and whooshes change; its words are the narration's ([FilmBench]). */
+    val film: Boolean get() = director.filmBench != null
+
+    /** A YouTube video: its recording's own sound and whole length stay; its words, look and devices change. */
+    val recorded: Boolean get() = director.bench?.recorded == true
+
+    /**
+     * Styles to offer: the director's pick first, then the ones that fit the piece's domain and mood best. A film's are
+     * its palettes, every one of them.
+     */
     val styles: List<String>
         get() {
+            if (film) return (listOf(directorStyle, style) + PaletteBook.ids).distinct()
             val u = director.understanding
             val ranked = StyleBook.all.sortedByDescending { it.fitness(u.domain, u.mood) }.map { it.id }
             return (listOf(directorStyle, style) + ranked).distinct().take(MAX_STYLES)
@@ -64,8 +76,11 @@ class EditFacts private constructor(
     val effects: Boolean get() = o.effects ?: true
 
     /** The effects in the edit now, and the ones the director's accents carry (what the switch turns on and off). */
-    val effectCount: Int get() = production.compiled.sfx.size
-    val accentEffects: Int get() = director.compiled.sfx.size
+    val effectCount: Int get() = if (film) (if (effects) filmCues.size else 0) else production.compiled.sfx.size
+    val accentEffects: Int get() = if (film) filmCues.size else director.compiled.sfx.size
+
+    /** A film's whooshes, one where each chapter arrives. */
+    private val filmCues: List<Float> get() = production.film?.let(FilmBench::cues).orEmpty().map { it.at }
     val lufs: Double get() = production.soundtrack.lufs
     val peakDb: Double get() = production.soundtrack.peakDb
 
@@ -82,7 +97,7 @@ class EditFacts private constructor(
     val unplayed: List<ClosedFloatingPointRange<Float>> get() = Cuts.unplayed(production.edit, sourceDuration)
 
     /** Output times of the edit's sound cues. */
-    val cues: List<Float> get() = production.compiled.sfx.map { it.at }
+    val cues: List<Float> get() = if (film) filmCues.takeIf { effects }.orEmpty() else production.compiled.sfx.map { it.at }
 
     /** What the spelling gate warned about in the creator's own text. */
     val warnings: List<String> get() = edit.warnings

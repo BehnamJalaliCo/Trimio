@@ -9,8 +9,10 @@ import io.trimio.engine.asr.RecognitionOptions
 import io.trimio.engine.asr.SpeechRecognizer
 import io.trimio.engine.autopilot.Jury
 import io.trimio.engine.motion.export.Delivery
+import io.trimio.engine.motion.explainer.PaletteBook
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.io.files.Path
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -18,7 +20,9 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -45,6 +49,7 @@ class ExplainerFilmProofTest {
 
     private fun editor(words: List<Word>, out: File, jury: Jury?) = Productions(
         JvmProductionPlatform(File(out, "renders"), recognizer = { Heard(words) }, delivery = Delivery.Draft.copy(workers = 2)),
+        Checkpoints(Path(File(out, "checkpoints").path)),
         jury = jury,
     )
 
@@ -71,8 +76,19 @@ class ExplainerFilmProofTest {
         File(out, "$name.report.txt").writeText((report + listOfNotNull(last.technical?.let { "steps: " + it.steps.joinToString { s -> s.name } })).joinToString("\n"))
         assertTrue(report.any { it.startsWith("sound: ") }, "music under the narration")
         assertTrue(film.chapters.isNotEmpty())
-        // The editor does not change explainer films (yet); it says so instead of failing.
-        assertEquals(Opened.Explainer, productions.reopen(request, EditOverrides()))
+        // After a restart the film opens again from what was kept (no recognition, no director), and the editor changes its
+        // palette and its music.
+        val again = assertIs<Opened.Ready>(editor(emptyList(), out, jury).reopen(request, EditOverrides())).edit
+        assertEquals(film, again.production.film)
+        assertTrue(again.editable)
+        assertEquals(edit.production.compiled.composition.duration, again.production.compiled.composition.duration)
+        val other = PaletteBook.ids.first { it != film.art.palette }
+        val touched = productions.touch(again, EditOverrides(style = other, music = EditOverrides.NO_MUSIC))
+        assertEquals(other, touched.production.film?.art?.palette)
+        assertEquals(other, touched.production.score.look)
+        assertNull(touched.production.plan.music)
+        assertEquals(film.chapters, touched.production.film?.chapters, "the director's film, in another palette")
+        assertEquals("16:9", touched.production.relaid("16:9", 30)?.let { o -> if (o.composition.width > o.composition.height) "16:9" else "?" })
         last to assertNotNull(last.output)
     }
 

@@ -45,8 +45,8 @@ object Retouch {
      */
     class Result(val production: Autopilot.Production, val warnings: List<String>, val notes: List<String>, val mixed: Boolean = true)
 
-    /** True when [base] can be changed in the editor (it kept its [Workbench]). */
-    fun editable(base: Autopilot.Production): Boolean = base.bench != null
+    /** True when [base] can be changed in the editor (it kept its [Workbench], or its film's bench). */
+    fun editable(base: Autopilot.Production): Boolean = base.bench != null || base.filmBench != null
 
     /**
      * [base] with [o] applied. The picture (words, cut, score, gates, compile) takes milliseconds;
@@ -55,6 +55,7 @@ object Retouch {
      */
     fun apply(base: Autopilot.Production, o: EditOverrides, sound: Boolean = true): Result {
         if (o.isEmpty) return Result(base, emptyList(), emptyList())
+        base.filmBench?.let { return film(base, it, o, sound) }
         val bench = base.bench ?: error("this edit was made without its workbench and cannot be changed")
         val words = words(bench, o)
         val mood = mood(base, o)
@@ -78,6 +79,18 @@ object Retouch {
         val mix = bench.master(compiled, edit, words, mood, arrangement, levels)
         val panel = bench.judge(gated.copy(compiled = compiled), edit, words, mood, arrangement, mix, levels)
         return Result(picture.copy(soundtrack = mix, panel = panel ?: base.panel), gated.warnings, gated.notes)
+    }
+
+    /**
+     * An explainer film with the creator's palette ([EditOverrides.style] naming a film palette), music, its level and the
+     * whooshes; the film itself (its chapters and beats) is the director's.
+     */
+    private fun film(base: Autopilot.Production, bench: io.trimio.engine.autopilot.explainer.FilmBench, o: EditOverrides, sound: Boolean): Result {
+        val mood = mood(base, o)
+        val notes = listOf("editor: ${summary(o)}")
+        val picture = bench.production(o.style, mood, base.report + notes, base.panel, sound = base.soundtrack)
+        if (!sound) return Result(picture, emptyList(), notes, mixed = false)
+        return Result(bench.production(o.style, mood, base.report + notes, base.panel, musicDb = o.musicDb, effects = o.effects ?: true), emptyList(), notes)
     }
 
     // ------------------------------------------------------------------ words

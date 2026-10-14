@@ -15,6 +15,7 @@ import io.trimio.engine.autopilot.Proofreader
 import io.trimio.engine.autopilot.Soundtrack
 import io.trimio.engine.autopilot.SpeechAnalysis
 import io.trimio.engine.autopilot.Understanding
+import io.trimio.engine.autopilot.Workbench
 import io.trimio.engine.autopilot.withSpelling
 import io.trimio.engine.llm.ChatMessage
 import io.trimio.engine.llm.ChatRole
@@ -117,9 +118,9 @@ class LongFormPilot(
         onStage("compile", COMPILE_AT)
         val score = score(request, words, chapters, duration, written?.titles?.firstOrNull())
         val edit = EditPlan.identity(duration)
-        val compiled = Compiler(text, brands, visuals).compile(
-            Compiler.Input(score, checked.shown, duration = duration, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices),
-        )
+        val compiler = Compiler(text, brands, visuals)
+        val input = Compiler.Input(score, checked.shown, duration = duration, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices)
+        val compiled = compiler.compile(input)
         onStage("sound", SOUND_AT)
         // The file carries the recording's own sound (copied at export); the voice stands in for it in the editor's
         // preview. Nothing is mastered: an hour of sound mixed in memory would not fit a phone.
@@ -132,7 +133,10 @@ class LongFormPilot(
         onStage("done", 1f)
         val understanding = Understanding(title = titles.firstOrNull() ?: chapters.firstOrNull()?.title.orEmpty(), topic = "youtube")
         val plan = Planner.Plan(score, null, Choices(request.seed, score.look, null, score.scenes.flatMap { s -> s.beats.map { it.recipe } }.distinct(), emptyList()), emptyList())
-        return Autopilot.Production(compiled, score, plan, understanding, sound, edit, report, youtube = pack)
+        // The editor changes its words, look and devices; the recording's own sound and its whole length stay.
+        val ask = Autopilot.Request(checked.shown, request.voice, request.prompt, request.seed, request.footage, request.subject, understanding, request.fps, voices = request.voices)
+        val bench = Workbench.plain(text, brands, compiler, ask, lines, heard.pauses, understanding, lexicon, recorded = true, duration = duration)
+        return Autopilot.Production(compiled, score, plan, understanding, sound, edit, report, source = Autopilot.Compiled(compiler, input), bench = bench, youtube = pack)
     }
 
     /** The chapters, titled by the director (one short call each) or, without one, by their opening words. */

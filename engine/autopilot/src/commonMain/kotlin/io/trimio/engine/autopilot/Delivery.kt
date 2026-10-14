@@ -59,6 +59,12 @@ data class Delivery(
     val report: List<String> = emptyList(),
     /** Who spoke when, when two voices or more were heard: their captions keep their colours after a reopen. */
     val voices: List<io.trimio.engine.motion.score.Voice> = emptyList(),
+    /** A plain reel or a YouTube video: the edit is its words ([Workbench.plain]). */
+    val plain: Boolean = false,
+    /** A YouTube video: the recording's own sound, nothing mastered, the cut whole ([Workbench.recorded]). */
+    val recorded: Boolean = false,
+    /** The edit's length when it is not the speech's ([Workbench.duration]). */
+    val duration: Float? = null,
 ) {
     /** The speaker's place as fractions of the frame. */
     @Serializable
@@ -174,6 +180,7 @@ data class Delivery(
                 understanding = p.understanding, score = p.score, planned = p.plan.score, music = p.plan.music?.id,
                 choices = p.plan.choices, notes = p.plan.notes, cut = Cut.of(p.edit), levels = bench.levels,
                 marks = bench.marks, icons = bench.icons.map(Icon::of), panel = p.panel?.verdicts, report = p.report, voices = r.voices,
+                plain = bench.plain, recorded = bench.recorded, duration = bench.duration,
             )
         }
     }

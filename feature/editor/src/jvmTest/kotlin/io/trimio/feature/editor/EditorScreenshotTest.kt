@@ -121,6 +121,21 @@ class EditorScreenshotTest {
         shoot("editor-folded-fa", Language.Persian) { EditorScreen(ui.copy(folded = true, playing = true), EditorActions(), frame) }
     }
 
+    /** An explainer film: its palette and sound only; a YouTube video: its words (no cut or hit), look and devices. */
+    @Test
+    fun aFilmAndAYouTubeVideo() {
+        val palettes = listOf("paper-warm", "ink-night", "chalk", "mint", "dusk", "mono", "sand", "news-gold")
+        val film = ui.copy(
+            tool = EditorTool.Style, tools = listOf(EditorTool.Style, EditorTool.Sound),
+            style = StyleTool(palettes, "chalk", "paper-warm", palettes = true),
+        )
+        shoot("editor-film-palette-fa", Language.Persian) { EditorScreen(film, EditorActions(), frame) }
+        shoot("editor-film-palette-wide-en", Language.English, width = 1280, height = 800, density = 1.5f) { EditorScreen(film, EditorActions(), frame) }
+        shoot("editor-film-sound-fa", Language.Persian) { EditorScreen(film.copy(tool = EditorTool.Sound), EditorActions(), frame) }
+        val youtube = ui.copy(tools = listOf(EditorTool.Text, EditorTool.Style, EditorTool.Elements), text = ui.text.copy(cuts = false))
+        shoot("editor-youtube-text-fa", Language.Persian) { EditorScreen(youtube, EditorActions(), frame) }
+    }
+
     @Test
     fun wideWindow() {
         EditorTool.entries.forEach { tool ->

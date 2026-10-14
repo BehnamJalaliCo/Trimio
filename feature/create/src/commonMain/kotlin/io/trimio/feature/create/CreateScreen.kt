@@ -141,9 +141,13 @@ fun CreateScreen(state: CreateState, actions: CreateActions, pickerOpen: Boolean
                     }
                 }
                 else -> Column(Modifier.fillMaxSize()) {
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        MediaHero(state, actions, Modifier.fillMaxWidth().height(268.dp))
-                        BriefColumn(state, actions, ranked) { picking = true }
+                    Box(Modifier.weight(1f)) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            MediaHero(state, actions, Modifier.fillMaxWidth().height(268.dp))
+                            BriefColumn(state, actions, ranked) { picking = true }
+                        }
+                        // The brief fades into the action at its foot: what is below reads as more to scroll to.
+                        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(28.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Sig.colors.canvas))))
                     }
                     CreateAction(state, actions, Modifier.gutter().padding(bottom = 8.dp))
                 }
@@ -163,6 +167,7 @@ private fun BriefColumn(state: CreateState, actions: CreateActions, ranked: List
         if (!state.probing && state.info == null) UnreadableMedia(state, actions)
         PromptBlock(state, actions)
         if (state.prompt.isNotBlank()) Understood(state)
+        if (state.kind == MediaKind.Video) EditKindBlock(state.edit, state.subtitles, actions.onEdit, actions.onSubtitles)
         Attachments(state.attachments, actions)
         Glossary(state.glossary, actions)
         StyleRow(state, ranked, actions.onStyle, onAllStyles)
@@ -441,10 +446,6 @@ private fun CreateAction(state: CreateState, actions: CreateActions, modifier: M
                 tr("گوشی داغ است؛ ساخت آرام‌تر و خنک‌تر انجام می‌شود", "Your phone is hot: the build runs cooler and slower"),
                 container = c.emphasisSoft, content = c.emphasisSoftContent,
             )
-        }
-        if (state.kind == MediaKind.Video) EditChoiceRow(state.edit, actions.onEdit)
-        if (state.kind == MediaKind.Video && state.edit.subtitled) {
-            SubtitleChoiceRow(state.subtitles ?: SubtitleChoice.default(state.edit), actions.onSubtitles)
         }
         if (onDevice) SpeedChoice(state.speeds, state.speed, actions.onSpeed)
         SigButton(

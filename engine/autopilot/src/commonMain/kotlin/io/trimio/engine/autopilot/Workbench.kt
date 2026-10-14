@@ -4,6 +4,9 @@ import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.assets.MusicArrangement
 import io.trimio.engine.assets.MusicMood
+import io.trimio.engine.audio.LoudnessMeter
+import io.trimio.engine.motion.TextAlign
+import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Compiler
@@ -44,6 +47,18 @@ class Workbench internal constructor(
     internal val marks: Map<String, BrandLibrary.Entry> = emptyMap(),
     /** Pictures fetched from the web for this piece (in [compiler]'s vocabulary), kept with the edit ([Delivery]). */
     internal val icons: List<VectorIcon> = emptyList(),
+    /**
+     * The edit is its words (a plain reel, a YouTube video): the creator's changes go through the spelling check but not
+     * the reel critic, which would add a hook, punch-ins and a call to action the creator did not ask for.
+     */
+    val plain: Boolean = false,
+    /**
+     * The file carries the recording's own sound (a YouTube video): nothing is mastered and the cut stays whole, so the
+     * export copies the recording's track untouched.
+     */
+    val recorded: Boolean = false,
+    /** The edit's length when it is not the speech's (a YouTube video runs to the recording's end). */
+    val duration: Float? = null,
 ) {
     /** The voice, 48 kHz mono, on the source clock. */
     val voice: PcmAudio get() = request.voice
@@ -62,7 +77,7 @@ class Workbench internal constructor(
 
     /** What the compiler is given for [score] over [words] (source clock) cut by [edit]. */
     fun input(score: Score, words: Transcript, edit: EditPlan) =
-        Compiler.Input(score, words, footage = footage, fps = fps, edit = edit, subject = subject)
+        Compiler.Input(score, words, duration = duration, footage = footage, fps = fps, edit = edit, subject = subject, voices = request.voices)
 
     /**
      * [score] spelled, compiled and through the critic's passes (each revision recompiled), as a
@@ -78,7 +93,7 @@ class Workbench internal constructor(
         var current = ScreenSpelling(lexicon, heard, prompt, own).check(score) { notes += it }
         var compiled = compiler.compile(input(current, words, edit))
         val output = edit.remap(words).words
-        repeat(CRITIC_PASSES) {
+        repeat(if (plain) 0 else CRITIC_PASSES) {
             val review = Critic().review(current, compiled, output, lines, understanding.cta)
             review.issues.forEach { notes += "critic: ${it.kind} at ${it.at}s — ${it.detail}" }
             // What the creator turned off stays off: the critic does not put it back (the jury still says so).
@@ -105,10 +120,17 @@ class Workbench internal constructor(
         mood: MusicMood?,
         arrangement: MusicArrangement?,
         levels: Soundtrack.Levels,
-    ): Soundtrack.Result = Soundtrack(voice.sampleRate).master(
-        voice, edit, edit.preludeWords(words) + edit.remap(words).words, compiled.composition.duration, mood,
-        musicSeed = seed.toInt(), cues = compiled.sfx, levels = levels, arrangement = arrangement,
-    )
+    ): Soundtrack.Result {
+        if (recorded) {
+            // The recording's own track plays (copied at export): the voice stands in for it, measured, never mixed.
+            val measured = LoudnessMeter.measure(voice)
+            return Soundtrack.Result(voice, measured.integratedLufs, measured.samplePeakDb)
+        }
+        return Soundtrack(voice.sampleRate).master(
+            voice, edit, edit.preludeWords(words) + edit.remap(words).words, compiled.composition.duration, mood,
+            musicSeed = seed.toInt(), cues = compiled.sfx, levels = levels, arrangement = arrangement,
+        )
+    }
 
     /** The panel's verdict on the edit as it is (no revisions: the creator's choices stand); null when no jury sits. */
     fun judge(
@@ -128,11 +150,34 @@ class Workbench internal constructor(
         ),
     )
 
-    private companion object {
-        const val CRITIC_PASSES = 2
-        const val ZWNJ = '‌'
+    companion object {
+        private const val CRITIC_PASSES = 2
+        private const val ZWNJ = '‌'
 
-        fun core(w: String) = w.trim { !it.isLetterOrDigit() && it != ZWNJ }.trim(ZWNJ)
-        fun persian(w: String) = w.any { it in 'ؠ'..'ۿ' && it.isLetter() }
+        /**
+         * The workbench of a plain edit (a plain reel, a YouTube video): the creator changes its words, look and elements;
+         * no critic and no jury, since neither the reel's hook nor its call to action belongs there. [recorded]: the
+         * recording's own sound plays and the cut stays whole (YouTube); [duration]: the edit's length when it is not the
+         * speech's.
+         */
+        internal fun plain(
+            text: TextLayoutEngine,
+            brands: BrandLibrary,
+            compiler: Compiler,
+            request: Autopilot.Request,
+            lines: List<Lines.Line>,
+            pauses: List<ClosedFloatingPointRange<Float>>,
+            understanding: Understanding,
+            lexicon: PersianSpelling,
+            recorded: Boolean = false,
+            duration: Float? = null,
+        ) = Workbench(
+            request.transcript, lines, pauses, request, understanding, lexicon, compiler, null, { brands.find(it)?.isMonogram == false },
+            LineMeasure { s, type, maxWidth, rtl -> text.layout(s, type, maxWidth, TextAlign.Center, rtl).lines.size },
+            plain = true, recorded = recorded, duration = duration,
+        )
+
+        private fun core(w: String) = w.trim { !it.isLetterOrDigit() && it != ZWNJ }.trim(ZWNJ)
+        private fun persian(w: String) = w.any { it in 'ؠ'..'ۿ' && it.isLetter() }
     }
 }

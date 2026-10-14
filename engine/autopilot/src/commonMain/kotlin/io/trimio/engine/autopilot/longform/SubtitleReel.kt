@@ -5,6 +5,7 @@ import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Choices
 import io.trimio.engine.autopilot.Glossary
+import io.trimio.engine.autopilot.Lines
 import io.trimio.engine.autopilot.OnScreenSpelling
 import io.trimio.engine.autopilot.PersianSpelling
 import io.trimio.engine.autopilot.Planner
@@ -12,6 +13,7 @@ import io.trimio.engine.autopilot.Proofreader
 import io.trimio.engine.autopilot.Soundtrack
 import io.trimio.engine.autopilot.SpeechAnalysis
 import io.trimio.engine.autopilot.Understanding
+import io.trimio.engine.autopilot.Workbench
 import io.trimio.engine.autopilot.withSpelling
 import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.motion.TextLayoutEngine
@@ -73,9 +75,9 @@ class SubtitleReel(
         val style = request.style
         val captions = CaptionScore(show = true, recipe = style.recipe, place = "lower", maxWords = style.maxWords)
         val score = Score(format = request.format, look = LOOK, captions = captions, scenes = scenes, auto = false)
-        val compiled = Compiler(text, brands, visuals).compile(
-            Compiler.Input(score, checked.shown, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices),
-        )
+        val compiler = Compiler(text, brands, visuals)
+        val input = Compiler.Input(score, checked.shown, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices)
+        val compiled = compiler.compile(input)
         onStage("sound", SOUND_AT)
         val sound = Soundtrack(request.voice.sampleRate).master(
             request.voice, edit, edit.remap(checked.shown).words, compiled.composition.duration, null, request.seed.toInt(), cues = compiled.sfx,
@@ -84,7 +86,11 @@ class SubtitleReel(
         onStage("done", 1f)
         val understanding = Understanding(title = words.take(TITLE_WORDS).joinToString(" ") { it.text }, topic = "subtitles")
         val plan = Planner.Plan(score, null, Choices(request.seed, score.look, null, listOf(style.recipe), emptyList()), emptyList())
-        return Autopilot.Production(compiled, score, plan, understanding, sound, edit, report)
+        // The editor changes its words, cut, look and sound like a reel's, without the reel's critic.
+        val ask = Autopilot.Request(checked.shown, request.voice, request.prompt, request.seed, request.footage, request.subject, understanding, request.fps, voices = request.voices)
+        val lines = Lines.split(words, pauses = heard.pauses)
+        val bench = Workbench.plain(text, brands, compiler, ask, lines, heard.pauses, understanding, lexicon)
+        return Autopilot.Production(compiled, score, plan, understanding, sound, edit, report, source = Autopilot.Compiled(compiler, input), bench = bench)
     }
 
     private companion object {

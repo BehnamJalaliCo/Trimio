@@ -120,7 +120,7 @@ private fun Phone(ui: EditorUi, actions: EditorActions, frame: ImageBitmap?) {
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             EditorTopBar(ui, actions, Modifier.padding(horizontal = 22.dp).padding(top = 8.dp))
             Column(Modifier.align(Alignment.TopEnd).padding(top = 74.dp, end = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                ToolRail(ui.tool, ui.folded, actions.onTool)
+                ToolRail(ui.tool, ui.folded, actions.onTool, tools = ui.tools)
             }
             StageNotes(ui, Modifier.align(Alignment.TopCenter).padding(top = 72.dp))
             AnimatedVisibility(
@@ -154,7 +154,7 @@ private fun Wide(ui: EditorUi, actions: EditorActions, frame: ImageBitmap?) {
                             Stage(frame, ContentScale.Fit, Modifier.fillMaxSize().onSizeChanged { actions.onStageWidth(it.width) })
                             StageNotes(ui, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
                         }
-                        ToolRail(ui.tool, folded = false, onTool = actions.onTool)
+                        ToolRail(ui.tool, folded = false, onTool = actions.onTool, tools = ui.tools)
                     }
                 }
                 // The panel is as tall as its tool needs, scrolling past the window's height.

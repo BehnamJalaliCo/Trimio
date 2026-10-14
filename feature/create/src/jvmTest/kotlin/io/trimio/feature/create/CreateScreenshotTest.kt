@@ -57,6 +57,8 @@ class CreateScreenshotTest {
     fun createSubtitled() {
         shoot("create-fa-subtitles-noir", paper = false) { CreateScreen(state.copy(edit = EditChoice.Simple), CreateActions()) }
         shoot("create-fa-subtitles-paper", paper = true) { CreateScreen(state.copy(edit = EditChoice.YouTube, subtitles = SubtitleChoice.Karaoke), CreateActions()) }
+        // A tall window: the kind of edit and the subtitle styles in full under the brief.
+        shoot("create-fa-subtitles-tall", paper = false, height = 1500) { CreateScreen(state.copy(edit = EditChoice.YouTubePro), CreateActions()) }
     }
 
     @Test

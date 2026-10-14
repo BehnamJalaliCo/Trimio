@@ -137,7 +137,8 @@ class Productions(
 
     override suspend fun reopen(request: ProductionRequest, overrides: EditOverrides): Opened = withContext(Dispatchers.Default) {
         val saved = checkpoints.load(request.key)
-        // An explainer film keeps no workbench: it is not changed in the editor (yet).
+        saved?.film?.let { cut -> return@withContext reopenFilm(request, cut, saved.transcript, overrides) }
+        // A film of an earlier version kept nothing to draw it again from.
         if (saved?.delivery == null && request.kind != SourceKind.Video && explainers) return@withContext Opened.Explainer
         val kept = saved?.delivery?.takeIf { it.version == Delivery.VERSION } ?: return@withContext Opened.NotKept
         // The creator's own files are read again: a video, recording or attachment that is gone is said so.
@@ -154,8 +155,20 @@ class Productions(
         Opened.Ready(if (overrides.isEmpty) director else touch(director, overrides))
     }
 
+    /** An explainer film drawn and mixed again from what was kept of it ([ExplainerPilot.restore]), over the creator's recording. */
+    private suspend fun reopenFilm(request: ProductionRequest, cut: io.trimio.engine.autopilot.explainer.FilmCut, words: Transcript, overrides: EditOverrides): Opened {
+        val voice = readable { platform.audio(request.media, voiceRate(request)).also { check(it.samples.isNotEmpty()) { "no sound in ${request.media}" } } }
+            ?: return Opened.SourceMissing
+        val production = ExplainerPilot(filmStage(engines())).restore(cut, voice)
+        val director = Edit(request, production, request.output ?: platform.outputFor(request), words)
+        return Opened.Ready(if (overrides.isEmpty) director else touch(director, overrides))
+    }
+
+    /** The explainer stage with the illustration layer's pictures (and the generator add-on when it is installed). */
+    private fun filmStage(e: Engines) = IllustratedStage(e.text, IconResolver.of(visuals)) { io.trimio.engine.illustration.Illustrator.create(engine = platform.diffusion()) }
+
     override suspend fun kept(request: ProductionRequest): Boolean =
-        withContext(Dispatchers.Default) { checkpoints.load(request.key)?.delivery?.version == Delivery.VERSION }
+        withContext(Dispatchers.Default) { checkpoints.load(request.key)?.let { it.delivery?.version == Delivery.VERSION || it.film != null } == true }
 
     /** [block]'s result, or null when the platform could not read the creator's media. */
     private suspend fun <T> readable(block: suspend () -> T): T? =
@@ -335,7 +348,10 @@ class Productions(
         // A long-form edit's subtitle files and its YouTube text go beside the video.
         production.youtube?.let { YouTubeFiles.write(out, it, persian(transcript)) }
         // The finished edit is kept whole: it opens again after a restart (editor, exports) without whisper or the model.
-        checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, production.delivery(), by = director.model?.id))
+        checkpoints.save(
+            request.key,
+            Checkpoints.Saved(transcript, production.understanding, production.delivery(), by = director.model?.id, film = production.filmBench?.cut),
+        )
         recorder.finish(RunOutcome.Done)
         checkpoints.reports.saveEngine(recorder.engine(runtime, checkpoints.reports.engine()))
         r.state.update {
@@ -376,7 +392,7 @@ class Productions(
         val video = request.kind == SourceKind.Video
         if (!video && explainers) {
             val budget = (jury ?: Juries.forDevice(platform.device())).budget
-            val stage = IllustratedStage(e.text, IconResolver.of(visuals)) { io.trimio.engine.illustration.Illustrator.create(engine = platform.diffusion()) }
+            val stage = filmStage(e)
             val others = listOfNotNull(r.previous?.production?.film?.art)
             val ask = ExplainerPilot.Request(m.transcript, m.voice, request.brief, request.seed, m.understanding, FPS, others = others)
             return ExplainerPilot(stage, director.model, FilmJury(budget = budget)).produce(ask, progress)

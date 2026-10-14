@@ -3,13 +3,10 @@ package io.trimio.engine.autopilot.explainer
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.autopilot.Autopilot
-import io.trimio.engine.autopilot.Choices
 import io.trimio.engine.autopilot.Lines
 import io.trimio.engine.autopilot.PersianSpelling
-import io.trimio.engine.autopilot.Planner
 import io.trimio.engine.autopilot.Proofreader
 import io.trimio.engine.autopilot.RulesUnderstander
-import io.trimio.engine.autopilot.Soundtrack
 import io.trimio.engine.autopilot.SpeechAnalysis
 import io.trimio.engine.autopilot.Understander
 import io.trimio.engine.autopilot.Understanding
@@ -19,9 +16,6 @@ import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.explainer.ArtDirection
 import io.trimio.engine.motion.explainer.ExplainerFilm
-import io.trimio.engine.motion.score.Compiler
-import io.trimio.engine.motion.score.EditPlan
-import io.trimio.engine.motion.score.Score
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -94,22 +88,26 @@ class ExplainerPilot(
         // The director's memory goes before the pictures are drawn: a phone holds one big model at a time (the generator add-on).
         runCatching { model?.release() }
         report += runCatching { stage.prepare(film) }.getOrElse { listOf("illustrations: failed (${it.message}); the stage draws its own glyphs") }
-        val composition = stage.compose(film, request.format, request.fps, duration)
-        onStage("sound", 0.9f)
         val music = ArtDirector.music(n, request.seed)
-        val edit = EditPlan.identity(composition.duration)
-        val sound = Soundtrack(request.voice.sampleRate).master(request.voice, edit, transcript.words, composition.duration, music, request.seed.toInt(), cues = cues(film))
+        val cut = FilmCut(film, music?.id, request.seed, request.format, request.fps, duration, understanding, transcript)
+        val bench = FilmBench(stage, cut, request.voice)
+        val compiled = bench.compiled(film)
+        onStage("sound", 0.9f)
+        val sound = bench.master(film, music, duration = compiled.composition.duration)
         report += "sound: ${music?.id ?: "no music"} under the narration, ${round1(sound.lufs.toFloat())} LUFS"
         onStage("done", 1f)
-        val score = Score(format = request.format, look = film.art.palette)
-        val choices = Choices(request.seed, film.art.palette, music?.id, film.chapters.flatMap { c -> c.beats.mapNotNull { it.primitive?.let(Drafts::serial) } }.distinct(), emptyList())
-        val plan = Planner.Plan(score, music, choices, emptyList())
-        val compiled = Compiler.Output(composition, emptyList(), emptyList(), listOf("explainer film"))
-        // The same film in another frame (the export screen's 16:9 for YouTube): the stage lays it out again.
-        val restage = { format: String, fps: Int ->
-            Compiler.Output(stage.compose(film, format, fps, duration), emptyList(), emptyList(), listOf("explainer film $format"))
-        }
-        return Autopilot.Production(compiled, score, plan, understanding, sound, edit, report, written.panel, film = film, restage = restage)
+        // What is kept to draw and mix it again (a reopen after a restart, the editor).
+        val kept = FilmBench(stage, cut.copy(report = report.toList()), request.voice)
+        return kept.production(report = report.toList(), panel = written.panel, sound = sound, laid = compiled)
+    }
+
+    /**
+     * The film [cut] describes, drawn and mixed again over [voice] without the director (its pictures fetched again):
+     * the delivered film itself, for the editor and for exports after the app restarts.
+     */
+    suspend fun restore(cut: FilmCut, voice: PcmAudio): Autopilot.Production {
+        runCatching { stage.prepare(cut.film) }
+        return FilmBench(stage, cut, voice).production()
     }
 
     /** A cloud model reads the lines (English gists help the metaphors); on the device the rules read them (the director reads everything). */
@@ -151,12 +149,7 @@ class ExplainerPilot(
         return film.copy(chapters = film.chapters.dropLast(1) + c.copy(beats = before + sweep + shown))
     }
 
-    /** A soft whoosh where a new chapter (or news scene) arrives; nothing under the first one. */
-    private fun cues(film: ExplainerFilm): List<io.trimio.engine.motion.recipe.Sfx> =
-        film.chapters.drop(1).map { io.trimio.engine.motion.recipe.Sfx(it.start.toFloat(), io.trimio.engine.motion.recipe.SfxKind.Whoosh, CUE_GAIN) }
-
     private companion object {
-        const val CUE_GAIN = 0.55f
         const val LEAD = 1.2
         const val OPEN = 0.5
         const val END_CARD = 2.5
