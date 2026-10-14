@@ -45,6 +45,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaProcessing|dataSync" />
 
+        <!-- «سنجش سرعت این دستگاه» goes on when the app is left (closing the app ends it). -->
+        <service
+            android:name="io.trimio.engine.production.SpeedTestService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProcessing|dataSync" />
+
         <!-- «سنجش سرعت این دستگاه»: each measurement in its own process, so a GPU driver crash cannot close the app. -->
         <service
             android:name="io.trimio.engine.production.bench.BenchService"

@@ -41,7 +41,7 @@ class SettingsViewModel(
     /** «پاک کردن کش انیمیشن‌ها». */
     private val clearAnimations: suspend () -> Unit = {},
     /** «سنجش سرعت این دستگاه»; null where models do not run (the web). */
-    private val speedTest: io.trimio.engine.models.SpeedTest? = null,
+    private val speedTest: io.trimio.engine.models.SpeedTestRunner? = null,
     /** «افزودن مدل از روی سیستم»: chooses a GGUF on this computer (Windows only); null hides it. */
     private val modelPicker: ModelFilePicker? = null,
 ) : ViewModel() {
@@ -72,29 +72,27 @@ class SettingsViewModel(
     /** The speed test's rows as they come, and whether it is running. */
     val speed: StateFlow<SpeedUi> = _speed.asStateFlow()
 
-    val canTestSpeed: Boolean get() = speedTest != null
+    val canTestSpeed: Boolean get() = speedTest?.available == true
 
-    /** Runs the speed test once (a second tap while it runs does nothing); the best ways are kept for the builds. */
+    /**
+     * Runs the speed test once (a second tap while it runs does nothing); the best ways are kept for the builds. The app
+     * runs it, not this screen: it goes on when the creator leaves the app and its rows are here on return.
+     */
     fun testSpeed() {
-        val test = speedTest ?: return
-        if (_speed.value.running) return
-        _speed.value = SpeedUi(running = true)
-        viewModelScope.launch {
-            runCatching {
-                test.run(
-                    onRow = { row -> _speed.update { it.copy(rows = it.rows + row) } },
-                    onProgress = { p -> _speed.update { it.copy(progress = maxOf(it.progress, p)) } },
-                )
-            }.onFailure { e -> _speed.update { it.copy(rows = it.rows + io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Note, "خطا", e.message ?: "")) } }
-            _speed.update { it.copy(running = false, done = true, progress = 1f) }
-        }
+        speedTest?.start()
     }
 
     init {
-        // The way every build runs now (the last test's choices), shown until the creator measures again.
-        speedTest?.let { test ->
+        speedTest?.let { runner ->
+            // A test running or finished in this app session, as it goes.
             viewModelScope.launch {
-                val kept = withContext(Dispatchers.Default) { runCatching { test.current() }.getOrDefault(emptyList()) }
+                runner.state.collect { s ->
+                    if (s.running || s.done) _speed.value = SpeedUi(rows = s.rows, running = s.running, done = s.done, progress = s.progress)
+                }
+            }
+            // Otherwise the way every build runs now (the last test's choices), shown until the creator measures again.
+            viewModelScope.launch {
+                val kept = withContext(Dispatchers.Default) { runCatching { runner.current() }.getOrDefault(emptyList()) }
                 if (kept.isNotEmpty()) _speed.update { if (it.running || it.done) it else it.copy(rows = kept, kept = true) }
             }
         }

@@ -59,5 +59,9 @@ class TrimioApplication : Application() {
         ProductionService.icon = R.drawable.ic_stat_trimio
         ProductionService.opens = MainActivity::class.java
         ProductionService.watch(this, koin.get<ProductionRunner>(), scope)
+        // The speed test too: it goes on when the app is left, and ends when the app is closed.
+        val speed = koin.get<io.trimio.engine.models.SpeedTestRunner>()
+        io.trimio.engine.production.SpeedTestService.runner = { speed }
+        io.trimio.engine.production.SpeedTestService.watch(this, speed, scope)
     }
 }

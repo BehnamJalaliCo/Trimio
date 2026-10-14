@@ -20,12 +20,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Keeps a production alive with the screen off: a foreground service (type `mediaProcessing` on
- * Android 15+, `dataSync` before) with a progress notification and a partial wake lock (without
- * it the CPU sleeps once the phone is locked and the run stalls), for as long as
- * [ProductionRunner.active] runs. Sticky: when the system kills the process mid-run it restarts
+ * Keeps a production alive with the screen off or the app left: a foreground service (type
+ * `mediaProcessing` on Android 15+, `dataSync` before) with a progress notification and a partial
+ * wake lock (without it the CPU sleeps once the phone is locked and the run stalls), for as long
+ * as [ProductionRunner.active] runs. Sticky: when the system kills the process mid-run it restarts
  * the service, which resumes the saved request ([AppProductionRunner.resume]); the checkpointed
- * words and reading skip whisper and the model.
+ * words and reading skip whisper and the model. Closing the app ends the run ([onTaskRemoved]).
  *
  * The app declares it in its manifest and sets [runner] (and optionally [icon], [opens]) at
  * start-up, before any run; [watch] starts it whenever a run begins.
@@ -37,13 +37,15 @@ class ProductionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val runner = runner?.invoke() ?: return stop()
+        val runner = runner?.invoke()
         // A null intent is the system restarting a killed run.
-        if (intent == null && runner.active.value?.finished != false) runner.resume()
-        val current = runner.active.value?.takeIf { !it.finished } ?: return stop()
+        if (intent == null && runner != null && runner.active.value?.finished != false) runner.resume()
+        val current = runner?.active?.value?.takeIf { !it.finished }
         channel(this)
         val type = if (Build.VERSION.SDK_INT >= ANDROID_15) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        startForeground(NOTIFICATION_ID, notification(this, current), type)
+        // Foreground first, always: a service started for the foreground that stops before it is ends the app.
+        startForeground(NOTIFICATION_ID, notification(this, current ?: ProductionState("")), type)
+        if (runner == null || current == null) return stop()
         keepAwake()
 
         scope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.cancel() }
@@ -59,6 +61,16 @@ class ProductionService : Service() {
             stop()
         }
         return START_STICKY
+    }
+
+    /**
+     * The creator closed the app (removed it from the recent apps): the run ends there and is not resumed. Leaving the
+     * app any other way (home, another app, the screen off) lets it go on.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        runner?.invoke()?.cancel()
+        stop()
+        super.onTaskRemoved(rootIntent)
     }
 
     /** The CPU keeps working with the screen off; released when the run ends (or after [AWAKE_MS] at most). */

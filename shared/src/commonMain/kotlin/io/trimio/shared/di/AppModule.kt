@@ -98,6 +98,8 @@ data class CreateArgs(val uri: String, val kind: MediaKind, val styleId: String?
  */
 val appModule: Module = module {
     single(AppScope) { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
+    // The speed test belongs to the app, not a screen: it goes on when the creator leaves the app.
+    single { io.trimio.engine.models.SpeedTestRunner(getOrNull<io.trimio.engine.models.SpeedTest>(), get(AppScope)) }
     single { ProjectRepository(get<AppPaths>().projects?.let(::FileProjectStore) ?: MemoryProjectStore()) }
     single { SettingsRepository(get<AppPaths>().settingsFile) }
     single { StylePackRepository(get<AppPaths>().packs?.let(::FilePackStore) ?: MemoryPackStore()) }
@@ -173,7 +175,7 @@ val appModule: Module = module {
         SettingsViewModel(
             get(), get(), get(), get(), getOrNull(), get(), get(),
             engine = getOrNull(), threads = getOrNull<io.trimio.core.data.DeviceProfile>()?.threads,
-            animationBytes = animations::bytes, clearAnimations = animations::clear, speedTest = getOrNull(),
+            animationBytes = animations::bytes, clearAnimations = animations::clear, speedTest = get<io.trimio.engine.models.SpeedTestRunner>(),
             modelPicker = getOrNull<io.trimio.feature.settings.ModelFilePicker>(),
         )
     }
