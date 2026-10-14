@@ -108,6 +108,7 @@ fun CreateRoute(
             onAddTerm = viewModel::addTerm, onRemoveTerm = viewModel::removeTerm, onAttach = viewModel::attach, onDetach = viewModel::detach,
             onCaption = viewModel::setCaption, onStyle = viewModel::setStyle,
             onSpeed = { mode -> if (!viewModel.setSpeed(mode)) onModels() },
+            onEdit = viewModel::setEdit,
             onCreate = { if (state.canCreate) onProduce(state) },
         ),
     )
@@ -440,6 +441,7 @@ private fun CreateAction(state: CreateState, actions: CreateActions, modifier: M
                 container = c.emphasisSoft, content = c.emphasisSoftContent,
             )
         }
+        if (state.kind == MediaKind.Video) EditChoiceRow(state.edit, actions.onEdit)
         if (onDevice) SpeedChoice(state.speeds, state.speed, actions.onSpeed)
         SigButton(
             if (state.creating) tr("در حال آماده‌سازی…", "Preparing…") else tr("بساز", "Make it"),

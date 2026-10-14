@@ -97,6 +97,8 @@ class Compiler(
         val edit: EditPlan? = null,
         /** Where the speaker is: graphics over their footage keep off the face. */
         val subject: Subject? = null,
+        /** Who speaks when, on the source clock, when two voices or more were heard: each voice's captions get its own colour. */
+        val voices: List<Voice> = emptyList(),
     )
 
     /** A beat as placed: its slot in frame pixels ([left], [top], [right], [bottom]) and on-screen time. */
@@ -569,8 +571,8 @@ class Compiler(
         // Hesitations («اِم», "um") are never shown; the words around them keep their own times.
         // A blank word was cut or merged by the creator (the editor): it has nothing to show either.
         fun said(words: List<Word>) = words.filterNot { it.text.isBlank() || Words.isFiller(it.text) }
-        val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(said(prelude), score.captions.maxWords.coerceIn(1, 8))) +
-            Words.captionLines(said(session.transcript!!.words), score.captions.maxWords.coerceIn(1, 8))
+        val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(said(prelude), score.captions.maxWords.coerceIn(1, MAX_CAPTION_WORDS))) +
+            Words.captionLines(said(session.transcript!!.words), score.captions.maxWords.coerceIn(1, MAX_CAPTION_WORDS))
         val emphasisWords = beats.flatMap { b -> b.cue.emphasis.mapNotNull { b.cue.words.getOrNull(it) } }.map(NumberWords::normalize).toSet()
         val out = mutableListOf<Beat>()
         var skipped = 0
@@ -604,6 +606,7 @@ class Compiler(
                 text = clean(lineWords.joinToString(" ")), at = at, out = end, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = 0.5f, emphasis = setOfNotNull(strong), wordTimes = line.map { it.range.startMs / 1000f },
                 overMedia = over, rtl = lineWords.any(::isRtl), seed = i, variety = score.variety, mark = score.captions.mark,
+                speaker = speakerOf(input.voices, line),
             )
             out += Beat(CAPTION_ID_BASE + i, recipe, cue, zone, -1, end)
         }
@@ -612,6 +615,14 @@ class Compiler(
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** The voice saying most of [line] (its middle on the source clock); 0 with one voice. */
+    private fun speakerOf(voices: List<Voice>, line: List<Word>): Int {
+        if (voices.isEmpty()) return 0
+        val mid = (line.first().range.startMs + line.last().range.endMs) / 2000f
+        return voices.firstOrNull { mid >= it.from && mid < it.to }?.speaker
+            ?: voices.minByOrNull { minOf(kotlin.math.abs(it.from - mid), kotlin.math.abs(it.to - mid)) }?.speaker ?: 0
+    }
 
     private fun w(session: Session) = session.layout.width.toFloat()
 
@@ -851,6 +862,10 @@ class Compiler(
 
     companion object {
         private const val FIT_STEPS = 28
+
+        /** Words per caption line at most: a reel shows a few, long-form subtitles a sentence. */
+        private const val MAX_CAPTION_WORDS = 12
+
         /** Where a graphic rests: from this long after it lands to this long before it leaves. */
         private const val REST_ENTRANCE = 0.8f
         private const val REST_EXIT = 0.35f

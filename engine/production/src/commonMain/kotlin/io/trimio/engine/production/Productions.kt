@@ -16,6 +16,8 @@ import io.trimio.engine.autopilot.SubjectGrounding
 import io.trimio.engine.autopilot.Taste
 import io.trimio.engine.autopilot.UserAsset
 import io.trimio.engine.autopilot.explainer.ExplainerPilot
+import io.trimio.engine.autopilot.longform.LongFormKind
+import io.trimio.engine.autopilot.longform.LongFormPilot
 import io.trimio.engine.autopilot.explainer.judges.FilmJury
 import io.trimio.engine.motion.explainer.IconResolver
 import io.trimio.engine.motion.MediaSource
@@ -275,6 +277,12 @@ class Productions(
             checkpoints.save(request.key, Checkpoints.Saved(it))
         }
 
+        // Two voices or more (the speaker add-ons): each one's captions get their colour.
+        val voices = if (video) recorder.native(ADD_ONS) { addOns.voices(transcript, voice, WHISPER_RATE) } else emptyList()
+        // The video's own music (a steady beat under the voice): no music of ours on top, hits on its beat.
+        val tempo = if (video && request.edit == EditKind.Reel) recorder.native(ADD_ONS) { addOns.sourceTempo(voice) } else null
+        val brief = if (tempo != null) request.brief + "\n\nno music (the video has its own)" else request.brief
+
         // The director loads (and its eyes find the speaker) within "direct": the screen counts it as listening.
         r.at(Stage.Direct, 0f, "direct")
         val director = platform.director(request.director).let { d ->
@@ -307,11 +315,20 @@ class Productions(
             pilot.produce(
                 ExplainerPilot.Request(transcript, voice, request.brief, request.seed, understanding, FPS, others = listOfNotNull(r.previous?.production?.film?.art)),
             ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
+        } else if (video && request.edit != EditKind.Reel) {
+            // A long YouTube video: as recorded, with subtitles (and, for the pro kind, YouTube's devices) — phase 9.7.
+            val kind = if (request.edit == EditKind.YouTubePro) LongFormKind.Pro else LongFormKind.Subtitles
+            LongFormPilot(e.text, e.brands, visuals, director.model).produce(
+                LongFormPilot.Request(
+                    transcript, voice, request.brief, request.seed, kind, format = if (landscape(frames)) "16:9" else "9:16",
+                    footage = FOOTAGE, fps = FPS, subject = subject, logo = logoOf(assets)?.let { it.id to it.aspect }, voices = voices,
+                ),
+            ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
         } else {
             autopilot.produce(
                 Autopilot.Request(
-                    transcript, voice, request.brief, request.seed, footage = if (video) FOOTAGE else null, subject = subject,
-                    understanding = understanding, assets = assets, draft = saved?.draft,
+                    transcript, voice, brief, request.seed, footage = if (video) FOOTAGE else null, subject = subject,
+                    understanding = understanding, assets = assets, draft = saved?.draft, voices = voices, sourceTempo = tempo,
                 ),
             ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
         }
@@ -336,6 +353,8 @@ class Productions(
         }
         val c = production.compiled.composition
         recorder.render(RenderTime(frameCount, (clock() - renderStart) / MS, c.width, c.height))
+        // A long-form edit's subtitle files and its YouTube text go beside the video.
+        production.youtube?.let { YouTubeFiles.write(out, it, persian = transcript.words.count { w -> w.text.any { ch -> ch in '\u0600'..'\u06FF' } } * 2 > transcript.words.size) }
         // The finished edit is kept whole: it opens again after a restart (editor, exports) without whisper or the model.
         checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, production.delivery()))
         recorder.finish(RunOutcome.Done)
@@ -374,11 +393,19 @@ class Productions(
                 r.recorder.speechRuntime = recognizer.runtime
                 r.recorder.liveRuntime(null)
                 val seconds = audio.samples.size / audio.sampleRate.toFloat()
-                r.recorder.speech(SpeechTime(platform.speechModel(), seconds, (clock() - start) / MS, threads, t.words.size))
+                r.recorder.speech(SpeechTime(platform.speechModel(), seconds, (clock() - start) / MS, recognizer.runtime?.threads ?: threads, t.words.size))
             }
         } finally {
             (recognizer as? AutoCloseable)?.close()
         }
+    }
+
+    /** Whether the footage is wider than tall (its sampled frames), so a long-form edit keeps its 16:9 frame. */
+    private fun landscape(frames: List<io.trimio.engine.llm.RgbImage>): Boolean = frames.firstOrNull()?.let { it.width >= it.height } ?: true
+
+    /** The channel's logo among the attachments: a picture read as a logo, with transparency, or named so. */
+    private fun logoOf(assets: List<UserAsset>): UserAsset? = assets.firstOrNull { a ->
+        a.kind == UserAsset.Kind.Logo || (a.kind == UserAsset.Kind.Image && (a.alpha != null || listOfNotNull(a.caption, a.fileName).any { "logo" in it.lowercase() || "لوگو" in it }))
     }
 
     /** Who directed, who looked and who listened, for the technical report. */

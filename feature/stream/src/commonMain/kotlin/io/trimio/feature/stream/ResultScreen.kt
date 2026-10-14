@@ -168,6 +168,7 @@ private fun Body(result: BuildResult, actions: ResultActions) {
     Column(Modifier.padding(top = 6.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Stats(result)
         JurySummary(result)
+        result.youtube?.let { YouTubeCard(it) }
         // The run's technical report (device, engine, every stage's time, speeds), kept with the project.
         actions.onDetails?.let { SigTextButton(tr("جزئیات فنی این ساخت", "This build's technical details"), it) }
         Feedback(actions.onFeedback, enabled = !result.working)
@@ -232,6 +233,33 @@ private fun JurySummary(result: BuildResult) {
                 Text(line, style = Sig.type.meta, color = c.muted)
             }
         }
+    }
+}
+
+/**
+ * A long YouTube video's text for Studio: titles, the chapters ready for the description, thumbnail lines and the
+ * Shorts worth cutting, with one button that copies it all (the subtitle files sit beside the video for the export).
+ */
+@Composable
+private fun YouTubeCard(text: String) {
+    val c = Sig.colors
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.ink.copy(alpha = 0.04f)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("برای یوتیوب", "For YouTube"), style = Sig.type.bodyStrong, color = c.ink, modifier = Modifier.weight(1f))
+            SigChip(
+                if (copied) tr("کپی شد", "Copied") else tr("کپی همه", "Copy all"),
+                modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
+                    copied = true
+                },
+            )
+        }
+        Text(text, style = Sig.type.meta.copy(fontSize = 12.sp, lineHeight = 20.sp), color = c.muted)
     }
 }
 

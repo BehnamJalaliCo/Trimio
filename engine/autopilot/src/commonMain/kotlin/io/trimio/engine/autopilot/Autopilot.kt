@@ -66,6 +66,10 @@ class Autopilot(
         val assets: List<UserAsset> = emptyList(),
         /** A reading an earlier attempt left unfinished: it goes on from there. */
         val draft: UnderstandingDraft? = null,
+        /** Who speaks when, when two voices or more were heard (the speaker add-ons): each voice's captions get their colour. */
+        val voices: List<io.trimio.engine.motion.score.Voice> = emptyList(),
+        /** The video's own music (bpm, first beat), when it has one: no music is added and the hits land on its beat. */
+        val sourceTempo: Pair<Float, Float>? = null,
     )
 
     data class Production(
@@ -87,6 +91,8 @@ class Autopilot(
         val bench: Workbench? = null,
         /** The explainer film this production draws, for an audio-only explainer ([io.trimio.engine.autopilot.explainer.ExplainerPilot]). */
         val film: io.trimio.engine.motion.explainer.ExplainerFilm? = null,
+        /** What a long-form (YouTube) edit ships with: chapters, subtitle files, titles, Shorts ([io.trimio.engine.autopilot.longform.LongFormPilot]). */
+        val youtube: io.trimio.engine.autopilot.longform.YouTubePackage? = null,
     ) {
         /**
          * This edit laid out for [format] ("9:16", "16:9", "1:1", "4:5") at [fps]: the same score,
@@ -201,7 +207,7 @@ class Autopilot(
      * [assets] are the creator's attachments read again (under the ids the score names).
      */
     suspend fun restore(kept: Delivery, voice: PcmAudio, assets: List<UserAsset> = emptyList()): Production {
-        val request = Request(kept.transcript, voice, kept.prompt, kept.seed, kept.footage, kept.subject?.subject(), kept.understanding, kept.fps, assets)
+        val request = Request(kept.transcript, voice, kept.prompt, kept.seed, kept.footage, kept.subject?.subject(), kept.understanding, kept.fps, assets, voices = kept.voices)
         val library = if (kept.marks.isEmpty()) brands else brands.withMarks(kept.marks)
         val icons = kept.icons.map { it.icon() }
         val compiler = Compiler(text, library, visuals.withIcons(icons))
@@ -270,7 +276,11 @@ class Autopilot(
         planned.notes.forEach(log)
         // The cue is composed to this edit; the score takes its grid, so hits snap to the music's beats.
         val music = MusicEdit.arrange(planned.music, edit, output, r.lines, r.understanding)
-        val plan = planned.copy(score = MusicEdit.gridded(planned.score, music))
+        // No music of ours over the video's own: its beat is the grid the hits snap to.
+        val own = request.sourceTempo?.takeIf { music == null }
+        val base = own?.let { (bpm, first) -> planned.score.copy(bpm = bpm, beatOffset = first) } ?: planned.score
+        own?.let { (bpm, _) -> log("music: the video's own, ${round1(bpm)} bpm (none added)") }
+        val plan = planned.copy(score = MusicEdit.gridded(base, music))
         music?.let { m -> log("music: ${m.mood.id} at ${round1(m.grid.bpm.toFloat())} bpm, ${m.sections.joinToString(" ") { "${it.kind.name.lowercase()}@${round1(it.from.toFloat())}" }}") }
         // The creator's pictures and clips at their moments, the brief's sites and terms on screen.
         val placed = r.media.apply(plan.score, output, r.lines, seed, log)
@@ -433,7 +443,7 @@ class Autopilot(
         compiler.compile(input(score, transcript, edit, request)).also(onCompiled)
 
     private fun input(score: Score, transcript: Transcript, edit: EditPlan, request: Request) =
-        Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject)
+        Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices)
 
     private companion object {
         const val CRITIC_PASSES = 2

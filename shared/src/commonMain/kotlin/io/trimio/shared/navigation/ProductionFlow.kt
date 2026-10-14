@@ -68,6 +68,11 @@ object ProductionUi {
         seed = seed,
         // The chosen speed's installed director; without one the engine picks (the settings' choice or what fits).
         director = s.speedModel?.let { io.trimio.engine.production.DirectorChoice.Local(it) } ?: io.trimio.engine.production.DirectorChoice.Auto,
+        edit = when (s.edit) {
+            io.trimio.feature.create.EditChoice.Reel -> io.trimio.engine.production.EditKind.Reel
+            io.trimio.feature.create.EditChoice.YouTube -> io.trimio.engine.production.EditKind.YouTube
+            io.trimio.feature.create.EditChoice.YouTubePro -> io.trimio.engine.production.EditKind.YouTubePro
+        },
     )
 
     fun styleName(id: String?, persian: Boolean): String? = ProductionStyles.of(id)?.let { if (persian) it.nameFa else it.nameEn }
@@ -95,6 +100,7 @@ object ProductionUi {
             version = record.version,
             saved = saved,
             edited = record.overrides != null,
+            youtube = project.outputUri?.let(io.trimio.engine.production.YouTubeFiles::summary),
         )
     }
 

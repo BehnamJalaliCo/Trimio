@@ -114,6 +114,13 @@ fun desktopPlatformModule(
             perception = { directors().perception() },
         )
     }
+    // «سنجش سرعت این دستگاه»: the director and speech model timed every way this device runs them; the best is kept.
+    single<io.trimio.engine.models.SpeedTest> {
+        val settings = get<SettingsRepository>()
+        val models = get<ModelManager>()
+        val store = ModelStore(get<AppPaths>().models, get())
+        LocalDirectors(store, hardware.memory, DesktopDirectors.catalogFor(hardware.ramGb, models.catalog), preferred = { settings.settings.value.localModelId }).speedTest { settings.settings.value.speechModelId }
+    }
     single<AutoEditor> {
         Productions(get(), get(), WebKnowledge.cached(get(), File(dirs.cache, "web").absolutePath), threads = { get<DeviceProfile>().threads }, app = "Trimio $appVersion · ${platformName(os)}")
     }

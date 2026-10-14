@@ -27,12 +27,16 @@ class LocalModels(
     fun installed(): List<ModelSpec> =
         catalog.filter { it.kind == ModelKind.Language && DeviceFit.of(it, device, ::byId).runnable && store.isInstalled(it) }
 
-    fun best(preferredId: String? = null): LanguageModel? {
+    /** The director a build runs: the user's pick when it fits, else the largest that fits comfortably, else the smallest. */
+    fun bestSpec(preferredId: String? = null): ModelSpec? {
         val candidates = installed()
-        val spec = candidates.firstOrNull { it.id == preferredId }
+        return candidates.firstOrNull { it.id == preferredId }
             ?: candidates.filter { DeviceFit.of(it, device, ::byId).comfortable }.maxByOrNull { it.sizeBytes }
             ?: candidates.filterNot { it.experimental }.minByOrNull { it.sizeBytes }
-            ?: return null
+    }
+
+    fun best(preferredId: String? = null): LanguageModel? {
+        val spec = bestSpec(preferredId) ?: return null
         val profile = DirectorProfile.of(spec)
         // A multimodal director loads its own projector: one model directs and looks.
         val eyes = ModelCatalog.visionFor(spec).singleOrNull()?.takeIf { store.isInstalled(it) }

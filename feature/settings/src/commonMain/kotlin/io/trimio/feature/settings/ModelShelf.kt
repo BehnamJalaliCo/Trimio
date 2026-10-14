@@ -198,4 +198,8 @@ data class ModelActions(
     val onUse: (String) -> Unit = {},
     /** Downloads several models at once (the one-tap «پیشنهاد برای این دستگاه»). */
     val onDownloadAll: (List<String>) -> Unit = { ids -> ids.forEach(onDownload) },
+    /** «سنجش سرعت این دستگاه»; null hides it (no models run here). */
+    val onSpeedTest: (() -> Unit)? = null,
+    /** The speed test's rows and state. */
+    val speed: SpeedUi = SpeedUi(),
 )

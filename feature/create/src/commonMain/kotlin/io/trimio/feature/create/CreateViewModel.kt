@@ -51,6 +51,8 @@ data class CreateState(
     /** «سریع / متعادل / حرفه‌ای» on this device: the installed director each one runs. */
     val speeds: SpeedPlan = SpeedPlan.None,
     val speed: SpeedMode = speeds.default,
+    /** For a video: a reel, or a long YouTube video (subtitles only, or with YouTube's devices). */
+    val edit: EditChoice = EditChoice.Reel,
 ) {
     /** The on-device director the chosen speed runs (null: none installed, the engine decides). */
     val speedModel: String? get() = speeds.of(speed).model?.id
@@ -113,6 +115,8 @@ class CreateViewModel(
         _state.update { it.copy(speed = mode) }
         return true
     }
+
+    fun setEdit(choice: EditChoice) = _state.update { it.copy(edit = choice) }
 
     fun setPrompt(text: String) = _state.update { it.copy(prompt = text, brief = BriefParser.parse(text)) }
 

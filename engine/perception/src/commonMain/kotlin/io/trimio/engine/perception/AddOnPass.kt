@@ -5,7 +5,9 @@ import io.trimio.core.model.text.Language
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.models.MediaAddOns
 import io.trimio.engine.perception.align.ForcedAligner
+import io.trimio.engine.perception.beats.BeatFinder
 import io.trimio.engine.perception.face.FaceZoneFinder
+import io.trimio.engine.perception.speakers.Diarizer
 import io.trimio.engine.perception.text.Marks
 import io.trimio.engine.perception.text.Punctuator
 import kotlin.coroutines.cancellation.CancellationException
@@ -60,6 +62,29 @@ class AddOnPass(private val perception: Perception) {
         return out
     }
 
+    /**
+     * Who speaks when (turns numbered 0, 1, … in order of first speaking), when the speaker add-ons are installed
+     * and hear two voices or more over [words]; null for one voice or without the add-ons (nothing then changes).
+     * [audio16k]: 16 kHz mono.
+     */
+    suspend fun speakers(words: List<Word>, audio16k: PcmAudio): List<io.trimio.engine.perception.speakers.Turn>? {
+        if (words.isEmpty() || !perception.has(MediaAddOns.speakerTurns, MediaAddOns.speakerVoices)) return null
+        return timed("speakers") {
+            val d = Diarizer(perception).diarize(audio16k, maxSpeakers = MAX_SPEAKERS)
+            if (!d.measured || d.speakers < 2) return@timed null
+            // Only voices that say words count (a cough is no speaker); numbered in order of first speaking.
+            val order = d.speakersOf(words).distinct()
+            if (order.size < 2) return@timed null
+            d.turns.filter { it.speaker in order }.map { it.copy(speaker = order.indexOf(it.speaker)) }
+        }
+    }
+
+    /** The beats Beat This! hears in [audio] (seconds), when its add-on is installed; null otherwise or when it found none. */
+    suspend fun beats(audio: PcmAudio): List<Double>? {
+        if (!perception.has(MediaAddOns.beats, MediaAddOns.beatsFrontend)) return null
+        return timed("beats") { BeatFinder(perception).beats(audio).takeIf { it.measured && it.beats.isNotEmpty() }?.beats }
+    }
+
     private suspend fun punctuate(words: List<Word>, language: Language): List<Word>? {
         val p = Punctuator(perception).punctuate(words, language)
         if (!p.measured || p.words.size != words.size) return null
@@ -87,6 +112,7 @@ class AddOnPass(private val perception: Perception) {
 
     private companion object {
         const val HAIR = 0.35f
+        const val MAX_SPEAKERS = 4
         const val MAX_REASON = 120
     }
 }

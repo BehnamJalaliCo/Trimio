@@ -216,3 +216,7 @@ data class Subject(val left: Float, val top: Float, val right: Float, val bottom
         const val SCALP = 0.25f
     }
 }
+
+/** One voice's stretch of speech on the source clock ([speaker] 0, 1, … in order of first speaking). */
+@kotlinx.serialization.Serializable
+data class Voice(val from: Float, val to: Float, val speaker: Int)

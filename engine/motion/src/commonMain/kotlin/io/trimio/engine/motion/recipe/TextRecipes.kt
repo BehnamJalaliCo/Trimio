@@ -119,6 +119,9 @@ internal object Craft {
         return out
     }
 
+    /** A spoken caption's colour: the look's ink for the first voice, its accent for the second (and so on, alternating). */
+    fun voice(cue: Cue, look: Look): Color = if (cue.speaker % 2 == 1) look.accent else look.ink
+
     fun text(
         cue: Cue, type: TypeSpec, fill: Color, look: Look,
         animators: List<TextAnimator>, decorations: List<Decoration> = emptyList(), maxWidth: Float = cue.width, name: String,
@@ -212,7 +215,23 @@ object TextRecipes {
             val pop = TextAnimator(TextUnit.Word, UnitState(dy = 0.22f, scale = 0.55f, opacity = 0f), at = cue.at, duration = 0.34f, ease = Easing.Spring(0.5f, 2.6f), times = starts)
             val speak = TextAnimator(TextUnit.Word, UnitState(scale = 1.08f), at = cue.at, duration = 0.26f, ease = Easing.Linear, shape = Shape.Pulse, times = starts.map { it + 0.08f })
             val exit = TextAnimator(TextUnit.All, UnitState(dy = -0.12f, opacity = 0f), at = cue.out - 0.14f, duration = 0.14f, ease = Easing.Exit, shape = Shape.Out)
-            val node = Craft.text(cue, f.type, look.ink, look, listOf(pop, speak, exit), Craft.marks(cue, look, starts, 0.12f), name = name)
+            val node = Craft.text(cue, f.type, Craft.voice(cue, look), look, listOf(pop, speak, exit), Craft.marks(cue, look, starts, 0.12f), name = name)
+            return Built(listOf(node))
+        }
+    }
+
+    /**
+     * Long-form subtitles (YouTube): a sentence at a time on at most two lines, at reading size, fading in and out;
+     * nothing pops, nothing moves the camera, no sound. Made to be read for an hour, not to perform; the word being
+     * said is not marked (a long video's viewer reads ahead).
+     */
+    val Subtitles = object : Recipe("subtitles", Kind.Text) {
+        override val preferredHeight = 0.13f
+        override fun build(cue: Cue, look: Look, fit: Fitter): Built {
+            val f = fit.fit(cue.text, look.caption, minOf(cue.height * 0.4f, 58f), cue.width * 0.92f, cue.height, maxLines = 2)
+            val fadeIn = TextAnimator(TextUnit.All, UnitState(opacity = 0f), at = cue.at - 0.06f, duration = 0.12f, ease = Easing.SineInOut)
+            val fadeOut = TextAnimator(TextUnit.All, UnitState(opacity = 0f), at = cue.out - 0.12f, duration = 0.12f, ease = Easing.SineInOut, shape = Shape.Out)
+            val node = Craft.text(cue.copy(emphasis = emptySet()), f.type, Craft.voice(cue, look), look, listOf(fadeIn, fadeOut), name = name)
             return Built(listOf(node))
         }
     }
@@ -358,5 +377,5 @@ object TextRecipes {
 
     private const val MAX_STACK = 3
 
-    val all: List<Recipe> = listOf(MaskRise, Slam, PopCaptions, TypeOn, BlurIn, Flip, Spread, Stack, Glitch)
+    val all: List<Recipe> = listOf(MaskRise, Slam, PopCaptions, Subtitles, TypeOn, BlurIn, Flip, Spread, Stack, Glitch)
 }

@@ -118,6 +118,8 @@ data class BuildResult(
     val working: Boolean = false,
     /** This version carries the creator's own changes from the editor. */
     val edited: Boolean = false,
+    /** A long YouTube video's text for Studio (titles, the chapters, thumbnail lines, Shorts); null for a reel. */
+    val youtube: String? = null,
 )
 
 /** An honest failure: what went wrong, at which stage, and what the creator can do. */

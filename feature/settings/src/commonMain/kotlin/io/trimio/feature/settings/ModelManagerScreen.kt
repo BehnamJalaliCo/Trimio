@@ -73,6 +73,7 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val hardware = HardwareLine(
         engine?.gpu, engine?.backend, engine?.gpuLayers, engine?.totalLayers, engine?.threads ?: viewModel.threads, measured = engine != null,
     )
+    val speed by viewModel.speed.collectAsStateWithLifecycle()
     val ui = ModelShelf.build(
         viewModel.models.catalog, states, DeviceMemory(device.ramGb, desktop), settings.localModelId, settings.speechModelId,
         hardware = hardware, speeds = engine?.speeds.orEmpty(),
@@ -91,6 +92,8 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 onUpdate = { id -> asked = listOfNotNull((states[id] as? ModelState.UpdateAvailable)?.to) },
                 onUse = { id -> viewModel.update { it.copy(localModelId = id) } },
                 onDownloadAll = { ids -> asked = ids.mapNotNull { byId[it] } },
+                onSpeedTest = if (viewModel.canTestSpeed) viewModel::testSpeed else null,
+                speed = speed,
             ),
         )
         if (asked.isNotEmpty()) {
@@ -167,6 +170,7 @@ private fun Header(ui: ModelsUi, actions: ModelActions) {
         SigHeroTitle(tr("مدل‌ها", "Models"))
         Storage(ui)
         ui.hardware?.let { Hardware(it) }
+        actions.onSpeedTest?.let { SpeedTestPanel(actions.speed, it) }
         Recommended(ui, actions)
         if (ui.directors.none { it.installed }) {
             Text(
@@ -230,6 +234,40 @@ private fun Hardware(line: HardwareLine) {
             // The device's own name stays as written (digits included); the numbers after it are the reader's.
             Text(device, style = Sig.type.meta.copy(fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight(600)), color = c.ink)
             Text(localizedNumber(detail), style = Sig.type.meta.copy(fontSize = 11.5.sp, lineHeight = 18.sp), color = c.muted)
+        }
+    }
+}
+
+/**
+ * «سنجش سرعت این دستگاه»: one button, then a row per measurement as it comes (the director on 1, half and all the
+ * cores and the GPU, the memory, Whisper), the chosen way marked; builds use the chosen ways from now on.
+ */
+@Composable
+private fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
+    val c = Sig.colors
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SigSecondaryButton(
+            when {
+                speed.running -> tr("در حال سنجش… (حدود ۱ تا ۳ دقیقه)", "Measuring… (about 1–3 min)")
+                speed.done -> tr("سنجش دوباره", "Measure again")
+                else -> tr("سنجش سرعت این دستگاه", "Speed-test this device")
+            },
+            onRun, Modifier.fillMaxWidth(),
+        )
+        speed.rows.forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    row.label, style = Sig.type.meta.copy(fontSize = 12.sp, fontWeight = FontWeight(if (row.best) 800 else 600)),
+                    color = if (row.best) c.action else c.ink, modifier = Modifier.weight(0.42f),
+                )
+                Text(row.value, style = Sig.type.meta.copy(fontSize = 11.5.sp), color = if (row.best) c.ink else c.muted, modifier = Modifier.weight(0.58f))
+            }
+        }
+        if (speed.done) {
+            Text(
+                tr("بهترین حالت برای ساخت‌های بعدی ذخیره شد.", "The fastest way is kept for the next builds."),
+                style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted,
+            )
         }
     }
 }

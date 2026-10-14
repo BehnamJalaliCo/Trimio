@@ -91,6 +91,8 @@ data class Cue(
      * finishing touch in its signature form, any other value lets them vary ([Variety.touch]).
      */
     val variety: Int = 0,
+    /** Who says it, for spoken captions (0, 1, … when two voices or more were heard): each voice gets its colour. */
+    val speaker: Int = 0,
 ) {
     val duration: Float get() = out - at
     val words: List<String> get() = text.split(' ').filter { it.isNotEmpty() }
@@ -148,7 +150,7 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
     val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all +
-        UiRecipes.all + MediaRecipes.all + Families.all + io.trimio.engine.motion.art.AnimatedRecipes.all
+        UiRecipes.all + MediaRecipes.all + YouTubeRecipes.all + Families.all + io.trimio.engine.motion.art.AnimatedRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",

@@ -53,6 +53,12 @@ class LocalDirectors(
         return local.installed().filter { it.sizeBytes < size }.maxByOrNull { it.sizeBytes }?.let { DirectorChoice.Local(it.id) } ?: DirectorChoice.Rules
     }
 
+    /** «سنجش سرعت این دستگاه»: the director a build would run and the speech model, timed every way this device runs them. */
+    fun speedTest(preferredSpeech: () -> String? = { null }): io.trimio.engine.models.SpeedTest = DeviceSpeedTest(
+        director = { local.bestSpec(preferred())?.let { store.pathOf(it).toString() } },
+        speech = { speechSpec(preferredSpeech)?.let { store.pathOf(it).toString() } },
+    )
+
     /** The speech model [recognizer] resolves to now (its catalogue id), for the technical report. */
     fun speechModel(preferredSpeech: () -> String? = { null }): String? = speechSpec(preferredSpeech)?.id
 

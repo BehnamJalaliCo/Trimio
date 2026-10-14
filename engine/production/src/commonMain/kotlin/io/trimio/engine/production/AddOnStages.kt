@@ -38,6 +38,19 @@ internal suspend fun AddOnPass?.refined(transcript: Transcript, voice: PcmAudio,
     }
 }
 
+/** Who speaks when (two voices or more, with the speaker add-ons installed), as the compiler takes it; empty otherwise. */
+internal suspend fun AddOnPass?.voices(transcript: Transcript, voice: PcmAudio, rate: Int): List<io.trimio.engine.motion.score.Voice> {
+    if (this == null || transcript.words.isEmpty()) return emptyList()
+    val audio = if (voice.sampleRate == rate) voice else Resampler().resample(voice, rate)
+    return speakers(transcript.words, audio).orEmpty().map { io.trimio.engine.motion.score.Voice(it.start, it.end, it.speaker) }
+}
+
+/** The video's own music as (bpm, first beat), when the beat add-on hears a steady one under the voice; null otherwise. */
+internal suspend fun AddOnPass?.sourceTempo(voice: PcmAudio): Pair<Float, Float>? {
+    if (this == null) return null
+    return beats(voice)?.let { SourceMusic.tempo(it, voice.samples.size / voice.sampleRate.toFloat()) }
+}
+
 /** Which add-ons ran and how long each took, for the technical report. */
 internal fun AddOnPass?.facts(): List<Fact> = this?.report.orEmpty().map { Fact("add-on", it) }
 

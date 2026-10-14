@@ -57,6 +57,8 @@ data class Delivery(
     /** The jury's verdicts on the delivered edit (null when no jury sat). */
     val panel: List<Verdict>? = null,
     val report: List<String> = emptyList(),
+    /** Who spoke when, when two voices or more were heard: their captions keep their colours after a reopen. */
+    val voices: List<io.trimio.engine.motion.score.Voice> = emptyList(),
 ) {
     /** The speaker's place as fractions of the frame. */
     @Serializable
@@ -171,7 +173,7 @@ data class Delivery(
                 transcript = bench.transcript, lines = bench.lines, pauses = bench.pauses.map { Gap(it.start, it.endInclusive) },
                 understanding = p.understanding, score = p.score, planned = p.plan.score, music = p.plan.music?.id,
                 choices = p.plan.choices, notes = p.plan.notes, cut = Cut.of(p.edit), levels = bench.levels,
-                marks = bench.marks, icons = bench.icons.map(Icon::of), panel = p.panel?.verdicts, report = p.report,
+                marks = bench.marks, icons = bench.icons.map(Icon::of), panel = p.panel?.verdicts, report = p.report, voices = r.voices,
             )
         }
     }

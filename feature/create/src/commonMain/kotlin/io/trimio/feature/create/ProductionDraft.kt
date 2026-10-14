@@ -91,5 +91,7 @@ data class CreateActions(
     val onStyle: (String?) -> Unit = {},
     /** A speed (fast, balanced, pro); one whose model is not installed opens the models screen. */
     val onSpeed: (io.trimio.engine.models.SpeedMode) -> Unit = {},
+    /** Reel or a long YouTube video (videos only). */
+    val onEdit: (EditChoice) -> Unit = {},
     val onCreate: () -> Unit = {},
 )

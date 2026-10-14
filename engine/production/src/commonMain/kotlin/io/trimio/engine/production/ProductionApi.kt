@@ -85,6 +85,8 @@ data class ProductionRequest(
     val output: String? = null,
     /** A stable id for checkpoints and notifications; null derives one from the media and seed. */
     val id: String? = null,
+    /** What kind of edit a video gets: a reel (the default), or a long YouTube video with subtitles only or with its devices. */
+    val edit: EditKind = EditKind.Reel,
 ) {
     /** The brief the engine reads: the prompt, the glossary, and the asked style by name. */
     val brief: String
@@ -96,6 +98,19 @@ data class ProductionRequest(
 
     /** The checkpoint and notification key. */
     val key: String get() = id ?: "p" + (media.hashCode().toLong() and 0xFFFFFFFFL).toString(16) + "-" + seed
+}
+
+/** The kind of edit a video gets (the create screen's choice; audio always becomes an explainer film). */
+@Serializable
+enum class EditKind {
+    /** A short, fully directed edit: cuts, graphics, music, the jury. */
+    Reel,
+
+    /** A long video as recorded, with accurate subtitles only (and the subtitle files, chapters, titles). */
+    YouTube,
+
+    /** A long video with subtitles plus YouTube's devices: watermark, subscribe ask, chapter cards, slow push-ins. */
+    YouTubePro,
 }
 
 /** Where a run is. [Stage.weight] is its share of the bar. */

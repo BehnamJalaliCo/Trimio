@@ -50,6 +50,8 @@ class WhisperCppRecognizer(
         val started = System.nanoTime()
         val ctx = ensureLoaded()
         val beam = beam()
+        // The speed test's fastest count for this model on this device, when it has run.
+        val threads = SpeechThreads.cached(modelPath) ?: options.threads
         val fallback = options.language ?: Language.Persian
         val callerJob = coroutineContext.job
         val tokens = ArrayList<RecognizedToken>()
@@ -62,7 +64,7 @@ class WhisperCppRecognizer(
             }
             val rc = withContext(Dispatchers.Default) {
                 WhisperNative.transcribe(
-                    ctx, audio.samples, options.language?.code.orEmpty(), options.initialPrompt, options.threads, beam,
+                    ctx, audio.samples, options.language?.code.orEmpty(), options.initialPrompt, threads, beam,
                     object : WhisperCallback {
                         override fun onProgress(percent: Int) = onProgress(percent / 100f)
 
@@ -84,7 +86,7 @@ class WhisperCppRecognizer(
         }
 
         val seconds = (System.nanoTime() - started) / NANOS
-        runtime = runtimeOf(options.threads, beam, audio.samples.size / audio.sampleRate.toFloat(), seconds).also { System.err.println("trimio " + it.summary()) }
+        runtime = runtimeOf(threads, beam, audio.samples.size / audio.sampleRate.toFloat(), seconds).also { System.err.println("trimio " + it.summary()) }
         val detected = Language.fromCode(WhisperNative.detectedLanguage(ctx)) ?: fallback
         // Re-assemble across segment boundaries so affixes split between segments still join.
         Transcript(detected, WordAssembler.assemble(tokens, detected)).also { onProgress(1f) }

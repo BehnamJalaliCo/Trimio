@@ -35,9 +35,29 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   a killed run resumes (Checkpoints.Saved.draft → Autopilot.Request.draft). Test: UnderstandingDraftTest.
 - Chunking left as is (GROUP 3, 8 min budget): the time went into speed, not the number of calls.
 
+### Done in code after that (not yet compiled — compile and test first!)
+
+- Memory gate: no GPU load without model size + 2 GB `MemAvailable` (cached GPU choices too).
+- `LlamaProbe` (engine/llm): one timing (threads, GPU layers, MTP draft); `Placement.Choice` keeps threads and draft.
+- Speed test: `engine/models/SpeedTest` (+`SpeedRow`), `engine/production/DeviceSpeedTest` (memory copy speed, director
+  at 1/half/fast-1/fast cores + GPU + MTP, Whisper at fast-1/fast; best kept in `<model>.placement` and
+  `<whisper>.threads` via `SpeechThreads`), `LocalDirectors.speedTest`, DI on Android and desktop, settings button and
+  rows (`SettingsViewModel.testSpeed`, `SpeedTestPanel` in ModelManagerScreen).
+- YouTube (9.7): `EditKind` in ProductionRequest; create screen `EditChoiceRow` (ریلز / یوتیوب / یوتیوب حرفه‌ای);
+  `longform/` in autopilot: `YouTubeChapters`, `SubtitleFiles` (SRT/VTT), `ShortPicker`, `LongFormPilot` (no cuts,
+  subtitles recipe, pro: watermark from the logo attachment, one subscribe after the first minute, chapter cards,
+  push-ins every ~30 s, end screen 20 s kept clear; director titles chapters + 3 titles/thumbnail lines); motion recipes
+  `subtitles` (TextRecipes) and `YouTubeRecipes` (subscribe, watermark, chapter); caption words cap 8 → 12;
+  `YouTubeFiles` writes `<out>.srt/.vtt/.youtube.txt`; result screen «برای یوتیوب» card with copy; project delete
+  removes them. Test: `longform/LongFormTest`.
+- 9.3: speakers — `AddOnPass.speakers` (pyannote + CAM++ add-ons) → `Voice` turns → `Compiler.Input.voices` → caption
+  colour per voice (`Craft.voice`, `Cue.speaker`); kept in `Delivery.voices`. Beats — `AddOnPass.beats` (Beat This!) →
+  `SourceMusic.tempo` (steady 50–200 bpm over 60 % of the video) → reel brief gets "no music", score bpm = the video's own.
+- Live percent fix (115 sp, 3-digit fit, one line).
+
 ## Next steps
 
-1. Compile + tests for the above (llm, autopilot, production, shared), detekt.
-2. Commit, push `[skip ci]`; CI run on a non-skip push later checks Android assembly with KleidiAI.
-3. Whisper: q5_0 gets no fast kernels; candidates large-v3 q8_0 (self-quantized, hosted) — decide.
-4. Then 9.7 YouTube (research first), 9.3, 9.6, 9.1, 9.2.
+1. Compile everything (`compileKotlinJvm`, `compileKotlinWasmJs`, Android `compileDebugKotlin`), fix, detekt.
+2. Tests: llm PlacementTest, autopilot UnderstandingDraftTest + longform, production DiagnosticsTest, motion (recipes
+   list grew — gallery/golden tests), screenshot tests for create/stream/settings.
+3. Remaining: ORT slim (assess), 9B music-mood fixer, image/audio matching, 9.1 explainer, 9.2 SDXS, real-video runs.

@@ -40,7 +40,28 @@ class SettingsViewModel(
     private val animationBytes: () -> Long = { 0L },
     /** «پاک کردن کش انیمیشن‌ها». */
     private val clearAnimations: suspend () -> Unit = {},
+    /** «سنجش سرعت این دستگاه»; null where models do not run (the web). */
+    private val speedTest: io.trimio.engine.models.SpeedTest? = null,
 ) : ViewModel() {
+    private val _speed = MutableStateFlow(SpeedUi())
+
+    /** The speed test's rows as they come, and whether it is running. */
+    val speed: StateFlow<SpeedUi> = _speed.asStateFlow()
+
+    val canTestSpeed: Boolean get() = speedTest != null
+
+    /** Runs the speed test once (a second tap while it runs does nothing); the best ways are kept for the builds. */
+    fun testSpeed() {
+        val test = speedTest ?: return
+        if (_speed.value.running) return
+        _speed.value = SpeedUi(running = true)
+        viewModelScope.launch {
+            runCatching { test.run { row -> _speed.update { it.copy(rows = it.rows + row) } } }
+                .onFailure { e -> _speed.update { it.copy(rows = it.rows + io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Note, "خطا", e.message ?: "")) } }
+            _speed.update { it.copy(running = false, done = true) }
+        }
+    }
+
     private val _animations = MutableStateFlow<Long?>(null)
 
     /** The animations folder's size (null until measured). */
@@ -127,3 +148,6 @@ class SettingsViewModel(
 
 /** What the store offers: [product] is null when the store cannot be reached. */
 data class ProOffer(val product: StoreProduct?, val owned: Boolean, val busy: Boolean = false, val result: PurchaseResult? = null)
+
+/** The speed test on the models screen: its rows so far, running, finished. */
+data class SpeedUi(val rows: List<io.trimio.engine.models.SpeedRow> = emptyList(), val running: Boolean = false, val done: Boolean = false)

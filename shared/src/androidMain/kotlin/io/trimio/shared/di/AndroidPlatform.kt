@@ -112,6 +112,13 @@ fun androidPlatformModule(
             perception = { directors().perception() },
         )
     }
+    // «سنجش سرعت این دستگاه»: the director and speech model timed every way this device runs them; the best is kept.
+    single<io.trimio.engine.models.SpeedTest> {
+        val settings = get<SettingsRepository>()
+        val models = get<ModelManager>()
+        val store = ModelStore(get<AppPaths>().models, get())
+        LocalDirectors(store, DeviceMemory.phone(get<DeviceInfo>().ramGb), models.catalog, preferred = { settings.settings.value.localModelId }).speedTest { settings.settings.value.speechModelId }
+    }
     single<AutoEditor> {
         val info = get<DeviceInfo>()
         Productions(
