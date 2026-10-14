@@ -33,11 +33,13 @@ class SpeedTestService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val runner = runner?.invoke()
+        // «توقف» in the notification: the test ends there.
+        if (intent?.action == ACTION_STOP) runner?.cancel()
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "سنجش سرعت", NotificationManager.IMPORTANCE_LOW))
         val type = if (Build.VERSION.SDK_INT >= ANDROID_15) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         // Foreground first, always: a service started for the foreground that stops before it is ends the app.
-        startForeground(NOTIFICATION_ID, notification(runner?.state?.value?.progress ?: 0f), type)
+        startForeground(NOTIFICATION_ID, notification(runner?.state?.value ?: SpeedTestRunner.State()), type)
         if (runner == null || !runner.state.value.running) return stop()
         if (awake?.isHeld != true) {
             awake = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Trimio:speed-test")
@@ -46,12 +48,20 @@ class SpeedTestService : Service() {
         scope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.cancel() }
         scope.launch {
             launch {
-                runner.state.distinctUntilChangedBy { (it.progress * PERCENT).toInt() }.collect { s ->
-                    if (s.running) manager.notify(NOTIFICATION_ID, notification(s.progress))
+                runner.state.distinctUntilChangedBy { (it.progress * PERCENT).toInt() to it.rows.size }.collect { s ->
+                    if (s.running) manager.notify(NOTIFICATION_ID, notification(s))
                 }
             }
-            runner.state.first { !it.running }
+            val end = runner.state.first { !it.running }
             stop()
+            // Finished (not stopped): what every build will run with now.
+            if (end.done) {
+                val chosen = end.rows.filter { it.best }.joinToString("\n") { "${it.label}: ${it.value}" }.ifBlank { null }
+                manager.notify(
+                    ProgressNotice.DONE_ID,
+                    ProgressNotice.done(this@SpeedTestService, "سنجش سرعت", "بهترین تنظیم پیدا و ذخیره شد", chosen, ProgressNotice.open(this@SpeedTestService)),
+                )
+            }
         }
         return START_NOT_STICKY
     }
@@ -63,23 +73,12 @@ class SpeedTestService : Service() {
         super.onTaskRemoved(rootIntent)
     }
 
-    private fun notification(progress: Float): Notification {
-        val percent = (progress * PERCENT).toInt()
-        val builder = Notification.Builder(this, CHANNEL)
-            .setSmallIcon(ProductionService.icon)
-            .setContentTitle("سنجش سرعت این دستگاه")
-            .setContentText("$percent٪")
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_PROGRESS)
-            .setProgress(PERCENT, percent, false)
-        ProductionService.opens?.let { activity ->
-            builder.setContentIntent(
-                PendingIntent.getActivity(this, 0, Intent(this, activity).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE),
-            )
-        }
-        return builder.build()
-    }
+    /** The test's notice: its percentage, the clock, the last way measured, and a stop button. */
+    private fun notification(s: SpeedTestRunner.State): Notification = ProgressNotice.build(
+        this, CHANNEL, work = "سنجش سرعت", title = "سنجش سرعت این دستگاه", detail = s.rows.lastOrNull()?.let { "${it.label}: ${it.value}" },
+        progress = s.progress, parts = ProgressNotice.single, startedAt = startedAt, open = ProgressNotice.open(this),
+        stop = PendingIntent.getService(this, 2, Intent(this, SpeedTestService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE),
+    )
 
     private fun stop(): Int {
         awake?.takeIf { it.isHeld }?.release()
@@ -102,6 +101,11 @@ class SpeedTestService : Service() {
         private const val PERCENT = 100
         private const val AWAKE_MS = 60 * 60 * 1000L
 
+        private const val ACTION_STOP = "io.trimio.speed.STOP"
+
+        /** When the test began (the notification's clock counts from it). */
+        private var startedAt = System.currentTimeMillis()
+
         /** The app's speed test (set at start-up). */
         @Volatile var runner: (() -> SpeedTestRunner)? = null
 
@@ -110,7 +114,10 @@ class SpeedTestService : Service() {
             val app = context.applicationContext
             scope.launch {
                 runner.state.distinctUntilChangedBy { it.running }.collect { s ->
-                    if (s.running) app.startForegroundService(Intent(app, SpeedTestService::class.java))
+                    if (s.running) {
+                        startedAt = System.currentTimeMillis()
+                        app.startForegroundService(Intent(app, SpeedTestService::class.java))
+                    }
                 }
             }
         }

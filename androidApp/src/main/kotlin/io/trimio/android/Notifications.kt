@@ -55,14 +55,13 @@ object Notifications {
         context.getSystemService(NotificationManager::class.java).notify(MODEL_UPDATES_ID, notification)
     }
 
-    fun download(context: Context, title: String, fraction: Float?): Notification =
-        Notification.Builder(context, DOWNLOAD_CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_trimio)
-            .setContentTitle(title)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_PROGRESS)
-            .setContentIntent(openApp(context))
-            .setProgress(100, ((fraction ?: 0f) * 100).toInt(), fraction == null)
-            .build()
+    /** Model and library downloads, in the same design as the build's and the speed test's notices. */
+    fun download(context: Context, title: String, fraction: Float?, detail: String? = null): Notification =
+        io.trimio.engine.production.ProgressNotice.build(
+            context, DOWNLOAD_CHANNEL, work = context.getString(R.string.channel_downloads), title = title, detail = detail,
+            progress = fraction, parts = io.trimio.engine.production.ProgressNotice.single, startedAt = downloadsStarted, open = openApp(context),
+        )
+
+    /** When the downloads began (the notification's clock counts from it). */
+    var downloadsStarted = System.currentTimeMillis()
 }

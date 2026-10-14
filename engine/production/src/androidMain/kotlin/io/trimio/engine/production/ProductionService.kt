@@ -38,6 +38,8 @@ class ProductionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val runner = runner?.invoke()
+        // «توقف» in the notification: the run ends there, as the screen's stop does.
+        if (intent?.action == ACTION_STOP) runner?.cancel()
         // A null intent is the system restarting a killed run.
         if (intent == null && runner != null && runner.active.value?.finished != false) runner.resume()
         val current = runner?.active?.value?.takeIf { !it.finished }
@@ -52,13 +54,14 @@ class ProductionService : Service() {
         scope.launch {
             val manager = getSystemService(NotificationManager::class.java)
             launch {
-                runner.active.distinctUntilChangedBy { s -> s?.let { it.stage to (it.progress * PERCENT).toInt() } }.collect { s ->
+                runner.active.distinctUntilChangedBy { s -> s?.let { Triple(it.stage, (it.progress * PERCENT).toInt(), it.step.substringBefore(' ')) } }.collect { s ->
                     if (s != null && !s.finished) manager.notify(NOTIFICATION_ID, notification(this@ProductionService, s))
                 }
             }
-            // Done, failed or cancelled: release the foreground slot.
-            runner.active.first { it == null || it.finished }
+            // Done, failed or cancelled: release the foreground slot; the creator hears how it ended.
+            val end = runner.active.first { it == null || it.finished }
             stop()
+            end?.let { finished(this@ProductionService, it) }?.let { manager.notify(ProgressNotice.DONE_ID, it) }
         }
         return START_STICKY
     }
@@ -129,34 +132,56 @@ class ProductionService : Service() {
             val app = context.applicationContext
             scope.launch {
                 runner.active.distinctUntilChangedBy { it?.key to (it?.finished ?: true) }.collect { s ->
-                    if (s != null && !s.finished) app.startForegroundService(Intent(app, ProductionService::class.java).setAction(ACTION_RUN))
+                    if (s != null && !s.finished) {
+                        startedAt = System.currentTimeMillis()
+                        app.startForegroundService(Intent(app, ProductionService::class.java).setAction(ACTION_RUN))
+                    }
                 }
             }
         }
 
         private const val ACTION_RUN = "io.trimio.production.RUN"
+        private const val ACTION_STOP = "io.trimio.production.STOP"
 
         private fun channel(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "ساخت ویدیو", NotificationManager.IMPORTANCE_LOW))
         }
 
-        fun notification(context: Context, s: ProductionState): Notification {
-            val percent = (s.progress * PERCENT).toInt()
-            val builder = Notification.Builder(context, CHANNEL)
-                .setSmallIcon(icon)
-                .setContentTitle(stages[s.stage] ?: s.stage.name)
-                .setContentText("$percent٪")
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setCategory(Notification.CATEGORY_PROGRESS)
-                .setProgress(PERCENT, percent, false)
-            opens?.let { activity ->
-                builder.setContentIntent(
-                    PendingIntent.getActivity(context, 0, Intent(context, activity).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE),
-                )
+        fun notification(context: Context, s: ProductionState): Notification = ProgressNotice.build(
+            context, CHANNEL, work = "ساخت ویدیو", title = stages[s.stage] ?: s.stage.name, detail = detail(s.step),
+            progress = s.progress, parts = ProgressNotice.build, startedAt = startedAt, open = ProgressNotice.open(context),
+            stop = PendingIntent.getService(
+                context, 1, Intent(context, ProductionService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE,
+            ),
+        )
+
+        /** When the run began (the notification's clock counts from it). */
+        private var startedAt = System.currentTimeMillis()
+
+        /** The engine's step as the creator reads it: the frame count while rendering, the director's step by name. */
+        private fun detail(step: String): String? {
+            val name = step.substringBefore(' ')
+            if (name == "render") return step.substringAfter(' ', "").split('/').takeIf { it.size == 2 }?.let { (a, b) ->
+                "فریم ${ProgressNotice.persian(a.toIntOrNull() ?: 0)} از ${ProgressNotice.persian(b.toIntOrNull() ?: 0)}"
             }
-            return builder.build()
+            return STEPS[name]
         }
+
+        /** How the run ended, as a notice the creator can tap (null when they stopped it themselves). */
+        private fun finished(context: Context, s: ProductionState): Notification? = when (s.status) {
+            ProductionStatus.Done -> ProgressNotice.done(context, "ساخت ویدیو", "ویدیوی تو آماده است", "برای دیدن و ادیت باز کن", ProgressNotice.open(context))
+            ProductionStatus.Failed -> ProgressNotice.done(
+                context, "ساخت ویدیو", "ساخت کامل نشد", s.error ?: "برای جزئیات و گزارش باز کن", ProgressNotice.open(context),
+            )
+            else -> null
+        }
+
+        private val STEPS = mapOf(
+            "prepare" to "آماده‌سازی ویدیو", "attachments" to "پیوست‌ها", "transcribe" to "شنیدن گفتار", "direct" to "بارگذاری کارگردان",
+            "listen" to "تحلیل گفتار", "understand" to "فهم حرف‌ها", "research" to "جست‌وجو", "plan" to "برنامهٔ ادیت",
+            "pictures" to "تصویرها", "compile" to "ساخت صحنه‌ها", "look" to "نگاه به فریم‌ها", "jury" to "داوری",
+            "sound" to "صدا و موسیقی", "write" to "فیلم‌نامه", "draw" to "صحنه‌ها و تصویرها",
+        )
     }
 }

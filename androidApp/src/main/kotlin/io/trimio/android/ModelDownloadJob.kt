@@ -25,14 +25,22 @@ class ModelDownloadJob : JobService() {
 
     override fun onStartJob(params: JobParameters): Boolean {
         val models = GlobalContext.get().get<ModelManager>()
+        Notifications.downloadsStarted = System.currentTimeMillis()
         setNotification(params, Notifications.DOWNLOAD_ID, Notifications.download(this, getString(R.string.downloading_models), null), JOB_END_NOTIFICATION_POLICY_REMOVE)
         scope.launch {
             launch {
                 models.states.collect { states ->
                     val active = states.values.filterIsInstance<ModelState.Downloading>()
                     if (active.isNotEmpty()) {
-                        val fraction = active.map { it.fraction }.average().toFloat()
-                        setNotification(params, Notifications.DOWNLOAD_ID, Notifications.download(this@ModelDownloadJob, getString(R.string.downloading_models), fraction), JOB_END_NOTIFICATION_POLICY_REMOVE)
+                        // Bytes over bytes (a big model counts for more than a small one), and how much of how much.
+                        val done = active.sumOf { it.bytes }
+                        val total = active.sumOf { if (it.fraction > 0f) (it.bytes / it.fraction).toLong() else 0L }
+                        val fraction = if (total > 0) (done.toDouble() / total).toFloat() else null
+                        val detail = "${persian(active.size)} مدل" + if (total > 0) " · ${gb(done)} از ${gb(total)} گیگ" else ""
+                        setNotification(
+                            params, Notifications.DOWNLOAD_ID, Notifications.download(this@ModelDownloadJob, getString(R.string.downloading_models), fraction, detail),
+                            JOB_END_NOTIFICATION_POLICY_REMOVE,
+                        )
                     }
                 }
             }
@@ -56,8 +64,13 @@ class ModelDownloadJob : JobService() {
             GlobalContext.get().getOrNull<io.trimio.engine.models.PackManager>()?.hasActiveDownloads == true
     }
 
+    private fun persian(n: Int) = io.trimio.engine.production.ProgressNotice.persian(n)
+
+    private fun gb(bytes: Long): String = "%.1f".format(java.util.Locale.ROOT, bytes / GB).map { if (it in '0'..'9') '۰' + (it - '0') else if (it == '.') '٫' else it }.joinToString("")
+
     companion object {
         private const val JOB_ID = 42
+        private const val GB = 1e9
 
         fun schedule(context: Context) {
             val info = JobInfo.Builder(JOB_ID, ComponentName(context, ModelDownloadJob::class.java))
