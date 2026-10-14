@@ -106,9 +106,11 @@ class ModelManagerScreenshotTest {
         shoot("settings-fa-speed-test", paper = true, height = 1400) {
             SettingsScreen(
                 SettingsUi(io.trimio.core.data.AppSettings(), emptyMap(), io.trimio.core.data.DeviceInfo(12, "Android 17", "1.0.21", 1)),
-                SettingsActions(onModels = {}, onSpeedTest = {}, speed = SpeedUi(running = true)),
+                SettingsActions(onModels = {}, onSpeedTest = {}, speed = SpeedUi(running = true, progress = 0.47f, rows = speed.rows.take(1))),
             )
         }
+        // After the test, on the next visit: the way every build runs now.
+        shoot("models-fa-speed-kept", paper = true, height = 1700) { ModelManagerScreen(shelf, ModelActions(onSpeedTest = {}, speed = SpeedUi(rows = speed.rows, kept = true))) }
     }
 
     @Test

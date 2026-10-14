@@ -255,15 +255,25 @@ private fun Hardware(line: HardwareLine) {
 @Composable
 internal fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
     val c = Sig.colors
+    val percent = localizedNumber("${(speed.progress * 100).toInt()}")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SigSecondaryButton(
             when {
-                speed.running -> tr("در حال سنجش… (حدود ۱ تا ۳ دقیقه)", "Measuring… (about 1–3 min)")
-                speed.done -> tr("سنجش دوباره", "Measure again")
+                speed.running -> tr("در حال سنجش… $percent٪", "Measuring… $percent%")
+                speed.done || speed.kept -> tr("سنجش دوباره", "Measure again")
                 else -> tr("سنجش سرعت این دستگاه", "Speed-test this device")
             },
             onRun, Modifier.fillMaxWidth(),
         )
+        if (speed.running) {
+            // Every measurement holds its share; the bar moves as the models are timed, never backwards.
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.line)) {
+                Box(Modifier.fillMaxWidth(speed.progress.coerceIn(0f, 1f)).height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.action))
+            }
+        }
+        if (speed.kept) {
+            Text(tr("هر ساخت با این تنظیم اجرا می‌شود:", "Every build runs this way:"), style = Sig.type.meta.copy(fontSize = 11.5.sp, fontWeight = FontWeight(700)), color = c.ink)
+        }
         speed.rows.forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -275,7 +285,7 @@ internal fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
         }
         if (speed.done) {
             Text(
-                tr("بهترین حالت برای ساخت‌های بعدی ذخیره شد.", "The fastest way is kept for the next builds."),
+                tr("بهترین حالت ذخیره شد؛ از این به بعد هر ساخت (کارگردان، گفتار و تصویرساز) با همین تنظیم اجرا می‌شود.", "The fastest way is kept; every build (director, speech, illustrator) now runs this way."),
                 style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted,
             )
         }

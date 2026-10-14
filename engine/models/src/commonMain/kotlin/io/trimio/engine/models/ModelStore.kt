@@ -47,6 +47,9 @@ class ModelStore(
     /** Null without a directory (the browser): nothing is installed and installs fail. */
     private val storage: FileSystem? by lazy { directory?.let { fs ?: SystemFileSystem } }
     private val dir: Path get() = directory ?: throw UnsupportedOperationException("No model storage on this platform")
+
+    /** The models folder (null where nothing can be stored), for what is kept beside the models (the speed profile). */
+    val folder: Path? get() = directory
     private val files: FileSystem get() = storage ?: throw UnsupportedOperationException("No file system on this platform")
 
     /** The file in use for [spec]'s id: the installed release (possibly older), else the catalogue file; an own model's where it lies. */

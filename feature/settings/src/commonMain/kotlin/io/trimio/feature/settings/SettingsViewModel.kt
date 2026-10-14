@@ -80,9 +80,23 @@ class SettingsViewModel(
         if (_speed.value.running) return
         _speed.value = SpeedUi(running = true)
         viewModelScope.launch {
-            runCatching { test.run { row -> _speed.update { it.copy(rows = it.rows + row) } } }
-                .onFailure { e -> _speed.update { it.copy(rows = it.rows + io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Note, "خطا", e.message ?: "")) } }
-            _speed.update { it.copy(running = false, done = true) }
+            runCatching {
+                test.run(
+                    onRow = { row -> _speed.update { it.copy(rows = it.rows + row) } },
+                    onProgress = { p -> _speed.update { it.copy(progress = maxOf(it.progress, p)) } },
+                )
+            }.onFailure { e -> _speed.update { it.copy(rows = it.rows + io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Note, "خطا", e.message ?: "")) } }
+            _speed.update { it.copy(running = false, done = true, progress = 1f) }
+        }
+    }
+
+    init {
+        // The way every build runs now (the last test's choices), shown until the creator measures again.
+        speedTest?.let { test ->
+            viewModelScope.launch {
+                val kept = withContext(Dispatchers.Default) { runCatching { test.current() }.getOrDefault(emptyList()) }
+                if (kept.isNotEmpty()) _speed.update { if (it.running || it.done) it else it.copy(rows = kept, kept = true) }
+            }
         }
     }
 
@@ -179,4 +193,12 @@ fun interface ModelFilePicker {
 data class ProOffer(val product: StoreProduct?, val owned: Boolean, val busy: Boolean = false, val result: PurchaseResult? = null)
 
 /** The speed test on the models screen: its rows so far, running, finished. */
-data class SpeedUi(val rows: List<io.trimio.engine.models.SpeedRow> = emptyList(), val running: Boolean = false, val done: Boolean = false)
+data class SpeedUi(
+    val rows: List<io.trimio.engine.models.SpeedRow> = emptyList(),
+    val running: Boolean = false,
+    val done: Boolean = false,
+    /** 0..1 while the test runs, only forward. */
+    val progress: Float = 0f,
+    /** [rows] are the kept choices of an earlier test (what the builds use now), not a run of this visit. */
+    val kept: Boolean = false,
+)

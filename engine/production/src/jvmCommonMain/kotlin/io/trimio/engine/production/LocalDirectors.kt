@@ -57,7 +57,11 @@ class LocalDirectors(
     fun speedTest(preferredSpeech: () -> String? = { null }): io.trimio.engine.models.SpeedTest = DeviceSpeedTest(
         director = { local.bestSpec(preferred())?.let { store.pathOf(it).toString() } },
         speech = { speechSpec(preferredSpeech)?.let { store.pathOf(it).toString() } },
+        profile = profileFile(),
     )
+
+    /** The speed test's choices beside the models ([SpeedProfile]); null where nothing is stored. */
+    private fun profileFile(): java.io.File? = store.folder?.let { java.io.File(it.toString(), SpeedProfile.FILE) }
 
     /** The speech model [recognizer] resolves to now (its catalogue id), for the technical report. */
     fun speechModel(preferredSpeech: () -> String? = { null }): String? = speechSpec(preferredSpeech)?.id
@@ -90,8 +94,10 @@ class LocalDirectors(
      * The image generator add-on when this build carries its engine: the studio illustrator (FLUX.2 klein, with its text
      * encoder and decoder) when all of it is installed and fits here, else the fast one (SDXS-512); null when neither is.
      */
-    fun diffusion(threads: Int): io.trimio.engine.illustration.generate.DiffusionEngine? {
+    fun diffusion(defaultThreads: Int): io.trimio.engine.illustration.generate.DiffusionEngine? {
         if (!io.trimio.engine.illustration.generate.SdNative.available) return null
+        // The speed test's fastest processor thread count, once it has run: the builds draw with it.
+        val threads = profileFile()?.let(SpeedProfile::load)?.cpuThreads ?: defaultThreads
         val a = io.trimio.engine.models.IllustrationAddOns
         val path = { spec: ModelSpec -> store.pathOf(spec).toString() }
         if (listOf(a.klein, a.kleinText, a.kleinDecoder).all(::installed)) {
