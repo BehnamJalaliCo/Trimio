@@ -274,3 +274,15 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   (low memory or a crash), Whisper runs the exact count timed — and every build caps the director's and Whisper's
   threads to the cores Android allows the process at that moment (`Cpus_allowed_list`: fewer with the screen off),
   which the run report now shows.
+
+## 15 Oct — the owner's speed test on 1.0.26: right numbers, a jump at 75 % and a frozen screen
+
+- The rows are sane now: the director on the processor at 8 threads (read 90, write 10 tokens/s) beat 40 of 43 layers on
+  the GPU (read 104, write 4.5); Whisper 2.1× the sound at 8 threads; the picture engine mixed (text encoder on the
+  processor, the rest on the GPU) 47.6 s against 71.3 s on the processor alone — the GPU does draw.
+- 75 % → done at once: the plan held «all on the GPU» for the picture engine, which the free memory could not hold, and
+  it left the plan only when its turn came. The picture engine's ways are now decided right after the memory row.
+- The phone froze for seconds (a screenshot too) while the picture engine drew on the GPU: the screen draws with the
+  same Adreno, and a model's kernels held it. Both OpenCL copies of ggml now create their context with Qualcomm's low
+  priority hint (`cl_qcom_priority_hint`, patched in at configure time) when the device offers it and the driver accepts
+  it, so the screen draws first; without it, everything runs as before.
