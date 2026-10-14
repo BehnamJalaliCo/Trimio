@@ -450,7 +450,7 @@ class Productions(
         val start = clock()
         return try {
             r.recorder.native("transcribe") {
-                recognizer.transcribe(audio, RecognitionOptions(Language.Persian, hint(r.request.brief), threads), onProgress = { p -> r.at(Stage.Transcribe, p, "transcribe") })
+                recognizer.transcribe(audio, RecognitionOptions(Language.Persian, hint(r.request.brief), threads), onProgress = { p -> r.at(Stage.Transcribe, p, "transcribe ${(p * PERCENT).toInt()}%") })
             }.also { t ->
                 r.speech = recognizer.runtime
                 r.recorder.speechRuntime = recognizer.runtime
@@ -522,6 +522,7 @@ class Productions(
         private const val LOOK_H = 512
         private const val SUBJECT_FRAMES = 5
         private const val HALF = 0.5f
+        private const val PERCENT = 100
         private const val DEFAULT_THREADS = 4
 
         /**
