@@ -11,8 +11,8 @@ class IllustrationAddOnsTest {
     @Test
     fun generatorsAreCatalogueAddOnsWithTheirCompanions() {
         for (spec in IllustrationAddOns.all) {
-            // Not offered until the engine draws on the app's ggml (9.2).
-            assertTrue(spec !in ModelCatalog.all, spec.id)
+            // Offered: the engine draws on its own ggml (9.2).
+            assertTrue(spec in ModelCatalog.all, spec.id)
             assertEquals(AddOnRuntime.Diffusion, spec.addOn?.runtime)
             assertEquals(AddOnGroup.Picture, spec.addOn?.group)
             assertEquals(64, spec.sha256.length)
@@ -29,8 +29,8 @@ class IllustrationAddOnsTest {
         assertTrue(AddOnFit.of(IllustrationAddOns.sdxs, laptop).comfortable)
         assertEquals(ModelFit.TooBig, AddOnFit.of(IllustrationAddOns.klein, phone))
         assertTrue(AddOnFit.of(IllustrationAddOns.klein, laptop).runnable)
-        // Neither is offered while the engine cannot draw on the app's ggml.
-        assertTrue(IllustrationAddOns.sdxs.id !in AddOnFit.offered(AddOnTier.Pro, phone).map { it.id })
-        assertTrue(IllustrationAddOns.klein.id !in AddOnFit.offered(AddOnTier.Ultra, laptop).map { it.id })
+        // The fast one is offered on the phone, the studio one on the laptop.
+        assertTrue(IllustrationAddOns.sdxs.id in AddOnFit.offered(AddOnTier.Pro, phone).map { it.id })
+        assertTrue(IllustrationAddOns.klein.id in AddOnFit.offered(AddOnTier.Ultra, laptop).map { it.id })
     }
 }

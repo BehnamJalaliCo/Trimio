@@ -77,6 +77,17 @@ jobs:
           mkdir -p "$NATIVE_OUT/cpu"
           cp build/native-cpu/trimio_llama.dll build/native-cpu/trimio_whisper.dll "$NATIVE_OUT/cpu/"
 
+      # The image generator, configured alone on stable-diffusion.cpp's own pinned ggml (native/CMakeLists.txt, TRIMIO_SD).
+      - name: Image engine, CPU (AVX2)
+        run: |
+          git -C native/third_party/stable-diffusion.cpp submodule update --init --depth 1 ggml
+          cmake -S native -B build/native-sd-cpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl \
+            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF \
+            -DTRIMIO_WHISPER=OFF -DTRIMIO_LLAMA=OFF -DTRIMIO_SD=ON
+          cmake --build build/native-sd-cpu --target trimio_sd
+          cp build/native-sd-cpu/trimio_sd.dll "$NATIVE_OUT/cpu/"
+
       - name: Vulkan SDK
         if: github.event_name != 'workflow_dispatch' || inputs.vulkan
         uses: jakoch/install-vulkan-sdk-action@v1
@@ -104,6 +115,19 @@ jobs:
           cmake --build build/native-vulkan --target trimio_llama trimio_whisper
           mkdir -p "$NATIVE_OUT/vulkan"
           cp build/native-vulkan/trimio_llama.dll build/native-vulkan/trimio_whisper.dll "$NATIVE_OUT/vulkan/"
+
+      # The image generator on the GPU (a laptop's RTX draws FLUX.2 klein in seconds); without it the CPU build draws.
+      - name: Image engine, Vulkan (GPU)
+        if: github.event_name != 'workflow_dispatch' || inputs.vulkan
+        continue-on-error: true
+        run: |
+          cmake -S native -B build/native-sd-vulkan -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_PREFIX_PATH="$PWD/build/spirv-install" \
+            -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_OPENMP=OFF \
+            -DTRIMIO_WHISPER=OFF -DTRIMIO_LLAMA=OFF -DTRIMIO_SD=ON -DSD_VULKAN=ON
+          cmake --build build/native-sd-vulkan --target trimio_sd
+          mkdir -p "$NATIVE_OUT/vulkan"
+          cp build/native-sd-vulkan/trimio_sd.dll "$NATIVE_OUT/vulkan/"
 
       # --- ffmpeg (LGPL, pinned) --------------------------------------------------------------------
       - name: Fetch and verify the LGPL ffmpeg build

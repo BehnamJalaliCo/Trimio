@@ -68,10 +68,10 @@ object DesktopDirectors {
         if (ramGb >= LARGE_RAM_GB) listOf(ModelCatalog.qwen36_35bA3b, ModelCatalog.qwen35_9b, ModelCatalog.qwen35_4b)
         else listOf(ModelCatalog.qwen35_9b, ModelCatalog.qwen35_4b)
 
-    /** [catalog] with the directors this machine is not offered left out. */
+    /** [catalog] with the directors this machine is not offered left out (the creator's own ones always stay). */
     fun catalogFor(ramGb: Int, catalog: List<ModelSpec> = ModelCatalog.all): List<ModelSpec> {
         val directors = offered(ramGb).map { it.id }.toSet()
-        return catalog.filter { it.kind != ModelKind.Language || it.id in directors }
+        return catalog.filter { it.kind != ModelKind.Language || it.id in directors || it.localPath != null }
     }
 
     /** The director to suggest first: the largest offered one that fits comfortably, else the 4B. */

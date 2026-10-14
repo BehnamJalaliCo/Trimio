@@ -31,8 +31,7 @@ android {
                     "-DGGML_OPENMP=OFF",
                     "-DTRIMIO_WHISPER=ON",
                     "-DTRIMIO_LLAMA=ON",
-                    // The image generator (stable-diffusion.cpp) is left out until it runs on the app's ggml
-                    // (an upstream-ggml assertion in its text encoder): docs/research/PHASE9_PROGRESS.md.
+                    // The image generator is built alone, on its own ggml, by :androidSd.
                     "-DTRIMIO_SD=OFF",
                 )
                 cppFlags += listOf("-O3")
@@ -106,6 +105,7 @@ kotlin {
 dependencies {
     implementation(projects.shared)
     implementation(projects.androidGpu)
+    implementation(projects.androidSd)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.koin.android)

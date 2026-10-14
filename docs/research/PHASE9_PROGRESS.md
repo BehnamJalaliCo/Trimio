@@ -129,3 +129,25 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   the reels' chapter family, and hid it (reels asking for a chapter card got the YouTube one). Renamed `yt-chapter`,
   `yt-subscribe`, `yt-watermark`; `RecipeNamesTest` keeps names unique.
 
+
+## 14 Oct — every kind reopens and edits; the explainer on the owner's voice
+
+- Full local suite (2 workers, 54 min): green except two — `PlaybackTest` (a real-time check; 57 of 60 pictures while
+  three test JVMs shared four cores; passes alone) and the settings screenshot test, which still saw the dialog as
+  private (fixed before; passes).
+- Found while checking: YouTube and plain-reel edits kept no workbench. After a restart the editor and exports said
+  «made by an earlier version»; in the same session the editor said edits «don't run here». Fixed: both keep a plain
+  workbench (`Workbench.plain`: no reel critic or jury, which would add a hook, punch-ins and a call to action). A
+  YouTube video's is `recorded`: its recording's own track and whole cut stay, nothing is mastered. `Delivery` keeps
+  `plain`, `recorded`, `duration`. The workbench now passes the speakers to the compiler (a retouched edit kept its
+  speaker colours only before a change).
+- 9.1 «باز شدن در ادیتور»: an explainer film keeps its `FilmCut` (film, music, words, seed, frame) in the checkpoint
+  and reopens through `FilmBench` (pictures fetched again, no director). The editor changes its palette (13), music,
+  level and whooshes; the film's beats stay the director's. Exports in 16:9 after a restart work through it.
+- Editor: only the tools an edit has (film: palette and sound; YouTube: text without cut or hit, style, elements).
+- Create screen (seen on the shots): four edit kinds in one row cut every name and note («یوتیوب حرفه‌ای» showed as
+  «یوتیوب», notes cut). Now «نوع ادیت» is a section of the brief, two by two, names whole; the subtitle styles under it.
+- 9.1 run on the owner's 64 s sample voice (rules director, `ExplainerFilmProofTest.aRealNarration`): 6 chapters,
+  33 beats, the end card «فالو کنید» from 62 s, 7 misheard words spelled (کاراموز → کارآموز …). The faded moments of the
+  8c review (10.8, 21.6, 54.0 s) are gone. Fixed: unticked task tiles were track-on-card (near invisible on dark
+  palettes) for five seconds; their lines now read before they are ticked.

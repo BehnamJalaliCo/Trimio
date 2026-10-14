@@ -56,6 +56,36 @@ class LocalModelsTest {
     }
 
     @Test
+    fun aModelFromTheCreatorsOwnDiskDirects() {
+        // A stronger laptop: a 32B the creator already has, outside the models folder (sparse: only its size matters).
+        val elsewhere = Files.createTempDirectory("own-disk")
+        val file = elsewhere.resolve("Qwen3-32B-Q4_K_M.gguf").toFile()
+        RandomAccessFile(file, "rw").use { f -> f.write("GGUF".toByteArray()); f.setLength(19_800_000_000L) }
+        val own = store.addOwn(file.path).getOrThrow()
+        assertEquals(file.path, store.pathOf(own).toString(), "used where it lies, never copied")
+        assertTrue(store.isInstalled(own))
+        assertEquals(io.trimio.engine.models.DirectorProfile.Qwen35, io.trimio.engine.models.DirectorProfile.of(own), "Qwen3 answers past its reasoning block")
+        val laptop = LocalModels(store, 64, ModelCatalog.all + store.ownModels(), io.trimio.engine.models.DeviceMemory.desktop(64))
+        assertEquals(own.id, laptop.bestSpec(own.id)?.id, "the creator's pick directs")
+        // The same file twice is one entry; projectors, other files and tiny files are refused with their reason.
+        store.addOwn(file.path).getOrThrow()
+        assertEquals(1, store.ownModels().size)
+        fun refusal(name: String, bytes: ByteArray, size: Long): io.trimio.engine.models.OwnModels.Refusal? {
+            val f = elsewhere.resolve(name).toFile()
+            RandomAccessFile(f, "rw").use { it.write(bytes); it.setLength(size) }
+            return (store.addOwn(f.path).exceptionOrNull() as? io.trimio.engine.models.OwnModels.RefusedException)?.reason
+        }
+        assertEquals(io.trimio.engine.models.OwnModels.Refusal.Projector, refusal("mmproj-Qwen3-F16.gguf", "GGUF".toByteArray(), 900_000_000L))
+        assertEquals(io.trimio.engine.models.OwnModels.Refusal.NotGguf, refusal("model.safetensors", "{\"__".toByteArray(), 900_000_000L))
+        assertEquals(io.trimio.engine.models.OwnModels.Refusal.TooSmall, refusal("tiny.gguf", "GGUF".toByteArray(), 1_000_000L))
+        assertEquals(io.trimio.engine.models.OwnModels.Refusal.Missing, (store.addOwn(elsewhere.resolve("gone.gguf").toString()).exceptionOrNull() as? io.trimio.engine.models.OwnModels.RefusedException)?.reason)
+        // Removing it forgets it; the file is the creator's and stays.
+        store.delete(own)
+        assertTrue(store.ownModels().isEmpty())
+        assertTrue(file.isFile)
+    }
+
+    @Test
     fun gemma4GetsItsOwnTurnLayout() {
         val text = ChatTemplates.format(ChatFormat.Gemma4, "sys", listOf(ChatMessage(ChatRole.User, "hi")))
         assertEquals("<|turn>system\nsys<turn|>\n<|turn>user\nhi<turn|>\n<|turn>model\n", text)

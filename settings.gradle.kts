@@ -51,6 +51,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 include(":androidApp")
 include(":androidGpu")
+include(":androidSd")
 include(":shared")
 include(":webApp")
 include(":core:model")

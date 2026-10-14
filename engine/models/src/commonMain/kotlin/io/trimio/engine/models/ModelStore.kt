@@ -49,14 +49,15 @@ class ModelStore(
     private val dir: Path get() = directory ?: throw UnsupportedOperationException("No model storage on this platform")
     private val files: FileSystem get() = storage ?: throw UnsupportedOperationException("No file system on this platform")
 
-    /** The file in use for [spec]'s id: the installed release (possibly older), else the catalogue file. */
-    fun pathOf(spec: ModelSpec): Path = Path(dir, installedRecord(spec.id)?.fileName ?: spec.fileName)
+    /** The file in use for [spec]'s id: the installed release (possibly older), else the catalogue file; an own model's where it lies. */
+    fun pathOf(spec: ModelSpec): Path = spec.localPath?.let(::Path) ?: Path(dir, installedRecord(spec.id)?.fileName ?: spec.fileName)
 
     private fun targetOf(spec: ModelSpec): Path = Path(dir, spec.fileName)
 
     /** Some release of [spec]'s id is on disk and usable (an older release keeps working until updated). */
     fun isInstalled(spec: ModelSpec): Boolean {
         if (storage == null) return false
+        spec.localPath?.let { return files.exists(Path(it)) }
         val record = installedRecord(spec.id)
         if (record != null) return files.exists(Path(dir, record.fileName))
         return files.exists(targetOf(spec)) && files.metadataOrNull(targetOf(spec))?.size == spec.sizeBytes
@@ -73,6 +74,8 @@ class ModelStore(
     fun installedRecord(id: String): InstalledModel? = manifest()[id]
 
     fun delete(spec: ModelSpec) {
+        // The creator's own file is theirs: deleting it here only forgets it.
+        if (spec.localPath != null) return removeOwn(spec.id)
         installedRecord(spec.id)?.let { files.delete(Path(dir, it.fileName), mustExist = false) }
         files.delete(targetOf(spec), mustExist = false)
         files.delete(partOf(spec), mustExist = false)
@@ -170,9 +173,48 @@ class ModelStore(
 
     private fun partOf(spec: ModelSpec) = Path(dir, spec.fileName + ".part")
 
+    /** The directors the creator added from their own disk ([OwnModels]), as catalogue entries. */
+    fun ownModels(): List<ModelSpec> = ownEntries().map(OwnModels::spec)
+
+    /**
+     * Adds the GGUF at [path] as an own director (desktop): it must be a GGUF language model (not a vision projector);
+     * the file stays where it is. The same file added twice is one entry.
+     */
+    fun addOwn(path: String): Result<ModelSpec> = runCatching {
+        val file = Path(path)
+        val size = files.metadataOrNull(file)?.size ?: throw OwnModels.RefusedException(OwnModels.Refusal.Missing)
+        val head = files.source(file).buffered().use { it.readByteArray(OwnModels.MAGIC.size) }
+        val own = OwnModels.entry(path, size, head).getOrThrow()
+        writeOwn(ownEntries().filterNot { it.id == own.id } + own)
+        OwnModels.spec(own)
+    }
+
+    /** Forgets an own director (its file stays). */
+    fun removeOwn(id: String) = writeOwn(ownEntries().filterNot { it.id == id })
+
+    private fun ownEntries(): List<OwnModels.Entry> {
+        if (storage == null) return emptyList()
+        val file = Path(dir, OWN)
+        if (!files.exists(file)) return emptyList()
+        return runCatching {
+            val text = files.source(file).buffered().use { it.readByteArray().decodeToString() }
+            ManifestJson.decodeFromString(kotlinx.serialization.builtins.ListSerializer(OwnModels.Entry.serializer()), text)
+        }.getOrDefault(emptyList())
+    }
+
+    private fun writeOwn(entries: List<OwnModels.Entry>) {
+        files.createDirectories(dir)
+        val tmp = Path(dir, "$OWN.tmp")
+        files.sink(tmp).buffered().use {
+            it.write(ManifestJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(OwnModels.Entry.serializer()), entries).encodeToByteArray())
+        }
+        files.atomicMove(tmp, Path(dir, OWN))
+    }
+
     private companion object {
         const val CHUNK = 256L * 1024
         const val MANIFEST = "installed.json"
+        const val OWN = "own-models.json"
         val ManifestJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
     }
 }

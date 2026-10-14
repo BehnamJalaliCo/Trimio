@@ -28,7 +28,7 @@ class SdxsEngineTest {
         val handle = SdNative.init(model, 2)
         assertTrue(handle != 0L, "stable-diffusion.cpp did not load $model")
         SdNative.free(handle)
-        val source = GeneratorSource(SdxsEngine(model, threads = Runtime.getRuntime().availableProcessors()), Library.bundled())
+        val source = GeneratorSource(SdEngine("sdxs-512", SdEngine.Files(model), threads = Runtime.getRuntime().availableProcessors()), Library.bundled())
         val look = FilmLook(seed = 1402)
         val scenes = mapOf(
             "camel" to IllustrationRequest("a camel", place = "desert"),

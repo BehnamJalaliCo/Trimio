@@ -34,10 +34,11 @@ class ModelManager(
     /** Called when the first download starts and after the last one ends (Android starts/stops its job). */
     private val onActiveChanged: (Boolean) -> Unit = {},
 ) {
-    /** The catalogue in effect: built-in plus the server's additions and newer releases. */
-    var catalog: List<ModelSpec> = catalog
-        private set
-    private val _states = MutableStateFlow(catalog.associate { it.id to initial(it) })
+    private var base: List<ModelSpec> = catalog
+
+    /** The catalogue in effect: built-in plus the server's additions and newer releases, and the creator's own directors. */
+    val catalog: List<ModelSpec> get() = base + store.ownModels()
+    private val _states = MutableStateFlow(this.catalog.associate { it.id to initial(it) })
     private val _updates = MutableStateFlow(findUpdates())
 
     /** Installed models with a newer release in the catalogue (shown and notified apart from app updates). */
@@ -58,10 +59,13 @@ class ModelManager(
 
     /** Adopts a newer catalogue (after the server answered); recomputes states and pending updates. */
     fun updateCatalog(next: List<ModelSpec>) {
-        if (next == catalog) return
-        catalog = next
+        if (next == base) return
+        base = next
         refresh()
     }
+
+    /** «افزودن مدل از روی سیستم» (desktop): the GGUF at [path] becomes a director; its file stays where it is. */
+    fun addOwn(path: String): Result<ModelSpec> = store.addOwn(path).also { refresh() }
 
     /** Downloads the newer release; the installed one keeps working until the new one is verified. */
     fun applyUpdate(update: ModelUpdate) = download(update.spec)

@@ -46,6 +46,7 @@ import io.trimio.core.designsystem.signature.MicroLabel
 import io.trimio.core.designsystem.signature.Sig
 import io.trimio.core.designsystem.signature.SigAdaptive
 import io.trimio.core.designsystem.signature.SigButton
+import io.trimio.core.designsystem.signature.SigTextButton
 import io.trimio.core.designsystem.signature.SigChip
 import io.trimio.core.designsystem.signature.SigGlass
 import io.trimio.core.designsystem.signature.SigHeroTitle
@@ -74,6 +75,7 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
         engine?.gpu, engine?.backend, engine?.gpuLayers, engine?.totalLayers, engine?.threads ?: viewModel.threads, measured = engine != null,
     )
     val speed by viewModel.speed.collectAsStateWithLifecycle()
+    val ownNote by viewModel.ownNote.collectAsStateWithLifecycle()
     val ui = ModelShelf.build(
         viewModel.models.catalog, states, DeviceMemory(device.ramGb, desktop), settings.localModelId, settings.speechModelId,
         hardware = hardware, speeds = engine?.speeds.orEmpty(),
@@ -94,6 +96,8 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 onDownloadAll = { ids -> asked = ids.mapNotNull { byId[it] } },
                 onSpeedTest = if (viewModel.canTestSpeed) viewModel::testSpeed else null,
                 speed = speed,
+                onAddOwn = if (viewModel.canAddOwn) viewModel::addOwnModel else null,
+                ownNote = ownNote,
             ),
         )
         if (asked.isNotEmpty()) {
@@ -343,7 +347,8 @@ private fun Recommended(ui: ModelsUi, actions: ModelActions) {
 private fun Shelves(ui: ModelsUi, actions: ModelActions) {
     Column(Modifier.gutter().padding(top = 26.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SigSectionLabel(tr("کارگردان", "Director"), trailing = "LANGUAGE · VISION")
-        ui.directors.forEach { ModelLine(it, ui.desktop, actions) }
+        ui.directors.forEach { ModelLine(it, ui.desktop, actions, director = true) }
+        actions.onAddOwn?.let { add -> OwnModelAdd(add, actions.ownNote) }
         SigSectionLabel(tr("گفتار", "Speech"), Modifier.padding(top = 22.dp), trailing = "WHISPER")
         ui.speech.forEach { ModelLine(it, ui.desktop, actions) }
         if (ui.boosts.isNotEmpty()) Boosts(ui, actions)
@@ -439,9 +444,38 @@ private fun BoostLine(boost: BoostRow, desktop: Boolean, actions: ModelActions) 
     }
 }
 
-/** One model: name and tier, the fit badge, memory and speed, and its one action at the end. */
+/**
+ * «افزودن مدل از روی سیستم» (Windows): a stronger machine runs a bigger director than the list offers. The creator picks
+ * a GGUF already on the disk; it is not copied, and it directs from then on (its family's ways read from its name).
+ */
 @Composable
-private fun ModelLine(row: ModelRow, desktop: Boolean, actions: ModelActions) {
+private fun OwnModelAdd(onAdd: () -> Unit, note: OwnNote?) {
+    val c = Sig.colors
+    Column(Modifier.fillMaxWidth().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Hairline()
+        Text(
+            tr(
+                "مدل قوی‌تری روی همین کامپیوتر داری؟ فایل GGUF آن را انتخاب کن تا کارگردانی کند؛ فایل کپی نمی‌شود و سر جایش می‌ماند.",
+                "Have a stronger model on this computer? Pick its GGUF file and it directs; the file is not copied and stays where it is.",
+            ),
+            style = Sig.type.meta, color = c.muted,
+        )
+        SigButton(tr("افزودن مدل از روی سیستم", "Add a model from this computer"), onAdd, Modifier.fillMaxWidth().height(48.dp), trailing = TrimioIcons.Plus)
+        note?.let { n ->
+            val text = n.added?.let { tr("«$it» اضافه شد و از این به بعد کارگردانی می‌کند.", "«$it» was added and directs from now on.") } ?: when (n.refusal) {
+                io.trimio.engine.models.OwnModels.Refusal.Missing -> tr("فایل پیدا نشد.", "The file was not found.")
+                io.trimio.engine.models.OwnModels.Refusal.Projector -> tr("این فایل چشم (mmproj) است، نه مدل کارگردان.", "This is a vision projector (mmproj), not a director model.")
+                io.trimio.engine.models.OwnModels.Refusal.TooSmall -> tr("این فایل برای کارگردانی خیلی کوچک است.", "This file is too small to direct.")
+                else -> tr("این فایل مدل GGUF نیست.", "This is not a GGUF model file.")
+            }
+            Text(text, style = Sig.type.meta.copy(fontWeight = FontWeight(600)), color = if (n.added != null) c.ink else c.action)
+        }
+    }
+}
+
+/** One model: name and tier, the fit badge, memory and speed, and its one action at the end (an installed director: «استفاده»). */
+@Composable
+private fun ModelLine(row: ModelRow, desktop: Boolean, actions: ModelActions, director: Boolean = false) {
     val c = Sig.colors
     val blocked = row.fit == ModelFit.TooBig && !row.installed
     Column {
@@ -449,14 +483,19 @@ private fun ModelLine(row: ModelRow, desktop: Boolean, actions: ModelActions) {
         Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${tr(row.nameFa, row.nameEn)} · ⁦${row.tier}⁩", style = Sig.type.bodyStrong, color = if (blocked) c.faint else c.ink, maxLines = 1)
+                    val name = if (row.tier.isEmpty()) tr(row.nameFa, row.nameEn) else "${tr(row.nameFa, row.nameEn)} · ⁦${row.tier}⁩"
+                    Text(name, Modifier.weight(1f, fill = false), style = Sig.type.bodyStrong, color = if (blocked) c.faint else c.ink, maxLines = 1)
                     if (row.active) SigChip(tr("فعال", "Active"), Modifier.height(22.dp), container = c.action, content = c.onAction)
+                    if (row.own) SigChip(tr("از سیستم خودت", "Your file"), Modifier.height(22.dp), container = c.ink.copy(alpha = 0.08f), content = c.ink)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     FitBadge(row.fit, desktop)
                     Text(subtitle(row), style = Sig.type.meta.copy(fontSize = 11.sp), color = if (row.state is ModelState.Failed) c.action else c.muted, maxLines = 1)
                 }
                 (row.state as? ModelState.Downloading)?.let { Progress(it.fraction) }
+            }
+            if (director && row.installed && !row.active && !blocked) {
+                SigTextButton(tr("استفاده", "Use"), { actions.onUse(row.id) })
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 LineAction(row, blocked, actions)
@@ -473,6 +512,7 @@ private fun LineAction(row: ModelRow, blocked: Boolean, actions: ModelActions) {
         blocked -> RoundAction(TrimioIcons.Key, tr("بیش از حافظهٔ این دستگاه", "More than this device holds"), enabled = false) {}
         s is ModelState.Downloading -> RoundAction(TrimioIcons.Close, tr("لغو دانلود", "Cancel download")) { actions.onCancel(row.id) }
         s is ModelState.UpdateAvailable -> RoundAction(TrimioIcons.Undo, tr("به‌روزرسانی", "Update"), accent = true) { actions.onUpdate(row.id) }
+        row.own -> RoundAction(TrimioIcons.Close, tr("حذف از فهرست (فایل می‌ماند)", "Remove from the list (the file stays)")) { actions.onDelete(row.id) }
         row.installed -> RoundAction(TrimioIcons.Trash, tr("حذف", "Delete")) { actions.onDelete(row.id) }
         else -> RoundAction(TrimioIcons.Download, tr("دانلود", "Download"), accent = s is ModelState.Failed) { actions.onDownload(row.id) }
     }

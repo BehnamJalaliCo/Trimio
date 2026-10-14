@@ -20,6 +20,7 @@ phase 9 (`license audit`).
 | Anthropic Java SDK (+ OkHttp, Jackson) | 2.34.0 | MIT (+ Apache-2.0) |
 | whisper.cpp | v1.9.5 | MIT |
 | llama.cpp / ggml | b11536 | MIT |
+| stable-diffusion.cpp (+ its pinned ggml, `leejet/ggml`) | d763dae (ggml d25b121) | MIT |
 | ONNX Runtime (Android AAR `onnxruntime-android`, desktop jar `onnxruntime`) | 1.29.0 | MIT |
 | Vulkan loader headers (Windows GPU build of ggml, links the driver's vulkan-1.dll) | SDK 1.4.309 | Apache-2.0 |
 
@@ -67,6 +68,10 @@ phase 9 (`license audit`).
 | Omnilingual ASR CTC-300M int8 ONNX (`OpenVoiceOS/omnilingual-asr-ctc-300m-onnx`, Meta weights) | Apache-2.0 | quality add-on (alignment) |
 | pyannote segmentation-3.0 ONNX (`onnx-community`) | MIT | quality add-on (speakers) |
 | WeSpeaker CAM++ VoxCeleb LM (`Wespeaker/wespeaker-voxceleb-campplus-LM`) | Apache-2.0 | quality add-on (speakers) |
+| SDXS-512 tinySD distilled (GGUF, `concedo/sdxs-512-tinySDdistilled-GGUF`) | CreativeML OpenRAIL++-M | quality add-on (fast illustrator); the licence's use restrictions pass on to users (terms) |
+| FLUX.2 [klein] 4B (GGUF, `leejet/FLUX.2-klein-4B-GGUF`) | Apache-2.0 | quality add-on (studio illustrator) |
+| Qwen3-4B (GGUF, `unsloth/Qwen3-4B-GGUF`) | Apache-2.0 | the studio illustrator's text encoder |
+| FLUX.2 small decoder (`black-forest-labs/FLUX.2-small-decoder`) | Apache-2.0 | the studio illustrator's picture decoder |
 
 ## Assets
 

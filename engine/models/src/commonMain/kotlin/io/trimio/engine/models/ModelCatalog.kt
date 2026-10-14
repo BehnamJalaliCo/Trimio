@@ -89,6 +89,11 @@ data class ModelSpec(
     val experimental: Boolean = false,
     /** Add-ons only: tier, group and runtime for the «تقویت کیفیت» screen ([AddOnFit] rates them). */
     val addOn: AddOn? = null,
+    /**
+     * A director the creator added from their own disk (desktop, [OwnModels]): its file where it lies, never downloaded,
+     * copied or deleted by the app.
+     */
+    val localPath: String? = null,
 )
 
 /** Prompt layouts of the model families in the catalogue. */
@@ -280,9 +285,7 @@ object ModelCatalog {
         whisperBaseQ8, whisperSmallQ8, whisperTurboQ5, whisperTurboQ8, whisperLargeV3Q5,
         qwen35_4b, gemma4E4b, lfm25_8bA1b, qwen35_9bLight, qwen35_9b, qwen36_35bA3b,
         qwen35_4bEyes, qwen35_9bEyes, gemma4E4bEyes, qwen36_35bA3bEyes, qwen35_08bLooker, qwen35_08bEyes,
-    ) + MediaAddOns.all + TextAddOns.all
-    // IllustrationAddOns (SDXS, FLUX.2 klein) are not offered: the generator engine does not run on the app's ggml yet,
-    // and a download that cannot draw is not offered (docs/research/PHASE9_PROGRESS.md, 9.2).
+    ) + MediaAddOns.all + TextAddOns.all + IllustrationAddOns.all
 
     /**
      * What a [director] needs to see: its own projector when it is multimodal (one model, two

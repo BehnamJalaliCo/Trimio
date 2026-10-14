@@ -87,11 +87,20 @@ class LocalDirectors(
         return runCatching { Perception(OrtEngine(), files) }.getOrNull()
     }
 
-    /** The image generator add-on (SDXS-512) when it is installed and this build carries its engine; null otherwise. */
+    /**
+     * The image generator add-on when this build carries its engine: the studio illustrator (FLUX.2 klein, with its text
+     * encoder and decoder) when all of it is installed and fits here, else the fast one (SDXS-512); null when neither is.
+     */
     fun diffusion(threads: Int): io.trimio.engine.illustration.generate.DiffusionEngine? {
-        val spec = io.trimio.engine.models.IllustrationAddOns.sdxs
-        if (!installed(spec) || !io.trimio.engine.illustration.generate.SdNative.available) return null
-        return io.trimio.engine.illustration.generate.SdxsEngine(store.pathOf(spec).toString(), threads)
+        if (!io.trimio.engine.illustration.generate.SdNative.available) return null
+        val a = io.trimio.engine.models.IllustrationAddOns
+        val path = { spec: ModelSpec -> store.pathOf(spec).toString() }
+        if (listOf(a.klein, a.kleinText, a.kleinDecoder).all(::installed)) {
+            val files = io.trimio.engine.illustration.generate.SdEngine.Files(path(a.klein), path(a.kleinText), path(a.kleinDecoder))
+            return io.trimio.engine.illustration.generate.SdEngine(a.klein.id, files, threads)
+        }
+        if (!installed(a.sdxs)) return null
+        return io.trimio.engine.illustration.generate.SdEngine(a.sdxs.id, io.trimio.engine.illustration.generate.SdEngine.Files(path(a.sdxs)), threads)
     }
 
     /**

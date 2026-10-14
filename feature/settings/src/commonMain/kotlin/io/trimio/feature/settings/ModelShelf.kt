@@ -27,6 +27,8 @@ data class ModelRow(
     val experimental: Boolean,
     /** Generated tokens per second this model measured on this device (latest build), when it ran here. */
     val measuredTokensPerSecond: Float? = null,
+    /** A director the creator added from their own disk (its file stays theirs: removing only forgets it). */
+    val own: Boolean = false,
 )
 
 /**
@@ -114,8 +116,9 @@ object ModelShelf {
             val companions = spec.companions.mapNotNull { byId[it] }.sumOf { it.sizeBytes }
             val (fa, en) = NAMES[spec.id] ?: (spec.titleFa to spec.titleEn)
             return ModelRow(
-                spec.id, fa, en, tierOf(spec), spec.sizeBytes + companions, report.footprintBytes, report.fit,
-                states[spec.id] ?: ModelState.NotInstalled, spec.id == active, spec.experimental, speeds[spec.id],
+                // An own model's name already says its class ("Qwen3-32B-Q4_K_M").
+                spec.id, fa, en, if (spec.localPath != null) "" else tierOf(spec), spec.sizeBytes + companions, report.footprintBytes, report.fit,
+                states[spec.id] ?: ModelState.NotInstalled, spec.id == active, spec.experimental, speeds[spec.id], own = spec.localPath != null,
             )
         }
         val speechRows = catalog.filter { it.kind == ModelKind.Speech }.map { row(it, activeSpeech) }.sortedBy { it.sizeBytes }
@@ -168,7 +171,8 @@ object ModelShelf {
                 else -> spec.id.removePrefix("whisper-").substringBefore('-').replaceFirstChar { it.uppercase() }
             }
         }
-        val m = TIER.find(spec.id) ?: return ""
+        // An own model's class is in its file name ("Qwen3-32B-Q4_K_M.gguf" → 32B).
+        val m = TIER.find(if (spec.localPath != null) spec.fileName else spec.id) ?: return ""
         return m.value.uppercase()
     }
 
@@ -202,4 +206,11 @@ data class ModelActions(
     val onSpeedTest: (() -> Unit)? = null,
     /** The speed test's rows and state. */
     val speed: SpeedUi = SpeedUi(),
+    /** «افزودن مدل از روی سیستم» (Windows): a GGUF from the creator's disk becomes a director; null hides it. */
+    val onAddOwn: (() -> Unit)? = null,
+    /** What the last add said (added, or why not). */
+    val ownNote: OwnNote? = null,
 )
+
+/** The models screen's line after «افزودن مدل از روی سیستم»: the model added, or why the file was refused. */
+data class OwnNote(val added: String? = null, val refusal: io.trimio.engine.models.OwnModels.Refusal? = null)

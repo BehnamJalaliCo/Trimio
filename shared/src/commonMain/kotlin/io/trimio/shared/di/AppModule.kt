@@ -174,6 +174,7 @@ val appModule: Module = module {
             get(), get(), get(), get(), getOrNull(), get(), get(),
             engine = getOrNull(), threads = getOrNull<io.trimio.core.data.DeviceProfile>()?.threads,
             animationBytes = animations::bytes, clearAnimations = animations::clear, speedTest = getOrNull(),
+            modelPicker = getOrNull<io.trimio.feature.settings.ModelFilePicker>(),
         )
     }
     // The engine as the latest build on this device measured it (GPU, layers, threads, model speeds).

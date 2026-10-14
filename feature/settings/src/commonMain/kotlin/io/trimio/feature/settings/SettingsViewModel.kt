@@ -42,7 +42,31 @@ class SettingsViewModel(
     private val clearAnimations: suspend () -> Unit = {},
     /** «سنجش سرعت این دستگاه»; null where models do not run (the web). */
     private val speedTest: io.trimio.engine.models.SpeedTest? = null,
+    /** «افزودن مدل از روی سیستم»: chooses a GGUF on this computer (Windows only); null hides it. */
+    private val modelPicker: ModelFilePicker? = null,
 ) : ViewModel() {
+    private val _ownNote = MutableStateFlow<OwnNote?>(null)
+
+    /** What the last «افزودن مدل از روی سیستم» said. */
+    val ownNote: StateFlow<OwnNote?> = _ownNote.asStateFlow()
+
+    val canAddOwn: Boolean get() = modelPicker != null
+
+    /** The creator picks a GGUF; it becomes a director (the one in use) unless the file cannot direct, which is said. */
+    fun addOwnModel() {
+        val picker = modelPicker ?: return
+        viewModelScope.launch {
+            val path = picker.pick() ?: return@launch
+            val added = withContext(Dispatchers.Default) { models.addOwn(path) }
+            added.onSuccess { spec ->
+                settings.update { it.copy(localModelId = spec.id, director = DirectorBackend.OnDevice) }
+                _ownNote.value = OwnNote(added = spec.titleFa)
+            }.onFailure { e ->
+                _ownNote.value = OwnNote(refusal = (e as? io.trimio.engine.models.OwnModels.RefusedException)?.reason ?: io.trimio.engine.models.OwnModels.Refusal.NotGguf)
+            }
+        }
+    }
+
     private val _speed = MutableStateFlow(SpeedUi())
 
     /** The speed test's rows as they come, and whether it is running. */
@@ -144,6 +168,11 @@ class SettingsViewModel(
     private suspend fun refreshKeys() {
         _keys.update { CloudProvider.entries.associateWith { cloud.hasKey(it) } }
     }
+}
+
+/** Lets the creator choose a model file on this computer (the path), or null when they cancel. */
+fun interface ModelFilePicker {
+    suspend fun pick(): String?
 }
 
 /** What the store offers: [product] is null when the store cannot be reached. */

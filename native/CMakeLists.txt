@@ -18,8 +18,11 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(TRIMIO_WHISPER "Build the whisper.cpp speech engine" ON)
 option(TRIMIO_LLAMA "Build the llama.cpp language engine" ON)
-# The illustration generator add-on (SDXS-512 through stable-diffusion.cpp on the same ggml).
-option(TRIMIO_SD "Build the stable-diffusion.cpp image engine (off: it does not run on our ggml yet)" OFF)
+# The illustration generator add-on (stable-diffusion.cpp: SDXS-512, FLUX.2 klein). It builds alone (the other engines
+# off), on stable-diffusion.cpp's own pinned ggml: its patched ops do not run on llama.cpp's (an assertion in the text
+# encoder), and one configure cannot hold two ggml targets. Every symbol but the JNI entry points is hidden, so the
+# three libraries load side by side.
+option(TRIMIO_SD "Build the stable-diffusion.cpp image engine alone, on its own ggml" OFF)
 # Android GPU variant (:androidGpu): llama.cpp on the Adreno GPU through OpenCL, as its own library
 # so a phone without OpenCL simply keeps the CPU one (LlamaNative loads the GPU one when it can).
 option(TRIMIO_OPENCL "Build llama.cpp with the OpenCL (Adreno) backend" OFF)
@@ -67,7 +70,10 @@ endif()
 
 # One ggml for both engines, from llama.cpp (the more recent of the two): whisper.cpp and llama.cpp
 # both skip their own copy when a `ggml` target already exists, so their CMake targets never clash.
-if(TRIMIO_WHISPER OR TRIMIO_LLAMA OR TRIMIO_SD)
+if(TRIMIO_SD AND (TRIMIO_WHISPER OR TRIMIO_LLAMA))
+    message(FATAL_ERROR "TRIMIO_SD builds alone (-DTRIMIO_WHISPER=OFF -DTRIMIO_LLAMA=OFF): it takes stable-diffusion.cpp's own ggml")
+endif()
+if(TRIMIO_WHISPER OR TRIMIO_LLAMA)
     add_subdirectory(third_party/llama.cpp/ggml ggml-build EXCLUDE_FROM_ALL)
 endif()
 
@@ -101,10 +107,8 @@ if(TRIMIO_WHISPER)
 endif()
 
 if(TRIMIO_SD)
-    # stable-diffusion.cpp takes the existing ggml target (upstream ggml: its INT8/FP8 extensions are off, which
-    # SDXS Q8_0 does not use); no examples, no WebP/WebM, no server.
-    set(SD_GGML_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml" CACHE PATH "" FORCE)
-    set(SD_USE_UPSTREAM_GGML ON CACHE BOOL "" FORCE)
+    # stable-diffusion.cpp with its own ggml (third_party/stable-diffusion.cpp/ggml, the leejet/ggml commit it pins);
+    # no examples, no WebP/WebM, no server.
     set(SD_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(SD_WEBP OFF CACHE BOOL "" FORCE)
     set(SD_WEBM OFF CACHE BOOL "" FORCE)

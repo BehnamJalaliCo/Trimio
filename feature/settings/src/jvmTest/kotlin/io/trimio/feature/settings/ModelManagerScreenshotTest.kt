@@ -52,6 +52,22 @@ class ModelManagerScreenshotTest {
         assertEquals(14.2f, ModelShelf.build(ModelCatalog.all, states, DeviceMemory(12), null, null, speeds = speeds).directors.first { it.id == "qwen3.5-4b-q4km" }.measuredTokensPerSecond)
     }
 
+    /** «افزودن مدل از روی سیستم» (Windows): a 32B from the creator's disk in the directors, active, with its note. */
+    @Test
+    fun ownModelOnWindows() {
+        val own = io.trimio.engine.models.OwnModels.spec(
+            io.trimio.engine.models.OwnModels.Entry("own-1a2b3c4d", "D:\\AI\\Qwen3-32B-Q4_K_M.gguf", "Qwen3-32B-Q4_K_M", 19_800_000_000L),
+        )
+        val shelf = ModelShelf.build(ModelCatalog.all + own, states + (own.id to ModelState.Installed), DeviceMemory(64, true), own.id, "whisper-large-v3-turbo-q5")
+        val row = shelf.directors.first { it.id == own.id }
+        assertEquals("32B", ModelShelf.tierOf(own))
+        assertEquals("", row.tier, "its name already says it")
+        assertTrue(row.own && row.active)
+        val actions = ModelActions(onAddOwn = {}, ownNote = OwnNote(added = "Qwen3-32B-Q4_K_M"))
+        shoot("models-fa-own-desktop", paper = false, width = 1280, height = 1100, density = 1.25f) { ModelManagerScreen(shelf, actions) }
+        shoot("models-fa-own-refused", paper = true) { ModelManagerScreen(shelf, ModelActions(onAddOwn = {}, ownNote = OwnNote(refusal = io.trimio.engine.models.OwnModels.Refusal.Projector))) }
+    }
+
     /** «دانلود همه»: seventeen items in a laptop window; the confirm and cancel buttons stay on screen (the list scrolls). */
     @Test
     fun downloadAllDialog() {

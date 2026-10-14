@@ -65,6 +65,8 @@ fun desktopPlatformModule(
         )
     }
     single<io.trimio.feature.library.AnimationFilePicker> { DesktopAnimationPicker() }
+    // «افزودن مدل از روی سیستم»: Windows only (the owner's call).
+    if (DesktopModelPicker.offered) single<io.trimio.feature.settings.ModelFilePicker> { DesktopModelPicker() }
     single<SecretStore> { FileSecretStore(dirs.secretsFile) }
     single<MediaPicker> { picker }
     single<AttachmentPicker> { picker }

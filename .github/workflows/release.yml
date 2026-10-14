@@ -67,6 +67,10 @@ jobs:
         with:
           submodules: true
 
+      # The image engine (:androidSd) builds on stable-diffusion.cpp's own pinned ggml, a submodule of that submodule.
+      - name: Image engine's ggml
+        run: git -C native/third_party/stable-diffusion.cpp submodule update --init --depth 1 ggml
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

@@ -86,6 +86,8 @@ data class DirectorProfile(
 
         /** By catalogue id prefix; a server-added model of an unknown family gets its chat format's default. */
         fun of(spec: ModelSpec): DirectorProfile = when {
+            // A director the creator added from their own disk: its family from its file name.
+            spec.localPath != null -> ofName(spec.fileName.lowercase())
             spec.id.startsWith("qwen3.5-0.8b") -> QwenLooker
             spec.id.startsWith("qwen3.5") -> Qwen35
             spec.id.startsWith("qwen3.6") -> Qwen36
@@ -93,6 +95,15 @@ data class DirectorProfile(
             spec.id.startsWith("lfm2") -> Lfm25
             spec.chatFormat == ChatFormat.Gemma4 -> Gemma4
             spec.chatFormat == ChatFormat.Lfm -> Lfm25
+            else -> DirectorProfile("generic", 0.3f, 256, grounding = Grounding(BoxOrder.Xyxy))
+        }
+
+        /** By the family a file is named after (an own model): Qwen3 thinks unasked, Gemma 4 and LFM have their own ways. */
+        fun ofName(name: String): DirectorProfile = when {
+            "qwen3.6" in name -> Qwen36
+            "qwen3" in name -> Qwen35
+            "gemma-4" in name || "gemma4" in name -> Gemma4
+            "lfm2" in name -> Lfm25
             else -> DirectorProfile("generic", 0.3f, 256, grounding = Grounding(BoxOrder.Xyxy))
         }
 
