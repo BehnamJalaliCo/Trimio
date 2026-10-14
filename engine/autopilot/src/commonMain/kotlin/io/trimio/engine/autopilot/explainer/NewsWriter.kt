@@ -141,7 +141,7 @@ class NewsWriter(private val visuals: Visuals = Visuals.Lexicon) {
         // Two sentences in one scene: the first is the main line, the second the grey line under it.
         val split = body.firstOrNull { it < s.last && n.texts[it].trimEnd().last() in ENDS }
         fun shown(i: Int) = Phrases.clean(n.texts[i]) + if (question(n, i)) (if (n.persian) "؟" else "?") else ""
-        fun loose(i: Int) = Metaphors.bare(n.texts[i]).let { it in TURNS || it in Said.FUNCTION || it in FILLERS || it in JOINS }
+        fun loose(i: Int) = loose(n, i)
         val main = body.filter { it != kickerAt && (split == null || it <= split) }.dropWhile(::loose).dropLastWhile(::loose).map(::shown).filter { it.isNotBlank() }
         val rest = if (split == null) emptyList() else body.filter { it > split }.dropWhile(::loose).map(::shown).filter { it.isNotBlank() }
         val punch = punchFrom?.let { p -> (p..s.last).take(PUNCH_WORDS).joinToString(" ") { Phrases.clean(n.texts[it]) } + if (bang) "!!" else "" }.orEmpty()
@@ -156,6 +156,9 @@ class NewsWriter(private val visuals: Visuals = Visuals.Lexicon) {
             punch, punchFrom, split?.let { it + 1 }?.takeIf { rest.isNotEmpty() },
         )
     }
+
+    /** A word a headline neither opens nor closes on (a turn, a function word, a filler, «و»). */
+    private fun loose(n: Narration, i: Int) = Metaphors.bare(n.texts[i]).let { it in TURNS || it in Said.FUNCTION || it in FILLERS || it in JOINS }
 
     /** How many of [words] (at most [max]) make a line that ends where a phrase can end; 0 when none does. */
     private fun cut(words: List<String>, max: Int): Int = (minOf(max, words.size) downTo 1).firstOrNull { k -> ends(words.take(k)) } ?: 0
