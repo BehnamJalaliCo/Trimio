@@ -27,6 +27,7 @@ class SubtitleReelTest {
     /** Twelve sentences of six words, a voice tone under each word and 1.6 s of silence between sentences. */
     private val words: List<Word>
     private val voice: PcmAudio
+    private val vocabulary = listOf("بازار", "امروز", "قیمت", "بیت‌کوین", "بالا", "رفت")
 
     init {
         val rate = 48_000
@@ -34,7 +35,8 @@ class SubtitleReelTest {
         var t = 0.4f
         repeat(12) { s ->
             repeat(6) { i ->
-                list += Word(listOf("بازار", "امروز", "قیمت", "بیت‌کوین", "بالا", "رفت")[(s + i) % 6] + if (i == 5) "." else "", TimeRange((t * 1000).toLong(), ((t + 0.38f) * 1000).toLong()), language = Language.Persian)
+                val text = vocabulary[(s + i) % vocabulary.size] + if (i == 5) "." else ""
+                list += Word(text, TimeRange((t * 1000).toLong(), ((t + 0.38f) * 1000).toLong()), language = Language.Persian)
                 t += 0.45f
             }
             t += 1.6f

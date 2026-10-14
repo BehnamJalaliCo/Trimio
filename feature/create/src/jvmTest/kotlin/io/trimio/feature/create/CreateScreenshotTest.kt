@@ -52,6 +52,13 @@ class CreateScreenshotTest {
     @Test
     fun createPaper() = shoot("create-fa-paper", paper = true) { CreateScreen(state, CreateActions()) }
 
+    /** A plain reel: the four kinds and the subtitle looks under them (dark and light). */
+    @Test
+    fun createSubtitled() {
+        shoot("create-fa-subtitles-noir", paper = false) { CreateScreen(state.copy(edit = EditChoice.Simple), CreateActions()) }
+        shoot("create-fa-subtitles-paper", paper = true) { CreateScreen(state.copy(edit = EditChoice.YouTube, subtitles = SubtitleChoice.Karaoke), CreateActions()) }
+    }
+
     @Test
     fun createExpertAudio() = shoot("create-fa-expert-audio", paper = false) {
         val brief = "هوک: سؤال تند در ثانیهٔ اول\nمقصد: یوتیوب شورتس\nتأکید: «ووچر» و ۳۵۰ تتر"

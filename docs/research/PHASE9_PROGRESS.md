@@ -115,3 +115,17 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   add-ons out of the catalogue until it runs; the code stays for that work.
 - Release 1.0.19 pushed (run 19).
 
+## 9.9 Subtitles (owner's order, 14 Oct, night)
+
+- Research in `docs/research/SUBTITLES.md`. Six styles (`SubtitleStyle`, `SubtitleRecipes`): classic, box, karaoke,
+  bold pop, highlight, minimal; each on one of the brand faces already sealed in the app; word ink and blocks end with
+  the word (`Decoration.Ink/Block.until`).
+- Plain reel (`EditKind.Subtitles`, `SubtitleReel`): silences cut, punch-in at each cut, words in the picked style,
+  voice mastered, nothing else. Create screen: «ریلز ساده» and «سبک زیرنویس» (every subtitled kind).
+- Real check (`SubtitleProofTest`, owner's 155 s talk): 29 cuts, 155 → 142 s; frames of every style reviewed.
+  Fixed from the frames: a ZWNJ word («می‌خوره») half highlighted in bold pop (word boxes from the whole word's
+  outline); sizes raised for 9:16.
+- CI 118 (1.0.19) failed two FamiliesTest checks: the YouTube chapter card was registered as «chapter», the name of
+  the reels' chapter family, and hid it (reels asking for a chapter card got the YouTube one). Renamed `yt-chapter`,
+  `yt-subscribe`, `yt-watermark`; `RecipeNamesTest` keeps names unique.
+
