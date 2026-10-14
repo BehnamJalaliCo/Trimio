@@ -17,15 +17,18 @@ import kotlin.random.Random
  */
 @Serializable
 sealed interface BenchStep {
-    /** The director at [threads] processor threads with [layers] on the GPU (0 none, -1 all that fit), [draft] MTP guesses. */
+    /**
+     * The director loaded once with [layers] on the GPU (0 none, -1 all that fit) and [draft] MTP guesses, each of
+     * [threads] processor thread counts timed [passes] times on that one load.
+     */
     @Serializable
     @SerialName("director")
-    data class Director(val model: String, val threads: Int, val layers: Int, val draft: Int = 0, val repeats: Int = REPEATS) : BenchStep
+    data class Director(val model: String, val threads: List<Int>, val layers: Int, val draft: Int = 0, val passes: Int = PASSES) : BenchStep
 
-    /** Whisper reading [SPEECH_SECONDS] of sound at [threads] threads, warmed up once, [repeats] times. */
+    /** Whisper loaded once, warmed up, then reading [SPEECH_SECONDS] of sound at each of [threads]. */
     @Serializable
     @SerialName("speech")
-    data class Speech(val model: String, val threads: Int, val repeats: Int = SPEECH_REPEATS) : BenchStep
+    data class Speech(val model: String, val threads: List<Int>) : BenchStep
 
     /**
      * The picture engine drawing a small picture: its [files] (one, or the diffusion model, text encoder and VAE), each
@@ -50,11 +53,10 @@ sealed interface BenchStep {
     data object Devices : BenchStep
 
     companion object {
-        const val REPEATS = 3
-        const val SPEECH_REPEATS = 2
+        const val PASSES = 2
         const val SPEECH_SECONDS = 15
         const val PICTURE_SIZE = 256
-        const val PICTURE_STEPS = 2
+        const val PICTURE_STEPS = 1
         private val json = Json { ignoreUnknownKeys = true }
 
         fun encode(step: BenchStep): String = json.encodeToString(serializer(), step)
@@ -79,7 +81,14 @@ data class BenchResult(
     val devices: List<String> = emptyList(),
     val crashed: Boolean = false,
     val note: String = "",
+    /** Each thread count timed on the one load (director: read and write; speech: [Rate.seconds]). */
+    val rates: List<Rate> = emptyList(),
+    /** The director model has an MTP head, so guessing ahead is worth timing. */
+    val mtpHead: Boolean = false,
 ) {
+    @Serializable
+    data class Rate(val threads: Int, val read: Double = 0.0, val write: Double = 0.0, val seconds: Double = 0.0)
+
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
 
@@ -108,10 +117,12 @@ object LocalBench : BenchRunner {
     }.getOrElse { e -> BenchResult(ok = false, note = e.message ?: e::class.simpleName.orEmpty()) }
 
     private fun director(s: BenchStep.Director): BenchResult {
-        val p = LlamaProbe.run(s.model, s.threads, s.layers, s.draft, s.repeats) ?: return BenchResult(ok = false, note = "the model did not load")
+        val sweep = LlamaProbe.sweep(s.model, s.threads, s.layers, s.draft, s.passes) ?: return BenchResult(ok = false, note = "the model did not load")
+        val (_, p) = sweep.rates.minBy { (_, probe) -> probe.callSeconds }
         return BenchResult(
             ok = true, read = p.readPerSecond, write = p.writePerSecond, onGpu = p.onGpu, offloaded = p.offloaded, totalLayers = p.totalLayers,
-            draft = p.draft, gpuBuild = LlamaProbe.gpuBuild,
+            draft = p.draft, gpuBuild = LlamaProbe.gpuBuild, mtpHead = sweep.mtpHead,
+            rates = sweep.rates.map { (t, probe) -> BenchResult.Rate(t, probe.readPerSecond, probe.writePerSecond) },
         )
     }
 
@@ -119,18 +130,19 @@ object LocalBench : BenchRunner {
         // Quiet noise: the encoder works on a full window whatever is said, which is what the test times.
         val rng = Random(1)
         val sound = PcmAudio(FloatArray(BenchStep.SPEECH_SECONDS * PcmAudio.WHISPER_RATE) { (rng.nextFloat() - 0.5f) * NOISE }, PcmAudio.WHISPER_RATE)
-        val times = WhisperCppRecognizer(s.model).use { w ->
-            val options = RecognitionOptions(Language.Persian, threads = s.threads)
-            // The first read loads the model and warms the caches; the ones after it are timed.
-            w.transcribe(PcmAudio(sound.samples.copyOf(PcmAudio.WHISPER_RATE * WARM_SECONDS), PcmAudio.WHISPER_RATE), options)
-            (1..s.repeats).map {
+        val rates = WhisperCppRecognizer(s.model).use { w ->
+            // The first read loads the model and warms the caches; each thread count after it is timed once.
+            w.transcribe(PcmAudio(sound.samples.copyOf(PcmAudio.WHISPER_RATE * WARM_SECONDS), PcmAudio.WHISPER_RATE), options(s.threads.first()))
+            s.threads.map { t ->
                 val start = System.nanoTime()
-                w.transcribe(sound, options)
-                (System.nanoTime() - start) / NANOS
+                w.transcribe(sound, options(t))
+                BenchResult.Rate(t, seconds = (System.nanoTime() - start) / NANOS)
             }
         }
-        return BenchResult(ok = true, seconds = times.sorted()[times.size / 2])
+        return BenchResult(ok = true, seconds = rates.minOf { it.seconds }, rates = rates)
     }
+
+    private fun options(threads: Int) = RecognitionOptions(Language.Persian, threads = threads)
 
     private fun picture(s: BenchStep.Picture): BenchResult {
         SdNative.wantGpu = s.gpuLibrary
@@ -142,18 +154,18 @@ object LocalBench : BenchRunner {
         }
         if (handle == 0L) return BenchResult(ok = false, note = "the picture model did not load this way")
         return try {
-            // The first picture places the weights and builds the graphs; the second is the one timed.
-            draw(handle, s)
+            // A tiny first picture reads every weight in and builds the graphs (cheap: few pixels); the small one is timed.
+            draw(handle, s, WARM_SIZE)
             val start = System.nanoTime()
-            val out = draw(handle, s) ?: return BenchResult(ok = false, note = "no picture came out this way")
+            val out = draw(handle, s, s.size) ?: return BenchResult(ok = false, note = "no picture came out this way")
             BenchResult(ok = out.isNotEmpty(), seconds = (System.nanoTime() - start) / NANOS, onGpu = s.backend != "cpu")
         } finally {
             SdNative.free(handle)
         }
     }
 
-    private fun draw(handle: Long, s: BenchStep.Picture): ByteArray? =
-        SdNative.generate(handle, PROMPT, "", s.size, s.size, SEED, s.steps, 1f, null, 0f, null, null)
+    private fun draw(handle: Long, s: BenchStep.Picture, size: Int): ByteArray? =
+        SdNative.generate(handle, PROMPT, "", size, size, SEED, s.steps, 1f, null, 0f, null, null)
 
     private fun devices(): List<String> {
         SdNative.wantGpu = true
@@ -164,6 +176,7 @@ object LocalBench : BenchRunner {
     private const val NOISE = 0.002f
     private const val NANOS = 1e9
     private const val WARM_SECONDS = 3
+    private const val WARM_SIZE = 64
     private const val SEED = 7L
     private const val PROMPT = "pencil sketch of a camel in the desert, plain white background"
 }

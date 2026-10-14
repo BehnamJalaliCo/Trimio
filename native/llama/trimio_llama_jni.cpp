@@ -1067,10 +1067,11 @@ Java_io_trimio_engine_llm_local_LlamaNative_init(JNIEnv * env, jobject, jstring 
     char line[1024];
     std::snprintf(line, sizeof(line),
         "model=%s\nlayers=%d\ngpu_layers=%d\nrequested_gpu_layers=%d\ngpu_coverage=%.3f\ngated=%d\nfell_back=%d\n"
-        "threads=%d\nctx=%d\nbatch=%d\nubatch=%d\nkv=%s\nflash=%d\nrecurrent=%d\nprefix_cache=%d\nlazy_grammar=%d\nmtp_draft=%d\n",
+        "threads=%d\nctx=%d\nbatch=%d\nubatch=%d\nkv=%s\nflash=%d\nrecurrent=%d\nprefix_cache=%d\nlazy_grammar=%d\nmtp_draft=%d\nmtp_head=%d\n",
         desc, llama_model_n_layer(model) + 1, mp.n_gpu_layers, requested, coverage, gated ? 1 : 0, fell_back ? 1 : 0,
         n_threads, n_ctx, options.n_batch, options.n_ubatch, ggml_type_name(static_cast<ggml_type>(options.kv_type)), options.flash,
-        engine->recurrent ? 1 : 0, options.prefix_cache ? 1 : 0, options.lazy_grammar ? 1 : 0, options.draft);
+        engine->recurrent ? 1 : 0, options.prefix_cache ? 1 : 0, options.lazy_grammar ? 1 : 0, options.draft,
+        llama_model_n_layer_nextn(model) > 0 ? 1 : 0);
     info += line;
     for (ggml_backend_dev_t dev : devices) {
         if (dev != nullptr) info += std::string("gpu=") + ggml_backend_dev_description(dev) + "\n";
@@ -1261,6 +1262,15 @@ Java_io_trimio_engine_llm_local_LlamaNative_freeVision(JNIEnv *, jobject, jlong 
     if (engine == nullptr || engine->vision == nullptr) return;
     mtmd_free(engine->vision);
     engine->vision = nullptr;
+}
+
+// The speed test times every thread count on one load of the model.
+JNIEXPORT void JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_setThreads(JNIEnv *, jobject, jlong handle, jint threads) {
+    auto * engine = reinterpret_cast<Engine *>(handle);
+    if (engine == nullptr || threads <= 0) return;
+    llama_set_n_threads(engine->ctx, threads, threads);
+    if (engine->mtp != nullptr) llama_set_n_threads(engine->mtp, threads, threads);
 }
 
 JNIEXPORT jstring JNICALL

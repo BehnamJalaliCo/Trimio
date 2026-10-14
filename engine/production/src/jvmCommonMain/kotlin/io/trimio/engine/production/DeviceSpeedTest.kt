@@ -18,11 +18,12 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * «سنجش سرعت این دستگاه» ([SpeedTest]), every measurement warmed up and repeated (the median), each in its own process on
- * a phone ([bench]) so a GPU driver that crashes marks that way unusable instead of closing the app:
- *  - the [director] on all the fast cores, one less and half; then on the GPU with a quarter, half, three quarters and all
- *    of its layers, as many as the free memory holds (the rest on the processor), and with its MTP head;
- *  - the [speech] model at two thread counts;
+ * «سنجش سرعت این دستگاه» ([SpeedTest]), each engine loaded once per placement and every measurement warmed up, each in its
+ * own process on a phone ([bench]) so a GPU driver that crashes marks that way unusable instead of closing the app:
+ *  - the [director] on the processor at all the fast cores, one less and half (one load, the better of two passes each);
+ *    then on the GPU with all the layers the free memory holds and half of them (the rest on the processor), and with its
+ *    MTP head when it has one;
+ *  - the [speech] model at two thread counts (one load);
  *  - the [picture] engine on the processor, with its diffusion model (and decoder) on the GPU and the text encoder on the
  *    processor, and wholly on the GPU when it fits.
  * The fastest way of each is kept ([Placement], [SpeechThreads], [SpeedProfile]) and every build after uses it; the
@@ -42,7 +43,7 @@ internal class DeviceSpeedTest(
         val model = director()
         val voice = speech()
         val pictureFiles = picture()
-        val work = Work(onProgress, plan(model, voice, pictureFiles))
+        val work = Work(onProgress, plan(model, voice, pictureFiles), threadOptions().size)
         try {
             measure(model, voice, pictureFiles, work, onRow)
         } finally {
@@ -69,20 +70,18 @@ internal class DeviceSpeedTest(
     private fun plan(model: String?, voice: String?, picture: List<String>?): List<Pair<Step, Double>> = buildList {
         add(Step.Memory to MEMORY_SECONDS)
         model?.let { m ->
-            val call = File(m).length() / GB * CALL_SECONDS_PER_GB * (BenchStep.REPEATS + 1)
-            val threads = threadOptions()
-            threads.forEach { t -> add(Step.Cpu(t) to call * threads.first() / t) }
-            GPU_SHARES.forEach { share -> add(Step.Gpu(share) to call) }
-            add(Step.Mtp to call)
+            val gb = File(m).length() / GB
+            val pass = gb * PASS_SECONDS_PER_GB
+            val load = gb * LOAD_SECONDS_PER_GB
+            add(Step.Cpu to load + pass * (1 + threadOptions().size * BenchStep.PASSES))
+            GPU_SHARES.forEach { share -> add(Step.Gpu(share) to load + pass * (1 + BenchStep.PASSES)) }
+            add(Step.Mtp to load + pass * (1 + BenchStep.PASSES))
         }
-        voice?.let { v ->
-            val load = File(v).length() / GB * LOAD_SECONDS_PER_GB
-            speechOptions().forEach { t -> add(Step.Speech(t) to (BenchStep.SPEECH_SECONDS * SPEECH_FACTOR * (BenchStep.SPEECH_REPEATS + 1) + load)) }
-        }
+        voice?.let { v -> add(Step.Speech to File(v).length() / GB * LOAD_SECONDS_PER_GB + SPEECH_PASS_SECONDS * (1 + speechOptions().size)) }
         picture?.let { files ->
             val gb = files.sumOf { File(it).length() } / GB
             add(Step.Devices to DEVICES_SECONDS)
-            // A picture is two small drawings after the load; on the processor about half a minute a gigabyte of model.
+            // A tiny picture then a small one of one step after the load; on the processor some seconds a gigabyte of model.
             PictureWay.entries.forEach { way -> add(Step.Picture(way) to gb * (LOAD_SECONDS_PER_GB + PICTURE_SECONDS_PER_GB)) }
         }
     }
@@ -102,27 +101,26 @@ internal class DeviceSpeedTest(
 
     /** The director every way; returns the processor thread count that ran it fastest (null when none ran). */
     private suspend fun directorRows(model: String, work: Work, onRow: (SpeedRow) -> Unit): Int? {
-        val cpu = ArrayList<Pair<Int, BenchResult>>()
-        for (t in threadOptions()) {
-            val r = work.run(Step.Cpu(t)) { bench.run(BenchStep.Director(model, t, 0)) }
-            if (r.ok) cpu += t to r
-            onRow(directorRow("CPU · ${digits(t)} هسته", r))
-        }
-        val bestCpu = cpu.minByOrNull { (_, r) -> callSeconds(r) }
-        val threads = bestCpu?.first ?: return null.also { GPU_SHARES.forEach { work.skip(Step.Gpu(it)) }; work.skip(Step.Mtp) }
-        val bestGpu = gpuRows(model, threads, bestCpu.second, work, onRow)
+        val cpu = work.run(Step.Cpu) { bench.run(BenchStep.Director(model, threadOptions(), 0)) }
+        if (cpu.ok) cpu.rates.forEach { r -> onRow(SpeedRow(SpeedRow.Kind.Director, "CPU · ${digits(r.threads)} هسته", rates(r.read, r.write))) }
+        if (!cpu.ok) onRow(failed("CPU", cpu))
+        val fastest = cpu.rates.takeIf { cpu.ok }?.minByOrNull { callSeconds(cpu.copy(read = it.read, write = it.write)) }
+        val threads = fastest?.threads ?: return null.also { GPU_SHARES.forEach { work.skip(Step.Gpu(it)) }; work.skip(Step.Mtp) }
+        val bestCpu = cpu.copy(read = fastest.read, write = fastest.write)
+        if (!cpu.mtpHead) work.skip(Step.Mtp)
+        val bestGpu = gpuRows(model, threads, bestCpu, work, onRow)
         // The GPU only when it wins clearly: its weights are pinned, the processor's can be paged out under pressure.
-        val gpuWins = bestGpu != null && callSeconds(bestGpu.second) * GPU_MARGIN < callSeconds(bestCpu.second)
+        val gpuWins = bestGpu != null && callSeconds(bestGpu.second) * GPU_MARGIN < callSeconds(bestCpu)
         val layers = if (gpuWins) bestGpu!!.first else 0
-        val best = if (gpuWins) bestGpu!!.second else bestCpu.second
-        val mtp = work.run(Step.Mtp) { bench.run(BenchStep.Director(model, threads, layers, MTP_DRAFT)) }.takeIf { it.ok && it.draft > 0 }
+        val best = if (gpuWins) bestGpu!!.second else bestCpu
+        val mtp = if (!cpu.mtpHead) null else work.run(Step.Mtp) { bench.run(BenchStep.Director(model, listOf(threads), layers, MTP_DRAFT)) }.takeIf { it.ok && it.draft > 0 }
         mtp?.let { onRow(directorRow("پیش‌بینی چندتوکنی (MTP)", it)) }
         val draft = mtp?.takeIf { it.write > best.write * MTP_GAIN }?.draft
         val line = "speed test: ${if (gpuWins) "gpu $layers/${best.totalLayers} layers" else "cpu"} · ${threads}t" + (draft?.let { " · mtp $it" } ?: "")
         Placement.keep(model, Placement.build(), Placement.Choice(layers, line, threads = threads, draft = draft, totalLayers = best.totalLayers.takeIf { it > 0 }))
         val chosen = mtp?.takeIf { draft != null } ?: best
         val way = (if (gpuWins) "CPU ${digits(threads)} هسته + کارت گرافیک ${digits(layers)} لایه" else "CPU · ${digits(threads)} هسته") + (if (draft != null) " · MTP" else "")
-        onRow(SpeedRow(SpeedRow.Kind.Director, "کارگردان", "$way · ${rates(chosen)}", best = true))
+        onRow(SpeedRow(SpeedRow.Kind.Director, "کارگردان", "$way · ${rates(chosen.read, chosen.write)}", best = true))
         return threads
     }
 
@@ -139,7 +137,7 @@ internal class DeviceSpeedTest(
                 work.skip(Step.Gpu(share))
                 return@forEachIndexed
             }
-            val r = work.run(Step.Gpu(share)) { bench.run(BenchStep.Director(model, threads, layers)) }
+            val r = work.run(Step.Gpu(share)) { bench.run(BenchStep.Director(model, listOf(threads), layers)) }
             val label = "کارت گرافیک · ${digits(layers)} از ${digits(cpu.totalLayers)} لایه"
             onRow(if (r.ok && !r.onGpu) note(label, "روی کارت گرافیک ننشست") else directorRow(label, r))
             if (r.ok && r.onGpu) gpu += layers to r
@@ -149,9 +147,9 @@ internal class DeviceSpeedTest(
     }
 
     /**
-     * The GPU layer counts worth timing: a quarter, half, three quarters and all of the layers the free memory holds now
-     * (all of the model when it fits; the GPU's copy is pinned and [GPU_HEADROOM] stays for the app and the system), the
-     * rest of the layers on the processor.
+     * The GPU layer counts worth timing: all of the layers the free memory holds now (all of the model when it fits; the
+     * GPU's copy is pinned and [GPU_HEADROOM] stays for the app and the system) and half of them, the rest of the layers on
+     * the processor.
      */
     private fun gpuLevels(model: String, cpu: BenchResult): List<Int> {
         val total = cpu.totalLayers
@@ -164,14 +162,12 @@ internal class DeviceSpeedTest(
     }
 
     private suspend fun speechRows(model: String, work: Work, onRow: (SpeedRow) -> Unit) {
-        val timed = speechOptions().mapNotNull { t ->
-            val r = work.run(Step.Speech(t)) { bench.run(BenchStep.Speech(model, t)) }
-            onRow(if (r.ok) SpeedRow(SpeedRow.Kind.Speech, "Whisper · ${digits(t)} هسته", "${one(r.seconds / BenchStep.SPEECH_SECONDS)} برابر زمان صدا") else failed("Whisper · ${digits(t)} هسته", r))
-            (t to r.seconds).takeIf { r.ok }
-        }
-        val best = timed.minByOrNull { it.second } ?: return
-        SpeechThreads.keep(model, best.first)
-        onRow(SpeedRow(SpeedRow.Kind.Speech, "گفتار", "Whisper · ${digits(best.first)} هسته · ${one(best.second / BenchStep.SPEECH_SECONDS)} برابر زمان صدا", best = true))
+        val r = work.run(Step.Speech) { bench.run(BenchStep.Speech(model, speechOptions())) }
+        if (!r.ok) return onRow(failed("Whisper", r))
+        r.rates.forEach { t -> onRow(SpeedRow(SpeedRow.Kind.Speech, "Whisper · ${digits(t.threads)} هسته", "${one(t.seconds / BenchStep.SPEECH_SECONDS)} برابر زمان صدا")) }
+        val best = r.rates.minByOrNull { it.seconds } ?: return
+        SpeechThreads.keep(model, best.threads)
+        onRow(SpeedRow(SpeedRow.Kind.Speech, "گفتار", "Whisper · ${digits(best.threads)} هسته · ${one(best.seconds / BenchStep.SPEECH_SECONDS)} برابر زمان صدا", best = true))
     }
 
     /** The picture engine each way it can run here; returns the fastest way (null when none drew). */
@@ -225,32 +221,32 @@ internal class DeviceSpeedTest(
 
     private fun callSeconds(r: BenchResult) = Placement.Probe(0, r.onGpu, r.read, r.write).callSeconds
 
-    private fun directorRow(label: String, r: BenchResult) = if (r.ok) SpeedRow(SpeedRow.Kind.Director, label, rates(r)) else failed(label, r)
+    private fun directorRow(label: String, r: BenchResult) = if (r.ok) SpeedRow(SpeedRow.Kind.Director, label, rates(r.read, r.write)) else failed(label, r)
 
     private fun failed(label: String, r: BenchResult) =
         note(label, if (r.crashed) "از کار افتاد؛ این حالت استفاده نمی‌شود" else "اجرا نشد" + (r.note.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""))
 
     private fun note(label: String, value: String) = SpeedRow(SpeedRow.Kind.Note, label, value)
 
-    private fun rates(r: BenchResult) = "خواندن ${one(r.read)} · نوشتن ${one(r.write)} توکن/ثانیه"
+    private fun rates(read: Double, write: Double) = "خواندن ${one(read)} · نوشتن ${one(write)} توکن/ثانیه"
 
     /** One timed measurement of the test, for the percentage's clock. */
     private sealed interface Step {
         data object Memory : Step
-        data class Cpu(val threads: Int) : Step
+        data object Cpu : Step
         data class Gpu(val share: Double) : Step
         data object Mtp : Step
-        data class Speech(val threads: Int) : Step
+        data object Speech : Step
         data object Devices : Step
         data class Picture(val way: PictureWay) : Step
     }
 
     /**
      * The percentage as time: the seconds spent over the seconds spent plus those still expected. Every step has an
-     * expected time; when one ends, the steps like it are expected to take what it took (a call on fewer threads
-     * proportionally longer), so the number moves evenly, forward only, and lands on 100 at the end.
+     * expected time; when one ends, the steps like it are expected to take what it took (a GPU load what the processor's
+     * took for one thread count), so the number moves evenly, forward only, and lands on 100 at the end.
      */
-    private class Work(private val onProgress: (Float) -> Unit, plan: List<Pair<Step, Double>>) {
+    private class Work(private val onProgress: (Float) -> Unit, plan: List<Pair<Step, Double>>, private val cpuCounts: Int) {
         private val expected = LinkedHashMap<Step, Double>().apply { plan.forEach { (k, v) -> put(k, v) } }
         private var spent = 0.0
         private var shown = 0f
@@ -296,16 +292,15 @@ internal class DeviceSpeedTest(
 
         /** What [step] took says what the ones like it will take. */
         private fun learn(step: Step, took: Double) {
-            when (step) {
-                is Step.Cpu -> expected.keys.filterIsInstance<Step.Cpu>().forEach { o -> expected[o] = took * step.threads / o.threads }
-                is Step.Speech -> expected.keys.filterIsInstance<Step.Speech>().forEach { o -> expected[o] = took * step.threads / o.threads }
-                is Step.Picture -> expected.keys.filterIsInstance<Step.Picture>().forEach { o -> expected[o] = took }
-                else -> Unit
+            if (step is Step.Picture) expected.keys.filterIsInstance<Step.Picture>().forEach { o -> expected[o] = took }
+            val one = when (step) {
+                // The processor's load timed every thread count; a GPU load times one.
+                Step.Cpu -> took * (1 + BenchStep.PASSES) / (1 + cpuCounts * BenchStep.PASSES)
+                is Step.Gpu -> took
+                else -> return
             }
-            if (step is Step.Cpu || step is Step.Gpu) {
-                val fastest = minOf(took, fastestCall ?: took).also { fastestCall = it }
-                expected.keys.filter { (it is Step.Gpu || it == Step.Mtp) && it != step }.forEach { expected[it] = fastest }
-            }
+            val fastest = minOf(one, fastestCall ?: one).also { fastestCall = it }
+            expected.keys.filter { (it is Step.Gpu || it == Step.Mtp) && it != step }.forEach { expected[it] = fastest }
         }
 
         @Synchronized
@@ -339,7 +334,7 @@ internal class DeviceSpeedTest(
         const val MTP_DRAFT = 3
         const val MTP_GAIN = 1.1
         const val GPU_MARGIN = 1.15
-        val GPU_SHARES = listOf(0.25, 0.5, 0.75, 1.0)
+        val GPU_SHARES = listOf(1.0, 0.5)
 
         /** Kept free beside a GPU's pinned weights: the same headroom the builds ask for ([Placement.GPU_HEADROOM]). */
         const val GPU_HEADROOM = Placement.GPU_HEADROOM
@@ -350,12 +345,12 @@ internal class DeviceSpeedTest(
         const val MEMORY_PASSES = 8
 
         /** First guesses, until a measurement says better. */
-        const val CALL_SECONDS_PER_GB = 6.0
-        const val SPEECH_FACTOR = 1.5
+        const val PASS_SECONDS_PER_GB = 1.5
+        const val SPEECH_PASS_SECONDS = 10.0
         const val LOAD_SECONDS_PER_GB = 4.0
         const val MEMORY_SECONDS = 0.5
         const val DEVICES_SECONDS = 2.0
-        const val PICTURE_SECONDS_PER_GB = 30.0
+        const val PICTURE_SECONDS_PER_GB = 8.0
 
         /** A running step shows at most this share of its estimate; the percentage holds below 100 until the end. */
         const val CAP = 0.97

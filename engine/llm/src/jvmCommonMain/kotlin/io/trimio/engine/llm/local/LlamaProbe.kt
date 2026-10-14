@@ -30,12 +30,43 @@ object LlamaProbe {
         }
     }
 
+    /** What [sweep] measured on one load: each thread count with its speeds, and whether the model has an MTP head. */
+    class Sweep(val rates: List<Pair<Int, Placement.Probe>>, val mtpHead: Boolean)
+
     /**
-     * One read of the fixed text and 32 tokens written: (read, write) tokens a second. Each pass opens with its own number,
-     * so the engine's prompt-head reuse finds nothing to keep and every pass reads the whole text again.
+     * The speed test's probe: the model loaded once with [layers] on the GPU, one short warm-up pass, then each of
+     * [threads] timed [passes] times on a shorter text (about 400 tokens read, 32 written), the better pass kept (a slow
+     * pass is the phone doing something else, never the way being faster). Null when the model does not load.
      */
-    private fun pass(h: Long, n: Int): Pair<Double, Double> {
-        LlamaNative.generate(h, ("pass $n. " + TEXT.repeat(REPEAT)).encodeToByteArray(), null, WRITE, 0f, 0.95f, 0.05f, 1, LlamaCallback { true })
+    fun sweep(modelPath: String, threads: List<Int>, layers: Int, draft: Int = 0, passes: Int = 2): Sweep? {
+        val h = LlamaNative.init(modelPath, CONTEXT, threads.first(), layers, LlamaNative.options(draft))
+        if (h == 0L) return null
+        return try {
+            val info = LlamaRuntime.lines(LlamaNative.runtimeInfo(h))
+            val runtime = LlamaRuntime.parse(LlamaNative.variant, info, Usage(calls = 0))
+            val drafting = info["mtp_draft"]?.firstOrNull()?.toIntOrNull() ?: 0
+            pass(h, 0, 1)
+            var n = 1
+            val rates = threads.map { t ->
+                LlamaNative.setThreads(h, t)
+                val timed = (1..passes).map { pass(h, n++, QUICK_REPEAT) }
+                t to Placement.Probe(
+                    layers, runtime.gpuLayers > 0, timed.maxOf { it.first }, timed.maxOf { it.second }, drafting,
+                    offloaded = runtime.gpuLayers, totalLayers = runtime.totalLayers,
+                )
+            }
+            Sweep(rates, info["mtp_head"]?.firstOrNull() == "1")
+        } finally {
+            LlamaNative.free(h)
+        }
+    }
+
+    /**
+     * One read of the fixed text ([repeat] times over) and 32 tokens written: (read, write) tokens a second. Each pass
+     * opens with its own number, so the engine's prompt-head reuse finds nothing to keep and every pass reads it all again.
+     */
+    private fun pass(h: Long, n: Int, repeat: Int = REPEAT): Pair<Double, Double> {
+        LlamaNative.generate(h, ("pass $n. " + TEXT.repeat(repeat)).encodeToByteArray(), null, WRITE, 0f, 0.95f, 0.05f, 1, LlamaCallback { true })
         val c = LlamaNative.lastCall(h)
         val read = (c[0] - c[1]).coerceAtLeast(1) / (c[3] / MICROS).coerceAtLeast(MIN_SECONDS)
         val write = if (c[2] > 0) c[2] / (c[4] / MICROS).coerceAtLeast(MIN_SECONDS) else read
@@ -50,6 +81,7 @@ object LlamaProbe {
     private const val TEXT = "The director reads the transcript, finds the hook, the key numbers and the turns, and plans the edit. " +
         "کارگردان متن را می‌خواند، قلاب و عددهای کلیدی و نقطه‌های عطف را پیدا می‌کند و ادیت را برنامه‌ریزی می‌کند. "
     private const val REPEAT = 8
+    private const val QUICK_REPEAT = 3
     private const val WRITE = 32
     private const val CONTEXT = 2048
     private const val MICROS = 1_000_000.0

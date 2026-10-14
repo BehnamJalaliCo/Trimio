@@ -119,6 +119,9 @@ internal object LlamaNative {
 
     /** Frees the vision projector alone; the model stays loaded and [initVision] loads it again when it must look. */
     external fun freeVision(handle: Long)
+
+    /** The processor threads of a loaded model's calls from now on (the speed test, one load for every count). */
+    external fun setThreads(handle: Long, threads: Int)
     external fun systemInfo(): String
 
     // Encoders (native `Encoder`): embedders and relevance judges, on the CPU.
