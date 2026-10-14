@@ -281,14 +281,10 @@ class Productions(
         val voices = if (video) recorder.native(ADD_ONS) { addOns.voices(transcript, voice, WHISPER_RATE) } else emptyList()
         // The video's own music (a steady beat under the voice): no music of ours on top, hits on its beat.
         val tempo = if (video && request.edit == EditKind.Reel) recorder.native(ADD_ONS) { addOns.sourceTempo(voice) } else null
-        val brief = if (tempo != null) request.brief + "\n\nno music (the video has its own)" else request.brief
 
         // The director loads (and its eyes find the speaker) within "direct": the screen counts it as listening.
         r.at(Stage.Direct, 0f, "direct")
-        val director = platform.director(request.director).let { d ->
-            val model = d.model?.let(recorder::instrument)
-            Director(model, d.eyes?.let { eyes -> if (eyes === d.model) model else recorder.instrument(eyes) })
-        }
+        val director = directorOf(request.director, recorder)
         recorder.models(
             modelFacts(director, if (heard == null) platform.speechModel() else null, request.director) + addOns.facts() +
                 listOfNotNull(Fact("add-on", "skipped: the app ended inside an add-on on an earlier attempt").takeIf { skipAddOns }),
@@ -308,31 +304,8 @@ class Productions(
             onDraft = { d -> checkpoints.save(request.key, Checkpoints.Saved(transcript, draft = d)) },
         )
         val understanding = r.previous?.production?.understanding ?: saved?.understanding
-        val production = if (!video && explainers) {
-            // A voice alone becomes an explainer film: the screenwriter writes it, the stage draws it (phase 8c).
-            val budget = (jury ?: Juries.forDevice(platform.device())).budget
-            val stage = IllustratedStage(e.text, IconResolver.of(visuals)) { io.trimio.engine.illustration.Illustrator.create(engine = platform.diffusion()) }
-            val pilot = ExplainerPilot(stage, director.model, FilmJury(budget = budget))
-            pilot.produce(
-                ExplainerPilot.Request(transcript, voice, request.brief, request.seed, understanding, FPS, others = listOfNotNull(r.previous?.production?.film?.art)),
-            ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
-        } else if (video && request.edit != EditKind.Reel) {
-            // A long YouTube video: as recorded, with subtitles (and, for the pro kind, YouTube's devices) — phase 9.7.
-            val kind = if (request.edit == EditKind.YouTubePro) LongFormKind.Pro else LongFormKind.Subtitles
-            LongFormPilot(e.text, e.brands, visuals, director.model).produce(
-                LongFormPilot.Request(
-                    transcript, voice, request.brief, request.seed, kind, format = if (landscape(frames)) "16:9" else "9:16",
-                    footage = FOOTAGE, fps = FPS, subject = subject, logo = logoOf(assets)?.let { it.id to it.aspect }, voices = voices,
-                ),
-            ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
-        } else {
-            autopilot.produce(
-                Autopilot.Request(
-                    transcript, voice, brief, request.seed, footage = if (video) FOOTAGE else null, subject = subject,
-                    understanding = understanding, assets = assets, draft = saved?.draft, voices = voices, sourceTempo = tempo,
-                ),
-            ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
-        }
+        val material = Material(transcript, voice, frames, assets, subject, voices, tempo, understanding, saved?.draft)
+        val production = direct(r, material, director, autopilot, e) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
         if (understanding == null) checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding))
         latest.value = production.compiled
         r.state.update { it.copy(panel = production.panel?.let(PanelSummary::of), report = production.report) }
@@ -355,7 +328,7 @@ class Productions(
         val c = production.compiled.composition
         recorder.render(RenderTime(frameCount, (clock() - renderStart) / MS, c.width, c.height))
         // A long-form edit's subtitle files and its YouTube text go beside the video.
-        production.youtube?.let { YouTubeFiles.write(out, it, persian = transcript.words.count { w -> w.text.any { ch -> ch in '\u0600'..'\u06FF' } } * 2 > transcript.words.size) }
+        production.youtube?.let { YouTubeFiles.write(out, it, persian(transcript)) }
         // The finished edit is kept whole: it opens again after a restart (editor, exports) without whisper or the model.
         checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding, production.delivery()))
         recorder.finish(RunOutcome.Done)
@@ -367,6 +340,64 @@ class Productions(
             )
         }
     }
+
+    /** What the director works from: the words, the sound, the footage and what was found in it. */
+    private class Material(
+        val transcript: Transcript,
+        val voice: io.trimio.core.model.audio.PcmAudio,
+        val frames: List<io.trimio.engine.llm.RgbImage>,
+        val assets: List<UserAsset>,
+        val subject: io.trimio.engine.motion.score.Subject?,
+        val voices: List<io.trimio.engine.motion.score.Voice>,
+        val tempo: Pair<Float, Float>?,
+        val understanding: io.trimio.engine.autopilot.Understanding?,
+        val draft: io.trimio.engine.autopilot.UnderstandingDraft?,
+    )
+
+    /** The director the request asked for, every call of it (and of its eyes) on the run's record. */
+    private suspend fun directorOf(choice: DirectorChoice, recorder: RunRecorder): Director {
+        val d = platform.director(choice)
+        val model = d.model?.let(recorder::instrument)
+        val eyes = d.eyes?.let { if (it === d.model) model else recorder.instrument(it) }
+        return Director(model, eyes)
+    }
+
+    /**
+     * The edit itself: a voice alone becomes an explainer film (phase 8c), a long YouTube video keeps its recording
+     * with subtitles and, for the pro kind, YouTube's devices (phase 9.7); everything else is the reel.
+     */
+    private suspend fun direct(r: Run, m: Material, director: Director, autopilot: Autopilot, e: Engines, progress: (String, Float) -> Unit): Autopilot.Production {
+        val request = r.request
+        val video = request.kind == SourceKind.Video
+        if (!video && explainers) {
+            val budget = (jury ?: Juries.forDevice(platform.device())).budget
+            val stage = IllustratedStage(e.text, IconResolver.of(visuals)) { io.trimio.engine.illustration.Illustrator.create(engine = platform.diffusion()) }
+            val others = listOfNotNull(r.previous?.production?.film?.art)
+            val ask = ExplainerPilot.Request(m.transcript, m.voice, request.brief, request.seed, m.understanding, FPS, others = others)
+            return ExplainerPilot(stage, director.model, FilmJury(budget = budget)).produce(ask, progress)
+        }
+        if (video && request.edit != EditKind.Reel) {
+            val kind = if (request.edit == EditKind.YouTubePro) LongFormKind.Pro else LongFormKind.Subtitles
+            val format = if (landscape(m.frames)) "16:9" else "9:16"
+            val logo = logoOf(m.assets)?.let { it.id to it.aspect }
+            val ask = LongFormPilot.Request(
+                m.transcript, m.voice, request.brief, request.seed, kind, format = format,
+                footage = FOOTAGE, fps = FPS, subject = m.subject, logo = logo, voices = m.voices,
+            )
+            return LongFormPilot(e.text, e.brands, visuals, director.model).produce(ask, progress)
+        }
+        // The video's own music: no music of ours on top.
+        val brief = if (m.tempo != null) request.brief + "\n\nno music (the video has its own)" else request.brief
+        val ask = Autopilot.Request(
+            m.transcript, m.voice, brief, request.seed, footage = if (video) FOOTAGE else null, subject = m.subject,
+            understanding = m.understanding, assets = m.assets, draft = m.draft, voices = m.voices, sourceTempo = m.tempo,
+        )
+        return autopilot.produce(ask, progress)
+    }
+
+    /** Whether most words are written in Persian letters (the YouTube text is then written in Persian). */
+    private fun persian(transcript: Transcript): Boolean =
+        transcript.words.count { w -> w.text.any { ch -> ch in '\u0600'..'\u06FF' } } * 2 > transcript.words.size
 
     /** Small frames of each newly compiled edit while the director works (one at a time, the newest wins). */
     private suspend fun preview(latest: MutableStateFlow<Compiler.Output?>, r: Run, previewer: Previewer, media: Footage, lock: Mutex) {

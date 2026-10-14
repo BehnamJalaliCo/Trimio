@@ -181,7 +181,9 @@ class LongFormPilot(
         // A slow push-in at every chapter and every half minute or so in between; the frame rests otherwise.
         val pushes = pushStarts(words, chapters, endScreen)
         val scenes = listOf(SceneScore(from = 0, bg = "media", camera = "still", beats = beats)) +
-            pushes.flatMap { (start, end) -> listOf(SceneScore(from = start, bg = "media", camera = "push-in", transition = "cut"), SceneScore(from = end, bg = "media", camera = "still", transition = "cut")) }
+            pushes.flatMap { (start, end) ->
+                listOf(SceneScore(from = start, bg = "media", camera = "push-in", transition = "cut"), SceneScore(from = end, bg = "media", camera = "still", transition = "cut"))
+            }
         return Score(format = request.format, look = LOOK, captions = captions, scenes = scenes.sortedBy { it.from ?: 0 }.distinctBy { it.from }, auto = false)
     }
 
@@ -199,14 +201,24 @@ class LongFormPilot(
         var next = PUSH_EVERY
         for (i in 1 until words.size) {
             val t = words[i].range.startMs / MS
-            val chapterStart = chapters.any { kotlin.math.abs(it.at - t) < CHAPTER_DELAY }
-            if (t < next && !chapterStart || t > endScreen || !words[i - 1].endsSentence) continue
-            val end = (i + 1 until words.size).firstOrNull { j -> words[j].range.startMs / MS >= t + PUSH_LENGTH && words[j - 1].endsSentence } ?: continue
-            out += i to end
-            next = words[end].range.startMs / MS + PUSH_EVERY
+            val end = if (pushHere(words, i, t, next, endScreen, chapters)) sentenceAfter(words, i, t + PUSH_LENGTH) else null
+            if (end != null) {
+                out += i to end
+                next = words[end].range.startMs / MS + PUSH_EVERY
+            }
         }
         return out
     }
+
+    /** A push-in may start at word [i] (time [t]): a sentence start, before the end screen, at a chapter or once [next] has come. */
+    private fun pushHere(words: List<Word>, i: Int, t: Float, next: Float, endScreen: Float, chapters: List<Chapter>): Boolean {
+        if (t > endScreen || !words[i - 1].endsSentence) return false
+        return t >= next || chapters.any { kotlin.math.abs(it.at - t) < CHAPTER_DELAY }
+    }
+
+    /** The first sentence start after word [i] at [from] seconds or later. */
+    private fun sentenceAfter(words: List<Word>, i: Int, from: Float): Int? =
+        (i + 1 until words.size).firstOrNull { j -> words[j].range.startMs / MS >= from && words[j - 1].endsSentence }
 
     private fun chapterLabel(n: Int, rtl: Boolean): String =
         if (rtl) "فصل " + n.toString().map { if (it.isDigit()) '۰' + (it - '0') else it }.joinToString("") else "Chapter $n"

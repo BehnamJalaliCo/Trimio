@@ -12,7 +12,7 @@ import java.io.File
  * ones the system can page out instead of killing the app. The choice is kept beside the model and
  * measured again when the engine build changes.
  */
-internal object Placement {
+object Placement {
     /** One probe: [gpuLayers] asked (-1 as many as fit, 0 the CPU), [onGpu] whether any landed there, and the speeds. */
     data class Probe(val gpuLayers: Int, val onGpu: Boolean, val readPerSecond: Double, val writePerSecond: Double, val draft: Int = 0) {
         /** Seconds a typical director call (about [CALL_READ] tokens read, [CALL_WRITE] written) takes this way. */

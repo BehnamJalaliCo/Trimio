@@ -48,6 +48,8 @@ tasks.withType<Test>().configureEach {
     listOf("art.sheets", "art.video", "art.styles", "lottie.live").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
     // ColdOpenAudioTest: -Pcoldopen.wav=voice.wav -Pcoldopen.transcript=transcript.json [-Pcoldopen.out=dir]
     listOf("coldopen.wav", "coldopen.transcript", "coldopen.out").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
+    // LongFormProofTest: -Plong.video=<the 155 s mp4> [-Plong.format=16:9] [-Plong.out=dir]
+    listOf("long.video", "long.format", "long.out").forEach { key -> providers.gradleProperty(key).orNull?.let { systemProperty(key, it) } }
     // Host builds of libtrimio_llama and libtrimio_whisper (:engine:llm/:engine:asr buildHostNative).
     systemProperty("trimio.native.dir", providers.gradleProperty("auto.native").getOrElse(layout.buildDirectory.dir("host-native").get().asFile.absolutePath))
     maxHeapSize = "4g"

@@ -123,7 +123,8 @@ fun desktopPlatformModule(
         val settings = get<SettingsRepository>()
         val models = get<ModelManager>()
         val store = ModelStore(get<AppPaths>().models, get())
-        LocalDirectors(store, hardware.memory, DesktopDirectors.catalogFor(hardware.ramGb, models.catalog), preferred = { settings.settings.value.localModelId }).speedTest { settings.settings.value.speechModelId }
+        val catalog = DesktopDirectors.catalogFor(hardware.ramGb, models.catalog)
+        LocalDirectors(store, hardware.memory, catalog, preferred = { settings.settings.value.localModelId }).speedTest { settings.settings.value.speechModelId }
     }
     single<AutoEditor> {
         Productions(get(), get(), WebKnowledge.cached(get(), File(dirs.cache, "web").absolutePath), threads = { get<DeviceProfile>().threads }, app = "Trimio $appVersion · ${platformName(os)}")

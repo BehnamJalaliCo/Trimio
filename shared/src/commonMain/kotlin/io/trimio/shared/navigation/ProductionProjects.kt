@@ -219,7 +219,8 @@ class ProductionProjects(
                     if (runner.active.value?.let { it.key == record.key && !it.finished } == true) runner.cancel()
                     record.keys.forEach(checkpoints::delete)
                     withContext(Dispatchers.Default) {
-                        (record.files + listOfNotNull(current.outputUri, record.poster) + current.outputUri?.let(io.trimio.engine.production.YouTubeFiles::paths).orEmpty()).distinct().forEach(::deleteFile)
+                        val youtube = current.outputUri?.let(io.trimio.engine.production.YouTubeFiles::paths).orEmpty()
+                        (record.files + listOfNotNull(current.outputUri, record.poster) + youtube).distinct().forEach(::deleteFile)
                         folder?.let { runCatching { SystemFileSystem.delete(Path(it, project.id), mustExist = false) } }
                     }
                 }
