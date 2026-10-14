@@ -56,6 +56,7 @@ tasks.named<Test>("jvmTest") {
         dependsOn(buildHostNative, downloadWhisperTestModel)
         providers.gradleProperty("trimio.asrModels").orNull?.let { systemProperty("trimio.asr.models", it) }
         providers.gradleProperty("trimio.asrAudio").orNull?.let { systemProperty("trimio.asr.audio", it) }
+        providers.gradleProperty("trimio.asrWavs").orNull?.let { systemProperty("trimio.asr.wavs", it) }
         systemProperty("trimio.nativeTests", "true")
         systemProperty("trimio.native.dir", hostNativeDir.get().asFile.absolutePath)
         systemProperty("trimio.whisper.model", whisperTestModel.absolutePath)
