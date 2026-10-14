@@ -219,3 +219,20 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
 - Local: `detekt jvmTest :server:test` (every module) green but one detekt finding (headline complexity, fixed), then
   detekt and the changed modules again: autopilot 197, production 54, asr 14 tests, no failure; `compileKotlinWasmJs` green.
 - Real output seen: the news film with the studio illustrator (frames above), the queue scene drawn alone, the speech A/B.
+
+## 14 Oct — the owner on 1.0.20: what did not reach the phone, and the speed test as the build's setting
+
+- The owner could not find the speed test: it sat above the recommendation card at the top of the models screen. It is
+  also under the director model in Settings now (rendered as the owner's phone: `ModelManagerScreenshotTest.ownersPhone`).
+- The build percentage broke over two lines on the phone («۱» above «۲») although the earlier fix asked for one line and
+  rendered fine on the desktop: Android's line breaker split it. Each digit is its own text now (`DisplayFigure`).
+- Checked in the released APK itself: R8 had dropped `SdNative.StepListener.onStep` (the picture engine's progress), so a
+  picture taking minutes moved no progress on a phone. Kept now. From now on the APK is inspected before links are given.
+- The run report did not move while Whisper read (no detail on the step): the percent is its detail now, so the report
+  and its 30 s memory and heat samples move during a long transcription.
+- Owner: «سنجش سرعت را زدیم، بهترین را ملاک ساخت قرار بده؛ درصد صفر تا صد دقیق». The chosen ways are kept
+  (`speed-profile.json`) and shown in Settings as the way every build runs; the picture engine takes the director's
+  fastest processor thread count. Measured on the test machine (Qwen3-4B, large-v3): the first percentage (shares)
+  sat at 14 % for five minutes on the single-core call and jumped 61 → 100; now it follows the clock (expected times
+  re-estimated as calls end) and went 0 → 100 evenly in 219 s, about half a percent a second. The single-core call
+  is gone on multi-core devices (never the fastest; 3.7 min instead of 11).

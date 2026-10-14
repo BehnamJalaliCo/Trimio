@@ -285,7 +285,10 @@ internal fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
         }
         if (speed.done) {
             Text(
-                tr("بهترین حالت ذخیره شد؛ از این به بعد هر ساخت (کارگردان، گفتار و تصویرساز) با همین تنظیم اجرا می‌شود.", "The fastest way is kept; every build (director, speech, illustrator) now runs this way."),
+                tr(
+                    "بهترین حالت ذخیره شد؛ از این به بعد هر ساخت (کارگردان، گفتار و تصویرساز) با همین تنظیم اجرا می‌شود.",
+                    "The fastest way is kept; every build (director, speech, illustrator) now runs this way.",
+                ),
                 style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted,
             )
         }
