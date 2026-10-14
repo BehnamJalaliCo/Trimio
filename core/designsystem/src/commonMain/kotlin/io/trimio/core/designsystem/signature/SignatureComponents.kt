@@ -225,7 +225,14 @@ fun Modifier.gutter(): Modifier = padding(horizontal = SigSpace.gutter)
  * line the font's full natural ascent, which pushes tall display faces (line height < 1.1) down.
  */
 @Composable
-fun DisplayText(text: AnnotatedString, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier, color: Color = Sig.colors.ink) {
+fun DisplayText(
+    text: AnnotatedString,
+    style: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = Sig.colors.ink,
+    /** 1 for a figure that must never break across lines (the build's percentage). */
+    maxLines: Int = Int.MAX_VALUE,
+) {
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     Text(
         text,
@@ -244,10 +251,12 @@ fun DisplayText(text: AnnotatedString, style: androidx.compose.ui.text.TextStyle
         },
         style = style,
         color = color,
+        softWrap = maxLines > 1,
+        maxLines = maxLines,
         onTextLayout = { layout = it },
     )
 }
 
 @Composable
-fun DisplayText(text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier, color: Color = Sig.colors.ink) =
-    DisplayText(AnnotatedString(text), style, modifier, color)
+fun DisplayText(text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier, color: Color = Sig.colors.ink, maxLines: Int = Int.MAX_VALUE) =
+    DisplayText(AnnotatedString(text), style, modifier, color, maxLines)

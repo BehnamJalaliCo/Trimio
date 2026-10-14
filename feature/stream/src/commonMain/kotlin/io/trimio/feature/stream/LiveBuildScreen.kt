@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -161,7 +163,12 @@ private fun Readout(build: LiveBuild, showFrame: Boolean) {
     val pct by animateFloatAsState(build.progress.coerceIn(0f, 1f) * 100f, Trimio.motion.effects())
     Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Top) {
         Text("%", style = Sig.type.figure.copy(fontSize = 22.sp), color = c.action, modifier = Modifier.padding(top = 18.dp))
-        DisplayText(localizedNumber("${pct.toInt()}"), style = Sig.type.giant.copy(fontSize = 128.sp, lineHeight = 120.sp), modifier = Modifier.weight(1f))
+        // Sized for three digits ("100") in the space left, so a zoomed display or a large font never breaks it over two lines.
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val fits = with(LocalDensity.current) { (maxWidth / (PERCENT_DIGITS * DIGIT_EM)).toSp().value }
+            val size = minOf(PERCENT_SP, fits)
+            DisplayText(localizedNumber("${pct.toInt()}"), style = Sig.type.giant.copy(fontSize = size.sp, lineHeight = (size * PERCENT_LEADING).sp), maxLines = 1)
+        }
         if (showFrame) FormingFrame(build.previews, Modifier.size(92.dp, 150.dp))
     }
     TickBar(build.progress, Modifier.padding(top = 18.dp))
@@ -352,4 +359,10 @@ internal fun JudgeBead(judge: JudgeScore?, pending: Boolean = false, size: Dp = 
 private fun stageName(stage: BuildStage) = tr(stage.fa, stage.en)
 
 private const val JUDGE_BEAT_MS = 110L
+
+/** The percentage: 115 sp at most (128 broke over two lines on a zoomed display), three digits wide. */
+private const val PERCENT_SP = 115f
+private const val PERCENT_DIGITS = 3
+private const val DIGIT_EM = 0.62f
+private const val PERCENT_LEADING = 0.94f
 
