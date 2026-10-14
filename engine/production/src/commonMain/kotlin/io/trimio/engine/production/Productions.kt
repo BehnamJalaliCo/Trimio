@@ -293,6 +293,12 @@ class Productions(
             checkpoints.save(request.key, Checkpoints.Saved(it))
         }
 
+        // The edit was finished when the last attempt ended (in its render): it renders again at once.
+        saved?.takeIf { it.rendering }?.let { restored(it, voice, assets, e) }?.let { production ->
+            recorder.models(listOf(Fact("resumed", "the edit was finished before the last attempt ended; rendered again without the director")))
+            return render(r, production, transcript, assets, saved.by, r.taste, Runtime.of(null, r.speech))
+        }
+
         // Two voices or more (the speaker add-ons): each one's captions get their colour.
         val voices = if (video) recorder.native(ADD_ONS) { addOns.voices(transcript, voice, WHISPER_RATE) } else emptyList()
         // The video's own music (a steady beat under the voice): no music of ours on top, hits on its beat.
@@ -339,8 +345,46 @@ class Productions(
         renderLock.withLock { media.close() }
         // Where the engines ran (build, GPU, layers, threads), as they report it once they have worked.
         val runtime = Runtime.of(director.model?.runtime, r.speech)
-        recorder.runtime(runtime)
+        // The director's work is done: its model (gigabytes) leaves memory before the render needs it (the encoder, the
+        // source's decoder, every frame). A later revision loads it again.
+        release(director)
+        render(r, production, transcript, assets, director.model?.id, taste, runtime)
+    }
 
+    /** Frees the director, its eyes and the picture library before the render. */
+    private suspend fun release(director: Director) {
+        director.eyes?.takeIf { it !== director.model }?.let { runCatching { it.release() } }
+        director.model?.let { runCatching { it.release() } }
+        runCatching { io.trimio.engine.autopilot.ArtShelf.release() }
+    }
+
+    /** The finished edit kept before its render, made ready again without the director (null when it cannot be). */
+    private suspend fun restored(saved: Checkpoints.Saved, voice: io.trimio.core.model.audio.PcmAudio, assets: List<UserAsset>, e: Engines): Autopilot.Production? =
+        runCatching {
+            saved.film?.let { cut -> return@runCatching ExplainerPilot(filmStage(e)).restore(cut, voice) }
+            val kept = saved.delivery?.takeIf { it.version == Delivery.VERSION } ?: return@runCatching null
+            Autopilot(e.text, e.brands, visuals, jury = jury ?: Juries.forDevice(platform.device())).restore(kept, voice, assets)
+        }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+
+    /**
+     * Renders [production] and keeps it: before the render it is saved as rendering (a kill in the render renders it again
+     * at once), after it as finished (it opens again in the editor without whisper or the model).
+     */
+    @Suppress("LongParameterList")
+    private suspend fun ProducerScope<ProductionState>.render(
+        r: Run, production: Autopilot.Production, transcript: Transcript, assets: List<UserAsset>, by: String?, taste: Taste, runtime: Runtime,
+    ) {
+        val request = r.request
+        val recorder = r.recorder
+        val job = currentCoroutineContext()[Job]
+        recorder.runtime(runtime)
+        val keep = { rendering: Boolean ->
+            checkpoints.save(
+                request.key,
+                Checkpoints.Saved(transcript, production.understanding, production.delivery(), by = by, film = production.filmBench?.cut, rendering = rendering),
+            )
+        }
+        keep(true)
         r.at(Stage.Render, 0f, "render")
         val renderStart = clock()
         var frameCount = 0
@@ -356,10 +400,7 @@ class Productions(
         // A long-form edit's subtitle files and its YouTube text go beside the video.
         production.youtube?.let { YouTubeFiles.write(out, it, persian(transcript)) }
         // The finished edit is kept whole: it opens again after a restart (editor, exports) without whisper or the model.
-        checkpoints.save(
-            request.key,
-            Checkpoints.Saved(transcript, production.understanding, production.delivery(), by = director.model?.id, film = production.filmBench?.cut),
-        )
+        keep(false)
         recorder.finish(RunOutcome.Done)
         checkpoints.reports.saveEngine(recorder.engine(runtime, checkpoints.reports.engine()))
         r.state.update {

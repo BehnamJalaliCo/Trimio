@@ -137,6 +137,27 @@ class ProductionsTest {
         assertTrue(states.none { it.previews.isNotEmpty() }, "no live previews in a lean run")
     }
 
+    /**
+     * The owner's phone ended a run for memory as its render began (71 %) and the next attempt directed it all again: a
+     * finished edit is kept before its render, so the attempt after a kill renders it at once, without the director.
+     */
+    @Test
+    fun aRunKilledInItsRenderRendersAgainWithoutDirecting() = runBlocking {
+        val checkpoints = Checkpoints(Path(File(dir, "render-killed").path))
+        val request = ProductionRequest(clip().path, prompt = "یک ویدیوی کوتاه", seed = 11)
+        val first = editor(checkpoints).produce(request).toList().last()
+        assertEquals(ProductionStatus.Done, first.status, "failed: ${first.error}")
+        // As the checkpoint stands when the system ends the process in the render.
+        val kept = assertNotNull(checkpoints.load(request.key))
+        assertTrue(!kept.rendering, "a finished render is kept as finished")
+        checkpoints.save(request.key, kept.copy(rendering = true))
+        val states = editor(checkpoints).produce(request).toList()
+        assertEquals(ProductionStatus.Done, states.last().status, "failed: ${states.last().error}")
+        assertTrue(states.none { it.stage == Stage.Direct }, "no directing: ${states.map { it.step }.distinct()}")
+        assertTrue(assertNotNull(checkpoints.reports.load(request.key)).models.any { it.name == "resumed" }, "the report says it was resumed")
+        assertEquals(first.edit?.production?.compiled?.composition?.duration, states.last().edit?.production?.compiled?.composition?.duration)
+    }
+
     @Test
     fun cancellingStopsTheRun() = runBlocking {
         val request = ProductionRequest(clip().path, prompt = "test", seed = 3)

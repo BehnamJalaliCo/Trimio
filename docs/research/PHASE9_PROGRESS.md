@@ -286,3 +286,14 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   same Adreno, and a model's kernels held it. Both OpenCL copies of ggml now create their context with Qualcomm's low
   priority hint (`cl_qcom_priority_hint`, patched in at configure time) when the device offers it and the driver accepts
   it, so the screen draws first; without it, everything runs as before.
+
+## 15 Oct — the owner's build on 1.0.26: killed for low memory at 71 %, then directed all over again
+
+- 71 % is the render's first frames (the director's share ends at 70 %): the jury had scored, the render began, and the
+  system ended `io.trimio.app` for memory. The director model (E4B, gigabytes once repacked for the processor) was still
+  loaded when the render added the encoder, the source's decoder and every 1080p frame. Now the director, its eyes and
+  the picture library are freed the moment the edit is directed, before the render.
+- The next attempt started over (the reading was kept; the plan, pictures and jury were not). The finished edit is now
+  kept before its render (`Checkpoints.Saved.rendering`): an attempt after a kill in the render — the system's restart
+  or the creator's retry — renders it at once, without whisper or the director, and the report says «resumed». Host
+  test: `ProductionsTest.aRunKilledInItsRenderRendersAgainWithoutDirecting` (no directing step, the same edit).

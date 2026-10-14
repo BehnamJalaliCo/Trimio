@@ -44,6 +44,11 @@ class Checkpoints(private val dir: Path?) {
         val by: String? = null,
         /** The finished explainer film as the director wrote it (a voice alone): it opens again without the director. */
         val film: io.trimio.engine.autopilot.explainer.FilmCut? = null,
+        /**
+         * The edit was finished and its render had begun: an attempt after a kill (the system's, or the creator's retry)
+         * renders it again from [delivery] or [film] at once, without whisper or the director.
+         */
+        val rendering: Boolean = false,
     )
 
     fun load(key: String): Saved? = read(file(key)) { json.decodeFromString(Saved.serializer(), it) }
