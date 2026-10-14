@@ -178,5 +178,5 @@ object Juries {
  */
 fun Autopilot.Production.sourceSound(request: ProductionRequest): String? {
     val whole = edit.segments.singleOrNull()?.let { it.sourceStart == 0f && it.outStart == 0f } == true && edit.opening.isEmpty() && edit.outro == null
-    return request.media.takeIf { whole && request.kind == SourceKind.Video && request.edit != EditKind.Reel }
+    return request.media.takeIf { whole && request.kind == SourceKind.Video && request.edit.longForm }
 }

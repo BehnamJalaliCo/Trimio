@@ -33,7 +33,7 @@ import io.trimio.engine.motion.fill
 object MediaRecipes {
 
     /** Recipes that draw a creator's own picture or clip (the jury checks every attached one is used). */
-    val SHOWS_MEDIA: Set<String> = setOf("logo-mark", "product", "screenshot", "pip", "b-roll", "watermark")
+    val SHOWS_MEDIA: Set<String> = setOf("logo-mark", "product", "screenshot", "pip", "b-roll", "yt-watermark")
 
     /**
      * The brand-mark treatment with the creator's own logo as the mark: a tile flips in on a spring,

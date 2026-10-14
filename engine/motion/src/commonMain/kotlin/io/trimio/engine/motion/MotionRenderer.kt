@@ -347,7 +347,7 @@ class MotionRenderer(
             withM(m) { drawRoundRect(d.color, r.topLeft, r.size, androidx.compose.ui.geometry.CornerRadius(d.radius * size), alpha = alpha) }
         }
         // Karaoke ink: each inked word's slice of the line, with its current colour.
-        val inks = node.decorations.filterIsInstance<Decoration.Ink>().filter { t >= it.at }.flatMap { d ->
+        val inks = node.decorations.filterIsInstance<Decoration.Ink>().filter { t >= it.at && t < it.until }.flatMap { d ->
             val p = ((t - d.at) / d.duration).coerceIn(0f, 1f)
             val color = androidx.compose.ui.graphics.lerp(baseColor ?: d.color, d.color, p)
             line.words.filter { it.index in d.words }.map { Rect(line.x + it.clipLeft, line.top - size * 3, line.x + it.clipRight, line.top + line.height + size * 3) to color }
@@ -413,6 +413,7 @@ class MotionRenderer(
     }
 
     private fun blockRect(d: Decoration.Block, line: TextLine, t: Float, size: Float, rtl: Boolean): Rect? {
+        if (t >= d.until) return null
         val r = wipeRect(d.words, d.at, d.duration, d.ease, line, t, rtl, d.padX * size) ?: return null
         // Snug to the measured ink: from the ascenders to the tails, with a little air.
         return Rect(r.left, line.inkTop - (BLOCK_AIR + d.padTop) * size, r.right, line.inkBottom + (BLOCK_AIR + d.padBottom) * size)

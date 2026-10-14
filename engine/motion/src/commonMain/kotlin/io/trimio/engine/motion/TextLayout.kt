@@ -209,6 +209,12 @@ class TextLayoutEngine(val measurer: TextMeasurer, val fonts: MotionFonts) {
             while (i < text.length && text[i] != ' ') i++
             var left = Float.POSITIVE_INFINITY
             var right = Float.NEGATIVE_INFINITY
+            // The word's own outline: per-character boxes misplace the letters before a ZWNJ in right-to-left text
+            // («می» of «می‌خوره»), and the word's highlight and pop then missed them.
+            val whole = layout.getPathForRange(start, i).getBounds()
+            if (whole.width > 0f) {
+                left = whole.left; right = whole.right
+            }
             for (c in start until i) {
                 val b = layout.getBoundingBox(c)
                 if (b.width <= 0f) continue

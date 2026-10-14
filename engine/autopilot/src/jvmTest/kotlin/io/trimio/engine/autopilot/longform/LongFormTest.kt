@@ -115,10 +115,10 @@ class LongFormTest {
         val pilot = LongFormPilot(text, BrandLibrary.load(), VisualLibrary.Empty, Titler())
         val out = pilot.produce(LongFormPilot.Request(Transcript(Language.Persian, words), voice, "", 1L, LongFormKind.Pro))
         val placed = out.compiled.beats
-        val subscribe = placed.filter { it.recipe == "subscribe" }
+        val subscribe = placed.filter { it.recipe == "yt-subscribe" }
         assertEquals(1, subscribe.size, "one subscribe ask")
         assertTrue(subscribe.single().at >= 59f, "after the first minute: ${subscribe.single().at}")
-        val cards = placed.filter { it.recipe == "chapter" }
+        val cards = placed.filter { it.recipe == "yt-chapter" }
         assertTrue(cards.size >= 2, "a card at every chapter after the first")
         // Both sit at the top of the frame: never up together.
         assertTrue(cards.none { c -> c.at < subscribe.single().out && subscribe.single().at < c.out }, "the ask and a card overlap: $placed")
@@ -144,7 +144,7 @@ class LongFormTest {
         // The rules title a chapter by its opening words: fine in the description, a broken sentence on screen.
         val pilot = LongFormPilot(text, BrandLibrary.load(), VisualLibrary.Empty)
         val out = pilot.produce(LongFormPilot.Request(Transcript(Language.Persian, words), voice, "", 1L, LongFormKind.Pro))
-        assertTrue(out.compiled.beats.none { it.recipe == "chapter" })
+        assertTrue(out.compiled.beats.none { it.recipe == "yt-chapter" })
         assertTrue(out.youtube!!.chapters.size >= 3, "the description still lists them")
     }
 

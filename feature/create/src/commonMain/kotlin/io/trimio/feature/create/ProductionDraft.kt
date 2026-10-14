@@ -93,5 +93,7 @@ data class CreateActions(
     val onSpeed: (io.trimio.engine.models.SpeedMode) -> Unit = {},
     /** Reel or a long YouTube video (videos only). */
     val onEdit: (EditChoice) -> Unit = {},
+    /** The subtitle look of a subtitled edit. */
+    val onSubtitles: (SubtitleChoice) -> Unit = {},
     val onCreate: () -> Unit = {},
 )

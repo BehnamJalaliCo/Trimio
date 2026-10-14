@@ -87,6 +87,8 @@ data class ProductionRequest(
     val id: String? = null,
     /** What kind of edit a video gets: a reel (the default), or a long YouTube video with subtitles only or with its devices. */
     val edit: EditKind = EditKind.Reel,
+    /** The subtitle look of a subtitled edit (the engine's SubtitleStyle id); null: the kind's default. */
+    val subtitles: String? = null,
 ) {
     /** The brief the engine reads: the prompt, the glossary, and the asked style by name. */
     val brief: String
@@ -106,12 +108,18 @@ enum class EditKind {
     /** A short, fully directed edit: cuts, graphics, music, the jury. */
     Reel,
 
+    /** A plain reel: the silences cut and the words on screen in the picked subtitle style; no graphics, no music. */
+    Subtitles,
+
     /** A long video as recorded, with accurate subtitles only (and the subtitle files, chapters, titles). */
     YouTube,
 
     /** A long video with subtitles plus YouTube's devices: watermark, subscribe ask, chapter cards, slow push-ins. */
     YouTubePro,
 }
+
+/** A long YouTube video (played as recorded, its own sound kept): the two YouTube kinds. */
+val EditKind.longForm: Boolean get() = this == EditKind.YouTube || this == EditKind.YouTubePro
 
 /** Where a run is. [Stage.weight] is its share of the bar. */
 enum class Stage(val weight: Float) {

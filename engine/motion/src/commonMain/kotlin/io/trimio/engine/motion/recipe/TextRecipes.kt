@@ -125,9 +125,10 @@ internal object Craft {
     fun text(
         cue: Cue, type: TypeSpec, fill: Color, look: Look,
         animators: List<TextAnimator>, decorations: List<Decoration> = emptyList(), maxWidth: Float = cue.width, name: String,
+        stroke: io.trimio.engine.motion.Stroke? = null, shadowed: Boolean = true,
     ) = TextNode(
         text = cue.text, type = type, fill = fill.fill(), maxWidth = maxWidth, align = TextAlign.Center, rtl = cue.rtl,
-        animators = animators, decorations = decorations, shadow = shadow(cue, look, type.size),
+        animators = animators, decorations = decorations, stroke = stroke, shadow = if (shadowed) shadow(cue, look, type.size) else null,
         transform = Transform(x = cue.x.anim, y = cue.y.anim), start = cue.at - 0.5f, end = cue.out + 0.02f, name = name,
     )
 
@@ -166,6 +167,8 @@ internal object Craft {
 
 /** The text recipes. Sizes come from the fitter; everything else is decided here. */
 object TextRecipes {
+    /** A 16:9 frame's caption band is far wider than tall; a 9:16 one is not. */
+    private const val WIDE_BAND = 6f
 
     /** Words rise from behind their line, the signature headline move. */
     val MaskRise = object : Recipe("mask-rise", Kind.Text) {
@@ -228,7 +231,9 @@ object TextRecipes {
     val Subtitles = object : Recipe("subtitles", Kind.Text) {
         override val preferredHeight = 0.13f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
-            val f = fit.fit(cue.text, look.caption, minOf(cue.height * 0.4f, 58f), cue.width * 0.92f, cue.height, maxLines = 2)
+            // The brand's text face, not the look's display voice: an hour of reading wants plain, open letters.
+            val size = if (cue.width > cue.height * WIDE_BAND) minOf(cue.height * 0.4f, 58f) else minOf(cue.width * 0.074f, cue.height * 0.34f)
+            val f = fit.fit(cue.text, Look.Voice(io.trimio.core.brand.BrandFonts.Role.Ui, 800, lineHeight = 1.32f), size, cue.width * 0.92f, cue.height, maxLines = 2)
             val fadeIn = TextAnimator(TextUnit.All, UnitState(opacity = 0f), at = cue.at - 0.06f, duration = 0.12f, ease = Easing.SineInOut)
             val fadeOut = TextAnimator(TextUnit.All, UnitState(opacity = 0f), at = cue.out - 0.12f, duration = 0.12f, ease = Easing.SineInOut, shape = Shape.Out)
             val node = Craft.text(cue.copy(emphasis = emptySet()), f.type, Craft.voice(cue, look), look, listOf(fadeIn, fadeOut), name = name)
@@ -377,5 +382,5 @@ object TextRecipes {
 
     private const val MAX_STACK = 3
 
-    val all: List<Recipe> = listOf(MaskRise, Slam, PopCaptions, Subtitles, TypeOn, BlurIn, Flip, Spread, Stack, Glitch)
+    val all: List<Recipe> = listOf(MaskRise, Slam, PopCaptions, Subtitles, TypeOn, BlurIn, Flip, Spread, Stack, Glitch) + SubtitleRecipes.all
 }

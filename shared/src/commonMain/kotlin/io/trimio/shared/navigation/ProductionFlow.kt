@@ -70,9 +70,11 @@ object ProductionUi {
         director = s.speedModel?.let { io.trimio.engine.production.DirectorChoice.Local(it) } ?: io.trimio.engine.production.DirectorChoice.Auto,
         edit = when (s.edit) {
             io.trimio.feature.create.EditChoice.Reel -> io.trimio.engine.production.EditKind.Reel
+            io.trimio.feature.create.EditChoice.Simple -> io.trimio.engine.production.EditKind.Subtitles
             io.trimio.feature.create.EditChoice.YouTube -> io.trimio.engine.production.EditKind.YouTube
             io.trimio.feature.create.EditChoice.YouTubePro -> io.trimio.engine.production.EditKind.YouTubePro
         },
+        subtitles = (s.subtitles ?: io.trimio.feature.create.SubtitleChoice.default(s.edit)).id.takeIf { s.edit.subtitled },
     )
 
     fun styleName(id: String?, persian: Boolean): String? = ProductionStyles.of(id)?.let { if (persian) it.nameFa else it.nameEn }

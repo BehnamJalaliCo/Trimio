@@ -2,6 +2,7 @@ package io.trimio.feature.create
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,17 +24,63 @@ import androidx.compose.ui.unit.sp
 import io.trimio.core.designsystem.signature.Sig
 import io.trimio.core.designsystem.theme.tr
 
-/** What a video becomes: a reel, or a long YouTube video with subtitles only, or with YouTube's devices too. */
+/**
+ * What a video becomes: a fully directed reel, a plain reel (subtitles and its silences cut, nothing else), or a long
+ * YouTube video with subtitles only, or with YouTube's devices too.
+ */
 enum class EditChoice(val fa: String, val en: String, val faNote: String, val enNote: String) {
     Reel("ریلز", "Reel", "ادیت کامل", "Full edit"),
+    Simple("ریلز ساده", "Plain reel", "زیرنویس، بی‌سکوت", "Subtitles, no pauses"),
     YouTube("یوتیوب", "YouTube", "فقط زیرنویس", "Subtitles only"),
-    YouTubePro("یوتیوب حرفه‌ای", "YouTube pro", "زیرنویس + فصل و سابسکرایب", "Subtitles + chapters, subscribe"),
+    YouTubePro("یوتیوب حرفه‌ای", "YouTube pro", "فصل و سابسکرایب", "Chapters, subscribe"),
+    ;
+
+    /** Whether the edit is its subtitles (a style is picked for them). */
+    val subtitled: Boolean get() = this != Reel
+}
+
+/** The subtitle looks a subtitled edit can take (the engine's SubtitleStyle ids). */
+enum class SubtitleChoice(val id: String, val fa: String, val en: String) {
+    Classic("classic", "کلاسیک", "Classic"),
+    Box("box", "جعبه‌ای", "Box"),
+    Karaoke("karaoke", "کارائوکه", "Karaoke"),
+    Pop("pop", "پاپ درشت", "Bold pop"),
+    Highlight("highlight", "هایلایت", "Highlight"),
+    Minimal("minimal", "مینیمال", "Minimal"),
+    ;
+
+    companion object {
+        /** A reel reads best word by word; an hour of YouTube in calm lines. */
+        fun default(edit: EditChoice): SubtitleChoice = if (edit == EditChoice.Simple) Pop else Classic
+    }
+}
+
+/** «سبک زیرنویس»: the looks side by side, each named in its own words; the picked one inked. */
+@Composable
+internal fun SubtitleChoiceRow(selected: SubtitleChoice, onPick: (SubtitleChoice) -> Unit, modifier: Modifier = Modifier) {
+    val c = Sig.colors
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(tr("سبک زیرنویس", "Subtitle style"), style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SubtitleChoice.entries.forEach { choice ->
+                val on = choice == selected
+                Text(
+                    tr(choice.fa, choice.en),
+                    style = Sig.type.body.copy(fontSize = 13.sp, fontWeight = FontWeight(if (on) 800 else 600)),
+                    color = if (on) c.canvas else c.ink, maxLines = 1,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (on) c.ink else c.surface)
+                        .clickable { onPick(choice) }.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
 }
 
 /**
- * «ریلز / یوتیوب / یوتیوب حرفه‌ای» for a video: a reel is cut and directed; a YouTube video plays as recorded with
- * accurate subtitles (no cut, no silence removed), and the pro kind adds the watermark, the subscribe ask and the
- * chapter cards. Both YouTube kinds also give the subtitle files, the chapters for the description and titles.
+ * «ریلز / ریلز ساده / یوتیوب / یوتیوب حرفه‌ای» for a video: a reel is cut and directed; a plain reel is its subtitles
+ * with the silences cut; a YouTube video plays as recorded with accurate subtitles (no cut, no silence removed), and
+ * the pro kind adds the watermark, the subscribe ask and the chapter cards. Both YouTube kinds also give the subtitle
+ * files, the chapters for the description and titles.
  */
 @Composable
 internal fun EditChoiceRow(selected: EditChoice, onEdit: (EditChoice) -> Unit, modifier: Modifier = Modifier) {

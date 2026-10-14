@@ -31,7 +31,7 @@ object YouTubeRecipes {
      * The subscribe ask: a red pill with a bell slides up, a pointer comes in and taps it, the pill turns
      * grey («سابسکرایب شد»), the bell rings. [Cue.text] replaces the call, [Cue.label] the done state.
      */
-    val Subscribe = object : Recipe("subscribe", Kind.Element) {
+    val Subscribe = object : Recipe("yt-subscribe", Kind.Element) {
         override val preferredHeight = 0.12f
         override val minHold = 3.2f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
@@ -87,7 +87,7 @@ object YouTubeRecipes {
      * The channel's mark in a corner for the whole video ([Cue.media], the creator's own logo): small, a little
      * transparent, fading in after the opening and out before the end screen; never animated beyond that.
      */
-    val Watermark = object : Recipe("watermark", Kind.Element) {
+    val Watermark = object : Recipe("yt-watermark", Kind.Element) {
         override val preferredHeight = 0.09f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
             val media = cue.media ?: return Built(emptyList())
@@ -103,7 +103,7 @@ object YouTubeRecipes {
      * A chapter's card as the chapter starts: a thin accent rule, the chapter's number small above its title,
      * sliding in from the reading side and leaving the same way; [Cue.label] is the number line («فصل ۲»).
      */
-    val Chapter = object : Recipe("chapter", Kind.Element) {
+    val Chapter = object : Recipe("yt-chapter", Kind.Element) {
         override val preferredHeight = 0.16f
         override val minHold = 2.6f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {

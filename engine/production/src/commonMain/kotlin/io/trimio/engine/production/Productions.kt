@@ -18,12 +18,14 @@ import io.trimio.engine.autopilot.UserAsset
 import io.trimio.engine.autopilot.explainer.ExplainerPilot
 import io.trimio.engine.autopilot.longform.LongFormKind
 import io.trimio.engine.autopilot.longform.LongFormPilot
+import io.trimio.engine.autopilot.longform.SubtitleReel
 import io.trimio.engine.autopilot.explainer.judges.FilmJury
 import io.trimio.engine.motion.explainer.IconResolver
 import io.trimio.engine.motion.MediaSource
 import io.trimio.engine.motion.MotionFonts
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.recipe.BrandLibrary
+import io.trimio.engine.motion.recipe.SubtitleStyle
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.visual.VisualLibrary
 import io.trimio.engine.perception.AddOnPass
@@ -379,13 +381,22 @@ class Productions(
             val ask = ExplainerPilot.Request(m.transcript, m.voice, request.brief, request.seed, m.understanding, FPS, others = others)
             return ExplainerPilot(stage, director.model, FilmJury(budget = budget)).produce(ask, progress)
         }
-        if (video && request.edit != EditKind.Reel) {
+        val style = SubtitleStyle.of(request.subtitles)
+        if (video && request.edit == EditKind.Subtitles) {
+            // A plain reel: its silences cut and its words in the picked subtitle style, nothing else (phase 9.9).
+            val ask = SubtitleReel.Request(
+                m.transcript, m.voice, request.brief, request.seed, style ?: SubtitleStyle.Pop,
+                footage = FOOTAGE, fps = FPS, subject = m.subject, voices = m.voices,
+            )
+            return SubtitleReel(e.text, e.brands, visuals, director.model).produce(ask, progress)
+        }
+        if (video && request.edit.longForm) {
             val kind = if (request.edit == EditKind.YouTubePro) LongFormKind.Pro else LongFormKind.Subtitles
             val format = if (landscape(m.frames)) "16:9" else "9:16"
             val logo = logoOf(m.assets)?.let { it.id to it.aspect }
             val ask = LongFormPilot.Request(
                 m.transcript, m.voice, request.brief, request.seed, kind, format = format,
-                footage = FOOTAGE, fps = FPS, subject = m.subject, logo = logo, voices = m.voices,
+                footage = FOOTAGE, fps = FPS, subject = m.subject, logo = logo, voices = m.voices, style = style ?: SubtitleStyle.Classic,
             )
             return LongFormPilot(e.text, e.brands, visuals, director.model).produce(ask, progress)
         }
@@ -440,7 +451,7 @@ class Productions(
      * its voice is only heard at the speech rate (an hour at 48 kHz would not fit a phone's heap).
      */
     private fun voiceRate(request: ProductionRequest): Int =
-        if (request.kind == SourceKind.Video && request.edit != EditKind.Reel) WHISPER_RATE else VOICE_RATE
+        if (request.kind == SourceKind.Video && request.edit.longForm) WHISPER_RATE else VOICE_RATE
 
     /** Whether the footage is wider than tall (its sampled frames), so a long-form edit keeps its 16:9 frame. */
     private fun landscape(frames: List<io.trimio.engine.llm.RgbImage>): Boolean = frames.firstOrNull()?.let { it.width >= it.height } ?: true

@@ -128,6 +128,8 @@ sealed interface Decoration {
         val radius: Float = 0.06f,
         /** Degrees of slant on the block, for a marker feel. */
         val skew: Float = 0f,
+        /** When the block is gone again (the word being said moves on); never by default. */
+        val until: Float = Float.POSITIVE_INFINITY,
     ) : Decoration
 
     /** A stroke drawn under the words in reading order. */
@@ -148,6 +150,8 @@ sealed interface Decoration {
         override val at: Float,
         val color: Color,
         val duration: Float = 0.12f,
+        /** When the words take their own colour again (only the word being said is inked); never by default. */
+        val until: Float = Float.POSITIVE_INFINITY,
     ) : Decoration
 
     /**

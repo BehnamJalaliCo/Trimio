@@ -85,6 +85,8 @@ class LongFormPilot(
         val logo: Pair<String, Float>? = null,
         /** Who speaks when (two voices or more): each voice's subtitles get their colour. */
         val voices: List<io.trimio.engine.motion.score.Voice> = emptyList(),
+        /** The subtitle look the creator picked. */
+        val style: io.trimio.engine.motion.recipe.SubtitleStyle = io.trimio.engine.motion.recipe.SubtitleStyle.Classic,
     )
 
     suspend fun produce(request: Request, onStage: (String, Float) -> Unit = { _, _ -> }): Autopilot.Production {
@@ -177,7 +179,7 @@ class LongFormPilot(
      * director wrote one), a subscribe ask, chapter cards, the numbers and brands said, and slow push-ins.
      */
     private fun score(request: Request, words: List<Word>, chapters: List<Chapter>, duration: Float, title: String?): Score {
-        val captions = CaptionScore(show = true, recipe = "subtitles", place = "lower", maxWords = SubtitleFiles.MAX_WORDS)
+        val captions = CaptionScore(show = true, recipe = request.style.recipe, place = "lower", maxWords = request.style.maxWords)
         if (request.kind == LongFormKind.Subtitles) {
             return Score(format = request.format, look = LOOK, captions = captions, scenes = listOf(SceneScore(from = 0, bg = "media", camera = "still")), auto = false)
         }
@@ -185,14 +187,14 @@ class LongFormPilot(
         val endScreen = (duration - END_SCREEN).coerceAtLeast(0f)
         val beats = buildList {
             request.logo?.let { (media, aspect) ->
-                if (endScreen > WATERMARK_FROM + MIN_WATERMARK) add(BeatScore("watermark", time = WATERMARK_FROM, hold = endScreen - WATERMARK_FROM, place = "top", media = media, aspect = aspect))
+                if (endScreen > WATERMARK_FROM + MIN_WATERMARK) add(BeatScore("yt-watermark", time = WATERMARK_FROM, hold = endScreen - WATERMARK_FROM, place = "top", media = media, aspect = aspect))
             }
             // A card only for a title the director wrote: opening words read as a broken sentence on screen.
             val cards = chapters.drop(1).mapIndexedNotNull { i, c -> (i to c).takeIf { c.named && c.at + CHAPTER_HOLD < endScreen } }
-            cards.forEach { (i, c) -> add(BeatScore("chapter", time = c.at + CHAPTER_DELAY, hold = CHAPTER_HOLD, place = "top", text = c.title, label = chapterLabel(i + 2, rtl))) }
-            subscribeAt(words, duration, cards.map { it.second.at })?.let { add(BeatScore("subscribe", time = it, hold = SUBSCRIBE_HOLD, place = "top")) }
+            cards.forEach { (i, c) -> add(BeatScore("yt-chapter", time = c.at + CHAPTER_DELAY, hold = CHAPTER_HOLD, place = "top", text = c.title, label = chapterLabel(i + 2, rtl))) }
+            subscribeAt(words, duration, cards.map { it.second.at })?.let { add(BeatScore("yt-subscribe", time = it, hold = SUBSCRIBE_HOLD, place = "top")) }
             title?.takeIf { duration > MIN_SUBSCRIBE_VIDEO }?.let { add(BeatScore("lower-third", time = TITLE_AT, hold = TITLE_HOLD, place = "top", text = it)) }
-            val busy = filter { it.recipe != "watermark" }.mapNotNull { b -> b.time?.let { it..(it + (b.hold ?: 0f)) } }
+            val busy = filter { it.recipe != "yt-watermark" }.mapNotNull { b -> b.time?.let { it..(it + (b.hold ?: 0f)) } }
             addAll(SpokenFacts.beats(words, brands, busy, endScreen))
         }
         // A slow push-in at every chapter and every half minute or so in between; the frame rests otherwise.
