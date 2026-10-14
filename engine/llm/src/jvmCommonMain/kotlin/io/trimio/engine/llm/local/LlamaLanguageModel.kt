@@ -233,6 +233,9 @@ class LlamaLanguageModel(
     /** This device's measured choice for this model ([Placement]): the kept one, or a probe each way now (once per engine build). */
     private fun placement(): Placement.Choice {
         val build = LlamaNative.variant + "|" + LlamaNative.systemInfo()
+        val free = Placement.freeBytes()
+        // Not enough free memory for a pinned GPU copy: the CPU, without trying (and without keeping it: more may be free next time).
+        if (!Placement.gpuFits(File(modelPath).length(), free)) return Placement.Choice(0, "CPU: ${free?.div(MIB)} MB free, too little for the model on the GPU")
         Placement.cached(modelPath, build)?.let { return it }
         val gpu = probe(FITTING)
         val cpu = probe(0)
@@ -321,6 +324,7 @@ class LlamaLanguageModel(
         private const val PROBE_CONTEXT = 2048
         private const val FITTING = -1
         private const val MICROS = 1_000_000.0
+        private const val MIB = 1024L * 1024L
         private const val MIN_SECONDS = 0.001
     }
 }

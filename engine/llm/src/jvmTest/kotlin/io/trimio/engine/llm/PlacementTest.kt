@@ -31,6 +31,14 @@ class PlacementTest {
     }
 
     @Test
+    fun theGpuIsNotTriedWithoutRoomForThePinnedWeights() {
+        val gemma = 5_154_941_280L
+        assertTrue(!Placement.gpuFits(gemma, 5_000L * 1024 * 1024), "1.0.18: about 5 GB free for a 5.2 GB model")
+        assertTrue(Placement.gpuFits(gemma, 9_000L * 1024 * 1024))
+        assertTrue(Placement.gpuFits(gemma, null), "unreadable: the probe decides")
+    }
+
+    @Test
     fun theChoiceIsKeptUntilTheEngineChanges() {
         val model = Files.createTempDirectory("placement").resolve("m.gguf").toString()
         assertNull(Placement.cached(model, "opencl|a"))

@@ -24,6 +24,21 @@ internal object Placement {
     /** The decision and how it was reached, as the report shows it. */
     data class Choice(val gpuLayers: Int, val line: String)
 
+    /**
+     * Whether the GPU may even be tried: its copy of the weights is pinned (the system cannot page it out the way it
+     * pages the CPU's memory-mapped file), so it needs the model's size plus [GPU_HEADROOM] free. On a phone a GPU
+     * load without that room is how 1.0.17 and 1.0.18 were killed for memory (RSS 2.9 GB plus the GPU's share).
+     * [freeBytes] null (unreadable) leaves the probe to decide.
+     */
+    fun gpuFits(modelBytes: Long, freeBytes: Long?): Boolean = freeBytes == null || freeBytes >= modelBytes + GPU_HEADROOM
+
+    /** Memory the system can still give without killing anything (`MemAvailable`), on Android and Linux; null elsewhere. */
+    fun freeBytes(): Long? = runCatching {
+        File("/proc/meminfo").takeIf(File::canRead)?.useLines { lines ->
+            lines.firstOrNull { it.startsWith("MemAvailable:") }?.let { DIGITS.find(it)?.value?.toLong()?.times(KIB) }
+        }
+    }.getOrNull()
+
     /** The layers to ask for: the GPU's only when it ran there and beat the CPU by [GPU_MARGIN] on a typical call. */
     fun choose(gpu: Probe?, cpu: Probe?): Choice {
         val gpuWins = gpu != null && gpu.onGpu && (cpu == null || gpu.callSeconds * GPU_MARGIN < cpu.callSeconds)
@@ -45,6 +60,12 @@ internal object Placement {
     private fun file(model: String) = File("$model.placement")
 
     private fun rate(v: Double): String = ((v * TENTHS).toLong() / TENTHS).toString()
+
+    private val DIGITS = Regex("\\d+")
+    private const val KIB = 1024L
+
+    /** Free memory beyond the model's own size for a GPU load: the context, compute buffers, the app and the system. */
+    private const val GPU_HEADROOM = 2L * 1024 * 1024 * 1024
 
     /** The GPU must be this much faster (its time × 1.15 still below the CPU's) to be worth pinning the model in GPU memory. */
     private const val GPU_MARGIN = 1.15
