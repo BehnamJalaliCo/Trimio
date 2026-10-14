@@ -102,4 +102,16 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   starting a little earlier in its pause, so the music runs on in time across each cut.
 - 9.2 SDXS through JNI on the host (`SdxsEngineTest`): the engine called into `trimio_sd` without loading it (only
   `LocalDirectors` touched `SdNative.available`) → `SdxsEngine` checks it first. sd.cpp logs go to logcat/stderr.
+- Owner on Windows (1.0.18, 35B-A3B installed): the report said «rules (no model)». Cause: `LocalModels.bestSpec`
+  took the largest *comfortable* model, else the smallest *calibrated* one; the 35B-A3B is experimental (capped at
+  Experimental), so with only it installed the rules directed. Fixed: an installed director always directs (the
+  smallest experimental one last). A kept reading is reused only by the director that made it (`Saved.by`), and a
+  rules-only run says so under the jury on the build and result screens (`RulesOnly`, reason in the report:
+  none installed / too big for this memory). The jury's judges are rule checks: misheard real words are caught
+  only by the director's proofreading, which is why a rules-only run scored 10 over visible mistakes.
+- 9.2 decision: stable-diffusion.cpp (d763dae) on our ggml (llama.cpp baef3ed) aborts in the text encoder's
+  segmented runner (`ggml_runner_cut:clip_text.prelude|x|`, an ADD whose dst has nb0 = 0); flash attention off and
+  segmented compute off do not avoid it. The engine is left out of the builds (`TRIMIO_SD=OFF`) and the generator
+  add-ons out of the catalogue until it runs; the code stays for that work.
+- Release 1.0.19 pushed (run 19).
 
