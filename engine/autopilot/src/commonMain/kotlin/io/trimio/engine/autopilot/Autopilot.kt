@@ -46,6 +46,8 @@ class Autopilot(
     private val jury: Jury? = Jury.Default,
     /** Every compiled edit as it forms (drafts, critic and jury revisions): the app previews them live. */
     private val onCompiled: (Compiler.Output) -> Unit = {},
+    /** The reading so far (after every group of lines): the app checkpoints it, so a killed run resumes there. */
+    private val onDraft: (UnderstandingDraft) -> Unit = {},
 ) {
     data class Request(
         /** Recognised words on the source clock. */
@@ -62,6 +64,8 @@ class Autopilot(
         val fps: Int = 30,
         /** Pictures and clips the creator attached beside the prompt, placed where they are talked about ([UserMedia]). */
         val assets: List<UserAsset> = emptyList(),
+        /** A reading an earlier attempt left unfinished: it goes on from there. */
+        val draft: UnderstandingDraft? = null,
     )
 
     data class Production(
@@ -123,7 +127,7 @@ class Autopilot(
             "${round1(analysis.duration)}s → ${round1(analysis.edit.duration)}s"
 
         onStage("understand", 0.1f)
-        val read = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report) { done, total ->
+        val read = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report, request.draft) { done, total ->
             onStage("understand $done/$total", UNDERSTAND_FROM + (UNDERSTAND_TO - UNDERSTAND_FROM) * done / total.coerceAtLeast(1))
         }
         // What the brief says in so many words («پرانرژی», «کلمه‌به‌کلمه») wins over the model's reading of it.
@@ -357,12 +361,18 @@ class Autopilot(
         lines: List<Lines.Line>,
         seed: Long,
         report: MutableList<String>,
+        draft: UnderstandingDraft?,
         onLine: (done: Int, total: Int) -> Unit,
     ): Understanding {
         val m = model ?: return RulesUnderstander.understand(transcript, prompt, lines).also { report += "understand: rules (no model)" }
         // Each model family reads at its own calibrated temperature (engine/models DirectorProfile).
         val temperature = io.trimio.engine.models.DirectorProfile.forModelId(m.id)?.understandingTemperature ?: TEMPERATURE
-        return runCatching { Understander(m).understand(transcript, prompt, lines, seed = seed.toInt(), temperature = temperature, onLine = onLine, budget = UNDERSTAND_BUDGET) }
+        return runCatching {
+            Understander(m).understand(
+                transcript, prompt, lines, seed = seed.toInt(), temperature = temperature, onLine = onLine, budget = UNDERSTAND_BUDGET,
+                draft = draft, onDraft = onDraft,
+            )
+        }
             .onFailure { report += "understand: model failed (${it.message}); rules instead" }
             .getOrElse { RulesUnderstander.understand(transcript, prompt, lines) }
             .also { report += "understand: ${m.id}" }

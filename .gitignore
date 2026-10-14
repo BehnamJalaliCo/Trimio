@@ -18,3 +18,6 @@ kotlin-js-store/
 # Brand asset key: never committed (GitHub secret TRIMIO_BRAND_KEY, password manager).
 brand/brand.key
 docs/design/source/fonts/
+
+# Written by tests that run the app module without app folders
+shared/packs-preview/

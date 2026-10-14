@@ -25,6 +25,9 @@ android {
                     "-DANDROID_STL=c++_shared",
                     "-DGGML_NATIVE=OFF",
                     "-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16",
+                    // Arm's KleidiAI kernels for Q4_0/Q8_0: each phone gets SME2, SME, i8mm or dotprod
+                    // as its CPU reports at run time, so this one build stays safe on 2020 phones.
+                    "-DGGML_CPU_KLEIDIAI=ON",
                     "-DGGML_OPENMP=OFF",
                     "-DTRIMIO_WHISPER=ON",
                     "-DTRIMIO_LLAMA=ON",

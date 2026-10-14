@@ -184,7 +184,7 @@ internal class Director(
         val v = create(old.element, b, at, until, entry, old)
         v.ops += b.op
         // A morph keeps what was already shown: items it shares appear as they land.
-        if (entry == Entry.Morph) for (i in v.spec.items.indices) v.reveals.putIfAbsent(i, at + MORPH_LAND + i * 0.04f)
+        if (entry == Entry.Morph) for (i in v.spec.items.indices) v.reveals.getOrPut(i) { at + MORPH_LAND + i * 0.04f }
     }
 
     private fun sweep(v: Version, at: Float) {

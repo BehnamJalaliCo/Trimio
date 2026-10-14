@@ -21,6 +21,12 @@ data class StepTime(
     val detail: String? = null,
     /** Resident memory when the step started, where the platform can read it. */
     val rssMb: Int? = null,
+    /** The process's GPU memory (Android: the driver's graphics allocations, outside RSS). */
+    val gpuMb: Int? = null,
+    /** Memory the system could still give apps without killing any. */
+    val freeMb: Int? = null,
+    /** The device's heat: status (0 none … 6 shutdown), headroom and the CPU clocks, as one line. */
+    val thermal: String? = null,
 ) {
     val seconds: Float? get() = endMs?.let { (it - startMs) / MS }
 }
@@ -84,9 +90,19 @@ data class JuryRound(val attempt: Int, val index: Int, val marks: List<JudgeMark
     val mean: Float get() = if (marks.isEmpty()) 0f else marks.sumOf { it.score.toDouble() }.toFloat() / marks.size
 }
 
-/** Process memory: [peakRssMb] is the high-water mark the OS kept (VmHWM), [heapPeakMb] the JVM heap's where RSS is unreadable. */
+/**
+ * Process memory: [peakRssMb] is the high-water mark the OS kept (VmHWM), [heapPeakMb] the JVM heap's where RSS is
+ * unreadable; [gpuMb] the GPU memory RSS leaves out, [freeMb] what the system still has for apps, [thermal] the heat.
+ */
 @Serializable
-data class MemoryUse(val rssMb: Int? = null, val peakRssMb: Int? = null, val heapPeakMb: Int? = null)
+data class MemoryUse(
+    val rssMb: Int? = null,
+    val peakRssMb: Int? = null,
+    val heapPeakMb: Int? = null,
+    val gpuMb: Int? = null,
+    val freeMb: Int? = null,
+    val thermal: String? = null,
+)
 
 @Serializable
 data class RunError(val attempt: Int, val atMs: Long, val step: String, val message: String, val stack: String)
@@ -180,7 +196,10 @@ internal object ReportText {
         jury(r)
         r.memory?.let { m ->
             section("MEMORY")
-            val parts = listOfNotNull(m.peakRssMb?.let { "peak RSS $it MB" }, m.rssMb?.let { "RSS now $it MB" }, m.heapPeakMb?.let { "JVM heap peak $it MB" })
+            val parts = listOfNotNull(
+                m.peakRssMb?.let { "peak RSS $it MB" }, m.rssMb?.let { "RSS now $it MB" }, m.gpuMb?.let { "GPU $it MB" },
+                m.freeMb?.let { "system free $it MB" }, m.heapPeakMb?.let { "JVM heap peak $it MB" }, m.thermal?.let { "heat $it" },
+            )
             appendLine("  " + parts.joinToString(" · ").ifEmpty { "not readable here" })
         }
         if (r.deaths.isNotEmpty()) {
@@ -220,7 +239,9 @@ internal object ReportText {
             appendLine("  attempt $attempt")
             steps.forEach { s ->
                 val took = s.seconds?.let { "${f1(it)} s" } ?: "unfinished"
-                val extra = listOfNotNull(s.detail, s.rssMb?.let { "RSS $it MB" }).joinToString(" · ")
+                val extra = listOfNotNull(
+                    s.detail, s.rssMb?.let { "RSS $it MB" }, s.gpuMb?.let { "GPU $it MB" }, s.freeMb?.let { "free $it MB" }, s.thermal?.let { "heat $it" },
+                ).joinToString(" · ")
                 appendLine("    +${f1((s.startMs - origin) / MS).padStart(STAGE_PAD)} s  ${s.name.padEnd(NAME_PAD)} ${took.padStart(STAGE_PAD + 2)}  $extra".trimEnd())
             }
         }

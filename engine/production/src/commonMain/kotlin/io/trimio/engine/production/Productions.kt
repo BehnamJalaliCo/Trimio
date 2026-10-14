@@ -297,6 +297,7 @@ class Productions(
             e.text, e.brands, visuals, director.model, knowledge, taste, director.eyes, grabber,
             jury = recorder.instrument(jury ?: Juries.forDevice(platform.device())),
             onCompiled = { job?.ensureActive(); latest.value = it },
+            onDraft = { d -> checkpoints.save(request.key, Checkpoints.Saved(transcript, draft = d)) },
         )
         val understanding = r.previous?.production?.understanding ?: saved?.understanding
         val production = if (!video && explainers) {
@@ -308,7 +309,10 @@ class Productions(
             ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
         } else {
             autopilot.produce(
-                Autopilot.Request(transcript, voice, request.brief, request.seed, footage = if (video) FOOTAGE else null, subject = subject, understanding = understanding, assets = assets),
+                Autopilot.Request(
+                    transcript, voice, request.brief, request.seed, footage = if (video) FOOTAGE else null, subject = subject,
+                    understanding = understanding, assets = assets, draft = saved?.draft,
+                ),
             ) { step, p -> job?.ensureActive(); r.at(Stage.Direct, p, step) }
         }
         if (understanding == null) checkpoints.save(request.key, Checkpoints.Saved(transcript, production.understanding))
@@ -367,6 +371,8 @@ class Productions(
                 recognizer.transcribe(audio, RecognitionOptions(Language.Persian, hint(r.request.brief), threads), onProgress = { p -> r.at(Stage.Transcribe, p, "transcribe") })
             }.also { t ->
                 r.speech = recognizer.runtime
+                r.recorder.speechRuntime = recognizer.runtime
+                r.recorder.liveRuntime(null)
                 val seconds = audio.samples.size / audio.sampleRate.toFloat()
                 r.recorder.speech(SpeechTime(platform.speechModel(), seconds, (clock() - start) / MS, threads, t.words.size))
             }

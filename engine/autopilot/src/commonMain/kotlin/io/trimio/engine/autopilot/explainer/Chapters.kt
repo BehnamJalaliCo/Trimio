@@ -94,7 +94,11 @@ object Chapters {
     private fun choose(n: Narration, gaps: Map<Int, Float>): List<Int> {
         val clauses = n.clauses
         val most = (n.duration / MIN_SECONDS).toInt().coerceIn(1, MAX_CHAPTERS)
-        val cuts = sortedSetOf<Int>()
+        val cuts = mutableListOf<Int>()
+        fun cut(k: Int) {
+            cuts += k
+            cuts.sort()
+        }
         fun fits(k: Int): Boolean {
             val lo = cuts.lastOrNull { it < k } ?: 0
             val hi = cuts.firstOrNull { it > k } ?: clauses.size
@@ -105,15 +109,15 @@ object Chapters {
         }
         for ((k, score) in gaps.entries.sortedByDescending { it.value }) {
             if (cuts.size + 1 >= most || score < THRESHOLD) break
-            if (fits(k)) cuts += k
+            if (fits(k)) cut(k)
         }
         // A chapter too long for one stage is split at its best turn.
         var split = true
         while (split && cuts.size + 1 < MAX_CHAPTERS) {
-            val bounds = listOf(0) + cuts.toList() + clauses.size
+            val bounds = listOf(0) + cuts + clauses.size
             val long = bounds.zipWithNext().firstOrNull { (a, b) -> span(clauses, a, b) > MAX_SECONDS }
             val k = long?.let { (a, b) -> ((a + 1) until b).filter { fits(it) }.maxByOrNull { gaps[it] ?: 0f } }
-            if (k == null) split = false else cuts += k
+            if (k == null) split = false else cut(k)
         }
         return cuts.toList()
     }

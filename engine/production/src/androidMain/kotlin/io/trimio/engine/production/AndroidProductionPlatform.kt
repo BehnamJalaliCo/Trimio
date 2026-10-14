@@ -134,7 +134,37 @@ class AndroidProductionPlatform(
         )
     }
 
-    override fun memory(): MemoryUse? = ProcessMemory.read()
+    /**
+     * RSS from /proc, plus what it cannot see: the GPU memory the driver holds for this process (a model on
+     * the GPU lives there, pinned), the memory the system still has for apps, and the heat (status,
+     * headroom, CPU clocks) — the three that decide whether Android kills a long build.
+     */
+    override fun memory(): MemoryUse? {
+        val base = ProcessMemory.read() ?: MemoryUse()
+        val gpu = runCatching {
+            android.os.Debug.MemoryInfo().also(android.os.Debug::getMemoryInfo).getMemoryStat("summary.graphics")?.toLongOrNull()?.let { (it / KB).toInt() }
+        }.getOrNull()
+        val free = runCatching {
+            app.getSystemService(android.app.ActivityManager::class.java)?.let { am -> (android.app.ActivityManager.MemoryInfo().also(am::getMemoryInfo).availMem / MB).toInt() }
+        }.getOrNull()
+        return base.copy(gpuMb = gpu, freeMb = free, thermal = heat())
+    }
+
+    /** "2 · headroom 0.61 · cpu 1.1–4.6 GHz": thermal status, the headroom before throttling (1 = throttling), the CPU clocks now. */
+    private fun heat(): String? = runCatching {
+        val power = app.getSystemService(PowerManager::class.java) ?: return@runCatching null
+        val headroom = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) power.getThermalHeadroom(0).takeIf { !it.isNaN() } else null
+        val clocks = (0 until Runtime.getRuntime().availableProcessors()).mapNotNull { cpu ->
+            runCatching { File("/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_cur_freq").readText().trim().toLong() }.getOrNull()
+        }
+        listOfNotNull(
+            power.currentThermalStatus.toString(),
+            headroom?.let { "headroom ${(it * HUNDRED).roundToInt() / HUNDRED}" },
+            clocks.takeIf { it.isNotEmpty() }?.let { "cpu ${ghz(it.min())}–${ghz(it.max())} GHz" },
+        ).joinToString(" · ")
+    }.getOrNull()
+
+    private fun ghz(khz: Long): String = "${khz / KHZ_PER_GHZ}.${khz % KHZ_PER_GHZ / KHZ_PER_TENTH}"
 
     override fun speechModel(): String? = speech()
 
@@ -230,6 +260,10 @@ class AndroidProductionPlatform(
         const val QUARTER_TURN = 90
         const val FULL = 100
         const val LOW_BATTERY = 20
+        const val KB = 1024L
+        const val HUNDRED = 100f
+        const val KHZ_PER_GHZ = 1_000_000L
+        const val KHZ_PER_TENTH = 100_000L
         val VIDEO = setOf("mp4", "mov", "m4v", "webm", "3gp", "mkv")
     }
 }

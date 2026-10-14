@@ -9,6 +9,7 @@ import io.trimio.engine.llm.Generation
 import io.trimio.engine.llm.GenerationRequest
 import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.llm.LanguageModelException
+import io.trimio.engine.llm.ModelRuntime
 import io.trimio.engine.llm.StopReason
 import io.trimio.engine.llm.Usage
 import io.trimio.engine.production.Checkpoints
@@ -147,6 +148,31 @@ class DiagnosticsTest {
         assertEquals(listOf("listen", "understand", "plan"), steps.map { it.name })
         assertEquals(listOf(1.5f, 3.5f, 2f), steps.map { it.seconds })
         assertEquals("48/48", steps[1].detail)
+    }
+
+    @Test
+    fun theEngineAndMemoryAreWrittenWhileTheRunGoes() = runBlocking {
+        val use = MemoryUse(rssMb = 600, peakRssMb = 700, gpuMb = 3_100, freeMb = 900, thermal = "1 · headroom 0.4")
+        val r = RunRecorder("p1-7", reports, "A", clock, memory = { use })
+        r.begin("app", emptyList())
+        r.step("understand 1/53")
+        val step = r.report.value.steps.single()
+        assertEquals(3_100, step.gpuMb)
+        assertEquals(900, step.freeMb)
+        assertEquals("1 · headroom 0.4", step.thermal)
+
+        // The engine is in the report after the first call, long before the run reaches the render.
+        val placed = object : LanguageModel {
+            override val id = "gemma-test"
+            override val isLocal = true
+            override val runtime = ModelRuntime("opencl", "Adreno 840", 35, 35, 8, "q8_0")
+            override suspend fun generate(request: GenerationRequest, onText: (String) -> Unit) = Generation("{}", StopReason.EndTurn, id)
+        }
+        r.instrument(placed).generate(GenerationRequest("system", emptyList()))
+        val saved = assertNotNull(reports.load("p1-7"))
+        assertTrue(saved.runtime.any { it.name == "llm" && it.value.contains("Adreno 840") }, saved.runtime.toString())
+        val text = ReportText.of(saved)
+        assertTrue("GPU 3100 MB" in text && "free 900 MB" in text && "heat 1 · headroom 0.4" in text, text)
     }
 
     @Test

@@ -17,7 +17,9 @@ internal object LlamaRuntime {
         val total = offloaded?.groupValues?.get(2)?.toIntOrNull() ?: int("layers")
         val gpus = info["gpu"].orEmpty()
         val hasGpu = info["device"].orEmpty().any { it.startsWith("gpu|") || it.startsWith("igpu|") }
+        val measured = info["placement"]?.firstOrNull()
         val reason = when {
+            measured != null && gpuLayers == 0 && hasGpu -> measured
             int("gated") == 1 -> "the GPU runs only ${(info["gpu_coverage"]?.firstOrNull()?.toFloatOrNull() ?: 0f).times(PERCENT).toInt()}% of this model's weights"
             int("fell_back") == 1 -> "loading on the GPU failed"
             hasGpu && gpuLayers == 0 -> "no free GPU memory"

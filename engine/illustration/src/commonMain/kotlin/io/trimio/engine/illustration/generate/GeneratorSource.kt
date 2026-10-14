@@ -25,7 +25,7 @@ class PromptWriter(private val library: Library) {
         buildMap {
             for (item in library.items) {
                 val en = item.en.firstOrNull() ?: continue
-                for (fa in item.fa) putIfAbsent(TextKey.of(fa), en)
+                for (fa in item.fa) getOrPut(TextKey.of(fa)) { en }
             }
             PEOPLE.forEach { (fa, en) -> put(TextKey.of(fa), en) }
         }

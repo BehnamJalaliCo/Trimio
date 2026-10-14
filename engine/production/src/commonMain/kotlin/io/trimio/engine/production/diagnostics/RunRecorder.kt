@@ -48,7 +48,7 @@ data class Runtime(
         }
 
         /** The engines' raw lines worth keeping: devices, placement, buffers. */
-        private val RAW = setOf("device", "gpu", "model", "layers", "gpu_layers", "requested_gpu_layers", "gpu_coverage", "ctx", "batch", "flash", "log", "backend")
+        private val RAW = setOf("device", "gpu", "model", "layers", "gpu_layers", "requested_gpu_layers", "gpu_coverage", "ctx", "batch", "flash", "log", "backend", "placement")
     }
 }
 
@@ -78,6 +78,7 @@ class RunRecorder(
     private val owner = session + "#" + kotlin.random.Random.nextInt(0, Int.MAX_VALUE).toString(36)
     private var marked: String? = null
     private var lastDetail = 0L
+    private var lastMemory = 0L
     private var beats = 0L
     private var lastBeat = 0L
 
@@ -113,11 +114,20 @@ class RunRecorder(
         if (open != null && open.name == base) {
             if (detail == null || detail == open.detail || now - lastDetail < DETAIL_MS) return
             lastDetail = now
-            set(state.value.let { r -> r.copy(steps = r.steps.dropLast(1) + open.copy(detail = detail)) }, persist = false)
+            // A long step ("understand 3/53" for an hour) still samples memory and heat now and then.
+            val m = if (now - lastMemory >= MEMORY_MS) memory().also { lastMemory = now } else null
+            set(state.value.let { r -> r.copy(steps = r.steps.dropLast(1) + open.copy(detail = detail), memory = m ?: r.memory) }, persist = m != null)
             return
         }
         lastDetail = now
-        set(state.value.let { r -> r.copy(steps = closed(r.steps, now) + StepTime(r.attempt, base, now, detail = detail, rssMb = memory()?.rssMb)) })
+        lastMemory = now
+        val m = memory()
+        set(
+            state.value.let { r ->
+                val step = StepTime(r.attempt, base, now, detail = detail, rssMb = m?.rssMb, gpuMb = m?.gpuMb, freeMb = m?.freeMb, thermal = m?.thermal)
+                r.copy(steps = closed(r.steps, now) + step, memory = m ?: r.memory)
+            },
+        )
         mark(Deaths.inside(base, owner))
     }
 
@@ -134,6 +144,16 @@ class RunRecorder(
     fun models(facts: List<Fact>) = set(state.value.copy(models = facts))
 
     fun runtime(runtime: Runtime) = set(state.value.copy(runtime = runtime.facts))
+
+    /** Whisper's own account of where it ran, kept for the engine facts written after each model call. */
+    @kotlin.concurrent.Volatile
+    var speechRuntime: SpeechRuntime? = null
+
+    /** The engines as they stand now: written as soon as a model has loaded, so a run that never ends still says where it ran. */
+    internal fun liveRuntime(model: ModelRuntime?) {
+        val now = Runtime.of(model, speechRuntime)
+        if (now.facts.isNotEmpty() && now.facts != state.value.runtime) runtime(now)
+    }
 
     fun call(call: ModelCall) = set(state.value.let { it.copy(calls = it.calls + call) })
 
@@ -229,6 +249,7 @@ class RunRecorder(
     companion object {
         const val BEAT_MS = 5_000L
         private const val DETAIL_MS = 2_000L
+        private const val MEMORY_MS = 30_000L
     }
 }
 
@@ -260,7 +281,10 @@ internal class RecordingModel(private val inner: LanguageModel, private val reco
                     recorder.beat()
                     onText(text)
                 }
-            }.also { record(if (it.stopReason == StopReason.Cancelled) "cancelled" else "ok", it.usage) }
+            }.also {
+                record(if (it.stopReason == StopReason.Cancelled) "cancelled" else "ok", it.usage)
+                recorder.liveRuntime(inner.runtime)
+            }
         } catch (e: CancellationException) {
             record("cancelled")
             throw e

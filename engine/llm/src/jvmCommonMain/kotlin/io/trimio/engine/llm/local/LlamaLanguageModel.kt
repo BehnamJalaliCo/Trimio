@@ -47,6 +47,9 @@ internal object LlamaNative {
      */
     val gpuLayers: Int get() = System.getProperty("trimio.llama.gpuLayers")?.toIntOrNull() ?: if (variant in GPU_VARIANTS) FITTING_LAYERS else 0
 
+    /** A GPU build with no layer count forced: where each model runs is measured on the device ([Placement]). */
+    val measuresPlacement: Boolean get() = variant in GPU_VARIANTS && System.getProperty("trimio.llama.gpuLayers") == null
+
     private fun load(): String {
         val dir = System.getProperty("trimio.native.dir")
         val variants = System.getProperty("trimio.native.variants").orEmpty().split(',').map(String::trim).filter(String::isNotEmpty) + ""
@@ -219,11 +222,37 @@ class LlamaLanguageModel(
     private fun ensureLoaded(): Long {
         if (handle != 0L) return handle
         if (!File(modelPath).isFile) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Model not installed: $modelPath")
-        handle = LlamaNative.init(modelPath, contextSize, threads, LlamaNative.gpuLayers, LlamaNative.options())
+        val placement = if (LlamaNative.measuresPlacement) placement() else null
+        handle = LlamaNative.init(modelPath, contextSize, threads, placement?.gpuLayers ?: LlamaNative.gpuLayers, LlamaNative.options())
         if (handle == 0L) throw LanguageModelException(LanguageModelException.Kind.Unavailable, "Could not load $modelPath")
-        info = LlamaRuntime.lines(LlamaNative.runtimeInfo(handle))
+        info = LlamaRuntime.lines(LlamaNative.runtimeInfo(handle)) + listOfNotNull(placement?.let { "placement" to listOf(it.line) })
         runtime?.let { System.err.println("trimio " + it.summary()) }
         return handle
+    }
+
+    /** This device's measured choice for this model ([Placement]): the kept one, or a probe each way now (once per engine build). */
+    private fun placement(): Placement.Choice {
+        val build = LlamaNative.variant + "|" + LlamaNative.systemInfo()
+        Placement.cached(modelPath, build)?.let { return it }
+        val gpu = probe(FITTING)
+        val cpu = probe(0)
+        return Placement.choose(gpu, cpu).also { Placement.keep(modelPath, build, it) }
+    }
+
+    /** Loads the model with [layers] on the GPU, reads a fixed text and writes a few tokens; null when it does not load. */
+    private fun probe(layers: Int): Placement.Probe? {
+        val h = LlamaNative.init(modelPath, PROBE_CONTEXT, threads, layers, LlamaNative.options())
+        if (h == 0L) return null
+        return try {
+            val onGpu = LlamaRuntime.parse(LlamaNative.variant, LlamaRuntime.lines(LlamaNative.runtimeInfo(h)), Usage(calls = 0)).gpuLayers > 0
+            LlamaNative.generate(h, PROBE_TEXT.repeat(PROBE_REPEAT).encodeToByteArray(), null, PROBE_WRITE, 0f, 0.95f, 0.05f, 1, LlamaCallback { true })
+            val c = LlamaNative.lastCall(h)
+            val read = (c[0] - c[1]).coerceAtLeast(1) / (c[3] / MICROS).coerceAtLeast(MIN_SECONDS)
+            val write = if (c[2] > 0) c[2] / (c[4] / MICROS).coerceAtLeast(MIN_SECONDS) else read
+            Placement.Probe(layers, onGpu, read, write)
+        } finally {
+            LlamaNative.free(h)
+        }
     }
 
     private var visionReady: Boolean? = null
@@ -283,5 +312,15 @@ class LlamaLanguageModel(
 
         /** Start/end tokens around each image's tokens. */
         private const val IMAGE_FRAME_TOKENS = 4
+
+        /** The probe ([placement]): about 450 tokens read, 32 written, in a small context. */
+        private const val PROBE_TEXT = "The director reads the transcript, finds the hook, the key numbers and the turns, and plans the edit. " +
+            "کارگردان متن را می‌خواند، قلاب و عددهای کلیدی و نقطه‌های عطف را پیدا می‌کند و ادیت را برنامه‌ریزی می‌کند. "
+        private const val PROBE_REPEAT = 8
+        private const val PROBE_WRITE = 32
+        private const val PROBE_CONTEXT = 2048
+        private const val FITTING = -1
+        private const val MICROS = 1_000_000.0
+        private const val MIN_SECONDS = 0.001
     }
 }

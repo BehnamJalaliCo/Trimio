@@ -139,7 +139,7 @@ internal class StageWriter(
     /** Works on the main picture when the clause goes on about the same thing; false when it says something new. */
     private fun goOn(main: El, c: Clause, found: List<Found>): Boolean {
         if (main.uses >= MAX_USES) return false
-        val follows = FOLLOWS.getOrDefault(main.primitive, emptySet())
+        val follows = FOLLOWS[main.primitive] ?: emptySet()
         val ideas = found.filter { it.strength >= WEAK }.map { it.idea }.toSet()
         val fresh = found.firstOrNull { it.strength >= STRONG && it.idea != main.idea && it.idea !in follows && it.idea !in COMPANION_IDEAS }
         if (fresh != null) return false

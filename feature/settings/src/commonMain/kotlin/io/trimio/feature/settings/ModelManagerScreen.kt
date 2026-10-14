@@ -104,9 +104,8 @@ fun ModelsRoute(viewModel: SettingsViewModel, onBack: () -> Unit) {
 private fun DownloadDialog(specs: List<ModelSpec>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val c = Sig.colors
     val shape = RoundedCornerShape(24.dp)
-    val gb = specs.sumOf { it.sizeBytes } / 1e9
-    val size = if (gb >= 1) localizedNumber(tr("${"%.1f".format(gb)} گیگابایت", "${"%.1f".format(gb)} GB"))
-    else localizedNumber(tr("${(gb * 1000).toInt()} مگابایت", "${(gb * 1000).toInt()} MB"))
+    val bytes = specs.sumOf { it.sizeBytes }
+    val size = localizedNumber(tr(ramFa(bytes).replace(" گیگ", " گیگابایت").replace(" مگ", " مگابایت"), gb(bytes)))
     Box(
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),

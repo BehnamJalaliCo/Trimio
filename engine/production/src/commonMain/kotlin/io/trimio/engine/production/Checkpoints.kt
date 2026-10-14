@@ -3,6 +3,7 @@ package io.trimio.engine.production
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.engine.autopilot.Delivery
 import io.trimio.engine.autopilot.Understanding
+import io.trimio.engine.autopilot.UnderstandingDraft
 import io.trimio.engine.production.diagnostics.Reports
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
@@ -31,6 +32,8 @@ class Checkpoints(private val dir: Path?) {
         val understanding: Understanding? = null,
         /** The finished edit as the director delivered it (absent while the run is going, and in files of earlier versions). */
         val delivery: Delivery? = null,
+        /** The reading in progress, group by group: a run the system killed resumes from it instead of from the first line. */
+        val draft: UnderstandingDraft? = null,
     )
 
     fun load(key: String): Saved? = read(file(key)) { json.decodeFromString(Saved.serializer(), it) }

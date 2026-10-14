@@ -119,7 +119,7 @@ object Drafts {
         val c = n.clauses.getOrNull(k) ?: return null
         val primitive = PRIMITIVES[d.primitive.trim().lowercase()]
         val op = OPS[d.op.trim().lowercase()] ?: if (primitive != null) StageOp.Add else StageOp.Highlight
-        val nth = perClause.getOrDefault(k, 0).also { perClause[k] = it + 1 }
+        val nth = (perClause[k] ?: 0).also { perClause[k] = it + 1 }
         val count = all.count { it.clause.coerceIn(plan.clauses.first, plan.clauses.last) == k }.coerceAtLeast(1)
         val at = cue(n, c, d.cue) ?: (c.start + c.length * nth / count)
         val items = d.items.mapIndexed { j, label -> Item(label, d.values.getOrNull(j), d.visuals.getOrNull(j).orEmpty()) }

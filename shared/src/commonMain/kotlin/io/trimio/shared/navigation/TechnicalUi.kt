@@ -92,9 +92,13 @@ object TechnicalUi {
             r.speech?.let { TechFact(t("شنیدن", "Listening"), "RTF ${two(it.realTimeFactor)} · ${one(it.audioSeconds)} s sound in ${one(it.seconds)} s · ${it.threads} threads") },
             r.render?.let { TechFact(t("رندر", "Render"), "${one(it.fps)} fps · ${it.frames} frames ${it.width}×${it.height} in ${one(it.seconds)} s") },
             r.memory?.let { m ->
-                val text = listOfNotNull(m.peakRssMb?.let { "peak $it MB" }, m.rssMb?.let { "now $it MB" }, m.heapPeakMb?.let { "JVM heap peak $it MB" }).joinToString(" · ")
+                val text = listOfNotNull(
+                    m.peakRssMb?.let { "peak $it MB" }, m.rssMb?.let { "now $it MB" }, m.gpuMb?.let { "GPU $it MB" },
+                    m.freeMb?.let { "system free $it MB" }, m.heapPeakMb?.let { "JVM heap peak $it MB" },
+                ).joinToString(" · ")
                 text.takeIf { it.isNotEmpty() }?.let { TechFact(t("حافظه", "Memory"), it) }
             },
+            r.memory?.thermal?.let { TechFact(t("دما", "Heat"), it) },
         )
     }
 

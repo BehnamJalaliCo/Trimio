@@ -36,24 +36,31 @@ class Understander(private val model: LanguageModel) {
         onLine: (done: Int, total: Int) -> Unit = { _, _ -> },
         budget: Duration? = null,
         onText: (String) -> Unit = {},
+        /** What an earlier attempt already read (the app was killed mid-way): those calls are not made again. */
+        draft: UnderstandingDraft? = null,
+        /** The reading so far, after the whole-piece call and after every group, for the checkpoint. */
+        onDraft: (UnderstandingDraft) -> Unit = {},
     ): Understanding {
-        val global = model.generateStructured(
-            GenerationRequest(
-                system = SYSTEM, messages = listOf(ChatMessage(ChatRole.User, userMessage(transcript, prompt, lines))),
-                schema = globalSchema, maxTokens = 900, temperature = temperature, seed = seed,
+        val g = draft?.global?.takeIf { draft.lines == lines.size } ?: sanitize(
+            model.generateStructured(
+                GenerationRequest(
+                    system = SYSTEM, messages = listOf(ChatMessage(ChatRole.User, userMessage(transcript, prompt, lines))),
+                    schema = globalSchema, maxTokens = 900, temperature = temperature, seed = seed,
+                ),
+                Understanding.serializer(), onText = onText,
             ),
-            Understanding.serializer(), onText = onText,
-        )
-        val g = sanitize(global, transcript.words.size, lines.size)
+            transcript.words.size, lines.size,
+        ).also { onDraft(UnderstandingDraft(it, lines.size)) }
         // Lines in small groups: one reply reads GROUP lines (each about itself), so a long video costs
         // a third of the calls. Past [budget] the rest are read by the rules, so a slow device ends.
         val clock = TimeSource.Monotonic.markNow()
         val rules by lazy { RulesUnderstander.understand(transcript, prompt, lines).lines }
-        val reads = mutableMapOf<Int, LineRead>()
+        val reads = draft?.takeIf { it.global == g }?.reads.orEmpty().filterKeys { it in lines.indices }.toMutableMap()
         // On a slow device the budget runs out after a few groups: the model reads the lines that become
         // graphics first (figures, names, the ask, what the rules would show), the rules read the plain rest.
         val groups = lines.indices.chunked(GROUP).let { all -> if (budget == null) all else all.sortedByDescending { g -> g.sumOf { weight(it, transcript, lines, rules) } } }
         for (group in groups) {
+            if (group.all { it in reads }) continue
             if (budget != null && clock.elapsedNow() > budget) {
                 group.forEach { k -> reads[k] = rules.getOrNull(k) ?: LineRead(show = "none") }
             } else {
@@ -67,6 +74,7 @@ class Understander(private val model: LanguageModel) {
                     ).reads
                 }.getOrDefault(emptyList())
                 group.forEachIndexed { i, k -> reads[k] = got.getOrNull(i) ?: rules.getOrNull(k) ?: LineRead(show = "none") }
+                onDraft(UnderstandingDraft(g, lines.size, reads.toMap()))
             }
             onLine(reads.size, lines.size)
         }
@@ -210,6 +218,13 @@ class Understander(private val model: LanguageModel) {
         }
     }
 }
+
+/**
+ * A reading in progress, kept in the run's checkpoint: the whole-piece answer ([global]) for a transcript cut into
+ * [lines] lines, and the lines read so far by index. A run the system killed mid-way starts again from here.
+ */
+@Serializable
+data class UnderstandingDraft(val global: Understanding, val lines: Int, val reads: Map<Int, LineRead> = emptyMap())
 
 /** A group of line reads, in the order of the lines asked about. */
 @Serializable
