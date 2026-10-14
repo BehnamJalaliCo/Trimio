@@ -271,24 +271,47 @@ internal fun SpeedTestPanel(speed: SpeedUi, onRun: () -> Unit) {
                 Box(Modifier.fillMaxWidth(speed.progress.coerceIn(0f, 1f)).height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.action))
             }
         }
-        if (speed.kept) {
-            Text(tr("هر ساخت با این تنظیم اجرا می‌شود:", "Every build runs this way:"), style = Sig.type.meta.copy(fontSize = 11.5.sp, fontWeight = FontWeight(700)), color = c.ink)
-        }
-        speed.rows.forEach { row ->
+        // What was measured, as it comes; the chosen ways go in the card below.
+        speed.rows.filterNot { it.best }.forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    row.label, style = Sig.type.meta.copy(fontSize = 12.sp, fontWeight = FontWeight(if (row.best) 800 else 600)),
-                    color = if (row.best) c.action else c.ink, modifier = Modifier.weight(0.42f),
-                )
-                Text(row.value, style = Sig.type.meta.copy(fontSize = 11.5.sp), color = if (row.best) c.ink else c.muted, modifier = Modifier.weight(0.58f))
+                Text(row.label, style = Sig.type.meta.copy(fontSize = 12.sp, fontWeight = FontWeight(600)), color = c.ink, modifier = Modifier.weight(0.42f))
+                Text(row.value, style = Sig.type.meta.copy(fontSize = 11.5.sp), color = c.muted, modifier = Modifier.weight(0.58f))
             }
         }
-        if (speed.done) {
+        speed.rows.filter { it.best }.takeIf { it.isNotEmpty() && !speed.running }?.let { ChosenWays(it, fresh = speed.done) }
+    }
+}
+
+/**
+ * The ways every build runs now, each with its check mark: the director's (processor threads, GPU layers, MTP), speech's
+ * and the picture engine's, with how fast each went.
+ */
+@Composable
+private fun ChosenWays(rows: List<io.trimio.engine.models.SpeedRow>, fresh: Boolean) {
+    val c = Sig.colors
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(c.action.copy(alpha = 0.08f)).border(1.dp, c.action.copy(alpha = 0.45f), shape).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            tr("هر ساخت با این تنظیم اجرا می‌شود", "Every build runs this way"),
+            style = Sig.type.bodyStrong.copy(fontSize = 13.5.sp), color = c.ink,
+        )
+        rows.forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                Box(Modifier.size(20.dp).clip(CircleShape).background(c.action), contentAlignment = Alignment.Center) {
+                    TrimioIcon(TrimioIcons.Check, null, tint = c.onAction, size = 13.dp)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(row.label, style = Sig.type.meta.copy(fontSize = 12.5.sp, fontWeight = FontWeight(800)), color = c.ink)
+                    Text(row.value, style = Sig.type.meta.copy(fontSize = 11.5.sp), color = c.muted)
+                }
+            }
+        }
+        if (fresh) {
             Text(
-                tr(
-                    "بهترین حالت ذخیره شد؛ از این به بعد هر ساخت (کارگردان، گفتار و تصویرساز) با همین تنظیم اجرا می‌شود.",
-                    "The fastest way is kept; every build (director, speech, illustrator) now runs this way.",
-                ),
+                tr("ذخیره شد؛ از ساخت بعدی همین‌ها به کار می‌روند.", "Kept; the next build uses these."),
                 style = Sig.type.meta.copy(fontSize = 11.sp), color = c.muted,
             )
         }

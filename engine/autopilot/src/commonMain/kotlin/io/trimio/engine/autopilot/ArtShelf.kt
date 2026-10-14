@@ -131,6 +131,12 @@ class ArtShelf(
         /** The retrieval add-on, set by the app when it is installed; null (the default) keeps the word search alone. */
         var recall: Recall? = null
 
+        /** Frees the retrieval add-on's models (embedder, reranker) until the next search; set by the app with [recall]. */
+        var releaseRecall: suspend () -> Unit = {}
+
+        /** After the music pick and the pictures: the meaning search never stays loaded beside the director. */
+        suspend fun release() = runCatching { releaseRecall() }.let { }
+
         /** The bundled catalogue's index as shipped (the retrieval add-on's vector pack is built from this same text). */
         suspend fun indexJson(): String = Res.readBytes("files/art/index.json").decodeToString()
 

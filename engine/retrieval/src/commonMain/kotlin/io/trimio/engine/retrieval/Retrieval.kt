@@ -29,6 +29,12 @@ class Retrieval(
     /** True when meaning is searched (an embedder is installed and the corpora have vectors). */
     val semantic: Boolean get() = retriever.embedder != null && visualIndex.space == retriever.embedder.space
 
+    /** Frees the embedder's and the reranker's models (they load again on the next search). */
+    suspend fun release() {
+        runCatching { retriever.embedder?.release() }
+        runCatching { retriever.reranker?.release() }
+    }
+
     suspend fun visuals(
         line: String,
         hint: String = "",

@@ -109,6 +109,8 @@ fun androidPlatformModule(
         val recall = directors().pictureRecall()
         io.trimio.engine.autopilot.ArtShelf.recall = io.trimio.engine.autopilot.ArtShelf.Recall(recall::search)
         io.trimio.engine.autopilot.MusicShelf.recall = recall::music
+        io.trimio.engine.autopilot.ArtShelf.releaseRecall = recall::release
+        io.trimio.engine.production.MemoryPressure.free = io.trimio.engine.llm.local.Placement::freeBytes
         AndroidProductionPlatform(
             app, { recognizer }, { choice -> directors().director(choice) }, device.tier,
             lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },
@@ -121,7 +123,9 @@ fun androidPlatformModule(
         val settings = get<SettingsRepository>()
         val models = get<ModelManager>()
         val store = ModelStore(get<AppPaths>().models, get())
-        LocalDirectors(store, DeviceMemory.phone(get<DeviceInfo>().ramGb), models.catalog, preferred = { settings.settings.value.localModelId }).speedTest { settings.settings.value.speechModelId }
+        // Each measurement in its own process: a GPU driver that crashes marks that way unusable, the app stays.
+        LocalDirectors(store, DeviceMemory.phone(get<DeviceInfo>().ramGb), models.catalog, preferred = { settings.settings.value.localModelId })
+            .speedTest(io.trimio.engine.production.bench.IsolatedBench(app)) { settings.settings.value.speechModelId }
     }
     single<AutoEditor> {
         val info = get<DeviceInfo>()

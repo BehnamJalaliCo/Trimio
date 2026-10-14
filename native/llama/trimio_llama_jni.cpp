@@ -1253,6 +1253,16 @@ Java_io_trimio_engine_llm_local_LlamaNative_initVision(JNIEnv * env, jobject, jl
     return engine->vision != nullptr && mtmd_support_vision(engine->vision) ? JNI_TRUE : JNI_FALSE;
 }
 
+// Frees the vision projector alone (about 1 GB for Gemma 4 E4B's), the model staying loaded: a phone keeps it only
+// while it looks (the speaker's place at the start, the look at the edit), never through the whole edit.
+JNIEXPORT void JNICALL
+Java_io_trimio_engine_llm_local_LlamaNative_freeVision(JNIEnv *, jobject, jlong handle) {
+    auto * engine = reinterpret_cast<Engine *>(handle);
+    if (engine == nullptr || engine->vision == nullptr) return;
+    mtmd_free(engine->vision);
+    engine->vision = nullptr;
+}
+
 JNIEXPORT jstring JNICALL
 Java_io_trimio_engine_llm_local_LlamaNative_systemInfo(JNIEnv * env, jobject) {
     return env->NewStringUTF(llama_print_system_info());

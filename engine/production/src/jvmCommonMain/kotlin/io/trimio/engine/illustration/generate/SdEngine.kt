@@ -13,9 +13,22 @@ import kotlinx.coroutines.withContext
  * as its style reference). The model loads with the first picture and is freed by [close] once a film's pictures are
  * drawn, so it never sits beside the director.
  */
-class SdEngine(override val modelId: String, private val files: Files, private val threads: Int) : DiffusionEngine, AutoCloseable {
+class SdEngine(
+    override val modelId: String,
+    private val files: Files,
+    private val threads: Int,
+    private val placement: Placement = Placement(),
+) : DiffusionEngine, AutoCloseable {
     /** A model's files: one ([model] alone), or a diffusion model with its [textEncoder] and [vae]. */
     data class Files(val model: String, val textEncoder: String? = null, val vae: String? = null)
+
+    /**
+     * Where each part runs, as the speed test chose: [backend] in sd.cpp's assignments ("" the default device), [maxVram]
+     * the GPU budget, [gpuLibrary] the GPU build (the phone's OpenCL one).
+     */
+    data class Placement(val backend: String = "", val maxVram: String = "", val gpuLibrary: Boolean = false) {
+        val onGpu: Boolean get() = gpuLibrary && backend != "cpu"
+    }
 
     /**
      * The model's recipe; on a processor alone (no GPU build loaded) the studio illustrator draws at 512 px instead of 768
@@ -25,7 +38,7 @@ class SdEngine(override val modelId: String, private val files: Files, private v
         if (r.size > CPU_SIZE && !onGpu) r.copy(size = CPU_SIZE) else r
     }
 
-    private val onGpu: Boolean get() = runCatching { SdNative.variant }.getOrDefault("") in GPU_BUILDS
+    private val onGpu: Boolean get() = placement.onGpu || runCatching { SdNative.variant }.getOrDefault("") in GPU_BUILDS
 
     private val mutex = Mutex()
     private var handle = 0L
@@ -34,6 +47,7 @@ class SdEngine(override val modelId: String, private val files: Files, private v
         val progress = currentCoroutineContext()[DrawProgress]?.let { p -> SdNative.StepListener { step, steps -> p.onStep(step, steps) } }
         withContext(Dispatchers.Default) {
             // The library loads with the first look at it; the engine never calls into one that is not there.
+            if (handle == 0L) SdNative.wantGpu = SdNative.wantGpu || placement.gpuLibrary
             if (handle == 0L && SdNative.available) handle = runCatching { load() }.getOrDefault(0L)
             if (handle == 0L) return@withContext null
             val init = job.init?.takeIf { recipe.img2img }?.let { rgb(it.resized(job.width, job.height)) }
@@ -50,8 +64,8 @@ class SdEngine(override val modelId: String, private val files: Files, private v
         }
     }
 
-    private fun load(): Long =
-        files.textEncoder?.let { SdNative.initParts(files.model, it, files.vae.orEmpty(), threads) } ?: SdNative.init(files.model, threads)
+    private fun load(): Long = files.textEncoder?.let { SdNative.initParts(files.model, it, files.vae.orEmpty(), threads, placement.backend, placement.maxVram) }
+        ?: SdNative.init(files.model, threads, placement.backend, placement.maxVram)
 
     /** A raster as RGB bytes on white (models take opaque pictures). */
     private fun rgb(r: Raster): ByteArray {

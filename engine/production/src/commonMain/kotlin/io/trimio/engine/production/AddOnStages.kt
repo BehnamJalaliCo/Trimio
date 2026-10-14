@@ -62,5 +62,14 @@ internal const val ADD_ONS = "add-ons"
  * decoding frames, where the face add-on ran unmarked): native code there can take the whole app
  * down, so the retry goes on without the add-ons instead of dying in the same place again.
  */
+/**
+ * The system killed an earlier attempt of this edit while the director worked (reading, planning, pictures, the look,
+ * the jury): this attempt runs lean ([MemoryPressure]) instead of dying at the same place again.
+ */
+internal fun directorDeath(recorder: io.trimio.engine.production.diagnostics.RunRecorder): Boolean =
+    recorder.report.value.deaths.any { d -> io.trimio.engine.production.diagnostics.Deaths.place(d.step).substringBefore(' ') in DIRECTOR_STEPS }
+
+private val DIRECTOR_STEPS = setOf("direct", "listen", "understand", "research", "plan", "pictures", "compile", "look", "jury", "sound", "llm")
+
 internal fun addOnDeath(recorder: io.trimio.engine.production.diagnostics.RunRecorder): Boolean =
     recorder.report.value.deaths.any { d -> d.step.startsWith(ADD_ONS) || d.step == "after decode frames" }

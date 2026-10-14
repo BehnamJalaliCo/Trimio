@@ -300,24 +300,36 @@ class Productions(
 
         // The director loads (and its eyes find the speaker) within "direct": the screen counts it as listening.
         r.at(Stage.Direct, 0f, "direct")
+        // Killed for memory inside the director on an earlier attempt, or little free now: a lean run (no eyes, no web
+        // animations, no live previews), which the report says.
+        MemoryPressure.warned = false
+        val lean = directorDeath(recorder) || MemoryPressure.low()
         val director = directorOf(request.director, recorder)
         recorder.models(
             modelFacts(director, if (heard == null) platform.speechModel() else null, request.director) + addOns.facts() +
-                listOfNotNull(Fact("add-on", "skipped: the app ended inside an add-on on an earlier attempt").takeIf { skipAddOns }),
+                listOfNotNull(
+                    Fact("add-on", "skipped: the app ended inside an add-on on an earlier attempt").takeIf { skipAddOns },
+                    Fact("lean run", if (directorDeath(recorder)) "the system ended an earlier attempt inside the director" else "little free memory").takeIf { lean },
+                ),
         )
-        val subject = director.eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
+        val subject = director.eyes?.takeUnless { lean }?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
+        // The eyes found the speaker: their projector (about 1 GB) is freed until they look again.
+        director.eyes?.let { eyes -> runCatching { if (eyes === director.model) eyes.releaseSight() else eyes.release() } }
         r.at(Stage.Direct, 0f, "direct")
         val taste = r.feedback?.let { r.taste.adjust(Collaborator(director.model).read(it)) } ?: r.taste
         val latest = MutableStateFlow<Compiler.Output?>(null)
         val renderLock = Mutex()
         val media = Footage { w, h -> platform.media(request, assets, FPS, w, h) }
-        val previews = launch { preview(latest, r, e.previewer, media, renderLock) }
+        val previews = launch { if (!lean) preview(latest, r, e.previewer, media, renderLock) }
         val grabber = director.eyes?.let { FrameGrabber { output, times -> renderLock.withLock { times.map { t -> e.previewer.rgb(output, media.of(output), t, LOOK_W, LOOK_H) } } } }
         val autopilot = Autopilot(
             e.text, e.brands, visuals, director.model, knowledge, taste, director.eyes, grabber,
             jury = recorder.instrument(jury ?: Juries.forDevice(platform.device())),
             onCompiled = { job?.ensureActive(); latest.value = it },
             onDraft = { d -> checkpoints.save(request.key, Checkpoints.Saved(transcript, draft = d, by = director.model?.id)) },
+            // The whole reading the moment it is done: an attempt after a kill starts at the plan.
+            onUnderstood = { u -> checkpoints.save(request.key, Checkpoints.Saved(transcript, u, by = director.model?.id)) },
+            lean = { lean || MemoryPressure.low() },
         )
         // A reading kept from an earlier run is reused only when the same director made it: a run without a model
         // (or with another one) never stands in for the director now loaded.
@@ -434,6 +446,8 @@ class Productions(
     private suspend fun preview(latest: MutableStateFlow<Compiler.Output?>, r: Run, previewer: Previewer, media: Footage, lock: Mutex) {
         var k = 0
         latest.filterNotNull().conflate().collect { output ->
+            // A preview is a decoded frame and a render: when memory runs low it waits for the next edit.
+            if (MemoryPressure.low()) return@collect
             val image = lock.withLock { runCatching { previewer.frame(output, media.of(output), Previewer.time(k, output.composition.duration), Previewer.WIDTH) }.getOrNull() }
             if (image != null) {
                 k++

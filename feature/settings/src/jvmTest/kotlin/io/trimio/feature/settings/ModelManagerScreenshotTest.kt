@@ -97,20 +97,37 @@ class ModelManagerScreenshotTest {
         val offered = shelf.boosts.flatMap { it.rows }.map { it.row.id }
         val a = io.trimio.engine.models.IllustrationAddOns
         assertTrue(listOf(a.sdxs.id, a.klein.id).all { it in offered }, "illustrators offered on a 12 GB phone: $offered")
+        val k = io.trimio.engine.models.SpeedRow.Kind
+        fun r(kind: io.trimio.engine.models.SpeedRow.Kind, label: String, value: String, best: Boolean = false) = io.trimio.engine.models.SpeedRow(kind, label, value, best)
+        // The owner's S26 Ultra as 1.0.21 measured it, and what the deeper test adds (GPU layers, the picture engine).
         val speed = SpeedUi(
-            listOf(io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Director, "کارگردان · ۸ هسته", "۲۸ توکن در ثانیه", best = true),
-                io.trimio.engine.models.SpeedRow(io.trimio.engine.models.SpeedRow.Kind.Speech, "Whisper · ۸ هسته", "۰٫۹× زمان واقعی"),),
+            listOf(
+                r(k.Memory, "حافظه (رم)", "۳۳٫۲ گیگابایت بر ثانیه"),
+                r(k.Director, "CPU · ۸ هسته", "خواندن ۱۰۹٫۱ · نوشتن ۲۷٫۵ توکن/ثانیه"),
+                r(k.Director, "CPU · ۷ هسته", "خواندن ۵۵٫۸ · نوشتن ۱۱٫۴ توکن/ثانیه"),
+                r(k.Director, "CPU · ۴ هسته", "خواندن ۸۹٫۲ · نوشتن ۳۱٫۸ توکن/ثانیه"),
+                r(k.Director, "کارت گرافیک · ۹ از ۳۷ لایه", "خواندن ۱۲۴٫۰ · نوشتن ۲۹٫۱ توکن/ثانیه"),
+                r(k.Note, "کارت گرافیک · ۱۸ از ۳۷ لایه", "از کار افتاد؛ این حالت استفاده نمی‌شود"),
+                r(k.Director, "کارگردان", "CPU · ۸ هسته · خواندن ۱۰۹٫۱ · نوشتن ۲۷٫۵ توکن/ثانیه", best = true),
+                r(k.Speech, "Whisper · ۸ هسته", "۱٫۱ برابر زمان صدا"),
+                r(k.Speech, "گفتار", "Whisper · ۸ هسته · ۱٫۱ برابر زمان صدا", best = true),
+                r(k.Note, "تصویرساز · CPU", "۴۱٫۲ ثانیه برای یک تصویر کوچک"),
+                r(k.Note, "تصویرساز · CPU + کارت گرافیک", "۹٫۸ ثانیه برای یک تصویر کوچک"),
+                r(k.Note, "تصویرساز", "کارت گرافیک + متن روی CPU · ۹٫۸ ثانیه", best = true),
+            ),
             done = true,
         )
         shoot("models-fa-owners-phone", paper = true, height = 3400) { ModelManagerScreen(shelf, ModelActions(onSpeedTest = {}, speed = speed)) }
         shoot("settings-fa-speed-test", paper = true, height = 1400) {
             SettingsScreen(
                 SettingsUi(io.trimio.core.data.AppSettings(), emptyMap(), io.trimio.core.data.DeviceInfo(12, "Android 17", "1.0.21", 1)),
-                SettingsActions(onModels = {}, onSpeedTest = {}, speed = SpeedUi(running = true, progress = 0.47f, rows = speed.rows.take(1))),
+                SettingsActions(onModels = {}, onSpeedTest = {}, speed = SpeedUi(running = true, progress = 0.47f, rows = speed.rows.take(3))),
             )
         }
         // After the test, on the next visit: the way every build runs now.
-        shoot("models-fa-speed-kept", paper = true, height = 1700) { ModelManagerScreen(shelf, ModelActions(onSpeedTest = {}, speed = SpeedUi(rows = speed.rows, kept = true))) }
+        shoot("models-fa-speed-kept", paper = true, height = 1700) {
+            ModelManagerScreen(shelf, ModelActions(onSpeedTest = {}, speed = SpeedUi(rows = speed.rows.filter { it.best }, kept = true)))
+        }
     }
 
     @Test

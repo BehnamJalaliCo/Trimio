@@ -106,6 +106,7 @@ dependencies {
     implementation(projects.shared)
     implementation(projects.androidGpu)
     implementation(projects.androidSd)
+    implementation(projects.androidSdGpu)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.koin.android)

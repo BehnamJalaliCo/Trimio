@@ -54,11 +54,32 @@ class LocalDirectors(
     }
 
     /** «سنجش سرعت این دستگاه»: the director a build would run and the speech model, timed every way this device runs them. */
-    fun speedTest(preferredSpeech: () -> String? = { null }): io.trimio.engine.models.SpeedTest = DeviceSpeedTest(
+    fun speedTest(
+        bench: io.trimio.engine.production.bench.BenchRunner = io.trimio.engine.production.bench.LocalBench,
+        preferredSpeech: () -> String? = { null },
+    ): io.trimio.engine.models.SpeedTest = DeviceSpeedTest(
         director = { local.bestSpec(preferred())?.let { store.pathOf(it).toString() } },
         speech = { speechSpec(preferredSpeech)?.let { store.pathOf(it).toString() } },
+        picture = ::pictureFiles,
         profile = profileFile(),
+        bench = bench,
     )
+
+    /** The installed picture model's files, the studio one first: its diffusion model, text encoder and VAE; else SDXS. */
+    private fun pictureFiles(): List<String>? {
+        val a = io.trimio.engine.models.IllustrationAddOns
+        val path = { spec: ModelSpec -> store.pathOf(spec).toString() }
+        if (listOf(a.klein, a.kleinText, a.kleinDecoder).all(::installed)) return listOf(path(a.klein), path(a.kleinText), path(a.kleinDecoder))
+        return if (installed(a.sdxs)) listOf(path(a.sdxs)) else null
+    }
+
+    /** The GPU budget for [backend]'s GPU device now: the free memory less the headroom, in GiB ("GPUOpenCL=3.2"). */
+    private fun budget(backend: String): String? {
+        val device = backend.split(',').map { it.substringAfter('=') }.firstOrNull { it.isNotBlank() && !it.equals("cpu", true) } ?: return null
+        val free = io.trimio.engine.llm.local.Placement.freeBytes() ?: return null
+        val gib = ((free - GPU_HEADROOM) / GIB).coerceAtLeast(0.0)
+        return "$device=${"%.1f".format(java.util.Locale.ROOT, gib)}"
+    }
 
     /** The speed test's choices beside the models ([SpeedProfile]); null where nothing is stored. */
     private fun profileFile(): java.io.File? = store.folder?.let { java.io.File(it.toString(), SpeedProfile.FILE) }
@@ -95,17 +116,25 @@ class LocalDirectors(
      * encoder and decoder) when all of it is installed and fits here, else the fast one (SDXS-512); null when neither is.
      */
     fun diffusion(defaultThreads: Int): io.trimio.engine.illustration.generate.DiffusionEngine? {
+        // The speed test's choice, once it has run: the device of each part (the phone's GPU build), its threads; the GPU
+        // budget is today's free memory less the headroom, as the test measured it. The build is asked for before the
+        // engine first loads (one per process).
+        val kept = profileFile()?.let(SpeedProfile::load)
+        val way = kept?.picture
+        if (way?.gpuLibrary == true) io.trimio.engine.illustration.generate.SdNative.wantGpu = true
         if (!io.trimio.engine.illustration.generate.SdNative.available) return null
-        // The speed test's fastest processor thread count, once it has run: the builds draw with it.
-        val threads = profileFile()?.let(SpeedProfile::load)?.cpuThreads ?: defaultThreads
+        val threads = way?.threads ?: kept?.cpuThreads ?: defaultThreads
+        val placement = way?.let { w ->
+            io.trimio.engine.illustration.generate.SdEngine.Placement(w.backend, budget(w.backend) ?: w.maxVram, w.gpuLibrary)
+        } ?: io.trimio.engine.illustration.generate.SdEngine.Placement()
         val a = io.trimio.engine.models.IllustrationAddOns
         val path = { spec: ModelSpec -> store.pathOf(spec).toString() }
         if (listOf(a.klein, a.kleinText, a.kleinDecoder).all(::installed)) {
             val files = io.trimio.engine.illustration.generate.SdEngine.Files(path(a.klein), path(a.kleinText), path(a.kleinDecoder))
-            return io.trimio.engine.illustration.generate.SdEngine(a.klein.id, files, threads)
+            return io.trimio.engine.illustration.generate.SdEngine(a.klein.id, files, threads, placement)
         }
         if (!installed(a.sdxs)) return null
-        return io.trimio.engine.illustration.generate.SdEngine(a.sdxs.id, io.trimio.engine.illustration.generate.SdEngine.Files(path(a.sdxs)), threads)
+        return io.trimio.engine.illustration.generate.SdEngine(a.sdxs.id, io.trimio.engine.illustration.generate.SdEngine.Files(path(a.sdxs)), threads, placement)
     }
 
     /**
@@ -135,6 +164,9 @@ class LocalDirectors(
     }
 
     private companion object {
+        const val GPU_HEADROOM = io.trimio.engine.llm.local.Placement.GPU_HEADROOM
+        const val GIB = 1_073_741_824.0
+
         /** The perception add-ons the production uses ([AddOnStages]). */
         val PERCEPTION = listOf(MediaAddOns.faces, MediaAddOns.aligner, MediaAddOns.punctuation)
     }

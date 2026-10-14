@@ -45,6 +45,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaProcessing|dataSync" />
 
+        <!-- «سنجش سرعت این دستگاه»: each measurement in its own process, so a GPU driver crash cannot close the app. -->
+        <service
+            android:name="io.trimio.engine.production.bench.BenchService"
+            android:exported="false"
+            android:process=":bench" />
+
         <!-- Shares project files (FCPXML, Premiere XML, SRT) with other apps. -->
         <provider
             android:name="androidx.core.content.FileProvider"

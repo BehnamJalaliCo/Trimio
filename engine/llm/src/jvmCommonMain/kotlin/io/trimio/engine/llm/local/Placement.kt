@@ -14,7 +14,16 @@ import java.io.File
  */
 object Placement {
     /** One probe: [gpuLayers] asked (-1 as many as fit, 0 the CPU), [onGpu] whether any landed there, and the speeds. */
-    data class Probe(val gpuLayers: Int, val onGpu: Boolean, val readPerSecond: Double, val writePerSecond: Double, val draft: Int = 0) {
+    data class Probe(
+        val gpuLayers: Int,
+        val onGpu: Boolean,
+        val readPerSecond: Double,
+        val writePerSecond: Double,
+        val draft: Int = 0,
+        /** The layers that landed on the GPU and the model's layer count, as the engine reported them. */
+        val offloaded: Int = 0,
+        val totalLayers: Int = 0,
+    ) {
         /** Seconds a typical director call (about [CALL_READ] tokens read, [CALL_WRITE] written) takes this way. */
         val callSeconds: Double get() = CALL_READ / readPerSecond.coerceAtLeast(MIN_RATE) + CALL_WRITE / writePerSecond.coerceAtLeast(MIN_RATE)
 
@@ -22,7 +31,14 @@ object Placement {
     }
 
     /** The decision and how it was reached, as the report shows it; [threads] when the speed test measured the best count. */
-    data class Choice(val gpuLayers: Int, val line: String, val threads: Int? = null, val draft: Int? = null)
+    data class Choice(val gpuLayers: Int, val line: String, val threads: Int? = null, val draft: Int? = null, val totalLayers: Int? = null) {
+        /** The share of [modelBytes] this choice pins on the GPU: all of it for -1, its layers' share for a part. */
+        fun gpuBytes(modelBytes: Long): Long = when {
+            gpuLayers == 0 -> 0L
+            gpuLayers < 0 || totalLayers == null || totalLayers <= 0 -> modelBytes
+            else -> modelBytes * gpuLayers.coerceAtMost(totalLayers) / totalLayers
+        }
+    }
 
     /**
      * Whether the GPU may even be tried: its copy of the weights is pinned (the system cannot page it out the way it
@@ -50,11 +66,17 @@ object Placement {
     /** The choice kept beside [model] for this engine [build]; null when there is none or the build changed. */
     fun cached(model: String, build: String): Choice? = runCatching {
         val lines = file(model).takeIf(File::isFile)?.readLines() ?: return@runCatching null
-        if (lines.size < 3 || lines[0] != build.hashCode().toString()) null else Choice(lines[1].toInt(), lines[2], lines.getOrNull(3)?.toIntOrNull(), lines.getOrNull(4)?.toIntOrNull())
+        if (lines.size < 3 || lines[0] != build.hashCode().toString()) {
+            null
+        } else {
+            Choice(lines[1].toInt(), lines[2], lines.getOrNull(3)?.toIntOrNull(), lines.getOrNull(4)?.toIntOrNull(), lines.getOrNull(5)?.toIntOrNull())
+        }
     }.getOrNull()
 
     fun keep(model: String, build: String, choice: Choice) {
-        runCatching { file(model).writeText("${build.hashCode()}\n${choice.gpuLayers}\n${choice.line}\n${choice.threads ?: ""}\n${choice.draft ?: ""}\n") }
+        runCatching {
+            file(model).writeText("${build.hashCode()}\n${choice.gpuLayers}\n${choice.line}\n${choice.threads ?: ""}\n${choice.draft ?: ""}\n${choice.totalLayers ?: ""}\n")
+        }
     }
 
     /** The engine build a choice belongs to: a new app version (a new native build) measures again. */
@@ -68,7 +90,8 @@ object Placement {
     private const val KIB = 1024L
 
     /** Free memory beyond the model's own size for a GPU load: the context, compute buffers, the app and the system. */
-    private const val GPU_HEADROOM = 2L * 1024 * 1024 * 1024
+    /** Kept free beside the GPU's pinned weights, for the app and the system (the speed test sizes GPU layers with it too). */
+    const val GPU_HEADROOM = 2L * 1024 * 1024 * 1024
 
     /** The GPU must be this much faster (its time × 1.15 still below the CPU's) to be worth pinning the model in GPU memory. */
     private const val GPU_MARGIN = 1.15

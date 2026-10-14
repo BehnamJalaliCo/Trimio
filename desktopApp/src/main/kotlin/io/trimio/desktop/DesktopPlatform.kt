@@ -113,6 +113,8 @@ fun desktopPlatformModule(
         val recall = directors().pictureRecall()
         io.trimio.engine.autopilot.ArtShelf.recall = io.trimio.engine.autopilot.ArtShelf.Recall(recall::search)
         io.trimio.engine.autopilot.MusicShelf.recall = recall::music
+        io.trimio.engine.autopilot.ArtShelf.releaseRecall = recall::release
+        io.trimio.engine.production.MemoryPressure.free = io.trimio.engine.llm.local.Placement::freeBytes
         JvmProductionPlatform(
             dirs.output, recognizer = { recognizer }, directors = { choice -> directors().director(choice) },
             lighter = { id -> directors().lighter(id) }, speech = { directors().speechModel { settings.settings.value.speechModelId } },

@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 /**
  * «سنجش سرعت این دستگاه» on this machine with real models, run by hand (no models in CI):
  *
- * ./gradlew :engine:production:jvmTest --tests '*DeviceSpeedTestRun*' -Pspeed.director=<gguf> [-Pspeed.whisper=<bin>] -Pauto.native=<host build>
+ * ./gradlew :engine:production:jvmTest --tests '*DeviceSpeedTestRun*' -Pspeed.director=<gguf> [-Pspeed.whisper=<bin>] [-Psd.klein=<dir>] -Pauto.native=<host build>
  *
  * Every row the settings screen shows is printed; the director's best way and Whisper's best threads are kept
  * beside the models as the app keeps them.
@@ -22,7 +22,11 @@ class DeviceSpeedTestRun {
         val rows = mutableListOf<SpeedRow>()
         val progress = mutableListOf<Float>()
         val profile = File.createTempFile("speed-profile", ".json").apply { delete() }
-        val test = DeviceSpeedTest({ director }, { whisper }, profile)
+        val picture = System.getProperty("sd.klein")?.let(::File)?.takeIf { it.isDirectory }?.let { dir ->
+            val a = io.trimio.engine.models.IllustrationAddOns
+            listOf(a.klein, a.kleinText, a.kleinDecoder).map { File(dir, it.fileName).path }
+        }
+        val test = DeviceSpeedTest({ director }, { whisper }, { picture }, profile)
         val started = System.nanoTime()
         test.run(
             onRow = { row -> rows += row.also { println("speed ${it.kind} | ${it.label} | ${it.value}${if (it.best) " ★" else ""}") } },

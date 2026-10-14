@@ -116,6 +116,9 @@ internal object LlamaNative {
         temperature: Float, topP: Float, minP: Float, seed: Int, callback: LlamaCallback,
     ): Int
     external fun initVision(handle: Long, projectorPath: String, threads: Int, maxImageTokens: Int): Boolean
+
+    /** Frees the vision projector alone; the model stays loaded and [initVision] loads it again when it must look. */
+    external fun freeVision(handle: Long)
     external fun systemInfo(): String
 
     // Encoders (native `Encoder`): embedders and relevance judges, on the CPU.
@@ -225,7 +228,8 @@ class LlamaLanguageModel(
         // The measured choice for this model (the speed test's, or the GPU-against-CPU probe's) is kept; a GPU
         // build without one measures now. A GPU choice still needs the free memory today, or the CPU runs it.
         val cached = Placement.cached(modelPath, Placement.build())
-        val fits = Placement.gpuFits(File(modelPath).length(), Placement.freeBytes())
+        // A part of the layers on the GPU (the speed test's mix) needs only that part's room.
+        val fits = Placement.gpuFits(cached?.gpuBytes(File(modelPath).length()) ?: File(modelPath).length(), Placement.freeBytes())
         val placement = when {
             cached != null && (cached.gpuLayers == 0 || fits) -> cached
             cached != null -> cached.copy(gpuLayers = 0, line = "CPU: too little free memory for the GPU now · ${cached.line}")
@@ -276,6 +280,12 @@ class LlamaLanguageModel(
 
     /** Frees the model's memory once no generation is running; it reloads on the next request. */
     override suspend fun release() = mutex.withLock { close() }
+
+    /** Frees the vision projector once no generation is running (about 1 GB); the next look loads it again. */
+    override suspend fun releaseSight() = mutex.withLock {
+        if (handle != 0L && visionReady == true) LlamaNative.freeVision(handle)
+        if (visionReady == true) visionReady = null
+    }
 
     override fun close() {
         if (handle != 0L) {

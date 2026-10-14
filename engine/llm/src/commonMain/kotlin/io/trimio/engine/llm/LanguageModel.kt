@@ -133,6 +133,9 @@ interface LanguageModel {
 
     /** Frees heavy resources (a local model's weights) until the next request. */
     suspend fun release() {}
+
+    /** Frees what it needs only to see (a local model's vision projector) until it next looks; the rest stays loaded. */
+    suspend fun releaseSight() {}
 }
 
 class LanguageModelException(val kind: Kind, message: String, cause: Throwable? = null) : Exception(message, cause) {

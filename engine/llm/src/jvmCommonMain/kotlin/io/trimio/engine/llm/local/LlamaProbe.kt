@@ -9,24 +9,40 @@ import io.trimio.engine.llm.Usage
 object LlamaProbe {
     /**
      * The probe at [threads] threads with [layers] on the GPU (-1 as many as fit, 0 the CPU), the model's own MTP head
-     * guessing [draft] tokens a step when it has one; null when the model does not load.
+     * guessing [draft] tokens a step when it has one; null when the model does not load. With [repeats] above one the
+     * first pass only warms the caches and the clocks, and each speed is the median of the passes after it.
      */
-    fun run(modelPath: String, threads: Int, layers: Int, draft: Int = 0): Placement.Probe? {
+    fun run(modelPath: String, threads: Int, layers: Int, draft: Int = 0, repeats: Int = 1): Placement.Probe? {
         val h = LlamaNative.init(modelPath, CONTEXT, threads, layers, LlamaNative.options(draft))
         if (h == 0L) return null
         return try {
             val info = LlamaRuntime.lines(LlamaNative.runtimeInfo(h))
-            val onGpu = LlamaRuntime.parse(LlamaNative.variant, info, Usage(calls = 0)).gpuLayers > 0
+            val runtime = LlamaRuntime.parse(LlamaNative.variant, info, Usage(calls = 0))
             val drafting = info["mtp_draft"]?.firstOrNull()?.toIntOrNull() ?: 0
-            LlamaNative.generate(h, TEXT.repeat(REPEAT).encodeToByteArray(), null, WRITE, 0f, 0.95f, 0.05f, 1, LlamaCallback { true })
-            val c = LlamaNative.lastCall(h)
-            val read = (c[0] - c[1]).coerceAtLeast(1) / (c[3] / MICROS).coerceAtLeast(MIN_SECONDS)
-            val write = if (c[2] > 0) c[2] / (c[4] / MICROS).coerceAtLeast(MIN_SECONDS) else read
-            Placement.Probe(layers, onGpu, read, write, drafting)
+            val passes = (if (repeats > 1) repeats + 1 else 1)
+            val rates = (1..passes).map { pass(h, it) }.drop(if (repeats > 1) 1 else 0)
+            Placement.Probe(
+                layers, runtime.gpuLayers > 0, median(rates.map { it.first }), median(rates.map { it.second }), drafting,
+                offloaded = runtime.gpuLayers, totalLayers = runtime.totalLayers,
+            )
         } finally {
             LlamaNative.free(h)
         }
     }
+
+    /**
+     * One read of the fixed text and 32 tokens written: (read, write) tokens a second. Each pass opens with its own number,
+     * so the engine's prompt-head reuse finds nothing to keep and every pass reads the whole text again.
+     */
+    private fun pass(h: Long, n: Int): Pair<Double, Double> {
+        LlamaNative.generate(h, ("pass $n. " + TEXT.repeat(REPEAT)).encodeToByteArray(), null, WRITE, 0f, 0.95f, 0.05f, 1, LlamaCallback { true })
+        val c = LlamaNative.lastCall(h)
+        val read = (c[0] - c[1]).coerceAtLeast(1) / (c[3] / MICROS).coerceAtLeast(MIN_SECONDS)
+        val write = if (c[2] > 0) c[2] / (c[4] / MICROS).coerceAtLeast(MIN_SECONDS) else read
+        return read to write
+    }
+
+    private fun median(values: List<Double>): Double = values.sorted().let { v -> if (v.size % 2 == 1) v[v.size / 2] else (v[v.size / 2 - 1] + v[v.size / 2]) / 2 }
 
     /** Whether this build can put a model on a GPU at all (a GPU build: OpenCL, Vulkan, CUDA, Metal). */
     val gpuBuild: Boolean get() = LlamaNative.measuresPlacement

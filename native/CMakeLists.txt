@@ -23,10 +23,12 @@ option(TRIMIO_LLAMA "Build the llama.cpp language engine" ON)
 # encoder), and one configure cannot hold two ggml targets. Every symbol but the JNI entry points is hidden, so the
 # three libraries load side by side.
 option(TRIMIO_SD "Build the stable-diffusion.cpp image engine alone, on its own ggml" OFF)
-# Android GPU variant (:androidGpu): llama.cpp on the Adreno GPU through OpenCL, as its own library
-# so a phone without OpenCL simply keeps the CPU one (LlamaNative loads the GPU one when it can).
-option(TRIMIO_OPENCL "Build llama.cpp with the OpenCL (Adreno) backend" OFF)
+# Android GPU variants (:androidGpu, :androidSdGpu): llama.cpp or stable-diffusion.cpp on the Adreno GPU through
+# OpenCL, each as its own library so a phone without OpenCL simply keeps the processor one.
+option(TRIMIO_OPENCL "Build llama.cpp or stable-diffusion.cpp with the OpenCL (Adreno) backend" OFF)
 set(TRIMIO_LLAMA_TARGET "trimio_llama" CACHE STRING "Name of the llama.cpp JNI library")
+# The image engine's library name: trimio_sd (processor), trimio_sd_gpu (with OpenCL for the Adreno GPU, :androidSdGpu).
+set(TRIMIO_SD_TARGET "trimio_sd" CACHE STRING "Name of the stable-diffusion.cpp JNI library")
 
 if(NOT ANDROID)
     find_package(JNI REQUIRED)
@@ -113,9 +115,14 @@ if(TRIMIO_SD)
     set(SD_WEBP OFF CACHE BOOL "" FORCE)
     set(SD_WEBM OFF CACHE BOOL "" FORCE)
     set(SD_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    # The GPU variant: sd.cpp's OpenCL backend, made for Adreno and Q4_0 weights (FLUX.2 klein); the processor stays a
+    # device of the same library, so the speed test can place each part of the model (text encoder, diffusion, VAE).
+    if(TRIMIO_OPENCL)
+        set(SD_OPENCL ON CACHE BOOL "" FORCE)
+    endif()
     add_subdirectory(third_party/stable-diffusion.cpp sd-build EXCLUDE_FROM_ALL)
 
-    add_library(trimio_sd SHARED sd/trimio_sd_jni.cpp)
-    target_link_libraries(trimio_sd PRIVATE stable-diffusion)
-    trimio_jni_library(trimio_sd)
+    add_library(${TRIMIO_SD_TARGET} SHARED sd/trimio_sd_jni.cpp)
+    target_link_libraries(${TRIMIO_SD_TARGET} PRIVATE stable-diffusion)
+    trimio_jni_library(${TRIMIO_SD_TARGET})
 endif()

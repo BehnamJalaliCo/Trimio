@@ -118,6 +118,25 @@ class ProductionsTest {
         assertEquals(2, checkpoints.reports.load(request.key)?.deaths?.size)
     }
 
+    /**
+     * The owner's 1.0.21 run: the system killed the app for memory at «pictures» (52 %). The next attempt runs lean (no
+     * eyes, no web animations, no live previews), finishes, and says so in its report.
+     */
+    @Test
+    fun aRunKilledForMemoryInsideTheDirectorFinishesLean() = runBlocking {
+        val checkpoints = Checkpoints(Path(File(dir, "killed").path))
+        val request = ProductionRequest(clip().path, prompt = "یک ویدیوی کوتاه", seed = 9)
+        checkpoints.reports.save(RunReport(request.key, attempt = 1))
+        checkpoints.reports.mark(request.key, "in pictures@another-process#1")
+        val states = editor(checkpoints).produce(request).toList()
+        val last = states.last()
+        assertEquals(ProductionStatus.Done, last.status, "failed: ${last.error}")
+        val report = assertNotNull(checkpoints.reports.load(request.key))
+        assertEquals(listOf("pictures"), report.deaths.map { it.step })
+        assertTrue(report.models.any { it.name == "lean run" }, "the report says the run was lean: ${report.models}")
+        assertTrue(states.none { it.previews.isNotEmpty() }, "no live previews in a lean run")
+    }
+
     @Test
     fun cancellingStopsTheRun() = runBlocking {
         val request = ProductionRequest(clip().path, prompt = "test", seed = 3)

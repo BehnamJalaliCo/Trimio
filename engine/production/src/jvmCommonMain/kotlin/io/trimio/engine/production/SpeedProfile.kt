@@ -10,9 +10,13 @@ import java.io.File
  * generator is matrix work on the same cores). Absent before the first test; then the builds use their defaults.
  */
 @Serializable
-internal data class SpeedProfile(val chosen: List<Chosen> = emptyList(), val cpuThreads: Int? = null) {
+internal data class SpeedProfile(val chosen: List<Chosen> = emptyList(), val cpuThreads: Int? = null, val picture: PictureWay? = null) {
     @Serializable
     data class Chosen(val kind: String, val label: String, val value: String)
+
+    /** Where the picture engine ran fastest: each part's device ([backend]), the GPU budget at test time, its build and threads. */
+    @Serializable
+    data class PictureWay(val label: String, val backend: String, val maxVram: String, val gpuLibrary: Boolean, val threads: Int)
 
     fun save(file: File) {
         runCatching {

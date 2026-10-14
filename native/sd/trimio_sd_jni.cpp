@@ -64,11 +64,15 @@ void on_progress(int step, int steps, float, void *) {
     if (listener.env->ExceptionCheck()) listener.env->ExceptionClear();
 }
 
-sd_ctx_t * load(sd_ctx_params_t & p, jint threads) {
+// [backend]: where each part runs ("" every part on the default device; "cpu"; "all=GPUOpenCL,te=cpu", sd.cpp's
+// assignment syntax); [max_vram]: the GPU budget in GiB per device ("" the live free memory decides).
+sd_ctx_t * load(sd_ctx_params_t & p, jint threads, const std::string & backend, const std::string & max_vram) {
     sd_set_log_callback(log_line, nullptr);
     sd_set_progress_callback(on_progress, nullptr);
     p.n_threads = threads > 0 ? threads : sd_get_num_physical_cores();
     p.enable_mmap = true;
+    if (!backend.empty()) p.backend = backend.c_str();
+    if (!max_vram.empty()) p.max_vram = max_vram.c_str();
     return new_sd_ctx(&p);
 }
 
@@ -99,17 +103,18 @@ jbyteArray first_rgb(JNIEnv * env, sd_image_t * images, int count) {
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_io_trimio_engine_illustration_generate_SdNative_init(JNIEnv * env, jobject, jstring jpath, jint threads) {
+Java_io_trimio_engine_illustration_generate_SdNative_init(JNIEnv * env, jobject, jstring jpath, jint threads, jstring jbackend, jstring jmax_vram) {
     const std::string path = str(env, jpath);
     sd_ctx_params_t p;
     sd_ctx_params_init(&p);
     p.model_path = path.c_str();
-    return reinterpret_cast<jlong>(load(p, threads));
+    return reinterpret_cast<jlong>(load(p, threads, str(env, jbackend), str(env, jmax_vram)));
 }
 
 // A model in parts (FLUX.2 klein): the diffusion model, its LLM text encoder (Qwen3) and its VAE.
 JNIEXPORT jlong JNICALL
-Java_io_trimio_engine_illustration_generate_SdNative_initParts(JNIEnv * env, jobject, jstring jdiffusion, jstring jllm, jstring jvae, jint threads) {
+Java_io_trimio_engine_illustration_generate_SdNative_initParts(
+    JNIEnv * env, jobject, jstring jdiffusion, jstring jllm, jstring jvae, jint threads, jstring jbackend, jstring jmax_vram) {
     const std::string diffusion = str(env, jdiffusion);
     const std::string llm = str(env, jllm);
     const std::string vae = str(env, jvae);
@@ -118,7 +123,17 @@ Java_io_trimio_engine_illustration_generate_SdNative_initParts(JNIEnv * env, job
     p.diffusion_model_path = diffusion.c_str();
     p.llm_path = llm.c_str();
     if (!vae.empty()) p.vae_path = vae.c_str();
-    return reinterpret_cast<jlong>(load(p, threads));
+    return reinterpret_cast<jlong>(load(p, threads, str(env, jbackend), str(env, jmax_vram)));
+}
+
+// The devices this build can run on, one "name<TAB>description" per line ("CPU", "GPUOpenCL", "Vulkan0").
+JNIEXPORT jstring JNICALL
+Java_io_trimio_engine_illustration_generate_SdNative_devices(JNIEnv * env, jobject) {
+    const size_t size = sd_list_devices(nullptr, 0);
+    std::string out(size + 1, '\0');
+    sd_list_devices(&out[0], out.size());
+    out.resize(size);
+    return env->NewStringUTF(out.c_str());
 }
 
 // RGB bytes (width × height × 3), or null when generation failed. [init] (RGB, same size; null: none) makes it

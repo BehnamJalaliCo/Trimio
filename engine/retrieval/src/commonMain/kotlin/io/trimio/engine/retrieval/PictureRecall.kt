@@ -23,6 +23,15 @@ class PictureRecall(private val open: suspend () -> Retrieval?) {
         return list.passing.filter { it.doc.id.substringBefore(':') in sources }.take(limit).map { it.doc.id to it.relevance.coerceIn(0f, 1f) }
     }
 
+    /**
+     * Frees the embedder and the reranker (their models and caches) until the next search, which opens them again: on a
+     * phone the meaning search never stays loaded beside the director.
+     */
+    suspend fun release() = lock.withLock {
+        retrieval?.release()
+        retrieval = null
+    }
+
     /** The music bed (a mood id, "tense") whose description best matches [moment], above the relevance floor; null otherwise. */
     suspend fun music(moment: String): String? {
         val r = lock.withLock {

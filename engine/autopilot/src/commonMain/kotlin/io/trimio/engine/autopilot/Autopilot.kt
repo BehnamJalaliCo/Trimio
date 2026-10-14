@@ -48,6 +48,13 @@ class Autopilot(
     private val onCompiled: (Compiler.Output) -> Unit = {},
     /** The reading so far (after every group of lines): the app checkpoints it, so a killed run resumes there. */
     private val onDraft: (UnderstandingDraft) -> Unit = {},
+    /** The whole reading, the moment it is done: the app checkpoints it, so a killed run resumes at the plan. */
+    private val onUnderstood: (Understanding) -> Unit = {},
+    /**
+     * A lean run (low memory now, or the system killed an earlier attempt of this edit inside the director): no look
+     * at rendered frames and no animations from the web; the edit is otherwise the same.
+     */
+    private val lean: () -> Boolean = { false },
 ) {
     data class Request(
         /** Recognised words on the source clock. */
@@ -140,11 +147,13 @@ class Autopilot(
         onStage("understand", 0.1f)
         val read = request.understanding ?: understand(analysis.transcript, request.prompt, lines, request.seed, report, request.draft) { done, total ->
             onStage("understand $done/$total", UNDERSTAND_FROM + (UNDERSTAND_TO - UNDERSTAND_FROM) * done / total.coerceAtLeast(1))
-        }
+        }.also(onUnderstood)
         // What the brief says in so many words («پرانرژی», «کلمه‌به‌کلمه») wins over the model's reading of it;
         // music the brief leaves open is matched by meaning when the retrieval add-on is installed.
         val opening = analysis.transcript.words.take(OPENING_WORDS).joinToString(" ") { it.text }
         val understanding = MusicShelf.pick(read.copy(brief = RulesUnderstander.brief(request.prompt).over(read.brief)), opening) { report += it }
+        // The meaning search (embedder and reranker) never stays loaded beside the director between its uses.
+        ArtShelf.release()
         // The director's line-by-line spelling, aligned word for word to what was heard.
         val texts = analysis.transcript.words.map { it.text }
         val lexicon = PersianSpelling.load()
@@ -166,6 +175,7 @@ class Autopilot(
         // The creator's own media: what each one is (the eyes, or the rules), read once for every variation.
         val persian = transcript.words.count { w -> w.text.any { it in '\u0600'..'\u06FF' } } * 2 > transcript.words.size
         val readings = AssetReader(eyes).read(request.assets, request.prompt, persian) { report += it }
+        rest(eyes)
 
         onStage("plan", 0.55f)
         val cut = onOwnBeat(analysis.edit, request.sourceTempo, report)
@@ -302,6 +312,7 @@ class Autopilot(
 
         onStage("pictures", 0.6f)
         val picked = pictures(placed, output, r.lines, log)
+        ArtShelf.release()
 
         onStage("compile", 0.75f)
         val compiler = Compiler(text, r.brands, picked.second.library)
@@ -318,9 +329,11 @@ class Autopilot(
         }
         var looks = emptyList<VisionCritic.Look>()
         val looker = eyes
-        if (look && looker != null && grabber != null) {
+        if (look && lean()) log("look: skipped (lean run: little free memory, or an earlier attempt was killed here)")
+        if (look && !lean() && looker != null && grabber != null) {
             onStage("look", 0.85f)
             val (seen, revised) = VisionCritic(looker).review(score, compiled, output, grabber, log)
+            rest(looker)
             looks = seen
             if (revised != null) {
                 score = revised
@@ -433,7 +446,8 @@ class Autopilot(
         }
         if (context.isEmpty()) return score to VisualPicker.Result(visuals, emptyMap())
         // The style decides which animated pictures it speaks (emoji, or line icons in its ink).
-        val result = VisualPicker(visuals, knowledge, model, look = score.look).pick(context)
+        // A lean run keeps to the pictures on the device: an animation from the web is a large file parsed in memory.
+        val result = VisualPicker(visuals, if (lean()) Knowledge.Offline else knowledge, model, look = score.look).pick(context)
         result.picks.forEach { (q, id) -> log("picture: \"$q\" → ${id ?: "none"}${result.relevance[q]?.let { " (relevance ${round1(it)})" }.orEmpty()}") }
         fun BeatScore.resolved() = copy(
             visual = visual?.let { result.picks[it] ?: if (it in result.picks) null else it },
@@ -457,6 +471,15 @@ class Autopilot(
     /** A word said in Persian («تتر») respelled in Latin letters («Tether»): a translation, not a spelling fix. */
     private fun latinised(heard: String, fixed: String): Boolean =
         heard.any { it in '\u0600'..'\u06FF' } && fixed.none { it in '\u0600'..'\u06FF' } && fixed.any { it.isLetter() }
+
+    /**
+     * The eyes after they looked: the director's own (its vision projector, about 1 GB, freed; the model stays) or a
+     * separate looker (freed whole). They load again the next time they must look.
+     */
+    private suspend fun rest(looker: LanguageModel?) {
+        val l = looker ?: return
+        runCatching { if (l === model) l.releaseSight() else l.release() }
+    }
 
     private fun compile(compiler: Compiler, score: Score, transcript: Transcript, edit: EditPlan, request: Request) =
         compiler.compile(input(score, transcript, edit, request)).also(onCompiled)
