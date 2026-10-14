@@ -494,7 +494,7 @@ private fun ModelLine(row: ModelRow, desktop: Boolean, actions: ModelActions, di
                 }
                 (row.state as? ModelState.Downloading)?.let { Progress(it.fraction) }
             }
-            if (director && row.installed && !row.active && !blocked) {
+            if (director && row.canUse(blocked)) {
                 SigTextButton(tr("استفاده", "Use"), { actions.onUse(row.id) })
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -504,6 +504,9 @@ private fun ModelLine(row: ModelRow, desktop: Boolean, actions: ModelActions, di
         }
     }
 }
+
+/** An installed director that fits and is not the one in use: it can be made the one. */
+private fun ModelRow.canUse(blocked: Boolean) = installed && !active && !blocked
 
 @Composable
 private fun LineAction(row: ModelRow, blocked: Boolean, actions: ModelActions) {

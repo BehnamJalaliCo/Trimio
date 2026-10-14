@@ -25,6 +25,9 @@ class Checkpoints(private val dir: Path?) {
     /** Each run's technical report and death marker, kept beside its checkpoint ([RunReport]). */
     val reports: Reports = Reports(dir)
 
+    /** The explainer films' drawn pictures, kept beside the checkpoints ([FilmPictureFiles]). */
+    val pictures: FilmPictureFiles = FilmPictureFiles(dir?.let { Path(it, "pictures") })
+
     @Serializable
     data class Saved(
         /** The recognised words on the source clock, as whisper gave them. */

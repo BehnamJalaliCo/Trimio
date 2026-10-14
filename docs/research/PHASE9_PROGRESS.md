@@ -151,3 +151,33 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   33 beats, the end card «فالو کنید» from 62 s, 7 misheard words spelled (کاراموز → کارآموز …). The faded moments of the
   8c review (10.8, 21.6, 54.0 s) are gone. Fixed: unticked task tiles were track-on-card (near invisible on dark
   palettes) for five seconds; their lines now read before they are ticked.
+
+## 14 Oct — the owner's two new orders: image generation, own directors
+
+- Owner: «ساخت تصویر باید کامل و حرفه‌ای کار کند». Removing the engine (principle 4) was undone. stable-diffusion.cpp is
+  now configured alone on its own pinned ggml (`leejet/ggml` d25b121, the submodule of the submodule): the assertion
+  came from running its patched ops on llama.cpp's ggml. One configure cannot hold two `ggml` targets, so the phone
+  library comes from a module of its own (`:androidSd`), Windows builds it in its own CPU and Vulkan steps, and CI
+  fetches the nested ggml. Every symbol but the JNI entry points is hidden, so the three engines load side by side.
+- On the host: SDXS-512 draws again (≈10 s a picture on four cores); its pictures are recognisable but not
+  professional (a camel with wrong legs). `SdEngine` drives both generators: SDXS (one file) and FLUX.2 klein 4B (the
+  diffusion model, Qwen3-4B text encoder and the small decoder; the library's sketch as its init picture, the film's
+  first picture as its style reference). The illustrator picks klein when all three files are installed.
+- Owner: «مدل دلخواه کارگردان، فقط ویندوز». `OwnModels`: a GGUF from the computer's own disk becomes a director (kept
+  where it lies, never copied or deleted; the same file once; projectors, other files and files under 200 MB refused
+  with their reason, said in the creator's language). Its family's profile comes from its file name (Qwen3 answers past
+  its reasoning block). The models screen offers «افزودن مدل از روی سیستم» on Windows only; installed directors gained
+  a «استفاده» button (before, only the recommended card could switch the director).
+- Speed test on the host (Qwen3.5-9B, large-v3): memory 11.3 GB/s; the director 1–4 cores (4 best: 28.5 read,
+  3.8 written tokens/s); Whisper 3 and 4 cores (4 best); kept beside the models. MTP: the catalogue's GGUFs carry no
+  MTP head, so the row does not appear; a model with one is tried and kept only when it writes 10 % faster.
+- The host's native libraries had been built for another CPU (the session moved machines): SIGILL in ggml. Rebuilt.
+- FLUX.2 klein 4B on the host (four Xeon cores, CPU build, 768 px): the camel and the rocket clean, correct and in the
+  film's pencil look (SDXS drew the camel with broken legs and no man in the trader scene). About 8–10 minutes a
+  picture here, more when the letter-mark check makes it draw again: on a processor alone it now draws at 512 px, and
+  every denoising step moves the build bar (`DrawProgress`), so the watchdog never takes a long picture for a stall.
+  Memory: 6.8 GB resident of which 4.3 GB the file's mapped pages; with its encoder and decoder it rates «جا می‌شود» on a
+  12 GB phone (offered there too, the director freed first) and comfortable on 16 GB and the owner's laptop. Windows
+  also gets a Vulkan build of the engine (a laptop GPU draws in seconds).
+- Drawn pictures are kept beside the checkpoints (`FilmPictureFiles`): a film opened again after a restart, or exported
+  in 16:9, takes them from disk instead of drawing them again. The report says how many each source drew.

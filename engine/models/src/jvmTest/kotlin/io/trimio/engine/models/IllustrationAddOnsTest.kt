@@ -24,13 +24,17 @@ class IllustrationAddOnsTest {
 
     @Test
     fun deviceFitMatchesTheOwnersDevices() {
-        // The one-step generator runs on the 12 GB phone and the laptop; FLUX.2 klein (≈ 5.2 GB with its encoder) only on the laptop.
+        // The one-step generator runs comfortably on the 12 GB phone and the laptop; FLUX.2 klein (≈ 8 GB with its encoder
+        // and decoder, most of it memory-mapped) runs on the 12 GB phone, comfortably on 16 GB and the laptop, never on 8 GB.
         assertTrue(AddOnFit.of(IllustrationAddOns.sdxs, phone).comfortable)
         assertTrue(AddOnFit.of(IllustrationAddOns.sdxs, laptop).comfortable)
-        assertEquals(ModelFit.TooBig, AddOnFit.of(IllustrationAddOns.klein, phone))
-        assertTrue(AddOnFit.of(IllustrationAddOns.klein, laptop).runnable)
-        // The fast one is offered on the phone, the studio one on the laptop.
+        assertTrue(AddOnFit.of(IllustrationAddOns.klein, phone).runnable)
+        assertTrue(AddOnFit.of(IllustrationAddOns.klein, DeviceMemory.phone(16)).comfortable)
+        assertTrue(AddOnFit.of(IllustrationAddOns.klein, DeviceMemory.desktop(24)).comfortable)
+        assertEquals(ModelFit.TooBig, AddOnFit.of(IllustrationAddOns.klein, DeviceMemory.phone(8)))
+        // Both are offered on the phone and the laptop.
         assertTrue(IllustrationAddOns.sdxs.id in AddOnFit.offered(AddOnTier.Pro, phone).map { it.id })
+        assertTrue(IllustrationAddOns.klein.id in AddOnFit.offered(AddOnTier.Ultra, phone).map { it.id })
         assertTrue(IllustrationAddOns.klein.id in AddOnFit.offered(AddOnTier.Ultra, laptop).map { it.id })
     }
 }

@@ -50,8 +50,23 @@ struct Picture {
     }
 };
 
+// The Kotlin listener of the generation running on this thread (each denoising step), or none.
+struct Listener {
+    JNIEnv * env = nullptr;
+    jobject callback = nullptr;
+    jmethodID on_step = nullptr;
+};
+thread_local Listener listener;
+
+void on_progress(int step, int steps, float, void *) {
+    if (listener.callback == nullptr || listener.on_step == nullptr) return;
+    listener.env->CallVoidMethod(listener.callback, listener.on_step, step, steps);
+    if (listener.env->ExceptionCheck()) listener.env->ExceptionClear();
+}
+
 sd_ctx_t * load(sd_ctx_params_t & p, jint threads) {
     sd_set_log_callback(log_line, nullptr);
+    sd_set_progress_callback(on_progress, nullptr);
     p.n_threads = threads > 0 ? threads : sd_get_num_physical_cores();
     p.enable_mmap = true;
     return new_sd_ctx(&p);
@@ -111,9 +126,22 @@ Java_io_trimio_engine_illustration_generate_SdNative_initParts(JNIEnv * env, job
 JNIEXPORT jbyteArray JNICALL
 Java_io_trimio_engine_illustration_generate_SdNative_generate(
     JNIEnv * env, jobject, jlong handle, jstring jprompt, jstring jnegative, jint width, jint height, jlong seed, jint steps, jfloat cfg,
-    jbyteArray jinit, jfloat strength, jobjectArray jrefs) {
+    jbyteArray jinit, jfloat strength, jobjectArray jrefs, jobject jcallback) {
     auto * ctx = reinterpret_cast<sd_ctx_t *>(handle);
     if (ctx == nullptr) return nullptr;
+    // Each denoising step goes to [jcallback].onStep(step, steps) while this call runs.
+    listener = {};
+    if (jcallback != nullptr) {
+        jclass type = env->GetObjectClass(jcallback);
+        listener = {env, jcallback, env->GetMethodID(type, "onStep", "(II)V")};
+        if (listener.on_step == nullptr) {
+            env->ExceptionClear();
+            listener = {};
+        }
+    }
+    struct Clear {
+        ~Clear() { listener = {}; }
+    } clear;
     const std::string prompt = str(env, jprompt);
     const std::string negative = str(env, jnegative);
     sd_img_gen_params_t g;

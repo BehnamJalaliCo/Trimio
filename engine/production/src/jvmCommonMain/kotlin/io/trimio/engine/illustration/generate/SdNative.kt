@@ -22,8 +22,13 @@ internal object SdNative {
      */
     external fun generate(
         handle: Long, prompt: String, negative: String, width: Int, height: Int, seed: Long, steps: Int, cfg: Float,
-        init: ByteArray?, strength: Float, references: Array<ByteArray>?,
+        init: ByteArray?, strength: Float, references: Array<ByteArray>?, progress: StepListener?,
     ): ByteArray?
+
+    /** Told each denoising step of the generation in progress (called on the generating thread). */
+    fun interface StepListener {
+        fun onStep(step: Int, steps: Int)
+    }
 
     external fun free(handle: Long)
 }

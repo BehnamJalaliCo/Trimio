@@ -78,7 +78,8 @@ class LocalModelsTest {
         assertEquals(io.trimio.engine.models.OwnModels.Refusal.Projector, refusal("mmproj-Qwen3-F16.gguf", "GGUF".toByteArray(), 900_000_000L))
         assertEquals(io.trimio.engine.models.OwnModels.Refusal.NotGguf, refusal("model.safetensors", "{\"__".toByteArray(), 900_000_000L))
         assertEquals(io.trimio.engine.models.OwnModels.Refusal.TooSmall, refusal("tiny.gguf", "GGUF".toByteArray(), 1_000_000L))
-        assertEquals(io.trimio.engine.models.OwnModels.Refusal.Missing, (store.addOwn(elsewhere.resolve("gone.gguf").toString()).exceptionOrNull() as? io.trimio.engine.models.OwnModels.RefusedException)?.reason)
+        val gone = store.addOwn(elsewhere.resolve("gone.gguf").toString()).exceptionOrNull()
+        assertEquals(io.trimio.engine.models.OwnModels.Refusal.Missing, (gone as? io.trimio.engine.models.OwnModels.RefusedException)?.reason)
         // Removing it forgets it; the file is the creator's and stays.
         store.delete(own)
         assertTrue(store.ownModels().isEmpty())

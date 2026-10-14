@@ -85,7 +85,8 @@ class Illustrator(
             return Illustrator(
                 library = LibrarySource(lib, ranker),
                 photos = photos?.let(::PhotoSource),
-                generator = engine?.let { GeneratorSource(it, lib) },
+                // One more draw at most when letter-like marks show: a studio picture takes minutes on a processor.
+                generator = engine?.let { GeneratorSource(it, lib, retries = if (it.recipe.steps > 1) 1 else 2) },
                 vision = vision,
             )
         }

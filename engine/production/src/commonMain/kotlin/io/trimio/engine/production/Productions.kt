@@ -165,7 +165,8 @@ class Productions(
     }
 
     /** The explainer stage with the illustration layer's pictures (and the generator add-on when it is installed). */
-    private fun filmStage(e: Engines) = IllustratedStage(e.text, IconResolver.of(visuals)) { io.trimio.engine.illustration.Illustrator.create(engine = platform.diffusion()) }
+    private fun filmStage(e: Engines) =
+        IllustratedStage(e.text, IconResolver.of(visuals), { io.trimio.engine.illustration.Illustrator.create(engine = platform.diffusion()) }, checkpoints.pictures)
 
     override suspend fun kept(request: ProductionRequest): Boolean =
         withContext(Dispatchers.Default) { checkpoints.load(request.key)?.let { it.delivery?.version == Delivery.VERSION || it.film != null } == true }

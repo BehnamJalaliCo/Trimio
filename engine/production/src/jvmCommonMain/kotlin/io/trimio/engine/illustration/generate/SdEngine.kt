@@ -2,6 +2,7 @@ package io.trimio.engine.illustration.generate
 
 import io.trimio.engine.illustration.Raster
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -16,19 +17,28 @@ class SdEngine(override val modelId: String, private val files: Files, private v
     /** A model's files: one ([model] alone), or a diffusion model with its [textEncoder] and [vae]. */
     data class Files(val model: String, val textEncoder: String? = null, val vae: String? = null)
 
-    override val recipe: DiffusionRecipe = Recipes.of(modelId) ?: Recipes.sdxs
+    /**
+     * The model's recipe; on a processor alone (no GPU build loaded) the studio illustrator draws at 512 px instead of 768
+     * (2.3 times fewer pixels to denoise: minutes become a couple of minutes), which the film's hero size still holds.
+     */
+    override val recipe: DiffusionRecipe = (Recipes.of(modelId) ?: Recipes.sdxs).let { r ->
+        if (r.size > CPU_SIZE && !onGpu) r.copy(size = CPU_SIZE) else r
+    }
+
+    private val onGpu: Boolean get() = runCatching { SdNative.variant }.getOrDefault("") in GPU_BUILDS
 
     private val mutex = Mutex()
     private var handle = 0L
 
     override suspend fun generate(job: DiffusionJob): Raster? = mutex.withLock {
+        val progress = currentCoroutineContext()[DrawProgress]?.let { p -> SdNative.StepListener { step, steps -> p.onStep(step, steps) } }
         withContext(Dispatchers.Default) {
             // The library loads with the first look at it; the engine never calls into one that is not there.
             if (handle == 0L && SdNative.available) handle = runCatching { load() }.getOrDefault(0L)
             if (handle == 0L) return@withContext null
             val init = job.init?.takeIf { recipe.img2img }?.let { rgb(it.resized(job.width, job.height)) }
             val refs = job.references.takeIf { recipe.references && it.isNotEmpty() }?.map { rgb(it.resized(job.width, job.height)) }?.toTypedArray()
-            val out = SdNative.generate(handle, job.prompt, job.negative, job.width, job.height, job.seed, job.steps, job.cfg, init, job.strength, refs)
+            val out = SdNative.generate(handle, job.prompt, job.negative, job.width, job.height, job.seed, job.steps, job.cfg, init, job.strength, refs, progress)
                 ?: return@withContext null
             if (out.size < job.width * job.height * CHANNELS) return@withContext null
             Raster(job.width, job.height, IntArray(job.width * job.height) { i ->
@@ -65,6 +75,8 @@ class SdEngine(override val modelId: String, private val files: Files, private v
     }
 
     private companion object {
+        const val CPU_SIZE = 512
+        val GPU_BUILDS = setOf("vulkan", "metal", "cuda")
         const val CHANNELS = 3
         const val BYTE = 0xFF
         const val OPAQUE = -0x1000000

@@ -18,6 +18,8 @@ import io.trimio.engine.motion.explainer.Illustration
 import io.trimio.engine.motion.explainer.IllustrationSource
 import io.trimio.engine.motion.explainer.IllustrationStyle
 import io.trimio.engine.motion.explainer.PaletteBook
+import kotlinx.coroutines.withContext
+import kotlinx.io.buffered
 import kotlin.concurrent.Volatile
 import io.trimio.engine.autopilot.explainer.IllustrationRequest as SceneRequest
 import io.trimio.engine.illustration.IllustrationRequest as PictureRequest
@@ -60,32 +62,48 @@ class IllustratedStage(
     private val text: TextLayoutEngine,
     private val icons: IconResolver = IconResolver.None,
     private val illustrator: suspend () -> Illustrator = { Illustrator.create() },
+    /** Pictures drawn before (a reopen after a restart draws none again). */
+    private val files: FilmPictureFiles = FilmPictureFiles(null),
 ) : FilmStage {
     private var drawn: Illustrator? = null
 
-    override suspend fun prepare(film: ExplainerFilm): List<String> {
+    override suspend fun prepare(film: ExplainerFilm, onProgress: (Float) -> Unit): List<String> {
         val requests = film.chapters.flatMap { c -> c.beats.map { it.content.illustration to it.line } }
             .filter { it.first.isNotBlank() }.distinctBy { it.first }
         if (requests.isEmpty()) return emptyList()
         val look = lookOf(film)
         val maker = drawn ?: illustrator().also { drawn = it }
-        val shown = try {
-            requests.count { (encoded, line) -> draw(maker, look, encoded, line, film.language) }
+        val n = requests.size.toFloat()
+        val sources = try {
+            requests.mapIndexed { i, r ->
+                // A generated picture's every denoising step moves the bar, so minutes on a processor never look stalled.
+                val steps = io.trimio.engine.illustration.generate.DrawProgress { step, total -> onProgress((i + step / total.coerceAtLeast(1).toFloat()) / n) }
+                withContext(steps) { draw(maker, look, r.first, r.second, film.language) }.also { onProgress((i + 1) / n) }
+            }
         } finally {
             maker.release()
         }
-        return listOf("illustrations: $shown of ${requests.size} scenes drawn from the library (${look.style.name.lowercase()})")
+        val by = sources.filterNotNull().groupingBy { it }.eachCount().entries.joinToString(", ") { (k, v) -> "$k $v" }
+        return listOf("illustrations: ${sources.count { it != null }} of ${requests.size} scenes drawn ($by; ${look.style.name.lowercase()})")
     }
 
-    /** One scene's picture into [FilmPictures] (kept from an earlier film when it was drawn already); false when none fits. */
-    private suspend fun draw(maker: Illustrator, look: FilmLook, encoded: String, line: String, language: String): Boolean {
+    /**
+     * One scene's picture into [FilmPictures] (kept from an earlier film when it was drawn already): where it came from
+     * ("library", "generator", "photo", "kept"), or null when nothing fits.
+     */
+    private suspend fun draw(maker: Illustrator, look: FilmLook, encoded: String, line: String, language: String): String? {
         val id = idOf(look, encoded)
-        if (FilmPictures.has(id)) return true
-        val scene = SceneRequest.parse(encoded) ?: return false
+        if (FilmPictures.has(id)) return "kept"
+        files.read(id)?.let { kept ->
+            FilmPictures.keep(id, kept.toImageBitmap())
+            return "kept"
+        }
+        val scene = SceneRequest.parse(encoded) ?: return null
         val request = PictureRequest(scene.subject, scene.action, scene.objects, sign = scene.sign.ifBlank { null }, line = line, language = language, id = id)
-        val picture = maker.illustrate(request, look) ?: return false
+        val picture = maker.illustrate(request, look) ?: return null
         FilmPictures.keep(id, picture.image.toImageBitmap())
-        return true
+        files.write(id, picture.image)
+        return picture.source
     }
 
     override fun compose(film: ExplainerFilm, format: String, fps: Int, duration: Float): Composition {
@@ -111,5 +129,54 @@ class IllustratedStage(
             val pal = PaletteBook.named(film.art.palette).branded(film.art.accent, film.art.dark)
             return FilmLook(style = ArtStyle.Pencil, accent = pal.accents.first().toArgb(), dark = pal.ink.toArgb(), seed = film.art.seed)
         }
+    }
+}
+
+/**
+ * The films' drawn pictures on disk (beside the checkpoints): a film opened again after a restart, or a 16:9 export,
+ * takes its pictures from here instead of drawing them again (a generated one takes minutes on a processor). Raw ARGB
+ * with its size; at most [MAX_FILES]. Null [dir]: nothing is kept.
+ */
+class FilmPictureFiles(private val dir: kotlinx.io.files.Path?) {
+    fun read(id: String): io.trimio.engine.illustration.Raster? = runCatching {
+        val file = fileOf(id) ?: return null
+        if (!kotlinx.io.files.SystemFileSystem.exists(file)) return null
+        kotlinx.io.files.SystemFileSystem.source(file).buffered().use { s ->
+            val w = s.readInt()
+            val h = s.readInt()
+            io.trimio.engine.illustration.Raster(w, h, IntArray(w * h) { s.readInt() })
+        }
+    }.getOrNull()
+
+    fun write(id: String, picture: io.trimio.engine.illustration.Raster) {
+        val folder = dir ?: return
+        runCatching {
+            val fs = kotlinx.io.files.SystemFileSystem
+            fs.createDirectories(folder)
+            val file = fileOf(id) ?: return
+            val tmp = kotlinx.io.files.Path(file.toString() + ".tmp")
+            fs.sink(tmp).buffered().use { s ->
+                s.writeInt(picture.width)
+                s.writeInt(picture.height)
+                picture.argb.forEach(s::writeInt)
+            }
+            fs.atomicMove(tmp, file)
+            // Past [MAX_FILES] the folder starts over with this picture (a cache: a film opened later draws again).
+            val all = fs.list(folder).filter { it.name.endsWith(EXT) }
+            if (all.size > MAX_FILES) all.filter { it != file }.forEach { fs.delete(it, mustExist = false) }
+        }
+    }
+
+    private fun fileOf(id: String): kotlinx.io.files.Path? {
+        var h = FNV_OFFSET
+        for (c in id) h = (h xor c.code.toULong()) * FNV_PRIME
+        return dir?.let { kotlinx.io.files.Path(it, h.toString(16) + EXT) }
+    }
+
+    private companion object {
+        const val EXT = ".argb"
+        const val MAX_FILES = 200
+        const val FNV_OFFSET = 0xcbf29ce484222325uL
+        const val FNV_PRIME = 0x100000001b3uL
     }
 }

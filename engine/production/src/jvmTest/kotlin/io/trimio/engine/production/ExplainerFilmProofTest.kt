@@ -47,8 +47,21 @@ class ExplainerFilmProofTest {
         }
     }
 
+    /** The generator add-on, when the proof names one: -Psd.klein=<dir> (the studio illustrator) or -Psd.model=<sdxs gguf>. */
+    private fun generator(): io.trimio.engine.illustration.generate.DiffusionEngine? {
+        val a = io.trimio.engine.models.IllustrationAddOns
+        val threads = Runtime.getRuntime().availableProcessors()
+        System.getProperty("sd.klein")?.let(::File)?.takeIf { it.isDirectory }?.let { d ->
+            val files = io.trimio.engine.illustration.generate.SdEngine.Files(File(d, a.klein.fileName).path, File(d, a.kleinText.fileName).path, File(d, a.kleinDecoder.fileName).path)
+            return io.trimio.engine.illustration.generate.SdEngine(a.klein.id, files, threads)
+        }
+        return System.getProperty("sd.model")?.takeIf { File(it).isFile }?.let {
+            io.trimio.engine.illustration.generate.SdEngine(a.sdxs.id, io.trimio.engine.illustration.generate.SdEngine.Files(it), threads)
+        }
+    }
+
     private fun editor(words: List<Word>, out: File, jury: Jury?) = Productions(
-        JvmProductionPlatform(File(out, "renders"), recognizer = { Heard(words) }, delivery = Delivery.Draft.copy(workers = 2)),
+        JvmProductionPlatform(File(out, "renders"), recognizer = { Heard(words) }, delivery = Delivery.Draft.copy(workers = 2), diffusion = ::generator),
         Checkpoints(Path(File(out, "checkpoints").path)),
         jury = jury,
     )

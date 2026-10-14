@@ -2,7 +2,7 @@ package io.trimio.engine.models
 
 /**
  * The picture generator add-ons of «تقویت کیفیت»: on-device text-to-image for the explainer films'
- * hero illustrations, run by stable-diffusion.cpp on the app's own ggml (no cloud, no new runtime
+ * hero illustrations, run by stable-diffusion.cpp on its own pinned ggml (no cloud, no new runtime
  * beyond its JNI library). The bundled illustration library needs none of them; a generator only draws
  * what the library cannot show (FLUX.2 klein from the library's own sketch of the scene; SDXS from the prompt
  * alone, as it ignores an init picture), and every picture is restyled into the film's look (engine/illustration).
@@ -34,7 +34,6 @@ object IllustrationAddOns {
         AddOn(tier, AddOnGroup.Picture, AddOnRuntime.Diffusion, fa, en, devices, stage = "illustrate")
 
     private val BOTH = setOf(DeviceClass.Phone, DeviceClass.Laptop)
-    private val LAPTOP = setOf(DeviceClass.Laptop)
 
     /** SDXS-512 (one step, tiny U-Net and tiny VAE): text-to-image fast enough for a phone, in the pencil look from the prompt. */
     val sdxs = file(
@@ -50,7 +49,9 @@ object IllustrationAddOns {
         "flux2-klein-4b", "leejet/FLUX.2-klein-4B-GGUF", "flux-2-klein-4b-Q4_0.gguf",
         2_460_378_560, "d1023499ef3f2f82ff7c50e6778495195c1b6cc34835741778868428111f9ff4", "Apache-2.0",
         "تصویرساز حرفه‌ای", "Studio illustrator",
-        picture(AddOnTier.Ultra, "تصویرهای دقیق با یک سبک ثابت در کل فیلم", "Detailed pictures in one steady style across the film", LAPTOP),
+        // Phones too: its weights are memory-mapped (measured: 4.3 of 6.8 GB resident were the file's pages), so a 12 GB
+        // phone holds it with its encoder and decoder (about 8 GB, the director freed first), a 16 GB one with room.
+        picture(AddOnTier.Ultra, "تصویرهای دقیق و حرفه‌ای با یک سبک ثابت در کل فیلم", "Detailed, professional pictures in one steady style across the film", BOTH),
         work = 1_200 * MB, companions = listOf("flux2-klein-qwen3-4b", "flux2-small-decoder"),
     )
 

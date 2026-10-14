@@ -27,8 +27,11 @@ fun interface FilmStage {
     /** [film] laid out for [format] ("9:16", "16:9") at [fps], [duration] seconds long. */
     fun compose(film: ExplainerFilm, format: String, fps: Int, duration: Float): Composition
 
-    /** Gets what [film] draws ready before [compose] (its hero illustrations); answers report lines. */
-    suspend fun prepare(film: ExplainerFilm): List<String> = emptyList()
+    /**
+     * Gets what [film] draws ready before [compose] (its hero illustrations); answers report lines. [onProgress] (0..1)
+     * moves with every picture, and with every step of a generated one.
+     */
+    suspend fun prepare(film: ExplainerFilm, onProgress: (Float) -> Unit = {}): List<String> = emptyList()
 }
 
 /**
@@ -84,10 +87,11 @@ class ExplainerPilot(
         val film = endCard(leadIn(written.film))
         Beats.table(film).forEach { report += it }
 
-        onStage("draw", 0.8f)
+        onStage("draw", DRAW_AT)
         // The director's memory goes before the pictures are drawn: a phone holds one big model at a time (the generator add-on).
         runCatching { model?.release() }
-        report += runCatching { stage.prepare(film) }.getOrElse { listOf("illustrations: failed (${it.message}); the stage draws its own glyphs") }
+        report += runCatching { stage.prepare(film) { p -> onStage("draw", DRAW_AT + DRAW_SPAN * p) } }
+            .getOrElse { listOf("illustrations: failed (${it.message}); the stage draws its own glyphs") }
         val music = ArtDirector.music(n, request.seed)
         val cut = FilmCut(film, music?.id, request.seed, request.format, request.fps, duration, understanding, transcript)
         val bench = FilmBench(stage, cut, request.voice)
@@ -150,6 +154,8 @@ class ExplainerPilot(
     }
 
     private companion object {
+        const val DRAW_AT = 0.8f
+        const val DRAW_SPAN = 0.1f
         const val LEAD = 1.2
         const val OPEN = 0.5
         const val END_CARD = 2.5
