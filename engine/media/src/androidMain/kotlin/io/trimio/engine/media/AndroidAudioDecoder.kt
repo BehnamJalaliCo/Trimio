@@ -109,6 +109,10 @@ class AndroidAudioDecoder(private val context: Context) : AudioDecoder {
             out?.audio() ?: PcmAudio(FloatArray(0), rate ?: sampleRate)
         } catch (e: MediaFormatException) {
             throw e
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // A cancelled run (a newer attempt, the creator's stop) is a cancellation, not a broken file: it is an
+            // IllegalStateException too, and wrapped it failed the run with «Audio decoding failed: … was cancelled».
+            throw e
         } catch (e: IllegalStateException) {
             throw MediaFormatException("Audio decoding failed: ${e.message}", e)
         } finally {

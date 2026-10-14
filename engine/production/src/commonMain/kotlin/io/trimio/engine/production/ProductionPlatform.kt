@@ -162,13 +162,15 @@ data class DeviceState(
     val lowBattery: Boolean = false,
 )
 
-/** The jury a device can afford: [Jury.forDevice] by tier, lowered when the phone is hot or the battery low. */
+/**
+ * The jury a device runs. Its judges are rules and a variation is the planner's (a few seconds of a phone's processor, no
+ * model call), so heat and a low battery no longer cut it short: on the owner's hot phone a 2-second jury (one round, no
+ * variation) left the motion judge at 8 with nothing else tried. Every phone gets [PHONE]; the desktop the full budget.
+ */
 object Juries {
-    fun forDevice(state: DeviceState): Jury = when {
-        state.critical -> Jury(budget = Jury.Budget(rounds = 1, variations = 0))
-        state.hot || state.lowBattery -> Jury.forDevice(DeviceTier.Standard)
-        else -> Jury.forDevice(state.tier)
-    }
+    val PHONE = Jury.Budget(rounds = 4, variations = 2)
+
+    fun forDevice(state: DeviceState): Jury = if (state.tier == null) Jury.Default else Jury(budget = PHONE)
 }
 
 /**

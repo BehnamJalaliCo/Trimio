@@ -297,3 +297,17 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   kept before its render (`Checkpoints.Saved.rendering`): an attempt after a kill in the render — the system's restart
   or the creator's retry — renders it at once, without whisper or the director, and the report says «resumed». Host
   test: `ProductionsTest.aRunKilledInItsRenderRendersAgainWithoutDirecting` (no directing step, the same edit).
+
+## 15 Oct — the owner's technical report of that run (1.0.26, attempt 1)
+
+- The phone was hot the whole run: thermal 3–4 (severe to critical) from the first second, the processor held at
+  0.7–0.8 GHz (4 GHz cool). Whisper read 154.7 s in 520 s (3.4× the sound), the director read at 26 tokens/s against 90
+  in the speed test, «understand» took 753 s. The speed test had just run before it.
+- The jury took 5.9 s: three sittings, no variation. Heat «critical» cut the phone's jury to one round and no variation,
+  though its judges are rules and a variation is the planner's (plan 0.3 s, pictures 0.2 s, compile 1.2 s on that phone),
+  no model call. The motion judge stayed at 8 («list twice back to back»). Every phone now runs four rounds and two
+  variations whatever the heat (`Juries.PHONE`).
+- Attempts 2 and 3 «failed» in two seconds with «Audio decoding failed: … was cancelled»: a newer attempt cancelled
+  them, and the decoder wrapped the cancellation (an IllegalStateException in Kotlin) as a broken file. It lets
+  cancellations through now.
+- The render began with 915 MB free and the director's 2.6 GB of weights still held: the kill 1.0.28 fixes.
