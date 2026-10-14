@@ -39,6 +39,8 @@ object ExitReasons {
     private fun text(e: ApplicationExitInfo, version: String): String = buildString {
         appendLine("Trimio $version · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} · ${e.timestamp}")
         appendLine("process ended: ${name(e.reason)} (status ${e.status}) · ${e.description.orEmpty()}")
+        // The speed test measures in its own process: its end is one row of the test («کرش کرد»), the app went on.
+        appendLine("process: ${e.processName}" + if (e.processName.endsWith(":bench")) " (speed test; the app kept running)" else "")
         appendLine("memory at the end: pss ${e.pss / KIB} MB · rss ${e.rss / KIB} MB")
         val trace = runCatching { e.traceInputStream?.bufferedReader()?.useLines { it.take(TRACE_LINES).toList() } }.getOrNull()
         if (!trace.isNullOrEmpty()) {
