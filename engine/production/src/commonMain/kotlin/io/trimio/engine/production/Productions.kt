@@ -450,7 +450,9 @@ class Productions(
         val start = clock()
         return try {
             r.recorder.native("transcribe") {
-                recognizer.transcribe(audio, RecognitionOptions(Language.Persian, hint(r.request.brief), threads), onProgress = { p -> r.at(Stage.Transcribe, p, "transcribe ${(p * PERCENT).toInt()}%") })
+                // The percent as the step's detail: the run report (and its memory samples) moves while Whisper reads.
+                val options = RecognitionOptions(Language.Persian, hint(r.request.brief), threads)
+                recognizer.transcribe(audio, options, onProgress = { p -> r.at(Stage.Transcribe, p, "transcribe ${(p * PERCENT).toInt()}%") })
             }.also { t ->
                 r.speech = recognizer.runtime
                 r.recorder.speechRuntime = recognizer.runtime
