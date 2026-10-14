@@ -83,8 +83,9 @@ class IllustratedStage(
         } finally {
             maker.release()
         }
-        val by = sources.filterNotNull().groupingBy { it }.eachCount().entries.joinToString(", ") { (k, v) -> "$k $v" }
-        return listOf("illustrations: ${sources.count { it != null }} of ${requests.size} scenes drawn ($by; ${look.style.name.lowercase()})")
+        val by = sources.filterNotNull().groupingBy { it.substringBefore(' ') }.eachCount().entries.joinToString(", ") { (k, v) -> "$k $v" }
+        return listOf("illustrations: ${sources.count { it != null }} of ${requests.size} scenes drawn ($by; ${look.style.name.lowercase()})") +
+            requests.zip(sources).map { (r, src) -> "  picture «${r.second.take(LINE)}»: ${src ?: "none (the stage draws its glyph)"}" }
     }
 
     /**
@@ -103,7 +104,7 @@ class IllustratedStage(
         val picture = maker.illustrate(request, look) ?: return null
         FilmPictures.keep(id, picture.image.toImageBitmap())
         files.write(id, picture.image)
-        return picture.source
+        return "${picture.source} ${picture.items.joinToString(",")}"
     }
 
     override fun compose(film: ExplainerFilm, format: String, fps: Int, duration: Float): Composition {
@@ -122,6 +123,8 @@ class IllustratedStage(
     }
 
     private companion object {
+        const val LINE = 32
+
         fun idOf(look: FilmLook, encoded: String) = "${look.id}|$encoded"
 
         /** The film's art direction as the pictures' look: its palette's first accent, its ink as the dark. */

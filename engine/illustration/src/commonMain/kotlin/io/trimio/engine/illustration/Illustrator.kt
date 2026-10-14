@@ -40,15 +40,26 @@ class Illustrator(
     suspend fun illustrate(request: IllustrationRequest, look: FilmLook, size: Int = IllustrationSource.DEFAULT_SIZE): Illustration? {
         photos?.illustrate(request, look, size)?.let { return it }
         val fromLibrary = library.illustrate(request, look, size)?.let { checked(it, request) }
-        if (fromLibrary != null && fromLibrary.fit >= goodEnough) return fromLibrary
+        // With a generator, a library picture already shown in this film (the same money bag for two scenes) is drawn
+        // fresh for this scene instead; without one, the repeat is better than nothing.
+        val repeat = generator != null && fromLibrary != null && shown.any { same(it, fromLibrary.items.toSet()) }
+        if (fromLibrary != null && fromLibrary.fit >= goodEnough && !repeat) return fromLibrary.also { shown += it.items.toSet() }
         val generated = generator?.illustrate(request, look, size)?.let { checked(it, request) }
-        val best = listOfNotNull(fromLibrary, generated).maxByOrNull { it.fit }
-        return best?.takeIf { it.fit >= minFit }
+        val best = if (repeat && generated != null) generated else listOfNotNull(fromLibrary, generated).maxByOrNull { it.fit }
+        return best?.takeIf { it.fit >= minFit }?.also { if (it.source == "library") shown += it.items.toSet() }
     }
+
+    /** The library pictures this film has shown, by their pieces; [release] (the film's pictures drawn) forgets them. */
+    private val shown = HashSet<Set<String>>()
+
+    /** Two library pictures read as the same when most of the smaller one's pieces are the other's (the same bag, a prop moved). */
+    private fun same(a: Set<String>, b: Set<String>): Boolean =
+        a.isNotEmpty() && b.isNotEmpty() && (a intersect b).size * 2 >= minOf(a.size, b.size)
 
     /** Frees what the generator holds (its model) once a film's pictures are drawn; it loads again for the next film. */
     fun release() {
         generator?.release()
+        shown.clear()
     }
 
     /** A film's pictures with the jury's style report (one look, no foreign colour, even density, subjects shown, no text). */

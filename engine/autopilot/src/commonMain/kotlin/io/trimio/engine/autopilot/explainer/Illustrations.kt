@@ -62,7 +62,9 @@ object Illustrations {
 
     fun request(n: Narration, words: IntRange, sign: String, style: String = "pencil sketch"): IllustrationRequest? {
         val keys = words.map { Metaphors.bare(n.texts[it]) }
-        val people = keys.firstNotNullOfOrNull { k -> PEOPLE.entries.firstOrNull { (s, _) -> k.startsWith(s) }?.value }
+        // A queue is people even when the sentence does not name them («جلوی دفتر صف کشیده‌اند»).
+        val queue = QUEUES.any { it in keys.joinToString(" ") }
+        val people = keys.firstNotNullOfOrNull { k -> PEOPLE.entries.firstOrNull { (s, _) -> k.startsWith(s) }?.value } ?: "group of people".takeIf { queue }
         val things = keys.mapNotNull { k -> THINGS.entries.firstOrNull { (s, _) -> k.startsWith(s) }?.value }.distinct()
         val action = ACTIONS.entries.firstOrNull { (s, _) -> keys.any { it.startsWith(s) } || s in keys.joinToString(" ") }?.value.orEmpty()
         val subject = people ?: things.firstOrNull() ?: words.firstNotNullOfOrNull { Said.visualOf(n.texts[it]) } ?: return null
@@ -86,8 +88,12 @@ object Illustrations {
         "خانه" to "house", "house" to "house", "ماشین" to "car", "car" to "car", "شرکت" to "office building", "company" to "office building",
         "دادگاه" to "courthouse", "court" to "courthouse", "گزارش" to "newspaper", "report" to "newspaper", "نامه" to "letter", "letter" to "letter",
         "قرارداد" to "contract paper", "contract" to "contract paper", "اپ" to "smartphone", "app" to "smartphone", "سایت" to "laptop", "website" to "laptop",
+        "صراف" to "currency exchange office", "exchange" to "currency exchange office", "دفتر" to "office building", "office" to "office building",
     )
+    private val QUEUES = listOf("صف کشید", "صف بست", "queue", "lined up")
     private val ACTIONS = linkedMapOf(
+        "صف کشید" to "standing in a long queue in front of a building", "صف بست" to "standing in a long queue in front of a building",
+        "queue" to "standing in a long queue in front of a building", "lined up" to "standing in a long queue in front of a building",
         "تجمع" to "standing together in front of a building", "اعتراض" to "protesting", "protest" to "protesting", "gathered" to "standing together in front of a building",
         "هنوز" to "worried, looking at phone", "انتظار" to "worried, looking at phone", "نگران" to "worried, looking at phone", "waiting" to "worried, looking at phone",
         "worried" to "worried, looking at phone", "میگن" to "talking", "گفتن" to "talking", "said" to "talking", "say" to "talking", "فروخت" to "selling",

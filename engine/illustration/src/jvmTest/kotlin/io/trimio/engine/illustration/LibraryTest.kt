@@ -163,6 +163,38 @@ class LibraryTest {
     }
 
     @Test
+    fun aLibraryPictureShownOnceIsDrawnFreshTheSecondTime() = runBlocking {
+        var calls = 0
+        val engine = object : DiffusionEngine {
+            override val modelId = "flux2-klein-4b"
+            override val recipe: DiffusionRecipe = Recipes.sd15Lcm
+            override suspend fun generate(job: DiffusionJob): Raster {
+                calls++
+                return Raster.filled(job.width, job.height, Colors.WHITE).also { r ->
+                    for (y in 0 until job.height) for (x in 0 until job.width) {
+                        val dx = x - job.width / 2
+                        val dy = y - job.height / 2
+                        if (dx * dx + dy * dy < 90 * 90) r[x, y] = Colors.argb(255, 120, 120, 130)
+                    }
+                }
+            }
+        }
+        val look = FilmLook(seed = 3)
+        val bag = IllustrationRequest("money", objects = listOf("smartphone"), id = "a")
+        val withGenerator = Illustrator(LibrarySource(library), generator = GeneratorSource(engine, library), minFit = 0f)
+        assertEquals("library", withGenerator.illustrate(bag, look, 256)!!.source)
+        assertEquals(0, calls)
+        // The next scene asks for the same bag: the studio draws it instead of showing the same picture twice.
+        assertEquals("generator", withGenerator.illustrate(bag.copy(id = "b"), look, 256)!!.source)
+        assertEquals(1, calls)
+        // A new film starts clean; without a generator the repeat is better than no picture.
+        withGenerator.release()
+        assertEquals("library", withGenerator.illustrate(bag, look, 256)!!.source)
+        val libraryOnly = Illustrator(LibrarySource(library))
+        repeat(2) { assertEquals("library", libraryOnly.illustrate(bag, look, 256)!!.source) }
+    }
+
+    @Test
     fun persianPromptsAreTranslatedForEnglishOnlyModels() {
         val writer = PromptWriter(library)
         val prompt = writer.prompt(IllustrationRequest("زن نگران", objects = listOf("گاوصندوق")), FilmLook(), englishOnly = true)

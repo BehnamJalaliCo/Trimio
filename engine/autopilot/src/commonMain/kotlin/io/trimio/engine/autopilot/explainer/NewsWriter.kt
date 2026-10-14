@@ -227,7 +227,7 @@ class NewsWriter(private val visuals: Visuals = Visuals.Lexicon) {
         /** A sentence up to this long is the headline whole. */
         const val MAIN_MAX = 9
         private val OPEN_ENDS = setOf(
-            "از", "به", "با", "در", "برای", "تا", "که", "و", "را", "رو", "یا", "اما", "ولی", "بر", "روی", "زیر", "پیش", "بین", "جلوی",
+            "از", "به", "با", "در", "برای", "تا", "که", "و", "را", "رو", "یا", "اما", "ولی", "بر", "روی", "زیر", "پیش", "بین", "جلوی", "پس",
             "of", "to", "the", "a", "and", "in", "for", "with",
         )
         const val SECOND_WORDS = 3

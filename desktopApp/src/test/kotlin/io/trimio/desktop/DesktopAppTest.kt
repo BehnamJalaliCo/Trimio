@@ -115,6 +115,8 @@ class DesktopAppTest {
         assertTrue(variant in setOf("vulkan", "cpu"), "loaded from a packaged variant, not '$variant'")
         val dir = File(System.getProperty("trimio.native.dir"), variant)
         System.load(File(dir, System.mapLibraryName("trimio_llama")).absolutePath)
+        // The image engine, on its own ggml, loads beside them (its symbols are its own).
+        assertTrue(io.trimio.engine.asr.whisper.NativeLibraries.load("trimio_sd") in setOf("vulkan", "cpu"), "the image engine is packaged")
     }
 
     @Test

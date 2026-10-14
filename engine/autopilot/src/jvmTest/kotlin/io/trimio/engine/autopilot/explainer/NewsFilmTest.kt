@@ -28,6 +28,30 @@ class NewsFilmTest {
         assertEquals(FilmGrammar.DiagramChapters, Grammars.choose(Narrations.of(Narrations.FA_NEWS, true, "دیاگرام بساز")))
     }
 
+    /** A short sentence is its whole headline: never «… پولشان را پس» without the verb that ends it. */
+    @Test
+    fun shortSentencesAreWholeHeadlines() {
+        val n = Narrations.of(
+            "صرافی بزرگ دیروز برداشت همه‌ی کاربران را متوقف کرد. هزاران نفر هنوز پولشان را پس نگرفته‌اند، و جلوی دفتر صرافی صف کشیده‌اند.",
+            persian = true,
+        )
+        val writer = NewsWriter()
+        val heads = writer.scenes(n).map { writer.headline(n, it) }
+        heads.forEach { println("headline «${it.main}» / «${it.second}»") }
+        assertEquals("صرافی بزرگ دیروز برداشت همه‌ی کاربران را متوقف کرد", heads[0].main)
+        assertTrue(heads[1].main.endsWith("نگرفته‌اند"), heads[1].main)
+        // Slower speech (the production proof's timing): a sentence split for length and joined back stays whole.
+        var t = 0.3
+        val slow = n.words.map { w ->
+            val len = 0.22 + w.text.length * 0.045 + (if (w.text.endsWith('.') || w.text.endsWith('،')) 0.35 else 0.0)
+            w.copy(range = io.trimio.core.model.time.TimeRange((t * 1000).toLong(), ((t + len - 0.06) * 1000).toLong())).also { t += len }
+        }
+        val m = Narration.of(slow, "", lexicon = Narrations.lexicon)
+        val slowHeads = writer.scenes(m).map { writer.headline(m, it) }
+        slowHeads.forEach { println("slow headline «${it.main}» / «${it.second}»") }
+        assertTrue(slowHeads.none { h -> h.main.endsWith(" را") || h.main.endsWith(" پس") || h.main.endsWith("کاربران") }, "$slowHeads")
+    }
+
     @Test
     fun aSceneIsAHeadlineAHeroAndOneDevice() {
         for (n in listOf(fa, en)) {
@@ -62,6 +86,11 @@ class NewsFilmTest {
         assertTrue(heroes.filterNotNull().all { h -> h.sign.isEmpty() || h.sign.split(' ').all { w -> fa.keys.contains(Metaphors.bare(w)) } })
         val r = IllustrationRequest("safe", "standing", listOf("gold bars"), "میلی", "pencil sketch")
         assertEquals(r, IllustrationRequest.parse(r.encode()))
+        // A queue in front of an office is its own picture, not the scene before it again.
+        val q = Narrations.of("و جلوی دفتر صرافی صف کشیده‌اند.", persian = true)
+        val queue = Illustrations.request(q, q.words.indices, "")!!
+        assertEquals("group of people", queue.subject)
+        assertTrue("queue" in queue.action && "currency exchange office" in queue.objects, "$queue")
     }
 
     @Test

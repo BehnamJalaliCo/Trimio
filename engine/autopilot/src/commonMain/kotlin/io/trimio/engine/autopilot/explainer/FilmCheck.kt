@@ -79,7 +79,9 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
 
     private fun content(b: Beat): List<Problem> = buildList {
         val c = b.content
-        if (words(c.text) > MAX_TEXT_WORDS || c.text.length > MAX_TEXT_CHARS) add(Problem(Kind.Long, b.at, "text «${c.text}»"))
+        val head = b.primitive == Primitive.Headline
+        val (maxWords, maxChars) = if (head) MAX_HEADLINE_WORDS to MAX_HEADLINE_CHARS else MAX_TEXT_WORDS to MAX_TEXT_CHARS
+        if (words(c.text) > maxWords || c.text.length > maxChars) add(Problem(Kind.Long, b.at, "text «${c.text}»"))
         if (words(c.caption) > MAX_CAPTION_WORDS) add(Problem(Kind.Long, b.at, "caption «${c.caption}»"))
         if (c.items.size > MAX_ITEMS || c.items.any { words(it.label) > MAX_ITEM_WORDS || it.label.length > MAX_ITEM_CHARS }) add(Problem(Kind.Long, b.at, "items ${c.items.map { it.label }}"))
         if (b.op in CREATES && b.primitive in WORDS_ONLY && c.text.isBlank()) add(Problem(Kind.Empty, b.at, "${b.primitive} with no words"))
@@ -190,7 +192,9 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         val items = c.items.take(MAX_ITEMS).map { it.copy(label = text(it.label, MAX_ITEM_WORDS, log), visual = visual(it.visual)) }
         val value = c.value?.let { v -> if (b.primitive in UNIT_VALUES && v > 1.0 && v <= PERCENT) v / PERCENT else v }?.let { v -> if (b.primitive in UNIT_VALUES) v.coerceIn(0.0, 1.0) else v }
         val content = BeatContent(
-            text = text(c.text, MAX_TEXT_WORDS, log), caption = text(c.caption, MAX_CAPTION_WORDS, log), items = items, value = value,
+            // A news headline is the sentence when it is short (NewsWriter keeps it whole up to nine words).
+            text = if (b.primitive == Primitive.Headline) text(c.text, MAX_HEADLINE_WORDS, log, MAX_HEADLINE_CHARS) else text(c.text, MAX_TEXT_WORDS, log),
+            caption = text(c.caption, MAX_CAPTION_WORDS, log), items = items, value = value,
             unit = text(c.unit, 1, log), picks = c.picks.distinct().sorted(), visual = visual(c.visual), illustration = illustration(c.illustration),
             kicker = text(c.kicker, MAX_KICKER_WORDS, log), punch = text(c.punch, MAX_TEXT_WORDS, log),
         )
@@ -210,8 +214,8 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
         return t.ifBlank { ch.beats.firstNotNullOfOrNull { b -> b.content.text.takeIf { it.isNotBlank() }?.let { text(it, MAX_TITLE_WORDS, log) } }.orEmpty().ifBlank { "…" } }
     }
 
-    /** [s] in at most [max] words, in the film's script, spelled as heard, with no unsaid company name. */
-    private fun text(s: String, max: Int, log: (String) -> Unit): String {
+    /** [s] in at most [max] words and [chars] letters, in the film's script, spelled as heard, with no unsaid company name. */
+    private fun text(s: String, max: Int, log: (String) -> Unit, chars: Int = MAX_TEXT_CHARS): String {
         if (s.isBlank()) return ""
         val kept = s.trim().split(Regex("\\s+")).filter { w ->
             val core = core(w)
@@ -219,10 +223,16 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
             if (!ok) log("repair: «$core» left out (not said)")
             ok
         }
-        val short = kept.take(max).joinToString(" ").take(MAX_TEXT_CHARS).trim()
+        // Shortened by whole words where a phrase ends («… پولشان را پس» without its verb reads as a broken sentence).
+        val room = (minOf(max, kept.size) downTo 1).filter { k -> kept.take(k).joinToString(" ").length <= chars }
+        val fits = room.firstOrNull { k -> k == kept.size || phraseEnds(kept.take(k)) } ?: room.firstOrNull()
+        val short = (fits?.let { kept.take(it).joinToString(" ") } ?: kept.firstOrNull().orEmpty().take(chars)).trim()
         val digits = if (n.persian) Numerals.toPersian(short) else Numerals.toLatin(short)
         return (screen?.takeIf { n.persian }?.text(digits) { log("repair: $it") } ?: digits).trim()
     }
+
+    /** Whether [words] can end a line: not on an ezafe, a preposition, a particle or a number without its noun. */
+    private fun phraseEnds(words: List<String>): Boolean = NewsWriter().ends(words)
 
     /** An illustration request kept to English keywords, its sign only when the name is said. */
     private fun illustration(s: String): String {
@@ -250,6 +260,8 @@ class FilmCheck(private val n: Narration, private val lexicon: PersianSpelling? 
     companion object {
         const val MAX_LIVE = StageWriter.MAX_LIVE + 1
         const val MAX_TEXT_WORDS = 6
+        const val MAX_HEADLINE_WORDS = 9
+        const val MAX_HEADLINE_CHARS = 60
         const val MAX_TEXT_CHARS = 40
         const val MAX_CAPTION_WORDS = 4
         const val MAX_KICKER_WORDS = 2
