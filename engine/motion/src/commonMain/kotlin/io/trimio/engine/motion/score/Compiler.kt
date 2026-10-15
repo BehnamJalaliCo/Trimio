@@ -778,8 +778,11 @@ class Compiler(
         // Hesitations («اِم», "um") are never shown; the words around them keep their own times.
         // A blank word was cut or merged by the creator (the editor): it has nothing to show either.
         fun said(words: List<Word>) = words.filterNot { it.text.isBlank() || Words.isFiller(it.text) }
-        val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(said(prelude), score.captions.maxWords.coerceIn(1, MAX_CAPTION_WORDS))) +
-            Words.captionLines(said(session.transcript!!.words), score.captions.maxWords.coerceIn(1, MAX_CAPTION_WORDS))
+        // The storyboard's captions are phrases: a group never runs across a comma into the next thought.
+        val phrases = score.captions.mark == "meaning"
+        val most = score.captions.maxWords.coerceIn(1, MAX_CAPTION_WORDS)
+        val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(said(prelude), most, commas = phrases)) +
+            Words.captionLines(said(session.transcript!!.words), most, commas = phrases)
         val emphasisWords = beats.flatMap { b -> b.cue.emphasis.mapNotNull { b.cue.words.getOrNull(it) } }.map(NumberWords::normalize).toSet()
         val out = mutableListOf<Beat>()
         var skipped = 0
@@ -1139,7 +1142,8 @@ class Compiler(
         private const val SFX_WINDOW = 2f
         /** A chat thread plays as long as the story it tells; the call to action holds to the end. */
         private const val MAX_THREAD_HOLD = 24f
-        private val LONG_FORM = setOf("message", "comment", "endcard")
+        /** Devices that hold across lines: a thread, the ask, and the storyboard's cards that change state as the talk goes on. */
+        private val LONG_FORM = setOf("message", "comment", "endcard", "board-tiles", "board-versus", "board-chat", "board-steps", "board-chips")
         private const val LINGER = 0.55f
         private const val EXIT_TAIL = 0.4f
         private const val STAGE_HOLD = 3.5f

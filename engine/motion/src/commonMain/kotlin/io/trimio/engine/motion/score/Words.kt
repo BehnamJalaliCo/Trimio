@@ -34,10 +34,12 @@ object Words {
     fun weight(w: Word): Float = if (isContent(w.text)) w.emphasis else w.emphasis * 0.15f
 
     /**
-     * Caption chunks: up to [maxWords] words, breaking at sentence ends and real pauses, then
+     * Caption chunks: up to [maxWords] words, breaking at sentence ends and real pauses (and at commas with [commas]), then
      * folding orphans (a lone word, or a flash shorter than [minSeconds]) into a neighbour.
      */
-    fun captionLines(words: List<Word>, maxWords: Int, pauseSeconds: Float = 0.45f, minSeconds: Float = 0.55f): List<List<Word>> {
+    private fun clauseEnd(w: Word) = w.text.lastOrNull()?.let { it == '،' || it == ',' } == true
+
+    fun captionLines(words: List<Word>, maxWords: Int, pauseSeconds: Float = 0.45f, minSeconds: Float = 0.55f, commas: Boolean = false): List<List<Word>> {
         val lines = mutableListOf<MutableList<Word>>()
         var current = mutableListOf<Word>()
         for ((i, w) in words.withIndex()) {
@@ -45,7 +47,8 @@ object Words {
             val next = words.getOrNull(i + 1)
             val pause = next != null && (next.range.startMs - w.range.endMs) / 1000f > pauseSeconds
             val full = current.size >= maxWords || next == null
-            if (w.endsSentence || pause || full) {
+            val ends = w.endsSentence || (commas && clauseEnd(w))
+            if (ends || pause || full) {
                 lines += current
                 current = mutableListOf()
             }
