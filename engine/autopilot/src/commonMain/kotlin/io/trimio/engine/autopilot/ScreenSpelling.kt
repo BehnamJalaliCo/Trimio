@@ -47,12 +47,27 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
         return b.copy(
             text = text,
             label = b.label?.let { phrase(it, log) }?.ifBlank { null },
-            items = b.items.map { item -> if (item.startsWith(">")) ">" + phrase(item.drop(1), log) else phrase(item, log) }.filter { it.isNotBlank() && it != ">" },
+            items = b.items.map { item ->
+                when {
+                    b.recipe.startsWith(BOARD) -> boardItem(item, log)
+                    item.startsWith(">") -> ">" + phrase(item.drop(1), log)
+                    else -> phrase(item, log)
+                }
+            }.filter { it.isNotBlank() && it != ">" },
             emphasis = b.emphasis.mapNotNull { e -> phrase(e, log).ifBlank { null } },
         )
     }
 
     private fun words(s: String?) = s.orEmpty().split(' ').count { it.isNotBlank() }
+
+    /**
+     * A storyboard card's item («loss:9:۹ استاپ», «gain:ما|۵۰ تتر|ورودی»): its tone and count stay as they are, each of
+     * its parts is checked as words.
+     */
+    private fun boardItem(item: String, log: (String) -> Unit): String {
+        val head = Regex("^([a-z]+:(\\d+:)?)").find(item)?.value.orEmpty()
+        return head + item.removePrefix(head).split('|').joinToString("|") { part -> phrase(part, log).trim() }
+    }
 
     private fun phrase(s: String, log: (String) -> Unit): String = s.split(' ').map { token ->
         // A word said one way and written another («تیپی» → «تیپ», «دولار» → «دلار») is written on every card too.
@@ -76,6 +91,7 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
     private fun known(c: String) = plain(c) in brief || plain(c) in mine || words.shows(c)
 
     private companion object {
+        const val BOARD = "board-"
         val SEPARATORS = Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+")
         const val ZWNJ = '\u200C'
 

@@ -194,6 +194,8 @@ internal object Storyboard {
         return when (b.recipe) {
             in KEEP -> b.copy(place = b.place ?: "top")
             in TITLES, "stamp", "headline", "lower-third" -> pill(b, text)
+            // A site is a pill with the browser's mark: one interface language.
+            "url" -> pill(b.copy(icon = "browser"), text.ifBlank { b.label.orEmpty() })
             in FIGURES -> b.value?.let { v -> price(b, v, texts) } ?: pill(b, text)
             "versus", "pros-cons", "before-after" -> versus(b) ?: pill(b, text)
             "list", "chips", "logos", "objects", "ranking", "timeline", "checklist" -> chips(b) ?: pill(b, text)
@@ -327,10 +329,10 @@ internal object Storyboard {
     private val TITLES = setOf("slam", "stack", "spread", "mask-rise", "blur-in", "flip", "type-on", "glitch")
     private val FIGURES = setOf("counter", "meter", "ring", "stat-stack", "burst", "countdown", "progress", "stats", "voucher", "price-tag", "receipt", "chart", "bars")
     private val KEEP = setOf(
-        "comment", "endcard", "ui-browser", "ui-chat", "url", "logo-mark", "pop-captions", "subtitles", "callout",
+        "comment", "endcard", "ui-browser", "ui-chat", "logo-mark", "pop-captions", "subtitles", "callout",
         "board-tiles", "board-pill", "board-quote", "board-price", "board-versus", "board-steps", "board-chips",
     )
-    private val OURS = listOf("مون", "مان")
+    private val OURS = listOf("مونه", "مون", "مان")
     private val COUNTERS = setOf("تا", "دونه", "عدد", "دانه", "نفر")
     private val TIME = listOf("ماه", "سال", "ساعت", "دقیقه", "هفته", "ثانیه", "month", "year", "hour", "minute", "week", "second", "day")
     private val FILLERS = setOf("کلن", "کلا", "اصلا", "در", "روز")

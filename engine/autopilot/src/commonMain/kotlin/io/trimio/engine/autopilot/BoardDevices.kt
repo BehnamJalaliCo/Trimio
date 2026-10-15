@@ -98,8 +98,13 @@ internal object BoardDevices {
         val query = (at + length..clause.last).map { texts[it].trim('،', ',', '.') }.filter { StoryCut.normal(it) !in SENDS && StoryCut.normal(it).isNotEmpty() }
         if (query.isEmpty()) return null
         val asks = listOf(query.take(QUERY_WORDS).joinToString(" ") to (at + length))
+        // The follow-up: the question asked in it, in its own words («سودشون چجوریه»), as the viewer would type it.
         val follow = clauses.firstOrNull { c -> c.first > clause.last && c.first - clause.last <= FOLLOW_REACH && c.any { said[it] in QUESTIONS || texts[it].endsWith('؟') } }
-            ?.let { c -> short(texts, c) to c.first }
+            ?.let { c ->
+                val q = c.first { said[it] in QUESTIONS || texts[it].endsWith('؟') }
+                val from = maxOf(c.first, q - 1)
+                (from..q).joinToString(" ") { texts[it].trim('،', ',', '.', '؟') } + "؟" to from
+            }
         val bubbles = asks + listOfNotNull(follow)
         // The window stays while the assistant is talked about: to the follow-up, or the last time it is named nearby.
         val named = (at + length until minOf(said.size, at + FOLLOW_REACH)).lastOrNull { name(said, it) != null }
