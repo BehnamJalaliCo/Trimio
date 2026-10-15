@@ -335,7 +335,8 @@ class Autopilot(
         // No music of ours over the video's own: its beat is the grid the hits snap to.
         val own = request.sourceTempo?.takeIf { music == null }
         // A talking head is told in cards over the speaker, never on full-frame stages ([Storyboard]).
-        val told = if (Storyboard.wanted(request.prompt, request.footage != null)) Storyboard.board(planned.score, output, log) else planned.score
+        val boarded = Storyboard.wanted(request.prompt, request.footage != null)
+        val told = if (boarded) Storyboard.board(planned.score, output, r.lines, r.understanding.lines, r.understanding.cta?.keyword, log) else planned.score
         val base = own?.let { (bpm, first) -> told.copy(bpm = bpm, beatOffset = first) } ?: told
         own?.let { (bpm, _) -> log("music: the video's own, ${round1(bpm)} bpm (none added)") }
         val plan = planned.copy(score = MusicEdit.gridded(base, music))
@@ -403,6 +404,7 @@ class Autopilot(
                 val same = edit === d.edit && mood == d.plan.music
                 val music = if (same) d.music else MusicEdit.arrange(mood, edit, output, r.lines, r.understanding)
                 val score = if (same) fix.score else MusicEdit.gridded(fix.score, music)
+                report += "jury: revision with ${score.scenes.sumOf { it.beats.size }} beats in ${score.scenes.size} scenes (was ${d.score.scenes.sumOf { it.beats.size }})"
                 d.copy(plan = d.plan.copy(music = mood), score = score, edit = edit, music = music, output = output, compiled = compile(d.compiler, score, r.shown, edit, r.request))
             },
             vary = { k -> draft(r, r.request.seed * VARIATION_STRIDE + k, look = false, onStage = { _, _ -> }) { report += "variation $k: $it" } },

@@ -20,6 +20,9 @@ import io.trimio.engine.motion.score.Score
  * excepted), it types the keyword as the speaker said it, and when the speaker then sends viewers
  * to their DMs («بعد برو دایرکتتو چک کن») the second-step stamp says so.
  */
+/** The storyboard's ask as steps ([io.trimio.engine.motion.recipe.BoardFamilies]). */
+private const val STEPS = "board-steps"
+
 class CtaJudge(
     private val minShow: Float = 3.5f,
     private val endWindow: Float = 1.5f,
@@ -31,8 +34,10 @@ class CtaJudge(
     override fun score(c: Jury.Context): Verdict {
         val graphics = Bench.graphics(c)
         val comment = graphics.filter { it.recipe == Bench.COMMENT }.maxByOrNull { it.out }
+        // The storyboard asks once, at the end, as steps (comment the word, check the DM, what waits there).
+        val steps = graphics.firstOrNull { it.recipe == STEPS }
         // An ask for a keyword said mid-video («کلمه کد رو برام بفرست», with more to come): its field while it is said.
-        midAsk(c)?.let { (i, word) ->
+        midAsk(c)?.takeIf { steps == null }?.let { (i, word) ->
             val t = Bench.start(c.words, i)
             val shown = graphics.any { it.recipe == Bench.COMMENT && it.at <= t + MID_NEAR && it.out >= t }
             if (comment == null || comment.at < Bench.start(c.words, i) + MID_HOLD) {
@@ -62,7 +67,8 @@ class CtaJudge(
                 f += Bench.finding(comment.at, Severity.Major, "«${comment.text}» is not the word the speaker said$heard", "type the spoken keyword")
             }
         }
-        if (dmWord(c.words, comment.at) != null && graphics.none { it.recipe == Bench.STAMP && it.at >= comment.at - 0.1f }) {
+        val dmShown = steps != null || graphics.any { it.recipe == Bench.STAMP && it.at >= comment.at - 0.1f }
+        if (!dmShown && dmWord(c.words, comment.at) != null) {
             f += Bench.finding(comment.at, Severity.Major, "the speaker sends viewers to their DMs; the second step is not shown", "a stamp of the DM step under the field")
         }
         return Verdict.of(this, f)

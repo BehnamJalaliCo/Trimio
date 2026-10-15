@@ -101,10 +101,19 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
      * Places a beat wanting [want] during [at]..[out]. Returns the zone it got; occupants that
      * had to leave early get a shorter [Occupant.out].
      */
-    fun place(want: Zone, at: Float, out: Float, minOut: Float, id: Int, locked: Boolean = false, allowed: Set<Zone> = Zone.entries.toSet(), replace: Boolean = false): Zone {
+    fun place(
+        want: Zone, at: Float, out: Float, minOut: Float, id: Int, locked: Boolean = false, allowed: Set<Zone> = Zone.entries.toSet(),
+        replace: Boolean = false, evict: Boolean = false,
+    ): Zone {
         // On a stage the graphics are slides: the next one takes the last one's place once it has been read, instead of
         // squeezing into a band beside it.
         val clash = overlaps(want, at, out)
+        // A storyboard card always takes its band: the card before it leaves as it lands (one card at a time, as the reference).
+        if (evict && clash.isNotEmpty()) {
+            clash.forEach { o -> o.out = minOf(o.out, at - 0.02f) }
+            occupants += Occupant(want, at, out, minOut, id)
+            return want
+        }
         if (replace && clash.isNotEmpty() && clash.all { it.minOut <= at + REPLACE_SLACK }) {
             clash.forEach { o -> o.out = maxOf(o.minOut, at - 0.02f) }
             occupants += Occupant(want, at, out, minOut, id)

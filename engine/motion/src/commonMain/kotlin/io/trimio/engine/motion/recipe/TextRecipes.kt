@@ -220,6 +220,7 @@ object TextRecipes {
     val PopCaptions = object : Recipe("pop-captions", Kind.Text) {
         override val preferredHeight = 0.16f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
+            if (cue.mark?.lowercase() == "meaning") return grouped(cue, look, fit)
             val f = fit.fit(cue.text, look.caption, minOf(cue.width * 0.118f, 112f), cue.width, cue.height, maxLines = 2)
             val n = cue.words.size
             val starts = Craft.wordStarts(cue, n, 0.12f)
@@ -227,6 +228,20 @@ object TextRecipes {
             val speak = TextAnimator(TextUnit.Word, UnitState(scale = 1.08f), at = cue.at, duration = 0.26f, ease = Easing.Linear, shape = Shape.Pulse, times = starts.map { it + 0.08f })
             val exit = TextAnimator(TextUnit.All, UnitState(dy = -0.12f, opacity = 0f), at = cue.out - 0.14f, duration = 0.14f, ease = Easing.Exit, shape = Shape.Out)
             val node = Craft.text(cue, f.type, Craft.voice(cue, look), look, listOf(pop, speak, exit), Craft.marks(cue, look, starts, 0.12f), name = name)
+            return Built(listOf(node))
+        }
+
+        /**
+         * The storyboard's captions, as the reference edits set them: the group of three or four words lands at once (a
+         * short rise), read as a phrase, not spelled out; the stressed word's block, coloured by its meaning, lands as it
+         * is said.
+         */
+        private fun grouped(cue: Cue, look: Look, fit: Fitter): Built {
+            val f = fit.fit(cue.text, look.caption, minOf(cue.width * 0.1f, 96f), cue.width, cue.height, maxLines = 2)
+            val starts = Craft.wordStarts(cue, cue.words.size, 0.12f)
+            val enter = TextAnimator(TextUnit.All, UnitState(dy = 0.18f, scale = 0.94f, opacity = 0f), at = cue.at - 0.06f, duration = 0.22f, ease = Easing.ExpoOut)
+            val exit = TextAnimator(TextUnit.All, UnitState(dy = -0.1f, opacity = 0f), at = cue.out - 0.12f, duration = 0.12f, ease = Easing.Exit, shape = Shape.Out)
+            val node = Craft.text(cue, f.type, Craft.voice(cue, look), look, listOf(enter, exit), Craft.marks(cue, look, starts, 0.05f), name = name)
             return Built(listOf(node))
         }
     }

@@ -41,7 +41,7 @@ class StoryboardTest {
                     from = at("اونم"),
                     beats = listOf(
                         BeatScore(recipe = "stack", text = "ما سود می‌دیم", at = at("اونم"), energy = 0.9f),
-                        BeatScore(recipe = "price-tag", at = at("دو"), value = 2_700_000f, suffix = "تومان"),
+                        BeatScore(recipe = "price-tag", at = texts.indexOf("دو"), value = 2_700_000f, suffix = "تومان"),
                     ),
                 ),
             ),
@@ -52,7 +52,7 @@ class StoryboardTest {
         // The strongest title stays a title; the other becomes a pill.
         assertEquals(1, beats.count { it.recipe in setOf("slam", "stack") })
         assertTrue(beats.any { it.recipe == "stack" })
-        assertTrue(beats.any { it.recipe == "board-pill" && it.text == "یه کانال سیگنال" })
+        assertTrue(beats.any { it.recipe == "board-pill" && it.text == "یه کانال سیگنال" }, beats.joinToString("\n") { "${it.recipe} ${it.at} ${it.text}" })
         // The counter on the grid's words is the grid now.
         assertFalse(beats.any { it.recipe == "counter" })
         assertTrue(beats.any { it.recipe == "board-tiles" })
@@ -68,5 +68,16 @@ class StoryboardTest {
         assertTrue(Storyboard.wanted("یه ادیت حرفه‌ای بزن", footage = true))
         assertFalse(Storyboard.wanted("گرافیک‌ها تمام صفحه باشن", footage = true))
         assertFalse(Storyboard.wanted("", footage = false))
+    }
+
+    @Test
+    fun theirPriceAgainstOursIsOneVersusCard() {
+        val talk = "ورودیشم دو میلیون و هفتصد هزار تومنه، ما این همه شفاف‌سازی کردیم، کلن پنجاه تتر ورودی مونه، اصلا به ما پولی نمی‌دی، ورودیمون رایگانه."
+        val heard = talk.split(' ').mapIndexed { i, w -> Word(w, TimeRange(i * 400L, i * 400L + 350), language = Language.Persian) }
+        val found = BoardDevices.versus(heard.map { it.text }, StoryCut.clauses(heard, Lines.split(heard)))!!.beat
+        assertEquals("board-versus", found.recipe)
+        assertEquals("gain:ما|۵۰ تتر|ورودی", found.items[0])
+        assertTrue(found.items[1].startsWith("loss:اونا|۲٬۷۰۰٬۰۰۰"), found.items[1])
+        assertTrue(found.items.drop(2).isNotEmpty(), "the gains said after it grow the card: ${found.items}")
     }
 }

@@ -12,6 +12,8 @@ import io.trimio.engine.motion.score.Score
  * not read on its own ([Fragments]), is dropped. Latin names and numbers pass untouched.
  */
 class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>, prompt: String, own: Collection<String> = emptyList()) {
+    private val spokenWords = spoken
+
     private val brief: Set<String> = prompt.split(SEPARATORS).map(::core).filter { it.isNotEmpty() }.map(::plain).toSet()
     private val mine: Set<String> = own.flatMap { it.split(' ') }.map(::core).filter { it.isNotEmpty() }.map(::plain).toSet()
     // Graphics show only words, terms and given names ([ScreenWords.strict]).
@@ -36,7 +38,7 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
         }
         // A title is a phrase that reads on its own (a quote is a sentence; an ask's words are an imperative); one that
         // lost words down to a single one («سود یرفتیم» → «سود») says no more than a lone word cut from the speech.
-        val shrunk = b.recipe in Fragments.TITLES && words(b.text) >= 2 && words(text) == 1
+        val shrunk = (b.recipe in Fragments.TITLES || b.recipe == "board-pill") && words(b.text) >= 2 && words(text) == 1
         val fault = if (shrunk) "only «${text?.trim()}» left of «${b.text}»" else text?.takeIf { b.recipe in Fragments.TITLES }?.let(Fragments::fault)
         if (fault != null) {
             log("screen spelling: dropped ${b.recipe} «$text»: $fault")
@@ -52,7 +54,10 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
 
     private fun words(s: String?) = s.orEmpty().split(' ').count { it.isNotBlank() }
 
-    private fun phrase(s: String, log: (String) -> Unit): String = s.split(' ').mapNotNull { token ->
+    private fun phrase(s: String, log: (String) -> Unit): String = s.split(' ').map { token ->
+        // A word said one way and written another («تیپی» → «تیپ», «دولار» → «دلار») is written on every card too.
+        WrittenForms.of(token, spokenWords)?.also { log("screen spelling (written form): «$token» → «$it»") } ?: token
+    }.mapNotNull { token ->
         val c = core(token)
         when {
             c.isEmpty() || !persian(c) || known(c) -> token

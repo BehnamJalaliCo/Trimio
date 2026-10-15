@@ -112,17 +112,17 @@ object BoardFamilies {
      * grid says what the grid is now (the beat's text, then each state's label).
      */
     val Tiles = object : Recipe("board-tiles", Kind.Element) {
-        override val preferredHeight = 0.2f
+        override val preferredHeight = 0.15f
         override val minHold = 2.2f
 
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
             val n = (cue.value ?: 10f).toInt().coerceIn(2, MAX)
             val cols = if (n <= 6) n else (n + 1) / 2
             val rows = (n + cols - 1) / cols
-            val gap = cue.width * 0.018f
+            val gap = cue.width * 0.014f
             // The grid and its pill (0.62 of a tile) together fill the slot's height at most.
-            val tile = minOf((cue.width * 0.78f - gap * (cols - 1)) / cols, (cue.height * 0.95f - gap * (rows + 1)) / (rows + 0.62f))
-            val pillH = tile * 0.62f
+            val tile = minOf((cue.width * 0.78f - gap * (cols - 1)) / cols, (cue.height - gap * (rows + 1)) / (rows + PILL))
+            val pillH = tile * PILL
             val gridW = cols * tile + (cols - 1) * gap
             val gridH = rows * tile + (rows - 1) * gap
             val box = Kit.box(cue, gridW, gridH + gap * 2f + pillH)
@@ -161,7 +161,7 @@ object BoardFamilies {
             labels.forEachIndexed { k, (words, color, from) ->
                 if (words.isBlank()) return@forEachIndexed
                 val to = labels.getOrNull(k + 1)?.third ?: cue.out
-                val f = Kit.fit(fit, words, Board.voice(WEIGHT), pillH * 0.5f, gridW * 0.8f, pillH * 0.7f)
+                val f = Kit.fit(fit, words, Board.voice(WEIGHT), pillH * 0.56f, gridW * 0.9f, pillH * 0.75f)
                 val w = f.width + pillH * 0.9f
                 val pill = listOf(
                     Board.card(box.centerX, pillY, w, pillH, pillH / 2f, color, null, "tiles-pill-$k"),
@@ -174,6 +174,8 @@ object BoardFamilies {
         }
 
         private val MAX = 12
+        /** The pill under the grid, as a share of a tile: big enough that its words read on a phone. */
+        private val PILL = 0.8f
         private val APPEAR = 0.035f
         private val STAGGER = 0.06f
         private val WEIGHT = 800
@@ -188,7 +190,7 @@ object BoardFamilies {
         override val minHold = 1.4f
 
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
-            val h = minOf(cue.height, cue.width * 0.11f)
+            val h = minOf(cue.height, cue.width * 0.13f)
             val tone = Board.tone(cue.label)
             val f = Kit.fit(fit, cue.text, Board.voice(800), h * 0.42f, cue.width * 0.78f, h * 0.7f)
             val w = f.width + h * 1.5f
@@ -447,5 +449,50 @@ object BoardFamilies {
         private val TICK = 0.35f
     }
 
-    val all: List<Recipe> get() = listOf(Tiles, Pill, Quote, Price, Versus, Tracker, Chips)
+    /**
+     * An assistant asked aloud («برو تو چت‌جی‌پی‌تی بپرس»): a dark window titled with its name ([Cue.label], a sparkle
+     * beside it) whose field types the question ([Cue.text]), then each of [Cue.items] as the viewer's blue bubble when
+     * it is said.
+     */
+    val Chat = object : Recipe("board-chat", Kind.Element) {
+        override val preferredHeight = 0.15f
+        override val minHold = 2.6f
+
+        override fun build(cue: Cue, look: Look, fit: Fitter): Built {
+            val name = cue.label?.takeIf { it.isNotBlank() } ?: "ChatGPT"
+            val bubbles = Kit.items(cue, MAX).ifEmpty { listOfNotNull(cue.text.takeIf { it.isNotBlank() }) }
+            if (bubbles.isEmpty()) return Built(emptyList())
+            val w = cue.width * 0.9f
+            val bar = w * 0.1f
+            val row = w * 0.085f
+            val h = minOf(cue.height, bar + bubbles.size * row * 1.25f + row * 0.6f)
+            val box = Kit.box(cue, w, h)
+            val k = box.width / w
+            val at = cue.at - Craft.LEAD
+            val nodes = mutableListOf<Node>(Board.card(box.centerX, box.centerY, box.width, box.height, box.width * 0.04f))
+            val titleY = box.top + bar * k * 0.55f
+            val tf = Kit.fit(fit, name, Board.voice(800), bar * k * 0.42f, box.width * 0.5f, bar * k * 0.6f)
+            val titleX = if (cue.rtl) box.right - row * k * 0.6f - tf.width / 2f else box.left + row * k * 0.6f + tf.width / 2f
+            nodes += Kit.words(name, tf, Board.INK, titleX, titleY, at, Board.GROUND, false, Kit.Reveal.Fade, name = "chat-title")
+            val sparkX = if (cue.rtl) titleX - tf.width / 2f - bar * k * 0.35f else titleX + tf.width / 2f + bar * k * 0.35f
+            nodes += Kit.icon("spark", sparkX, titleY, bar * k * 0.42f, Color(0xFF34D399), at + 0.1f)
+            bubbles.forEachIndexed { i, said ->
+                val t = Kit.itemAt(cue, i, at + 0.4f, 0.9f).coerceAtMost(cue.out - Board.FADE)
+                val y = box.top + bar * k + row * k * (0.7f + i * 1.25f)
+                val f = Kit.fit(fit, said, Board.voice(700), row * k * 0.5f, box.width * 0.6f, row * k * 0.8f)
+                val bw = f.width + row * k * 0.9f
+                val bx = if (cue.rtl) box.right - row * k * 0.5f - bw / 2f else box.left + row * k * 0.5f + bw / 2f
+                val bubble = listOf(
+                    Board.card(bx, y, bw, row * k, row * k * 0.5f, Board.INFO, null, "chat-bubble-$i"),
+                    Kit.words(said, f, Board.INK, bx, y, t + 0.05f, Board.INFO, cue.rtl, Kit.Reveal.Type, name = "chat-text-$i"),
+                )
+                nodes += Group(bubble, Transform(anchorX = 0f, anchorY = 0f, opacity = Anim.tween(0f, 1f, t, t + Board.FADE)), start = t - 0.02f, name = "chat-said-$i")
+            }
+            return Board.built(cue, look, box, nodes, "board-chat")
+        }
+
+        private val MAX = 3
+    }
+
+    val all: List<Recipe> get() = listOf(Tiles, Pill, Quote, Price, Versus, Tracker, Chips, Chat)
 }

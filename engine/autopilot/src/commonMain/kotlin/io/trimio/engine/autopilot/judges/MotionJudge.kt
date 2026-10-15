@@ -80,7 +80,9 @@ class MotionJudge(
         a.recipe == b.recipe && a.recipe !in REPEATABLE && b.at - a.out < repeatWindow && a.at >= (c.edit?.preludeLength ?: 0f)
     }
 
-    private fun variety(graphics: List<Compiler.Placed>): List<Finding> {
+    private fun variety(all: List<Compiler.Placed>): List<Finding> {
+        // The storyboard's cards are one system, as the reference edits keep them: the variety asked is of the rest.
+        val graphics = all.filterNot { it.recipe in REPEATABLE && it.recipe.startsWith("board-") }
         if (graphics.size < VARIETY_FROM) return emptyList()
         val counts = graphics.groupingBy { it.recipe }.eachCount()
         val top = counts.maxBy { it.value }
@@ -230,6 +232,7 @@ class MotionJudge(
         val PICTURE_FAMILY = setOf("object", "objects", "icon", "animated", "live-reaction")
         val PERCENT = listOf("%", "٪", "درصد", "percent")
         /** The ask and a thread run on as one story; every other device twice running reads as a loop. */
-        val REPEATABLE = setOf("comment", "message")
+        /** Devices that may follow themselves: a thread of messages, and the storyboard's cards (one interface language on purpose). */
+        val REPEATABLE = setOf("comment", "message", "board-pill", "board-quote", "board-price", "board-chips", "board-tiles", "board-versus", "board-steps")
     }
 }

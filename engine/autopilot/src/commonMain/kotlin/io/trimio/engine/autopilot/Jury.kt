@@ -219,7 +219,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         // A judge whose fix throws is skipped (its finding stays for the report): the jury never stops the edit.
         for (v in failing(panel)) {
             val judge = judges.firstOrNull { it.name == v.judge } ?: continue
-            score = runCatching { judge.revise(c.copy(score = score, edit = edit ?: c.edit), v) }.getOrNull() ?: score
+            score = runCatching { judge.revise(c.copy(score = score, edit = edit ?: c.edit), v) }.getOrNull()?.let { Storyboard.kept(score, it) } ?: score
             runCatching { judge.recut(c.copy(edit = edit ?: c.edit), v) }.getOrNull()?.let { edit = it }
             runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }?.let { outro = maxOf(outro ?: 0f, it) }
             runCatching { judge.remood(c, v) }.getOrNull()?.takeIf { it != c.music }?.let { music = it }
@@ -241,7 +241,7 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         val held = c.edit?.outro?.length ?: 0f
         val alone = failing(panel).mapNotNull { v ->
             val judge = judges.firstOrNull { it.name == v.judge } ?: return@mapNotNull null
-            val score = runCatching { judge.revise(c, v) }.getOrNull() ?: c.score
+            val score = runCatching { judge.revise(c, v) }.getOrNull()?.let { Storyboard.kept(c.score, it) } ?: c.score
             val outro = runCatching { judge.outro(c, v) }.getOrNull()?.takeIf { it > held + EPS }
             val edit = runCatching { judge.recut(c, v) }.getOrNull()
             val music = runCatching { judge.remood(c, v) }.getOrNull()?.takeIf { it != c.music }

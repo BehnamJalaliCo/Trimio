@@ -81,13 +81,17 @@ internal object Bench {
             ?.takeIf { (k, j) -> kotlin.math.abs(beatStart(score.scenes[k].beats[j], k, score, words, starts) - p.at) <= MATCH_S || candidates.size == 1 }
     }
 
-    fun mapBeat(score: Score, at: Pair<Int, Int>, f: (BeatScore) -> BeatScore?): Score = score.copy(
-        scenes = score.scenes.mapIndexed { k, s -> if (k != at.first) s else s.copy(beats = s.beats.mapIndexedNotNull { j, b -> if (j == at.second) f(b) else b }) },
-    )
+    fun mapBeat(score: Score, at: Pair<Int, Int>, f: (BeatScore) -> BeatScore?): Score {
+        // A beat put in place of a card is a card too when the piece is told in cards.
+        fun g(b: BeatScore) = f(b)?.let { n -> if (n.recipe != b.recipe) io.trimio.engine.autopilot.Storyboard.translated(score, n) else n }
+        return score.copy(scenes = score.scenes.mapIndexed { k, s -> if (k != at.first) s else s.copy(beats = s.beats.mapIndexedNotNull { j, b -> if (j == at.second) g(b) else b }) })
+    }
 
-    fun addBeat(score: Score, k: Int, beat: BeatScore): Score = score.copy(
-        scenes = score.scenes.mapIndexed { i, s -> if (i == k) s.copy(beats = listOf(beat) + s.beats) else s },
-    )
+    fun addBeat(score: Score, k: Int, beat: BeatScore): Score {
+        // A piece told in cards gets a card, not a title or a sticker of the old vocabulary.
+        val said = io.trimio.engine.autopilot.Storyboard.translated(score, beat) ?: return score
+        return score.copy(scenes = score.scenes.mapIndexed { i, s -> if (i == k) s.copy(beats = listOf(said) + s.beats) else s })
+    }
 
     /**
      * A new scene (a punch-in cut over the speaker) from the word spoken nearest [t]; null when

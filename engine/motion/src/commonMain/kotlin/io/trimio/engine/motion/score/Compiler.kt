@@ -409,7 +409,9 @@ class Compiler(
             val wanted = layout.zoneOf(b.place, defaultZone(recipe)).let { if (over) layout.zoneOverFootage(it) else it }
             val stage = !over && input.footage != null
             val zone = layout.place(
-                wanted, at, out, minOut, id, locked = recipe.name == "lower-third", allowed = if (over) layout.footageZones else Layout.Zone.entries.toSet(), replace = stage,
+                wanted, at, out, minOut, id, locked = recipe.name == "lower-third", allowed = if (over) layout.footageZones else Layout.Zone.entries.toSet(),
+                // The storyboard's cards follow one another in the band over the head: the next takes the last one's place.
+                replace = stage, evict = recipe.name.startsWith("board-"),
             )
             val behind = behind(recipe, over, zone, words, at)
             val slot = behind ?: layout.slot(

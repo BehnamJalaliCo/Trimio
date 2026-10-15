@@ -176,6 +176,9 @@ class RhythmJudge(
         /** The compiler's stage timing: raised this long before its first graphic lands, and never shorter than [MIN_STAGE]. */
         private const val STAGE_LEAD = 0.12f
         private const val MIN_STAGE = 1.2f
-        private val PROTECTED = setOf("comment", "message", "voucher", "stats", "countdown", "progress")
+        private val PROTECTED = setOf(
+            "comment", "message", "voucher", "stats", "countdown", "progress",
+            "board-tiles", "board-versus", "board-steps", "board-chat", "board-chips", "board-price", "board-quote",
+        )
     }
 }

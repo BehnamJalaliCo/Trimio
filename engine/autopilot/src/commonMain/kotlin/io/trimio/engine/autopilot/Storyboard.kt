@@ -3,6 +3,7 @@ package io.trimio.engine.autopilot
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.motion.recipe.Meaning
 import io.trimio.engine.motion.score.BeatScore
+import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
 
 /**
@@ -28,29 +29,163 @@ internal object Storyboard {
         return STAGE_WORDS.none { it in p }
     }
 
-    fun board(score: Score, words: List<Word>, log: (String) -> Unit = {}): Score {
+    fun board(
+        score: Score, words: List<Word>, lines: List<Lines.Line> = emptyList(), reads: List<LineRead> = emptyList(), keyword: String? = null,
+        log: (String) -> Unit = {},
+    ): Score {
         val texts = words.map { it.text }
         val grids = tiles(texts)
         grids.forEach { log("storyboard: tiles «${it.beat.text}» ${it.beat.items.joinToString()}") }
-        val covered = grids.flatMap { it.words }.toSet()
+        val devices = BoardDevices.all(words, lines, keyword).filter { d -> grids.none { g -> d.words.first <= g.words.last && d.words.last >= g.words.first } }
+        devices.forEach { log("storyboard: ${it.beat.recipe} ${it.beat.items.joinToString(" / ")}") }
+        val covered = (grids.flatMap { it.words } + devices.flatMap { it.words }).toSet()
         // The one title that stays a title: the most energetic text beat (the punchline).
         val title = score.scenes.flatMap { it.beats }.filter { it.recipe in TITLES && !it.text.isNullOrBlank() }.maxByOrNull { it.energy ?: 0f }
-        val scenes = score.scenes.map { s ->
-            val beats = s.beats.mapNotNull { b ->
-                when {
-                    b === title -> b.copy(place = "top")
-                    b.at != null && b.at in covered && b.recipe != "pop-captions" -> null
-                    else -> card(b, texts)
-                }
+        val shells = score.scenes.map { s -> s.copy(bg = null, inset = null, transition = if (s.bg != null) null else s.transition, beats = emptyList()) }
+        // Beats without a word to land on keep their scene; the cards are laid out on the words, one after another.
+        // A beat that quotes the speech lands where it is said: it is laid out on that word like any other.
+        val steps = devices.firstOrNull { it.beat.recipe == "board-steps" }
+        val placed = score.scenes.map { s ->
+            s.beats.map { b -> if (b.at == null && b.time == null) located(b, s.from ?: 0, texts) else b }.map { b ->
+                // The ask's steps come first; the comment card (the end card) takes over when they are done.
+                if (b.recipe == "comment" && steps != null && (b.at ?: 0) < steps.words.last) b.copy(at = steps.words.last, until = null, time = null) else b
             }
-            s.copy(bg = null, inset = null, transition = if (s.bg != null) null else s.transition, beats = beats)
-        }.toMutableList()
-        // Each grid joins the scene its first word is in.
-        for (g in grids) {
-            val k = scenes.indexOfLast { (it.from ?: 0) <= g.beat.at!! }.coerceAtLeast(0)
-            scenes[k] = scenes[k].copy(beats = scenes[k].beats + g.beat)
         }
-        return score.copy(scenes = scenes, captions = score.captions.copy(maxWords = CAPTION_WORDS, mark = "meaning"))
+        val loose = placed.mapIndexed { k, beats -> k to beats.filter { it.at == null }.mapNotNull { b -> if (b === title) b.copy(place = "top") else card(b, texts) } }
+        val cards = placed.flatten().filter { it.at != null }.mapNotNull { b ->
+            when {
+                b === title -> b.copy(place = "top")
+                b.at in covered && b.recipe != "pop-captions" -> null
+                else -> card(b, texts)
+            }
+        }.toMutableList()
+        cards += grids.map { it.beat } + devices.map { it.beat }
+        // The steps end on the comment field (the end card): it lands as they finish and holds to the end.
+        if (steps != null && cards.none { it.recipe == "comment" } && loose.none { (_, bs) -> bs.any { it.recipe == "comment" } }) {
+            val word = keyword?.takeIf { it.isNotBlank() } ?: steps.beat.items.firstOrNull().orEmpty()
+            cards += BeatScore(recipe = "comment", at = steps.words.last, until = texts.lastIndex, text = word, label = "کامنت کن", place = "top")
+        }
+        filled(cards, words, lines, reads)
+        val sequenced = sequence(cards.filter { it.recipe != "pop-captions" }, words) + cards.filter { it.recipe == "pop-captions" }
+        sequenced.filter { it.recipe != "pop-captions" }.forEach { b -> log("storyboard card: ${b.recipe} @${b.at}–${b.until} «${b.text.orEmpty()}» ${b.items.joinToString(" / ")}") }
+        val merged = laidOut(shells, sequenced, loose)
+        return score.copy(scenes = merged, captions = score.captions.copy(maxWords = CAPTION_WORDS, mark = MEANING))
+    }
+
+    /**
+     * The scenes over the cards: a scene starting inside a card's span would cut it there, so it joins the one before;
+     * every card goes to the scene its word is in, the beats with no word to their own scene's heir.
+     */
+    private fun laidOut(scenes: List<SceneScore>, sequenced: List<BeatScore>, loose: List<Pair<Int, List<BeatScore>>>): List<SceneScore> {
+        val spans = sequenced.filter { it.recipe != "pop-captions" }.map { b -> b.at!!.let { a -> a to (b.until ?: a) } }
+        val kept = scenes.indices.filter { k -> k == 0 || spans.none { (a, z) -> (scenes[k].from ?: 0) in (a + 1)..z } }
+        val merged = kept.map { scenes[it] }.toMutableList()
+        fun sceneOf(word: Int) = merged.indexOfLast { (it.from ?: 0) <= word }.coerceAtLeast(0)
+        for (b in sequenced) sceneOf(b.at!!).let { k -> merged[k] = merged[k].copy(beats = merged[k].beats + b) }
+        for ((k, beats) in loose) {
+            val into = kept.indexOfLast { it <= k }.coerceAtLeast(0)
+            merged[into] = merged[into].copy(beats = merged[into].beats + beats)
+        }
+        return merged
+    }
+
+    /**
+     * The cards one after another, as the reference lays them: two landing within [CLASH] seconds keep the richer
+     * one (a grid over a figure over a title over a pill, the longer pill of two); a pill of one plain word says
+     * nothing and goes; each card stays up until the next one lands (at most [HOLD_UNTIL_NEXT] seconds more than
+     * its own), always in the band above the head.
+     */
+    private fun sequence(cards: List<BeatScore>, words: List<Word>): List<BeatScore> {
+        fun start(i: Int) = words.getOrNull(i)?.range?.startMs?.div(MS) ?: 0f
+        val meaningful = cards.filter { b -> b.recipe != "board-pill" || says(b.text.orEmpty()) }
+        val out = mutableListOf<BeatScore>()
+        for (b in meaningful.sortedBy { it.at }) {
+            val prev = out.lastOrNull()
+            // The ask's field is never traded for another card: it is the ending.
+            val ending = b.recipe == "comment" || prev?.recipe == "comment"
+            if (prev != null && !ending && start(b.at!!) - start(prev.at!!) < CLASH) {
+                if (rank(b) > rank(prev) || (rank(b) == rank(prev) && b.text.orEmpty().length > prev.text.orEmpty().length)) out[out.lastIndex] = b
+                continue
+            }
+            out += b
+        }
+        return out.mapIndexed { i, b ->
+            val next = out.getOrNull(i + 1)?.at
+            val own = b.until ?: b.at!!
+            val held = next?.let { n -> (n - 1).coerceAtLeast(own) }?.let { u -> if (start(u) - start(own) <= HOLD_UNTIL_NEXT) u else own } ?: own
+            b.copy(until = held, hold = null, place = "top")
+        }
+    }
+
+    private fun rank(b: BeatScore): Int = when (b.recipe) {
+        "board-tiles", "board-versus", "board-steps", "board-chat", "comment", "endcard" -> RANK_STATE
+        "board-chips", "board-price", "board-quote", "ui-browser", "ui-chat", "url" -> RANK_CARD
+        in TITLES -> RANK_TITLE
+        else -> RANK_PILL
+    }
+
+    /**
+     * Every sentence gets its card: a line with nothing on screen while it is said, and none landing within
+     * [GAP_BEFORE] seconds before it, gets a pill with its title (the reading's, else its key phrase).
+     */
+    private fun filled(cards: MutableList<BeatScore>, words: List<Word>, lines: List<Lines.Line>, reads: List<LineRead>) {
+        fun start(i: Int) = words.getOrNull(i)?.range?.startMs?.div(MS) ?: 0f
+        val landed = cards.filter { it.recipe != "pop-captions" }.map { b -> b.at!!.let { a -> a to (b.until ?: a) } }.toMutableList()
+        for ((k, line) in lines.withIndex()) {
+            val busy = landed.any { (a, z) -> a <= line.last && z >= line.first } ||
+                landed.any { (a, _) -> start(a) in (start(line.first) - GAP_BEFORE)..start(line.first) }
+            if (busy || line.size < MIN_LINE_WORDS) continue
+            // The reading's title, else the line's key phrase; a raw stretch of speech is no title (the card before stays up).
+            val title = listOfNotNull(reads.getOrNull(k)?.title, Phrases.title(words, line, alone = false))
+                .map { it.trim() }.firstOrNull { it.isNotBlank() && says(it) }
+            title?.let { pill(BeatScore(recipe = "board-pill", at = line.first, until = line.last), it) }?.let { p ->
+                cards += p
+                landed += line.first to line.last
+            }
+        }
+    }
+
+    /** [b] on the first word of its quote at or after [from] (its first two words matched), else as it is. */
+    private fun located(b: BeatScore, from: Int, texts: List<String>): BeatScore {
+        val quote = b.text?.split(' ')?.map(StoryCut::normal)?.filter { it.isNotEmpty() }.orEmpty()
+        if (quote.isEmpty()) return b
+        val said = texts.map(StoryCut::normal)
+        val i = (from until said.size).firstOrNull { i -> quote.take(2).withIndex().all { (j, q) -> said.getOrNull(i + j)?.startsWith(q.take(QUOTE_STEM)) == true } }
+        return i?.let { b.copy(at = it) } ?: b
+    }
+
+    /** A figure as a card shows it: whole thousands grouped («۲٬۷۰۰٬۰۰۰»), Persian digits in a Persian piece. */
+    fun money(value: Double, persian: Boolean): String {
+        if (value != kotlin.math.floor(value) || value < THOUSAND) return Quantities.digits(value, persian)
+        val grouped = value.toLong().toString().reversed().chunked(3).joinToString(",").reversed()
+        return if (persian) io.trimio.core.model.text.Numerals.toPersian(grouped).replace(',', '٬') else grouped
+    }
+
+    /**
+     * [revised] when it keeps every card that holds state in [old] (a grid, a versus, the steps, an assistant's window,
+     * chips, a price, a quote: what the piece is drawn with), else [old]: a judge's fix may move, retime or add, never
+     * take the storyboard apart. A score not told in cards is [revised] as it is.
+     */
+    fun kept(old: Score, revised: Score): Score {
+        if (!told(old)) return revised
+        fun rich(s: Score) = s.scenes.flatMap { it.beats }.filter { it.recipe in RICH }.map { it.recipe to it.at }.toSet()
+        return if (rich(revised).containsAll(rich(old))) revised else old
+    }
+
+    /** Whether [score] is told in cards (its captions mark meaning): what the critic and the jury add to it must be too. */
+    fun told(score: Score): Boolean = score.captions.mark == MEANING
+
+    /**
+     * A beat the critic or the jury adds to (or puts in place of one in) a [told] score, said in cards: a title is a
+     * pill unless the piece has no title yet, a figure a price card, and so on ([card]); null when it says nothing as one.
+     */
+    fun translated(score: Score, b: BeatScore): BeatScore? {
+        if (!told(score)) return b
+        // The ask is made once, at the end, as steps: a comment card before them (a keyword said in passing) is no ask.
+        val steps = score.scenes.flatMap { it.beats }.firstOrNull { it.recipe == "board-steps" }
+        if (b.recipe == "comment" && steps != null && (b.at ?: Int.MAX_VALUE) < (steps.at ?: 0)) return null
+        val titled = score.scenes.any { s -> s.beats.any { it.recipe in TITLES } }
+        return if (b.recipe in TITLES && !titled) b.copy(place = "top") else card(b, emptyList())
     }
 
     /** [b] as a card, or null when it has nothing to say on one. */
@@ -68,9 +203,17 @@ internal object Storyboard {
         }
     }
 
+    /** A pill says something: two content words at least («شفاف‌سازی کامل», not «کردن حساب» or «فارسی»), or a site or a figure. */
+    private fun says(text: String): Boolean {
+        val words = text.split(' ').filter { it.isNotBlank() }
+        val named = words.any { w -> w.any { it == '.' || it in 'a'..'z' || it in 'A'..'Z' || it.isDigit() } }
+        val content = StoryCut.content(words.map { w -> Word(w, io.trimio.core.model.time.TimeRange(0, 1), language = io.trimio.core.model.text.Language.Persian) }).size
+        return named || content >= 2
+    }
+
     private fun pill(b: BeatScore, text: String): BeatScore? {
         val words = text.split(' ').filter { it.isNotBlank() }
-        if (words.isEmpty()) return null
+        if (words.isEmpty() || !says(text)) return null
         val shown = words.take(PILL_WORDS).joinToString(" ")
         return BeatScore(
             recipe = "board-pill", at = b.at, until = b.until, time = b.time, hold = b.hold ?: PILL_HOLD, text = shown, place = "top",
@@ -80,12 +223,12 @@ internal object Storyboard {
 
     private fun price(b: BeatScore, value: Float, texts: List<String>): BeatScore {
         val persian = texts.any { w -> w.any { it in '؀'..'ۿ' } }
-        val figure = listOfNotNull(b.prefix?.takeIf { it.isNotBlank() }, Quantities.digits(value.toDouble(), persian), b.suffix?.takeIf { it.isNotBlank() }).joinToString(" ")
+        val figure = listOfNotNull(b.prefix?.trim()?.takeIf { it.isNotBlank() }, money(value.toDouble(), persian), b.suffix?.trim()?.takeIf { it.isNotBlank() }).joinToString(" ")
         // Ours («ورودیمون», «ما») reads green; theirs, or what it simply costs, red.
         val around = b.at?.let { a -> texts.subList((a - OWNER_BEFORE).coerceAtLeast(0), (a + OWNER_AFTER).coerceAtMost(texts.size)) }.orEmpty()
         val ours = around.any { w -> w.trim('،', ',', '.').replace("\u200C", "").let { it == "ما" || OURS.any(it::endsWith) } }
         return BeatScore(
-            recipe = "board-price", at = b.at, until = b.until, time = b.time, hold = b.hold, text = figure, label = b.label?.takeIf { it.isNotBlank() },
+            recipe = "board-price", at = b.at, until = b.until, time = b.time, hold = b.hold, text = figure, value = value, label = b.label?.takeIf { it.isNotBlank() },
             mark = if (ours) "gain" else "loss", place = "top",
         )
     }
@@ -155,6 +298,18 @@ internal object Storyboard {
     }
 
     private const val CAPTION_WORDS = 4
+    private const val THOUSAND = 1000.0
+    private const val QUOTE_STEM = 3
+    private const val MEANING = "meaning"
+    private const val MS = 1000f
+    private const val CLASH = 1.5f
+    private const val HOLD_UNTIL_NEXT = 4f
+    private const val RANK_STATE = 3
+    private const val RANK_CARD = 2
+    private const val RANK_TITLE = 1
+    private const val RANK_PILL = 0
+    private const val GAP_BEFORE = 1.5f
+    private const val MIN_LINE_WORDS = 3
     private const val PILL_WORDS = 5
     private const val PILL_HOLD = 2.2f
     private const val STEPS = 4
@@ -168,6 +323,7 @@ internal object Storyboard {
 
     /** What the brief says when it wants full-frame graphics after all. */
     private val STAGE_WORDS = listOf("تمام صفحه", "فول اسکرین", "صحنه کامل", "full screen", "full-screen", "full frame", "full-frame")
+    private val RICH = setOf("board-tiles", "board-versus", "board-steps", "board-chat", "board-chips", "board-price", "board-quote")
     private val TITLES = setOf("slam", "stack", "spread", "mask-rise", "blur-in", "flip", "type-on", "glitch")
     private val FIGURES = setOf("counter", "meter", "ring", "stat-stack", "burst", "countdown", "progress", "stats", "voucher", "price-tag", "receipt", "chart", "bars")
     private val KEEP = setOf(

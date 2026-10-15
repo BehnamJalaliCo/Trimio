@@ -34,7 +34,7 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
         if (graphics.none { it.at <= hookBy } && lines.isNotEmpty()) {
             issues += Issue(0f, "hook", "nothing lands in the first ${hookBy}s")
             val line = lines.first()
-            phrase(line, words)?.let { p -> scenes = scenes.addBeat(0, BeatScore(recipe = "slam", text = p, energy = 0.9f, place = "top")) }
+            phrase(line, words)?.let { p -> Storyboard.translated(score, BeatScore(recipe = "slam", text = p, energy = 0.9f, place = "top"))?.let { scenes = scenes.addBeat(0, it) } }
         }
 
         // 2. Stillness: stretches with no graphic on screen and no cut; long ones get a punch-in cut.

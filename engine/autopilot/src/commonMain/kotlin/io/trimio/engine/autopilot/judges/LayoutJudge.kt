@@ -264,7 +264,7 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
         /** Under 2% of the frame a graphic is a speck on a phone. */
         const val TINY = 0.02f
         /** Small on purpose: a stamp, a site's address pill, an icon, the speaker's name. */
-        val SMALL_BY_DESIGN = setOf("stamp", "url", "icon", "lower-third", "ticker")
+        val SMALL_BY_DESIGN = setOf("stamp", "url", "icon", "lower-third", "ticker", "board-pill")
 
         fun pct(v: Float, of: Float) = kotlin.math.round(v / of * PERCENT).toInt()
     }
