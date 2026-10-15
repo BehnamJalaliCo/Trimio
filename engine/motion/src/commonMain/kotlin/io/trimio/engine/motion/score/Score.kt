@@ -78,6 +78,11 @@ data class SceneScore(
     /** How this scene enters: "cut", "whip", "flash", "leak" or "zoom". */
     val transition: String? = null,
     val beats: List<BeatScore> = emptyList(),
+    /**
+     * On a stage of its own ([bg]), the speaker stays on screen in a small rounded card: "corner" (top left) or "top"
+     * (top centre). The footage shrinks into the card as the scene opens and grows back as it ends.
+     */
+    val inset: String? = null,
 )
 
 @Serializable

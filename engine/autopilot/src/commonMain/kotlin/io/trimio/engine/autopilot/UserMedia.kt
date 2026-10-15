@@ -37,6 +37,11 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
     /** One asset's moment: its line, the word it lands on, the recipe and why. */
     data class Placement(val reading: AssetReading, val line: Int, val at: Int, val recipe: String, val why: String)
 
+    /** The look of the reference the creator attached to follow, if any ([ReferenceStyle]). */
+    val reference: ReferenceStyle.Read? by lazy {
+        readings.firstOrNull { it.role == Role.Reference }?.let { byId[it.id] }?.let { a -> ReferenceStyle.read(listOf(a.thumbnail) + a.frames, a.duration) }
+    }
+
     private class Hit(val at: Int, val score: Float, val why: String)
 
     /** [score] with every asset placed and the glossary shown; [words] on the output clock, [lines] over them. */
@@ -55,7 +60,9 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
     /** Where each asset goes and in what form. */
     fun place(words: List<Word>, lines: List<Lines.Line>, score: Score): List<Placement> {
         val norm = words.map { key(it.text) }
-        val hits = readings.flatMap { r -> lines.indices.mapNotNull { k -> hit(r, lines[k], norm)?.let { Triple(r, k, it) } } }
+        // A reference is a look to follow, never a picture on screen.
+        val shown = readings.filter { it.role != Role.Reference }
+        val hits = shown.flatMap { r -> lines.indices.mapNotNull { k -> hit(r, lines[k], norm)?.let { Triple(r, k, it) } } }
         val out = mutableListOf<Placement>()
         val used = mutableSetOf<Int>()
         for ((r, k, h) in hits.filter { it.third.score >= MATCH }.sortedWith(compareByDescending<Triple<AssetReading, Int, Hit>> { it.third.score }.thenBy { it.second })) {
@@ -64,7 +71,7 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
             used += k
         }
         val cta = ctaLine(score, lines)
-        for (r in readings.filter { r -> out.none { it.reading.id == r.id } }) {
+        for (r in shown.filter { r -> out.none { it.reading.id == r.id } }) {
             val (k, why) = fallback(r, lines, cta, used, hits.filter { it.first.id == r.id })
             out += Placement(r, k, lines[k].first, recipe(r, lines[k], words), why)
             used += k

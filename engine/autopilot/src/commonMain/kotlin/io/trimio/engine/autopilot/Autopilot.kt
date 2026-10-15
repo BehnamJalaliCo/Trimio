@@ -294,7 +294,7 @@ class Autopilot(
         val edit = open?.applyTo(r.cut, COLD_OPEN_GAP) ?: r.cut
         open?.let { log("cold open: «${texts.slice(it.words).joinToString(" ")}» ${round1(it.length)}s") }
         val output = edit.remap(transcript).words
-        val planned = Planner(taste, request.prompt).plan(
+        val planned = Planner(taste, request.prompt, r.media.reference).plan(
             output, r.lines, r.understanding, seed, footage = request.footage != null,
             opening = open?.let { Planner.Opening(edit.preludeLength, it.line, it.words) },
         )

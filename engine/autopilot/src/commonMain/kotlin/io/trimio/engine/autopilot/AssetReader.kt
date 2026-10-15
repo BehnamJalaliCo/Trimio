@@ -85,10 +85,15 @@ class AssetReader(private val eyes: LanguageModel? = null) {
         private val ROLES = mapOf("logo" to Role.Logo, "product" to Role.Product, "screenshot" to Role.Screenshot, "broll" to Role.Broll, "photo" to Role.Photo)
 
         /** Whether the creator (or their brief) fixed this role, so the eyes do not overrule it. */
-        private val Role.explicit: Boolean get() = this == Role.Logo
+        private val Role.explicit: Boolean get() = this == Role.Logo || this == Role.Reference
 
         /** The words that name each kind of asset in a brief, a file name or a caption. */
         private val ROLE_WORDS: List<Pair<Role, List<String>>> = listOf(
+            // «مثل این ویدیو بساز», «به سبک این موشن»: a look to follow, not a picture to show (before «ویدیو» means a clip).
+            Role.Reference to listOf(
+                "رفرنس", "مثل این ویدیو", "مثل این ویدئو", "مثل این کلیپ", "مثل این موشن", "مثل این ریلز", "شبیه این ویدیو", "شبیه این کلیپ", "به سبک", "سبک این",
+                "استایل این", "reference", "style of", "in the style", "like this video", "like this clip",
+            ),
             Role.Logo to listOf("لوگو", "logo", "نشان تجاری", "brand mark"),
             Role.Screenshot to listOf("اسکرین‌شات", "اسکرینشات", "اسکرین شات", "اسکرین", "screenshot", "screen shot", "screen", "صفحه اپ", "صفحه سایت"),
             Role.Product to listOf("محصول", "product", "packshot", "پکیج"),
@@ -121,6 +126,7 @@ class AssetReader(private val eyes: LanguageModel? = null) {
             }
             val clause = clause(a, guess, brief, all)
             val role = when {
+                referenced(a, named, brief, all) -> Role.Reference
                 a.kind != UserAsset.Kind.Image -> guess
                 else -> clause?.let { roleIn(it) }?.takeIf { it != Role.Broll && it != Role.Photo } ?: guess
             }.let { if (it == Role.Photo) Role.Product else it }
@@ -140,6 +146,23 @@ class AssetReader(private val eyes: LanguageModel? = null) {
                 a.id, role, subject = words.take(2).joinToString(" "), brand = brand, keywords = words, cue = cue, where = where,
                 inset = INSET_WORDS.any { it in lower }, light = role == Role.Logo && pixels.light && pixels.clear >= Pixels.CLEAR,
             )
+        }
+
+        /**
+         * The creator offers [a] as a look to follow: its name or caption says so, or a clause of the brief does and names
+         * its file, or names none while [a] is the only clip attached (or, with no clip, the only picture).
+         */
+        private fun referenced(a: UserAsset, named: String, brief: String, all: List<UserAsset>): Boolean {
+            if (roleIn(named) == Role.Reference) return true
+            val clauses = brief.split(Regex("[\\n.!?؟؛;]+")).map { it.trim() }.filter { roleIn(it) == Role.Reference }
+            if (clauses.isEmpty()) return false
+            val stem = a.fileName.substringBeforeLast('.').lowercase()
+            if (clauses.any { c -> a.fileName.isNotBlank() && stem.length >= MIN_STEM && stem in c.lowercase() }) return true
+            val others = all.filter { o -> o.fileName.isNotBlank() && clauses.any { c -> o.fileName.substringBeforeLast('.').lowercase().let { it.length >= MIN_STEM && it in c.lowercase() } } }
+            if (others.isNotEmpty()) return false
+            // A look to follow is a clip when one is attached (never the logo beside it); else the one picture.
+            val clips = all.filter { it.kind == UserAsset.Kind.Video }
+            return if (clips.isNotEmpty()) clips.singleOrNull() === a else all.singleOrNull() === a
         }
 
         private fun roleIn(text: String): Role? {

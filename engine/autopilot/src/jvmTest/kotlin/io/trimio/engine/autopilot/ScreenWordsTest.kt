@@ -92,4 +92,37 @@ class ScreenWordsTest {
         val whole = "این مدل مثل کارآموز تازه‌وارد شرکته.".split(' ')
         assertTrue(Fragments.quotable(listOf("بدید.") + whole, 1..whole.size), "a whole sentence")
     }
+
+    /**
+     * The owner's 1/10 reel (1.0.29): the director's own headlines were refused as "not said" or as starting on the verb
+     * «ده» (ten), while lone words cut from the speech («سایتمو», «کانال‌های», «پولی») went on screen.
+     */
+    @Test
+    fun theDirectorsHeadlinesShowWhenTheySayWhatWasSaid() {
+        for (bad in listOf("سایتمو", "کانال‌های")) assertNotNull(Fragments.fault(bad), bad)
+        for (good in listOf("ده سیگنال در روز", "تمام سیگنال‌ها در CoinPro.com", "۵۰ تتر ورودی")) assertNull(Fragments.fault(good), good)
+
+        fun line(s: String) = s.split(' ')
+        val brief = line("اسم سایت ما CoinPro.com هست.")
+        val grounded = mapOf(
+            "ده سیگنال در روز" to "ده تا دونه در روز کلن سیگنال می‌ده،",
+            "۵۰ تتر ورودی" to "می‌تونی بری، کلن پنجاه تتر ورودی مونه،",
+            "ورود با پنجاه دلار" to "پنجاه دولار کف ورودیمونه رایگان هستیم",
+            "تمام سیگنال‌ها در CoinPro.com" to "CoinPro.com می‌تونی بری، تمام سیگنال همونو گذاشتیم،",
+            "شارژ حساب خودت" to "اونم تازه حساب خودتو شارج می‌کنی،",
+        )
+        for ((title, said) in grounded) assertTrue(Headlines.grounded(title, line(said), emptyList(), brief), title)
+        val invented = mapOf(
+            "ورود با اطمینان" to "راضی، ورودیشم دو میلیون و هفتصد هزار تومنه،",
+            "شفافیت بی‌نظیر ما" to "سفید شفاف‌تر از پیج ما و سایت ما اصلا نداریم",
+            "بدون سر و صدا سود" to "داره، اونم کردن تو بوق و کرنا که آقا ما داریم",
+            "۲۰ سیگنال در روز" to "ده تا دونه در روز کلن سیگنال می‌ده،",
+        )
+        for ((title, said) in invented) assertFalse(Headlines.grounded(title, line(said), emptyList(), brief), title)
+
+        assertTrue(Headlines.fits("ده سیگنال در روز") && Headlines.fits("CoinPro.com"))
+        assertFalse(Headlines.fits("پولی") || Headlines.fits("شفافیت"))
+        assertEquals("ورود با ۵۰ دلار", Headlines.written("ورود با پنجاه دلار", persian = true))
+        assertEquals("۱۰ سیگنال در روز", Headlines.written("ده سیگنال در روز", persian = true))
+    }
 }

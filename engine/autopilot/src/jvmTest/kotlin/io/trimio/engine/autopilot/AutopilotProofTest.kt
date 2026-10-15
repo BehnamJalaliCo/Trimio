@@ -94,7 +94,10 @@ class AutopilotProofTest {
             val studio = Studio(brands, visuals, llm, knowledge, head = addOns::head)
             // -Pauto.reuse=<file>: plan from a saved reading (no model run), for fast iteration and variations.
             val reuse = System.getProperty("auto.reuse")?.let(::File)?.takeIf { it.isFile }?.let { json.decodeFromString(Understanding.serializer(), it.readText()) }
-            val production = runBlocking { studio.produce(video, prompt, seed, transcript, reuse, assets) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
+            val planned0 = runBlocking { studio.produce(video, prompt, seed, transcript, reuse, assets) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
+            // -Pauto.score=<file>: a score written by hand (an editor's own cut of the piece), compiled and mastered as the
+            // planner's would be, so the director's edit and an editor's can be put side by side on the same footage.
+            val production = System.getProperty("auto.score")?.let(::File)?.takeIf { it.isFile }?.let { f -> handScored(planned0, Score.parse(f.readText())) } ?: planned0
             System.getProperty("auto.frames")?.split(',')?.map { it.trim().toFloat() }?.let { times ->
                 val c = production.compiled.composition
                 io.trimio.engine.motion.export.FfmpegFootage(video, c.fps, c.width, c.height).use { footage ->
@@ -123,6 +126,16 @@ class AutopilotProofTest {
             }
         }
         llm?.close()
+    }
+
+    /** [planned] with [score] in place of the planner's: compiled over the same words and cut, its sound mastered again. */
+    private fun handScored(planned: Autopilot.Production, score: Score): Autopilot.Production {
+        val bench = planned.bench ?: return planned
+        val compiled = bench.compiler.compile(bench.input(score, bench.transcript, planned.edit))
+        val mood = planned.plan.music
+        val sound = bench.master(compiled, planned.edit, bench.transcript, mood, bench.arrange(mood, planned.edit, bench.transcript), bench.levels)
+        val beats = compiled.beats.filter { it.recipe != "pop-captions" }.map { "  ${it.recipe.padEnd(12)} ${it.zone.padEnd(6)} ${"%.1f".format(it.at)}–${"%.1f".format(it.out)}  ${it.text}" }
+        return planned.copy(compiled = compiled, score = score, soundtrack = sound, report = listOf("hand score: ${score.scenes.size} scenes") + beats)
     }
 
     private fun useEmbedder(dir: String?) {

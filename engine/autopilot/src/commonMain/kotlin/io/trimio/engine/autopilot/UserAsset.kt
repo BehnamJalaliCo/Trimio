@@ -55,6 +55,7 @@ data class AssetReading(
     /** How it was read: "eyes" or "rules". */
     val by: String = "rules",
 ) {
-    enum class Role { Logo, Product, Screenshot, Broll, Photo }
+    /** What an asset is; a [Reference] is not shown at all: the edit takes its palette and its pace ([ReferenceStyle]). */
+    enum class Role { Logo, Product, Screenshot, Broll, Photo, Reference }
     enum class Where { Start, End }
 }

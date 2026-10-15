@@ -311,3 +311,31 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   them, and the decoder wrapped the cancellation (an IllegalStateException in Kotlin) as a broken file. It lets
   cancellations through now.
 - The render began with 915 MB free and the director's 2.6 GB of weights still held: the kill 1.0.28 fixes.
+
+## 15 Oct — the owner's 1/10 on his own reel (1.0.29), and the references he sent
+
+- His verdict on the output of his 155 s CoinPro video: 1 of 10. Run again on the host with the phone's director (E4B),
+  the reading is degenerate (every line «list» with English items) and the planner's rules threw away the director's
+  good headlines («ده سیگنال در روز»: «starts on the verb ده»; «۵۰ تتر ورودی», «تمام سیگنال‌ها در CoinPro.com»: «not
+  said») while one-word cuts of the speech went on screen («پولی», «سایتمو», «کانال‌های»).
+  - A title is now taken when every word that carries meaning stands for one said in the line or beside it, or in the
+    brief — the same stem, a spoken form, a recogniser's slip of one letter, the same number — and one is the line's own
+    (`Headlines.grounded`): «ورود با پنجاه دلار» for «پنجاه دولار کف ورودیمونه» is shown (as «ورود با ۵۰ دلار»),
+    «ورود با اطمینان» is not. A headline is 2–6 words; a lone word only when it is a Latin name. Number words are no
+    verbs («ده» is ten). A list card needs three items said.
+  - The director's prompt asks for that headline: 2–5 written words, the line's claim or figure, a number in digits.
+- His seven references: a Persian talking-head tech reel in black and gold («۴ تا پرامپت»: the speaker shrinks into
+  a card in the corner while the frame shows a chat, a gallery, a shop; numbered chapters; two- to three-word captions
+  with one word on a gold block; the ask as a comment bubble and «دایرکتتو چک کن»), a Persian zoom and background
+  tutorial, a 3D-collage football piece, a paper-collage Buffett piece, an Alight Motion edit test, a Persian lesson on
+  colour palettes («the elements, texts and motion take their colours from one palette that matches the picture»), and
+  a Pinterest motion recreated with a model in the cloud.
+  - A stage of its own keeps the speaker on screen (`SceneScore.inset`: «corner» or «top»): the footage shrinks into a
+    rounded card around the head and shoulders as the stage opens and grows back as it ends. The planner's full-frame
+    graphics on a talking head use it; they had been switched off after the owner's dark pages.
+  - On a stage the graphics are slides: the next one takes the last one's place once it has been read, the centre's
+    graphic takes the whole band, a compact card grows (to 2.2×) until it fills it, and every band clears the card.
+  - Pros and cons take their sides' names from the label («ما|اونا»); a mixed-case name keeps its spelling in a look
+    that sets Latin in capitals («ChatGPT», «CoinPro.com»).
+  - An editor's own score can be compiled over the same words and cut (`-Pauto.score`) to set the director's edit and
+    a hand-cut one side by side.

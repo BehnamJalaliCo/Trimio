@@ -8,6 +8,7 @@ import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Words
+import io.trimio.engine.motion.style.StyleBook
 import io.trimio.engine.motion.style.StyleLanguage
 
 /**
@@ -30,7 +31,12 @@ import io.trimio.engine.motion.style.StyleLanguage
  * choices (text entrances, transitions in and out, camera, marks, caption length, how much goes
  * full-frame, stage backgrounds, accents) without touching the rules above.
  */
-class Planner(private val taste: Taste = Taste(), private val brief: String = "") {
+class Planner(
+    private val taste: Taste = Taste(),
+    private val brief: String = "",
+    /** A look the creator attached to follow ([ReferenceStyle]): its tone picks the style, its colour is the accent. */
+    private val reference: ReferenceStyle.Read? = null,
+) {
 
     data class Plan(val score: Score, val music: MusicMood?, val choices: Choices, val notes: List<String>)
 
@@ -117,7 +123,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 else -> picked
             }
         }
-        val style = StyleChoices.choose(brief, u, mood, taste, lookRng, notes)
+        val style = reference?.takeIf { StyleBook.asked(brief).isEmpty() }?.let { ReferenceStyle.style(it) }
+            ?.also { notes += "style ${it.id}: the reference's tone and colour (${reference?.accentHex})" }
+            ?: StyleChoices.choose(brief, u, mood, taste, lookRng, notes)
         val styling = StyleChoices(style, taste)
         val look = style.id
         val paced = styling.paced
@@ -174,7 +182,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 else -> captionRng.pick(style.captions.words)
             }
             val showCaptions = taste.captions && u.brief.captions != "none"
-            val accent = paletteRng.pick(style.accents)
+            // The reference's own colour, when the creator attached one to follow (the seed's pick is still drawn).
+            val accent = paletteRng.pick(style.accents).let { reference?.accentHex ?: it }
             val score = Score(
                 look = look,
                 accent = accent,
@@ -288,7 +297,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             val at = shown.map { it.at }.toSet()
             return reads.mapIndexed { k, r ->
                 val q = figures.counted(senses[k]).takeIf { r.show in NUMBER_SHOWS }
-                if (q != null && (q.at in at || q.value in values)) r.copy(show = plainShow(lines[k], r)) else r
+                if (q != null && (q.at in at || q.value in values)) r.copy(show = plainShow(r)) else r
             }
         }
 
@@ -314,6 +323,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 camera = if (takeover) null else styling.camera(read.energy, showRng),
                 transition = transition,
                 beats = beats,
+                // On a full-frame graphic the speaker stays on screen, small in the corner, as premium reels keep them.
+                inset = if (takeover && footage) "corner" else null,
             )
         }
 
@@ -322,13 +333,27 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** The model's reading checked against what the line actually says. */
         private fun refine(k: Int, raw: LineRead): LineRead {
             val line = lines[k]
-            // On screen only words the speaker said in this line (a model's «وچر» for «ووچر» never shows);
-            // labels may also use the brief's words.
+            // On screen only what the speaker said: the title as said, or the model's own words for the
+            // line when each says something said there ([Headlines]: «ده سیگنال در روز», never «ورود با اطمینان»).
             val read = localised(raw).let { r ->
-                // A title that does not read on its own ([Fragments]: «باید استفاده») is not shown.
-                val said = spokenIn(r.title, line)?.takeIf { Fragments.fault(it) == null }
-                labels[k] = said ?: r.title.takeIf { inBrief(it) && Fragments.fault(it) == null }.orEmpty()
-                r.copy(title = said.orEmpty())
+                val title = r.title.trim()
+                val heard = texts.subList(line.first, line.last + 1)
+                val own = spokenIn(title, line) ?: title.takeIf { it.isNotBlank() && Headlines.grounded(it, heard, around(k), briefTokens) }
+                    ?.let { Proofreader.fromBrief(it.split(' '), brief).let { fixed -> it.split(' ').mapIndexed { i, w -> fixed[i] ?: w }.joinToString(" ") } }
+                    ?.let { Headlines.written(it, rtl) }
+                // A title that does not read on its own ([Fragments]: «باید استفاده») is not shown; nor a lone word («پولی», «سایتمو»).
+                val fault = own?.let(Fragments::fault)
+                val headline = own?.takeIf { fault == null && Headlines.fits(it) }
+                if (title.isNotBlank() && headline == null) {
+                    val why = when {
+                        own == null -> "not said"
+                        fault != null -> fault
+                        else -> "not a headline"
+                    }
+                    notes += "line $k: title «$title» not taken ($why) in «${heard.joinToString(" ")}»"
+                }
+                labels[k] = own?.takeIf { fault == null } ?: title.takeIf { inBrief(it) && Fragments.fault(it) == null }.orEmpty()
+                r.copy(title = headline.orEmpty())
             }
             val number = NumberWords.findAll(texts.subList(line.first, line.last + 1)).firstOrNull()
             // A list of names often runs on into the next line ("…به Claude Code، | Codex یا OpenCode…"):
@@ -366,7 +391,11 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             return parts.map { said[it] ?: return null }.joinToString(" ") { texts[it].trimEnd('.', '،', ',') }
         }
 
+        private val briefTokens by lazy { brief.split(' ', '\n', '،', ',').filter { it.isNotBlank() } }
         private val briefWords by lazy { brief.split(' ', '\n', '،', ',', '.').map { NumberWords.normalize(it) }.filter { it.isNotEmpty() }.toSet() }
+
+        /** The words of the lines just before and after line [k]: a title may gather a thought said across them. */
+        private fun around(k: Int): List<String> = listOfNotNull(lines.getOrNull(k - 1), lines.getOrNull(k + 1)).flatMap { texts.subList(it.first, it.last + 1) }
         private fun inBrief(title: String) = title.isNotBlank() && title.split(' ').all { NumberWords.normalize(it) in briefWords }
 
         /** The label a line's graphic may carry: its title as said, or in the brief's words. */
@@ -378,8 +407,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             return when {
                 // A list of names said in the line is always shown as logos, whatever was asked.
                 brands.size >= 2 -> "logos"
+                shares(k) != null -> "poll"
                 else -> numbersSay(k, line, read, bigNumber) ?: when {
-                    !grounded(line, read, number != null, brands.isNotEmpty()) -> plainShow(line, read)
+                    !grounded(line, read, number != null, brands.isNotEmpty()) -> plainShow(read)
                     read.show in setOf("counter", "meter") && number == null -> "headline"
                     read.show == "logos" && brands.isEmpty() && read.items.isEmpty() -> "headline"
                     read.show == "comment" && u.cta == null -> "headline"
@@ -398,7 +428,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 // Views and comments are a stats board or a counter, never a made-up trend.
                 read.show in setOf("chart", "meter") && sense.social.isNotEmpty() -> rich ?: "counter"
                 // A voucher, stats, countdown or progress needs its numbers in the line.
-                read.show in RICH_SHOWS && !sense.supports(read.show) -> rich ?: if (bigNumber) "counter" else plainShow(line, read)
+                read.show in RICH_SHOWS && !sense.supports(read.show) -> rich ?: if (bigNumber) "counter" else plainShow(read)
                 // When the numbers clearly say more than a headline or a bare counter, show what they say.
                 rich != null && read.show in UPGRADABLE -> rich
                 else -> null
@@ -407,7 +437,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         private fun textKey(text: String) = Phrases.key(text.replace(" ", ""))
 
-        private fun plainShow(line: Lines.Line, read: LineRead) = if (read.title.isNotBlank() && locate(read.title, line) != null) "headline" else "none"
+        /** A headline when the line has a title ([refine] kept only one grounded in what was said), else nothing of its own. */
+        private fun plainShow(read: LineRead) = if (read.title.isNotBlank()) "headline" else "none"
 
         /**
          * A rich graphic is shown once: the same voucher or quota said again becomes a stamp of
@@ -442,8 +473,13 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
                 u.entities.any { it.at in line.range && it.visual.isNotBlank() } || (read.gist.isNotBlank() && read.visual.isNotBlank() && line.size >= 4 && repeatOf(lines.indexOf(line)) == null)
         }
 
-        /** A list of things: two or more items, said out loud (not the model echoing the line's words), in the video's language. */
-        private fun listed(line: Lines.Line, read: LineRead): Boolean = read.items.size >= 2 && read.items.count { item -> item.length >= 3 } >= 2 &&
+        /**
+         * A list of things: three or more items, each said in the line or beside it ([Headlines]: a model's «ترید» for a
+         * line that never says it is no item), not the model echoing the line's words, in the video's language. Two words
+         * on a card read as a fragment, not a list.
+         */
+        private fun listed(line: Lines.Line, read: LineRead): Boolean = read.items.size >= MIN_LIST && read.items.count { item -> item.length >= 3 } >= MIN_LIST &&
+            lines.indexOf(line).let { k -> read.items.all { Headlines.grounded(it, texts.subList(line.first, line.last + 1), around(k), briefTokens) } } &&
             (read.role == "list" || !read.items.all { item -> line.range.any { texts[it].trimEnd('،', ',', '.') == item } }) &&
             // Items speak the video's language (or are names said in the line), never picture prompts.
             read.items.all { item -> !rtl || item.any { it in '\u0600'..'\u06FF' } || locate(item, line) != null }
@@ -455,6 +491,30 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         /** Brand, app and product names said in [line], canonical spelling. */
         /** The first line where a number of [value] is said. */
+        /**
+         * «ده تا در روز سیگنال می‌ده، | نه تاش استاپ می‌خوره، یه دونه‌ش سود»: a whole said and then its two parts are a
+         * share, shown as result bars — each part by the word said after it («استاپ», «سود»), as its share of the whole,
+         * under the whole's label («۱۰ سیگنال در روز») or its unit. Null when the line says no such pair.
+         */
+        private fun shares(k: Int): BeatScore? {
+            val counted = senses[k].quantities.filter { !it.year && it.kind != Quantities.Kind.Money && it.kind != Quantities.Kind.Percent }
+            if (counted.size != 2 || counted.any { it.at !in lines[k].range }) return null
+            val sum = counted.sumOf { it.value }
+            val whole = (maxOf(0, k - 1)..k).flatMap { j -> senses[j].quantities }.firstOrNull { q -> q.at < counted[0].at && kotlin.math.abs(q.value - sum) < SHARE_EPSILON }
+                ?: return null
+            val names = counted.map { q ->
+                (q.at + q.count..lines[k].last).map { texts[it].trim('،', ',', '.', '!', '؟', '?') }.firstOrNull { w ->
+                    NumberWords.normalize(w).let { n -> n !in COUNTERS && !Phrases.verb(n) } && Fragments.content(w)
+                } ?: return null
+            }
+            val wholeLine = lines.indexOfFirst { whole.at in it.range }
+            val question = labels[wholeLine]?.ifBlank { null } ?: whole.unit.ifBlank { null } ?: return null
+            return BeatScore(
+                recipe = "poll", at = counted[0].at, until = lines[k].last, text = question, items = names,
+                points = counted.map { (it.value / sum * PERCENT).toFloat() }, variant = 0,
+            )
+        }
+
         private fun lineSaying(value: Double): Int? = lines.indices.firstOrNull { k -> senses[k].quantities.any { kotlin.math.abs(it.value - value) < 0.01 && it.at in lines[k].range } }
 
         private fun brandsIn(line: Lines.Line) = u.entities
@@ -468,9 +528,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** Which lines become full-frame graphics: the strongest candidates, never adjacent, within budget. */
         private fun chooseTakeovers(reads: List<LineRead>): Set<Int> {
             if (!footage) return lines.indices.toSet()
-            // A talking head stays on screen: the owner's reel cut to dark full-frame pages (a lone «۱۰», a chat window
-            // for 11 s, the call to action without him) and he read it as cheap. Graphics play over the speaker.
-            if (TALKING_HEAD) return emptySet()
+            // The speaker never leaves: the owner's reel cut to dark full-frame pages (a lone «۱۰», a chat window for 11 s)
+            // and he read it as cheap. A full-frame graphic now keeps him in a card in its corner (see [scene]).
             val total = duration(0, lines.lastIndex)
             // The share of full-frame graphics varies by seed (a calmer or a busier cut of the same piece).
             val budget = total * paced.takeover * takeoverRng.range(0.6f, 1.35f)
@@ -531,6 +590,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             if (!(hasHook && k == 0)) extra(line, read, takeover, primary != null, out.size)?.let { out += it }
             ask.follow(k, line, out)
             usedRecipes += out.map { it.recipe }
+            // What the director asked of the line and what it became: the report says why a line shows what it shows.
+            notes += "line $k: ${u.lines.getOrNull(k)?.show ?: "-"} → ${read.show} «${read.title}» → " +
+                out.joinToString { b -> b.recipe + (b.text?.let { " «$it»" } ?: "") }.ifEmpty { "nothing" }
             return out.map { lasting(k, it) }
         }
 
@@ -589,6 +651,8 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
             "progress" -> progress(line, read, e, takeover)
             "message" -> message(line, read, e, takeover)
             "headline" -> headline(line, read, e, takeover)
+            "poll" -> shares(lines.indexOf(line))?.copy(energy = e, place = place(takeover))
+                ?: shows.direct(read.show, texts, line, read, sense(line), e, place(takeover)) ?: headline(line, read, e, takeover)
             in Shows.FAMILIES -> shows.direct(read.show, texts, line, read, sense(line), e, place(takeover)) ?: headline(line, read, e, takeover)
             else -> null
         }
@@ -816,7 +880,7 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
          */
         val TAKEOVER_SHOWS = mapOf(
             "voucher" to 1.1f, "network" to 1f, "stats" to 1f, "meter" to 0.95f, "countdown" to 0.95f, "chart" to 0.9f, "objects" to 0.8f, "list" to 0.75f,
-            "terminal" to 0.6f, "message" to 0.6f, "counter" to 0.45f, "headline" to 0.25f,
+            "terminal" to 0.6f, "message" to 0.6f, "poll" to 0.7f, "counter" to 0.45f, "headline" to 0.25f,
         )
 
         /** Lines a chat thread may run over: none with a figure, names or the ask of their own. */
@@ -852,6 +916,14 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val PLAIN_DATA = setOf("counter", "meter", "chart", "network", "terminal")
         const val DATA_HOLD = 3.2f
 
+        /** The fewest items a list card shows. */
+        const val MIN_LIST = 3
+
+        /** Words that count what comes before them («نه تاش», «یه دونه‌ش»): never the name of a share. */
+        val COUNTERS = setOf("تا", "تاش", "تاشون", "تاشو", "تاییش", "دونه", "دونهش", "دونش", "عدد", "نفر")
+        const val SHARE_EPSILON = 0.01
+        const val PERCENT = 100.0
+
         const val PAYOFF_HOLD = 4f
         const val LINGER = 0.55f
 
@@ -863,8 +935,6 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
 
         const val MIN_TAKEOVER_S = 1.4f
 
-        /** Video reels keep the speaker in frame: no full-frame stages over footage (see [Session.chooseTakeovers]). */
-        const val TALKING_HEAD = true
         const val EARLIEST_TAKEOVER_MS = 3500L
         const val MIN_NODES = 7
         const val PICTURE_CHANCE = 0.7f

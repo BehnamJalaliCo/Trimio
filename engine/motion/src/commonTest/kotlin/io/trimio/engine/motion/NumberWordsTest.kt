@@ -49,4 +49,12 @@ class NumberWordsTest {
         assertTrue(all("بیست درصدش رو بذار کنار").single().percent)
         assertNull(all("درصد").firstOrNull())
     }
+
+    /** «نه» is "no" and «یه» is "a", unless a counter word follows: «نه تاش» is nine of them, «یه دونه‌ش» one. */
+    @Test
+    fun everydayWordsCountBeforeACounter() {
+        assertEquals(listOf(9.0, 1.0), all("نه تاش استاپ می‌خوره، یه دونه‌ش سود").map { it.value })
+        assertTrue(all("نه، این کار رو نکن").isEmpty())
+        assertTrue(all("یه کانال دیدم").isEmpty())
+    }
 }

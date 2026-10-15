@@ -184,8 +184,10 @@ object CompareFamilies {
             return listOf(Kit.dot(cx, cy, d, ground, "point-disc"), Kit.icon(if (con) "close" else "check", cx, cy, d * 0.56f, Look.textOn(ground), at, d * 0.07f))
         }
 
-        private fun heading(look: Look, fit: Fitter, p: Kit.Plan, con: Boolean, cx: Float, top: Float, w: Float, size: Float, ground: Color?): Pair<Node, Float> {
-            val word = if (con) Kit.say(p.rtl, "معایب", "Cons") else Kit.say(p.rtl, "مزایا", "Pros")
+        /** The two headings: [Cue.label] "ours|theirs" («ما|اونا») when the piece names its sides, else pros and cons. */
+        private fun heading(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, con: Boolean, cx: Float, top: Float, w: Float, size: Float, ground: Color?): Pair<Node, Float> {
+            val named = cue.label?.split('|')?.map { it.trim() }?.takeIf { it.size == 2 && it.all(String::isNotEmpty) }
+            val word = named?.get(if (con) 1 else 0) ?: if (con) Kit.say(p.rtl, "معایب", "Cons") else Kit.say(p.rtl, "مزایا", "Pros")
             val f = Kit.fit(fit, word, Kit.labelVoice(look, p.typo).copy(weight = 800), size, w, size * 1.5f)
             val color = ground?.let { Kit.tint(look, if (con) look.negative else look.positive, it) } ?: if (con) look.negative else look.positive
             return Kit.words(word, f, color, cx, top + f.height / 2f, p.at, ground, p.rtl, Kit.Reveal.Fade, name = "point-heading") to f.height * 1.4f
@@ -217,7 +219,7 @@ object CompareFamilies {
             for (con in listOf(false, true)) {
                 val col = if (con == p.rtl) Box(box.left, box.top, box.left + w, box.bottom) else Box(box.right - w, box.top, box.right, box.bottom)
                 nodes += Kit.panel(look, cue, s, col.centerX, col.centerY, col.width, col.height, w * 0.08f, "column")
-                val (head, headH) = heading(look, fit, p, con, col.centerX, col.top + w * 0.06f, w * 0.8f, box.height * 0.075f, s.ground)
+                val (head, headH) = heading(cue, look, fit, p, con, col.centerX, col.top + w * 0.06f, w * 0.8f, box.height * 0.075f, s.ground)
                 nodes += head
                 val mine = points.filter { it.first == con }
                 val most = maxOf(points.count { it.first }, points.count { !it.first }).coerceAtLeast(1)
@@ -259,7 +261,7 @@ object CompareFamilies {
                 val edge = Kit.rect(Kit.startX(card, p.rtl, 4f), card.centerY, 8f, h, if (con) look.negative else look.positive, 4f * look.roundness, "point-edge")
                 nodes += Kit.panel(look, cue, s, card.centerX, card.centerY, card.width, card.height, unit * 0.3f, "point-card") + edge
                 val (head, headH) = heading(
-                    look, fit, p, con, Kit.fromStart(Kit.startX(card, p.rtl, unit * 0.5f), card.width * 0.3f, p.rtl), card.top + unit * 0.12f,
+                    cue, look, fit, p, con, Kit.fromStart(Kit.startX(card, p.rtl, unit * 0.5f), card.width * 0.3f, p.rtl), card.top + unit * 0.12f,
                     card.width * 0.3f, unit * 0.36f, s.ground,
                 )
                 nodes += head

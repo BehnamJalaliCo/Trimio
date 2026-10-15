@@ -14,12 +14,17 @@ import io.trimio.engine.motion.Filter
 import io.trimio.engine.motion.Fit
 import io.trimio.engine.motion.Grade
 import io.trimio.engine.motion.Group
+import io.trimio.engine.motion.Mask
 import io.trimio.engine.motion.MediaNode
 import io.trimio.engine.motion.Node
+import io.trimio.engine.motion.Shadow
+import io.trimio.engine.motion.ShapeNode
+import io.trimio.engine.motion.ShapeSpec
 import io.trimio.engine.motion.TextAlign
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.Transform
 import io.trimio.engine.motion.anim
+import io.trimio.engine.motion.fill
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.recipe.Built
 import io.trimio.engine.motion.recipe.CameraMove
@@ -30,8 +35,8 @@ import io.trimio.engine.motion.recipe.Look
 import io.trimio.engine.motion.recipe.Recipe
 import io.trimio.engine.motion.recipe.Recipes
 import io.trimio.engine.motion.recipe.Sfx
-import io.trimio.engine.motion.recipe.Stages
 import io.trimio.engine.motion.recipe.SfxKind
+import io.trimio.engine.motion.recipe.Stages
 import io.trimio.engine.motion.recipe.TextRecipes
 import io.trimio.engine.motion.recipe.Variety
 import kotlin.math.abs
@@ -276,11 +281,34 @@ class Compiler(
                 if (restMemo.size > REST_MEMO) restMemo.remove(restMemo.keys.first())
                 ink?.let { rests[b.id] = it }
                 val lens = Lens.over(camera, from, end)
-                val move = ink?.let { safely(it, type, b.cue.overMedia, lens) } ?: return@mapValues out
+                val move = ink?.let { filled(b, it) ?: safely(it, type, b.cue.overMedia, lens) } ?: return@mapValues out
                 rests[b.id] = move.third
                 notes += "kept ${b.recipe.name} inside the frame"
                 out.copy(nodes = listOf(Group(out.nodes, transform = move.first, name = "keep-inside")), box = out.box?.let(move.second))
             }
+        }
+
+        /**
+         * A graphic on a stage of its own (the footage covered) is the scene: a compact card drawn for a band over the
+         * speaker would sit small in an empty frame, so it grows (to [STAGE_GROW] at most) until it fills its slot, as an
+         * editor scales a card up when it takes the whole frame. Null when it already fills it, or over the footage.
+         */
+        private fun filled(b: Beat, ink: Geometry.Ink): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
+            if (b.cue.overMedia || input.footage == null || b.zone != Layout.Zone.Center || ink.width < 1f || ink.height < 1f) return null
+            val fw = w.toFloat()
+            val fh = h.toFloat()
+            val room = minOf(b.cue.width, fw * (1f - 2f * SAFE_SIDE)) * STAGE_FILL
+            val k = minOf(room / ink.width, b.cue.height / ink.height, STAGE_GROW)
+            if (k < STAGE_MIN_GROW) return null
+            val cx = (ink.left + ink.right) / 2f
+            val cy = (ink.top + ink.bottom) / 2f
+            val nx = fw / 2f
+            val ny = b.cue.y
+            val t = Transform(x = nx.anim, y = ny.anim, anchorX = cx / fw, anchorY = cy / fh, scale = k.anim)
+            val map = { r: io.trimio.engine.motion.recipe.Box ->
+                io.trimio.engine.motion.recipe.Box(nx + (r.left - cx) * k, ny + (r.top - cy) * k, nx + (r.right - cx) * k, ny + (r.bottom - cy) * k)
+            }
+            return Triple(t, map, Geometry.Ink(nx + (ink.left - cx) * k, ny + (ink.top - cy) * k, nx + (ink.right - cx) * k, ny + (ink.bottom - cy) * k))
         }
 
         /** Whether [box] covers more than [FACE_SHARE] of the speaker's face. */
@@ -357,8 +385,11 @@ class Compiler(
             val minOut = minOf(at + readable, out)
             val over = overFootage(scene)
             val wanted = layout.zoneOf(b.place, defaultZone(recipe)).let { if (over) layout.zoneOverFootage(it) else it }
-            val zone = layout.place(wanted, at, out, minOut, id, locked = recipe.name == "lower-third", allowed = if (over) layout.footageZones else Layout.Zone.entries.toSet())
-            val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over)
+            val stage = !over && input.footage != null
+            val zone = layout.place(
+                wanted, at, out, minOut, id, locked = recipe.name == "lower-third", allowed = if (over) layout.footageZones else Layout.Zone.entries.toSet(), replace = stage,
+            )
+            val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over, stage = stage, inset = stage && scene.inset?.lowercase() in INSETS)
             val cue = Cue(
                 // A style that sets Latin headlines in capitals does so here; captions stay as said.
                 text = if (recipe.kind == Recipe.Kind.Text) look.cased(beatText) else beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
@@ -452,12 +483,68 @@ class Compiler(
                 "plain" -> bg += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
             }
             val nodes = picture(bg, "stage-$k").toMutableList()
+            nodes += inset(k, s, e)
             built.filterKeys { it.scene == k }.values.forEach { nodes += it.nodes }
             val enter = entering(k)
             val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat(), look.settle)
             transitionOverlay(enter, s, look, transitions, sfx, w.toFloat(), h.toFloat())
             val t = Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim + tx, y = (h / 2f).anim, scale = sc, opacity = op)
             return Group(nodes, transform = t, start = s - 0.6f, end = e + 0.3f, name = "scene-$k")
+        }
+
+        /**
+         * The speaker kept on a stage of its own ([SceneScore.inset]): the footage, cut as everywhere else, shrinks
+         * from the whole frame into a rounded card around the head and shoulders as the stage opens, and grows back as
+         * it ends, unless the scene before or after keeps the card too (then it simply stays).
+         */
+        private fun inset(k: Int, s: Float, e: Float): List<Node> {
+            val scene = scenes[k]
+            val place = scene.inset?.lowercase()?.takeIf { it in INSETS } ?: return emptyList()
+            val footage = input.footage ?: return emptyList()
+            if (sceneBg(scene, input) == "media") return emptyList()
+            fun kept(j: Int) = scenes.getOrNull(j)?.let { it.inset?.lowercase() == place && sceneBg(it, input) != "media" } == true
+            val fw = w.toFloat()
+            val fh = h.toFloat()
+            val sub = input.subject ?: Subject(0.3f, 0.3f, 0.7f, 0.6f)
+            // Head and shoulders: the subject's width with room either side, a card a little taller than wide.
+            val rw = ((sub.right - sub.left) * fw * INSET_ROOM).coerceIn(fw * INSET_MIN, fw)
+            val rh = (rw * INSET_ASPECT).coerceAtMost(fh)
+            val rx = (sub.centerX * fw - rw / 2f).coerceIn(0f, fw - rw)
+            val ry = (sub.top * fh - rh * INSET_HEADROOM).coerceIn(0f, fh - rh)
+            val cw = fw * if (place == "top") INSET_TOP else INSET_CORNER
+            val sc = cw / rw
+            val cx = if (place == "top") (fw - cw) / 2f else fw * INSET_MARGIN
+            val cy = fh * INSET_MARGIN
+            val opens = !kept(k - 1)
+            val closes = !kept(k + 1)
+            // Every property eases between the whole frame and the card on the same curve, so the card's edge, its rim and
+            // the picture inside it move as one.
+            fun move(whole: Float, card: Float): Anim = anim(if (opens) whole else card, s) {
+                to(card, s + if (opens) INSET_IN else 0f, Easing.ExpoOut)
+                if (closes) {
+                    to(card, e - INSET_OUT, Easing.Linear)
+                    to(whole, e, Easing.ExpoIn)
+                }
+            }
+            val transform = Transform(anchorX = 0f, anchorY = 0f, x = move(0f, cx - sc * rx), y = move(0f, cy - sc * ry), scale = move(1f, sc))
+            val radius = rw * INSET_RADIUS
+            val rim = rw * INSET_RIM
+            fun card(grow: Float) = Transform(x = move(fw / 2f, rx + rw / 2f), y = move(fh / 2f, ry + rh / 2f)) to
+                ShapeSpec.Rect(move(fw + grow, rw + grow), move(fh + grow, rh + grow), move(0f, radius + grow / 2f))
+            val (maskAt, maskShape) = card(0f)
+            val (rimAt, rimShape) = card(rim * 2f)
+            val segments = input.edit?.played ?: listOf(EditPlan.Segment(0f, duration, 0f))
+            val clips = segments.filter { it.outEnd > s - SCENE_PAD && it.outStart < e + SCENE_PAD }.map { seg ->
+                MediaNode(
+                    footage, fw, fh, Fit.Cover, sourceOffset = seg.sourceStart, grade = gradeOf(look),
+                    transform = Transform(x = (fw / 2f).anim, y = (fh / 2f).anim), start = seg.outStart, end = seg.outEnd, name = "inset-clip",
+                )
+            }
+            val shadow = Shadow(Color.Black.copy(alpha = 0.5f), 0f, rh * 0.03f, rh * 0.1f)
+            return listOf(
+                Group(listOf(ShapeNode(rimShape, fill = look.ink.copy(alpha = 0.9f).fill(), shadow = shadow, transform = rimAt)), transform = transform, start = s - SCENE_PAD, end = e, name = "inset-rim"),
+                Group(clips, transform = transform, start = s - SCENE_PAD, end = e, mask = Mask(ShapeNode(maskShape, fill = Color.White.fill(), transform = maskAt)), name = "inset"),
+            )
         }
 
         /**
@@ -863,6 +950,21 @@ class Compiler(
     companion object {
         private const val FIT_STEPS = 28
 
+        // The speaker's card on a stage of its own (SceneScore.inset).
+        private val INSETS = setOf("corner", "top")
+        private const val INSET_ROOM = 1.5f
+        private const val INSET_MIN = 0.32f
+        private const val INSET_ASPECT = 1.15f
+        private const val INSET_HEADROOM = 0.18f
+        private const val INSET_CORNER = 0.25f
+        private const val INSET_TOP = 0.3f
+        private const val INSET_MARGIN = 0.05f
+        private const val INSET_IN = 0.5f
+        private const val INSET_OUT = 0.4f
+        private const val INSET_RADIUS = 0.1f
+        private const val INSET_RIM = 0.012f
+        private const val SCENE_PAD = 0.6f
+
         /** Words per caption line at most: a reel shows a few, long-form subtitles a sentence. */
         private const val MAX_CAPTION_WORDS = 12
 
@@ -877,6 +979,9 @@ class Compiler(
         private const val SAFE_BUTTONS = 0.9f
         private const val BUTTONS_FROM = 0.55f
         private const val FULL = 0.97f
+        private const val STAGE_FILL = 0.92f
+        private const val STAGE_GROW = 2.2f
+        private const val STAGE_MIN_GROW = 1.12f
         /** A graphic as wide as the frame is a stage, not something over the caption band. */
         private const val FULL_WIDTH = 0.97f
         private const val NUDGE_TOL = 3f

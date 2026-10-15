@@ -79,7 +79,15 @@ data class Look(
     }
 
     /** Latin letters of a headline in capitals when the look sets them so. */
-    fun cased(text: String): String = if (caps) text.map { if (it in 'a'..'z') it.uppercaseChar() else it }.joinToString("") else text
+    /**
+     * [text] as the look sets Latin headlines: in capitals when it does, except a name written in mixed case
+     * («ChatGPT», «CoinPro.com», «iPhone»), which keeps its own spelling as a brand does on every screen.
+     */
+    fun cased(text: String): String = if (!caps) text else text.split(' ').joinToString(" ") { word ->
+        val capitalised = word.firstOrNull()?.isUpperCase() == true && word.drop(1).none { it.isUpperCase() }
+        val named = word.any { it in 'A'..'Z' } && word.any { it in 'a'..'z' } && !capitalised
+        if (named) word else word.map { if (it in 'a'..'z') it.uppercaseChar() else it }.joinToString("")
+    }
 
     data class Voice(val role: BrandFonts.Role, val weight: Int, val lineHeight: Float = 1.1f, val tracking: Float = 0f) {
         fun at(size: Float, weight: Int = this.weight) = TypeSpec(role, weight, size, lineHeight, tracking)

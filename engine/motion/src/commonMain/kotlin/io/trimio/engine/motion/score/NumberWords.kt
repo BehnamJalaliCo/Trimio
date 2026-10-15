@@ -39,6 +39,9 @@ object NumberWords {
     /** Everyday words that are also numbers: alone they mean "no", "a", "one of". */
     private val ambiguous = setOf("نه", "یه", "یک", "one")
 
+    /** Words that count what comes before them («تا», «دونه»): after one, an everyday word is a number. */
+    private val counters = setOf("تا", "تاش", "تاشون", "تاشو", "تاییش", "دونه", "دونهش", "دونش", "عدد", "نفر")
+
     fun normalize(word: String): String = Numerals.toLatin(word)
         .lowercase()
         .replace('ي', 'ی').replace('ك', 'ک').replace("‌", "")
@@ -137,7 +140,8 @@ object NumberWords {
         if (j + 1 < words.size && normalize(words[j]) in joiners && normalize(words[j + 1]) in halfWords) { value += 0.5; decimals = 1; j += 2 }
         val percent = percentAt(words, j) > 0
         j += percentAt(words, j)
-        if (j - i == 1 && normalize(words[i]) in ambiguous) return null
+        // «نه تاش استاپ می‌خوره، یه دونه‌ش سود»: before a counter word, «نه» is nine and «یه» one.
+        if (j - i == 1 && normalize(words[i]) in ambiguous && words.getOrNull(j)?.let(::normalize) !in counters) return null
         return Found(i, j - i, value, percent, decimals)
     }
 

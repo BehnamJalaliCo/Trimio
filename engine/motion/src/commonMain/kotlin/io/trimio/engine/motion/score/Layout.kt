@@ -48,11 +48,23 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
     private val left = width * 0.08f
     private val right = width * if (tall) 0.9f else 0.92f
 
-    fun slot(zone: Zone, preferredHeight: Float, aroundSubject: Boolean = false): Slot {
-        val (top, bottom) = extent(zone, aroundSubject)
+    /**
+     * Where a beat in [zone] is drawn. On a stage of its own ([stage]: the footage covered) the centre's graphic is the
+     * scene, so it takes the whole band; with the speaker's card in the corner ([inset]) the bands start below the card.
+     */
+    fun slot(zone: Zone, preferredHeight: Float, aroundSubject: Boolean = false, stage: Boolean = false, inset: Boolean = false): Slot {
+        val (top, bottom) = if (inset && tall) insetExtent(zone) else extent(zone, aroundSubject)
         val zoneH = (bottom - top) * height
-        val h = minOf(zoneH, preferredHeight * height).coerceAtLeast(zoneH * 0.5f)
+        val h = if (stage && zone == Zone.Center) zoneH else minOf(zoneH, preferredHeight * height).coerceAtLeast(zoneH * 0.5f)
         return Slot(zone, (left + right) / 2f, (top + bottom) / 2f * height, right - left, h)
+    }
+
+    /** Vertical extents on a stage that keeps the speaker's card at the top ([SceneScore.inset]): every band clears it. */
+    private fun insetExtent(zone: Zone): Pair<Float, Float> = when (zone) {
+        Zone.Top -> 0.24f to 0.4f
+        Zone.Center -> 0.27f to 0.74f
+        Zone.Lower -> 0.75f to 0.86f
+        Zone.Full -> 0.25f to 0.84f
     }
 
     fun zoneOf(place: String?, fallback: Zone): Zone = when (place?.trim()?.lowercase()) {
@@ -76,7 +88,15 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
      * Places a beat wanting [want] during [at]..[out]. Returns the zone it got; occupants that
      * had to leave early get a shorter [Occupant.out].
      */
-    fun place(want: Zone, at: Float, out: Float, minOut: Float, id: Int, locked: Boolean = false, allowed: Set<Zone> = Zone.entries.toSet()): Zone {
+    fun place(want: Zone, at: Float, out: Float, minOut: Float, id: Int, locked: Boolean = false, allowed: Set<Zone> = Zone.entries.toSet(), replace: Boolean = false): Zone {
+        // On a stage the graphics are slides: the next one takes the last one's place once it has been read, instead of
+        // squeezing into a band beside it.
+        val clash = overlaps(want, at, out)
+        if (replace && clash.isNotEmpty() && clash.all { it.minOut <= at + REPLACE_SLACK }) {
+            clash.forEach { o -> o.out = maxOf(o.minOut, at - 0.02f) }
+            occupants += Occupant(want, at, out, minOut, id)
+            return want
+        }
         val order = if (locked) listOf(want) else (listOf(want) + fallbacks(want)).filter { it in allowed }
         val zone = order.firstOrNull { overlaps(it, at, out).isEmpty() } ?: run {
             // Everything is busy: the wanted zone's occupants leave as soon as they have been read.
@@ -101,5 +121,6 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
 
     private companion object {
         const val OVERLAP_TOLERANCE = 0.08f
+        const val REPLACE_SLACK = 0.4f
     }
 }

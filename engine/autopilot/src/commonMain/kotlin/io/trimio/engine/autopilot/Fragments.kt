@@ -20,7 +20,8 @@ internal object Fragments {
     fun fault(text: String): String? {
         val words = text.split(' ').map(::bare).filter { it.isNotEmpty() }
         if (words.isEmpty() || words.none { persian(it) }) return null
-        if (words.any { w -> w.any { it.isDigit() } }) return null
+        // A figure, in digits or in words («ده سیگنال در روز»: «ده» is ten, not the verb «gives»).
+        if (words.any { w -> w.any { it.isDigit() } } || NumberWords.findAll(words).isNotEmpty()) return null
         val first = words.first()
         val last = words.last()
         if (words.size == 1) return lone(first)
@@ -39,7 +40,8 @@ internal object Fragments {
     /** Why a phrase cannot start on [first], or null when it can. */
     private fun start(first: String): String? = when {
         first in OPENERS || first in ADVERBS || first in QUANTIFIERS || first in MODALS -> "starts mid-phrase on «$first»"
-        first in COMPLEMENTS -> "starts on «$first» without its verb"
+        // «تمام سیگنال‌ها»: «تمام» before a noun is "all", not half of «تمام کردن».
+        first in COMPLEMENTS && first != "تمام" -> "starts on «$first» without its verb"
         Phrases.verb(key(first)) -> "starts on the verb «$first»"
         else -> null
     }
@@ -69,7 +71,8 @@ internal object Fragments {
     private fun lone(w: String): String? = when {
         w in ADVERBS || w in QUANTIFIERS || w in MODALS || w in OPENERS || w in CLOSERS || w in PRONOUNS -> "«$w» alone says nothing"
         Phrases.verb(key(w)) || w in LIGHT || w in COMPLEMENTS -> "«$w» alone is half a verb"
-        Loanwords.protected(w) -> null
+        // «سایتمو», «کانال‌های»: a term with a clitic or an ezafe points at what is not shown.
+        Loanwords.protected(w) -> if (dangling(w) || CLITIC_ENDS.any { w.endsWith(it) && Loanwords.protected(w.dropLast(it.length)) }) "«$w» points at something not shown" else null
         // «سخت‌ترین» alone: the hardest what?
         w.replace("\u200C", "").endsWith("ترین") || w.endsWith("\u200Cتر") -> "«$w» alone: a degree of what?"
         !Phrases.nounish(w) -> "«$w» alone says nothing"

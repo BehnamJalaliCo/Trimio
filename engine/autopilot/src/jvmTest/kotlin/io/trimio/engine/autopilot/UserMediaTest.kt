@@ -181,4 +181,18 @@ class UserMediaTest {
         val perfume = Workshop.run(Workshop.scenario("fa-launch-perfume-assets"), 1L)
         assertTrue(perfume.report.any { "perfume (product) → product" in it && "«عطر»" in it }, "the product photo on «عطر»: ${perfume.report.filter { "media" in it }}")
     }
+
+    /** «مثل این ویدیو بساز»: the clip is a look to follow (its palette, tone and pace), never a picture on screen. */
+    @Test
+    fun aClipOfferedAsALookIsFollowedNotShown() {
+        val brief = "یه ریلز جذاب بساز، دقیقا مثل این ویدیو. اسم سایت ما CoinPro.com هست."
+        val readings = runBlocking { AssetReader().read(listOf(clip, logo), brief, persian = true) }
+        assertEquals(listOf(Role.Reference, Role.Logo), readings.map { it.role })
+        val (words, lines) = spoken("امروز یه نکته مهم دارم | لوگوی ما رو ببینید | کلمه کانال رو کامنت کن")
+        val media = UserMedia(listOf(clip, logo), readings, brief)
+        assertTrue(media.place(words, lines, planned(lines)).none { it.reading.role == Role.Reference }, "the reference is not placed")
+        assertNotNull(media.reference, "its look is read from its frames")
+        // A clip the brief says nothing about stays a clip to show.
+        assertEquals(Role.Broll, AssetReader.rules(clip, "یه ریلز جذاب بساز").role)
+    }
 }
