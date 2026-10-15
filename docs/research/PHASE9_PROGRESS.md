@@ -429,3 +429,20 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   استاپ… یه دونه‌ش سود») is one grid that turns red and green on the words that say so; a versus card grows lines; a
   step tracker ticks; chips tick green. One kinetic title in the piece; every other title is a pill. Captions run four
   words with the stressed one on a block coloured by what it means (`Meaning`, mark "meaning").
+
+## 15 Oct (evening) — the storyboard on the owner's reel, and where it stands
+
+- Every pass now speaks the storyboard: the planner's beats, the critic's, the jury's, the brief checklist's and the
+  creator's media go through one translator (`Storyboard.translated`); no remedy may take a state card apart
+  (`Storyboard.kept`, on the joint fixes, each judge's own and the further remedies); the CTA judge counts the ask's
+  steps as the ask; the spelling judge reads a card's parts, not its state codes.
+- Devices found in the speech (`BoardDevices`): us against them (two prices, whose by the word that names them), an
+  assistant's window (its question and the follow-up asked as said), the ask as steps (comment, DM, what waits there)
+  then the comment field to the end. State cards hold across the lines they change on.
+- Spelling on screen: written forms (دلار, تیپ in a trading piece), the brief's site everywhere (coinepro.com), a word
+  misheard by its first letter taken as the one the piece keeps saying (برودیمون → ورودیمون, long words only).
+- Captions: three or four words that land together as a phrase, breaking at commas, the stressed word on a block
+  coloured by its meaning.
+- The owner's verdict on the automatic edit (130.7 s): the captions are heavy and not where they should be, several
+  words are still misspelled, the motion is not smooth or clean in many places. Paused here at his request for a
+  build and a conversation before the next round.
