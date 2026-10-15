@@ -793,7 +793,8 @@ class Compiler(
             // A caption ends at the cut to a full-frame stage: it never runs on under the stage's graphic.
             val stage = session.sceneStarts.indices.firstOrNull { k -> session.sceneStarts[k] in (at + MIN_CAPTION)..natural && !session.overFootage(session.scenes[k]) }
             val end = stage?.let { session.sceneStarts[it] - 0.02f } ?: natural
-            val headline = beats.any { b -> b.recipe.kind == Recipe.Kind.Text && overlap(b.cue.at, b.out, at, end) > (end - at) * 0.35f }
+            // A title up says the words itself; in the storyboard a title over the head leaves the captions their band.
+            val headline = beats.any { b -> b.recipe.kind == Recipe.Kind.Text && (!phrases || b.zone == zone) && overlap(b.cue.at, b.out, at, end) > (end - at) * 0.35f }
             // A graphic that really rests over the caption's band (whatever band it was given) is up: the caption yields.
             val band = layout.slot(zone, recipe.preferredHeight)
             val covered = beats.any { b ->

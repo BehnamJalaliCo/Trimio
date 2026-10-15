@@ -191,6 +191,8 @@ internal object Storyboard {
     /** [b] as a card, or null when it has nothing to say on one. */
     private fun card(b: BeatScore, texts: List<String>): BeatScore? {
         val text = b.text?.trim().orEmpty()
+        // The creator's own picture or clip is shown as it is: it is theirs, not a card of ours.
+        if (b.media != null) return b.copy(place = b.place ?: "top")
         return when (b.recipe) {
             in KEEP -> b.copy(place = b.place ?: "top")
             in TITLES, "stamp", "headline", "lower-third" -> pill(b, text)
