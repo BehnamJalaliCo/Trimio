@@ -30,7 +30,9 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
         val sub = subject?.takeIf { aroundSubject } ?: return extent(zone)
         return when (zone) {
             Zone.Top, Zone.Center, Zone.Full -> 0.07f to (sub.top - 0.015f).coerceAtLeast(0.2f)
-            Zone.Lower -> maxOf(if (tall) 0.65f else 0.72f, sub.bottom + 0.01f).coerceAtMost(0.78f) to if (tall) 0.87f else 0.92f
+            // Under a talking head's chin is what he holds up and his microphone (the owner's captions sat on his mic):
+            // vertical captions start lower, at the chest, where reels put them.
+            Zone.Lower -> maxOf(if (tall) 0.7f else 0.72f, sub.bottom + 0.01f).coerceAtMost(0.78f) to if (tall) 0.87f else 0.92f
         }
     }
 

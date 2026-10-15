@@ -58,8 +58,22 @@ internal class BriefNames(brief: String, private val english: Map<String, Int>) 
         val a = words[0]
         val b = words.getOrNull(1)
         if (b != null && latin(a) && latin(b)) single.firstOrNull { it.equals(a + b, ignoreCase = true) }?.let { return it to 2 }
+        mixedDomain(raw[i].trim { !it.isLetterOrDigit() })?.let { return it to 1 }
         glossary(words)?.let { return it }
         return (words.size downTo 1).firstNotNullOfOrNull { k -> said(words.subList(0, k), persianCount)?.let { it to k } }
+    }
+
+    /**
+     * A site heard half in each script, as the recogniser writes it: «کوینپرو.com» for the brief's CoinPro.com (the
+     * name's consonants in Persian, the ending as written). The owner's reel showed the Persian half on screen.
+     */
+    private fun mixedDomain(word: String): String? {
+        val dot = word.lastIndexOf('.').takeIf { it > 0 } ?: return null
+        val name = word.substring(0, dot).takeIf(::spoken) ?: return null
+        val ending = word.substring(dot + 1).takeIf { it.isNotEmpty() && latin(it) } ?: return null
+        return single.filter { DOMAIN.matches(it) }.firstOrNull { d ->
+            d.substringAfterLast('.').equals(ending, ignoreCase = true) && persianSkeleton(name) == latinSkeleton(d.substringBeforeLast('.'))
+        }
     }
 
     /**

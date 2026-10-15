@@ -411,8 +411,11 @@ object TalkFamilies {
 
         override fun compose(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan): Built {
             val q = cue.text.ifBlank { cue.label ?: return Built(emptyList()) }
+            // Results are only shown when they were said: an invented «۶۴٪» under a question the speaker asked
+            // reached the owner's reel. Without them the question is a sticker with an answer field.
+            val points = cue.points?.takeIf { it.isNotEmpty() } ?: return sticker(cue, look, fit, p, q)
             val options = Kit.items(cue, 4).ifEmpty { listOf(Kit.say(p.rtl, "بله", "Yes"), Kit.say(p.rtl, "نه", "No")) }
-            val shares = options.indices.map { cue.points?.getOrNull(it) ?: (if (it == 0) 64f else 36f / (options.size - 1).coerceAtLeast(1)) }
+            val shares = options.indices.map { points.getOrNull(it) ?: 0f }
             return when (p.layout) {
                 1 -> sticker(cue, look, fit, p, q)
                 2 -> buttons(cue, look, fit, p, q, options, shares)

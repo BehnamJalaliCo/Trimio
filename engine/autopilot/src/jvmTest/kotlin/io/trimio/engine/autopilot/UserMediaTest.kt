@@ -136,6 +136,8 @@ class UserMediaTest {
         assertEquals("nobitex.ir", en[1])
         assertEquals("RSI", en[6])
         assertNull(Proofreader.fromBrief("امروز آر اس آی رو".split(' '), "یه ریلز جذاب بساز")[1], "no acronym in the brief, nothing to join")
+        // The owner's reel: the recogniser wrote his site half in Persian, and that half reached the screen.
+        assertEquals("CoinPro.com", Proofreader.fromBrief("اونجا سایت کوینپرو.com".split(' '), "اسم سایت ما CoinPro.com هست.")[2])
 
         val g = Glossary.read(brief + " لوگو رو از logo.png بردار.")
         assertEquals(listOf("nobitex.ir"), g.sites, "a file name is not a site")
