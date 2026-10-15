@@ -40,9 +40,10 @@ internal object Headlines {
 
     /** [title] as it is shown: a number said in words in figures («پنجاه دلار» → «۵۰ دلار»), in the piece's digits. */
     fun written(title: String, persian: Boolean): String {
-        val words = title.split(' ').filter { it.isNotBlank() }
+        // Persian figures take Persian separators («۲٬۷۰۰٬۰۰۰», «۲٫۵»), never a Latin comma between them.
+        val words = title.split(' ').filter { it.isNotBlank() }.map { w -> if (persian) persianSeparators(w) else w }
         val numbers = NumberWords.findAll(words).filter { n -> !n.year && n.value < MAX_FIGURE && (n.start until n.start + n.count).any { i -> words[i].none(Char::isDigit) } }
-        if (numbers.isEmpty()) return title
+        if (numbers.isEmpty()) return words.joinToString(" ")
         val out = mutableListOf<String>()
         var i = 0
         while (i < words.size) {
@@ -56,13 +57,17 @@ internal object Headlines {
         return out.joinToString(" ")
     }
 
+    private fun persianSeparators(w: String): String = w.replace(Regex("(?<=[0-9۰-۹]),(?=[0-9۰-۹])"), "٬").replace(Regex("(?<=[0-9۰-۹])\\.(?=[0-9۰-۹])"), "٫")
+
     /** The same word apart from its endings, its spoken form, or a slip of one letter. */
     private fun same(a: String, b: String): Boolean {
         if (a == b) return true
         val stem = a.zip(b).takeWhile { (x, y) -> x == y }.size
         // «سیگنال» and «سیگنالها», «ورود» and «ورودیمونه», «کاربران» and «کاربراشم»: a shared stem, endings of a few letters.
+        // A stem of three letters is too short to share two endings («اونم» is not «اون‌ها»): one word must be the stem itself.
+        val short = stem == MIN_STEM && minOf(a.length, b.length) - stem > 0
         val ending = if (stem > MIN_STEM) LONG_ENDING else SHORT_ENDING
-        if (stem >= MIN_STEM && a.length - stem <= ending && b.length - stem <= ending) return true
+        if (stem >= MIN_STEM && !short && a.length - stem <= ending && b.length - stem <= ending) return true
         return minOf(a.length, b.length) >= MIN_SLIP && distance(a, b) <= 1
     }
 

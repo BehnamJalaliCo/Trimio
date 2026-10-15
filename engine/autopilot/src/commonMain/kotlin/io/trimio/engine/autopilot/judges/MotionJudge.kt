@@ -99,7 +99,7 @@ class MotionJudge(
     private fun retitled(c: Jury.Context, s: io.trimio.engine.motion.score.BeatScore, m: Relevance.Miss): io.trimio.engine.motion.score.BeatScore? {
         if (s.recipe !in Bench.TEXT) return null
         val line = c.lines.firstOrNull { l -> Bench.start(c.words, l.first) <= m.placed.at + LAND && Bench.start(c.words, l.last) >= m.placed.at - LAND } ?: return null
-        val title = io.trimio.engine.autopilot.Phrases.title(c.words, line).ifBlank { return null }
+        val title = io.trimio.engine.autopilot.Phrases.title(c.words, line, alone = false).ifBlank { return null }
         // It keeps its own landing (its scene and timing stay); only what it says changes.
         return s.copy(text = title, emphasis = emptyList()).takeIf { title != s.text }
     }

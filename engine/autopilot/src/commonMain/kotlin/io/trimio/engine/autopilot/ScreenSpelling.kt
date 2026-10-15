@@ -34,8 +34,10 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
             log("screen spelling: dropped ${b.recipe} «${b.text}»")
             return null
         }
-        // A title is a phrase that reads on its own (a quote is a sentence; an ask's words are an imperative).
-        val fault = text?.takeIf { b.recipe in Fragments.TITLES }?.let(Fragments::fault)
+        // A title is a phrase that reads on its own (a quote is a sentence; an ask's words are an imperative); one that
+        // lost words down to a single one («سود یرفتیم» → «سود») says no more than a lone word cut from the speech.
+        val shrunk = b.recipe in Fragments.TITLES && words(b.text) >= 2 && words(text) == 1
+        val fault = if (shrunk) "only «${text?.trim()}» left of «${b.text}»" else text?.takeIf { b.recipe in Fragments.TITLES }?.let(Fragments::fault)
         if (fault != null) {
             log("screen spelling: dropped ${b.recipe} «$text»: $fault")
             return null
@@ -47,6 +49,8 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
             emphasis = b.emphasis.mapNotNull { e -> phrase(e, log).ifBlank { null } },
         )
     }
+
+    private fun words(s: String?) = s.orEmpty().split(' ').count { it.isNotBlank() }
 
     private fun phrase(s: String, log: (String) -> Unit): String = s.split(' ').mapNotNull { token ->
         val c = core(token)

@@ -17,6 +17,22 @@ import kotlin.math.sqrt
  */
 object ReferenceStyle {
 
+    /**
+     * What the eyes saw the reference do, when a model that sees is installed: how it frames the speaker («corner»: a
+     * small card while the frame shows a graphic; «full»; «none»: no speaker), where its captions sit and how many words
+     * they hold, how it marks a word, and the kinds of graphics it uses (number, price, chat, list, chart, comparison,
+     * logos, quote, map, steps, poll, comment).
+     */
+    @kotlinx.serialization.Serializable
+    data class Devices(
+        val framing: String = "full",
+        val captions: String = "bottom",
+        @kotlinx.serialization.SerialName("caption_words") val captionWords: Int = 0,
+        val highlight: String = "none",
+        val graphics: List<String> = emptyList(),
+        val background: String = "",
+    )
+
     data class Read(
         /** Dominant colours, most covering first, as 0xRRGGBB. */
         val palette: List<Int>,
@@ -25,6 +41,8 @@ object ReferenceStyle {
         val accent: Int?,
         /** Cuts a second, when the frames are evenly spaced samples of the clip. */
         val cutsPerSecond: Float?,
+        /** What the eyes saw it do, when there are eyes. */
+        val devices: Devices? = null,
     ) {
         /** The accent as the score writes it («#D4AF6A»). */
         val accentHex: String? get() = accent?.let { "#" + it.toString(HEX).padStart(HEX_DIGITS, '0').uppercase() }
@@ -41,8 +59,9 @@ object ReferenceStyle {
         val total = clusters.sumOf { it.second }.toFloat()
         val palette = clusters.sortedByDescending { it.second }.map { it.first }
         val light = pixels.sumOf { luma(it).toDouble() } / pixels.size
-        val accent = clusters.filter { it.second / total >= MIN_ACCENT_SHARE }.maxByOrNull { saturation(it.first) * sqrt(it.second / total) }
-            ?.first?.takeIf { saturation(it) >= MIN_SATURATION && luma(it) in MIN_ACCENT_LUMA..MAX_ACCENT_LUMA }
+        // Among the colours that are colours at all (saturated, neither black nor white), the one that speaks loudest.
+        val accent = clusters.filter { (c, n) -> n / total >= MIN_ACCENT_SHARE && saturation(c) >= MIN_SATURATION && luma(c) in MIN_ACCENT_LUMA..MAX_ACCENT_LUMA }
+            .maxByOrNull { (c, n) -> saturation(c) * sqrt(n / total) }?.first
         val cuts = if (duration != null && duration > 0f && frames.size >= 3) {
             frames.zipWithNext().count { (a, b) -> change(a, b) >= CUT_CHANGE } / duration
         } else {
@@ -62,6 +81,14 @@ object ReferenceStyle {
         val toned = styles.filter { tone in it.tones || (!read.dark && "lumen" in it.tones) }
         return toned.minByOrNull(::distance) ?: styles.minByOrNull(::distance)
     }
+
+    /** The shows that picture each kind of graphic the eyes name. */
+    val SHOWS: Map<String, List<String>> = mapOf(
+        "number" to listOf("counter", "ring", "stats"), "price" to listOf("price-tag", "voucher"), "chat" to listOf("message"),
+        "list" to listOf("list", "steps"), "steps" to listOf("steps", "list"), "chart" to listOf("chart", "candles"),
+        "comparison" to listOf("pros-cons", "versus", "before-after"), "logos" to listOf("logos"), "quote" to listOf("quote"),
+        "map" to listOf("map-pin"), "poll" to listOf("poll"), "comment" to listOf("comment"),
+    )
 
     private fun parse(hex: String): Int? = hex.removePrefix("#").takeIf { it.length == HEX_DIGITS }?.toIntOrNull(HEX)
 

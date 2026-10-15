@@ -11,6 +11,8 @@ import io.trimio.engine.llm.local.LlamaLanguageModel
 import io.trimio.engine.llm.local.LlamaReranker
 import io.trimio.engine.llm.local.LocalEncoders
 import io.trimio.engine.models.ChatFormat
+import io.trimio.engine.models.DirectorProfile
+import io.trimio.engine.models.ModelCatalog
 import io.trimio.engine.models.TextAddOns
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Score
@@ -78,11 +80,17 @@ class AutopilotProofTest {
         } ?: VisualLibrary.Empty
         val knowledge = WebKnowledge(HttpClient(OkHttp), FileCache(cache))
         // -Pauto.vision=<mmproj>: the same director also looks at rendered frames; -Pauto.llm.id picks its calibrated profile.
-        val llm = System.getProperty("auto.llm")?.let {
+        // The model is loaded as the phone loads it: its catalogue entry (by id, else by file name) gives the chat template
+        // and the director profile (context, an empty thought before the answer). A Gemma 4 read through ChatML answers
+        // nonsense: the owner's first host runs of E4B did, and were taken for the phone's reading.
+        val llm = System.getProperty("auto.llm")?.let { path ->
+            val spec = System.getProperty("auto.llm.id")?.let(ModelCatalog::byId) ?: ModelCatalog.all.firstOrNull { it.fileName == File(path).name }
+            val profile = spec?.let(DirectorProfile::of)
             LlamaLanguageModel(
-                System.getProperty("auto.llm.id") ?: "qwen3.5-4b-q4km", it, ChatFormat.ChatMl,
-                contextSize = 8192, threads = System.getProperty("auto.threads")?.toIntOrNull() ?: 4, visionPath = System.getProperty("auto.vision"), maxImageTokens = 96,
-            )
+                spec?.id ?: "qwen3.5-4b-q4km", path, spec?.chatFormat ?: ChatFormat.ChatMl,
+                contextSize = profile?.contextSize ?: 8192, threads = System.getProperty("auto.threads")?.toIntOrNull() ?: 4, visionPath = System.getProperty("auto.vision"),
+                maxImageTokens = profile?.maxImageTokens ?: 96, assistantPrefix = profile?.assistantPrefix.orEmpty(),
+            ).also { println("director: ${spec?.id ?: "unknown"} (${spec?.chatFormat ?: ChatFormat.ChatMl})") }
         }
 
         // -Pauto.assets=<dir>: the pictures and clips the creator attached beside the prompt (the app works out what each is).

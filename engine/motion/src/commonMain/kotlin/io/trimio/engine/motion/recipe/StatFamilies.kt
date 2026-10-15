@@ -485,11 +485,14 @@ object StatFamilies {
                 v, cue.from ?: 0f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size, ink, b.centerX, b.centerY + d * 0.06f,
                 p.at + 0.25f, 0.8f, s.ground, p.rtl,
             )
-            val top = cue.from?.let { Kit.digits(priceSize(cue, it), p.rtl) } ?: cue.label ?: Kit.say(p.rtl, "فقط", "ONLY")
-            val tf = Kit.fit(fit, top, Kit.labelVoice(look, p.typo).copy(weight = 800), d * 0.12f, d * 0.5f, d * 0.16f)
-            val ty = b.centerY - d * 0.17f
-            nodes += Kit.words(top, tf, ink, b.centerX, ty, p.at + 0.3f, s.ground, p.rtl, Kit.Reveal.Fade, name = "sale-top")
-            if (cue.from != null) nodes += Kit.line(b.centerX - tf.width * 0.6f, ty, b.centerX + tf.width * 0.6f, ty, ink, d * 0.014f, p.at + 0.6f, 0.25f, "strike")
+            // The old price, else what it is; never «فقط» on its own: a price said as a complaint is no bargain.
+            val top = cue.from?.let { Kit.digits(priceSize(cue, it), p.rtl) } ?: cue.label.orEmpty()
+            if (top.isNotBlank()) {
+                val tf = Kit.fit(fit, top, Kit.labelVoice(look, p.typo).copy(weight = 800), d * 0.12f, d * 0.5f, d * 0.16f)
+                val ty = b.centerY - d * 0.17f
+                nodes += Kit.words(top, tf, ink, b.centerX, ty, p.at + 0.3f, s.ground, p.rtl, Kit.Reveal.Fade, name = "sale-top")
+                if (cue.from != null) nodes += Kit.line(b.centerX - tf.width * 0.6f, ty, b.centerX + tf.width * 0.6f, ty, ink, d * 0.014f, p.at + 0.6f, 0.25f, "strike")
+            }
             return Kit.built(cue, look, p, b, nodes, name, listOf(Sfx(p.at + 0.2f, SfxKind.Hit, 0.6f)), listOf(Craft.punch(p.at + 0.2f, 0.025f)))
         }
 

@@ -31,13 +31,19 @@ object Phrases {
      * adjectives in a row, in the transcript's words — or a single long noun; "" when the line
      * has none (no title beats a fragment).
      */
-    fun title(words: List<Word>, line: Lines.Line, avoid: Set<String> = emptySet()): String {
+    fun title(
+        words: List<Word>,
+        line: Lines.Line,
+        avoid: Set<String> = emptySet(),
+        /** Whether a single long noun may stand in when the line has no phrase (never in a reel: a lone word says nothing). */
+        alone: Boolean = true,
+    ): String {
         val texts = words.map { it.text }
         val peaks = line.range.filter { nounish(texts[it]) && NumberWords.at(texts, it) == null }.sortedByDescending { Words.weight(words[it]) }
         // Only a phrase that reads on its own ([Fragments]): never «باید استفاده», «درد اکثر کارای».
         val phrases = peaks.map { phraseAt(texts, line, it) }.filter { key(it.replace(" ", "")) !in avoid && Fragments.fault(it) == null }
         // A phrase of two or three words first; a single long noun only when the line has no phrase.
-        return phrases.firstOrNull { ' ' in it } ?: phrases.firstOrNull { key(it).length >= LONE_NOUN } ?: ""
+        return phrases.firstOrNull { ' ' in it } ?: phrases.firstOrNull { alone && key(it).length >= LONE_NOUN } ?: ""
     }
 
     /** Two or three words around a noun: the noun and the nouns or adjectives after (or before) it, within its clause. */

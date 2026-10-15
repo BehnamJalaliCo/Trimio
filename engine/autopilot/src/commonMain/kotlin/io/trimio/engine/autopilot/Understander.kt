@@ -45,7 +45,8 @@ class Understander(private val model: LanguageModel) {
             model.generateStructured(
                 GenerationRequest(
                     system = SYSTEM, messages = listOf(ChatMessage(ChatRole.User, userMessage(transcript, prompt, lines))),
-                    schema = globalSchema, maxTokens = 900, temperature = temperature, seed = seed,
+                    // A cloud model thinks before it answers, and its thinking counts against the budget.
+                    schema = globalSchema, maxTokens = if (model.isLocal) GLOBAL_TOKENS else CLOUD_GLOBAL_TOKENS, temperature = temperature, seed = seed,
                 ),
                 Understanding.serializer(), onText = onText,
             ),
@@ -54,6 +55,8 @@ class Understander(private val model: LanguageModel) {
         // Lines in small groups: one reply reads GROUP lines (each about itself), so a long video costs
         // a third of the calls. Past [budget] the rest are read by the rules, so a slow device ends.
         val clock = TimeSource.Monotonic.markNow()
+        // How an editor showed lines like these: each line is asked about with its nearest examples ([DesignBook]).
+        val book = DesignBook.load()
         val rules by lazy { RulesUnderstander.understand(transcript, prompt, lines).lines }
         val reads = draft?.takeIf { it.global == g }?.reads.orEmpty().filterKeys { it in lines.indices }.toMutableMap()
         // On a slow device the budget runs out after a few groups: the model reads the lines that become
@@ -67,8 +70,8 @@ class Understander(private val model: LanguageModel) {
                 val got = runCatching {
                     model.generateStructured(
                         GenerationRequest(
-                            system = LINES_SYSTEM, messages = listOf(ChatMessage(ChatRole.User, linesMessage(transcript, prompt, lines, group, g))),
-                            schema = linesSchema(group.size), maxTokens = LINE_TOKENS * group.size, temperature = temperature, seed = seed + group.first(),
+                            system = LINES_SYSTEM, messages = listOf(ChatMessage(ChatRole.User, linesMessage(transcript, prompt, lines, group, g, book))),
+                            schema = linesSchema(group.size), maxTokens = (if (model.isLocal) LINE_TOKENS else CLOUD_LINE_TOKENS) * group.size, temperature = temperature, seed = seed + group.first(),
                         ),
                         LineReads.serializer(), onText = onText,
                     ).reads
@@ -113,6 +116,7 @@ class Understander(private val model: LanguageModel) {
             role: what the line does in the story.
             show: headline = a few strong words; counter = a number or percentage said in the line; logos = brand, app or tool names said in the line (items = the names, official spelling); terminal = installing or running software (items = [a short shell command, its result]); network = a map, overview, structure or connections (items = 5-9 short node labels in the transcript's language); meter = a saving, reduction or before/after with a percentage (items = [before label, after label], in the transcript's language); chart = a trend; object = one concrete thing (visual); objects = several concrete things said together (items in the transcript's language, visual = one English query per item separated by commas); list = steps or a checklist (items, in the transcript's language); comment = asking viewers to comment a keyword; lower-third = the speaker introducing themself; stamp = a verdict; countdown = time left until something ends (48 hours left); stats = two or three numbers said together (views, comments, likes, followers); progress = a quota or capacity filling up (the first 1000 people, sold out, 80% full); voucher = an amount of money or crypto viewers get (items = [the currency's official name, e.g. Tether]); message = someone else's words being told (a DM, a comment, a question someone asked) or the speaker's reply to them (role dialogue); none = nothing, keep the speaker clean.
             Follow the brief when it says how to show this kind of line.
+            Under a line you may see how an editor showed lines like it: follow the closest example when it fits THIS line (its show, whether a figure, a price, a list or someone's words; a title in its spirit made of THIS line's words), and pick another show when the line says something else.
             Everything shown on screen (title, items) is in the transcript's language; only brand, app, product and site names keep their own spelling (the brief's spelling when it gives one). Pick the show that pictures what THIS line says; none when nothing fits.
             title: a 2-5 word headline for the screen in the transcript's language, correctly written (not slang): the LINE's claim or figure in the speaker's own words or their written forms, a number in digits; no word the speaker did not say, never the whole line.
             visual: English picture query or "". energy: 0 calm to 1 explosive.
@@ -125,7 +129,14 @@ class Understander(private val model: LanguageModel) {
                 "each read is about its own LINE only, never about the others. In each read, \"the LINE\" means that read's line.",
         )
 
-        fun linesMessage(transcript: Transcript, prompt: String, lines: List<Lines.Line>, group: List<Int>, g: Understanding): String = buildString {
+        fun linesMessage(
+            transcript: Transcript,
+            prompt: String,
+            lines: List<Lines.Line>,
+            group: List<Int>,
+            g: Understanding,
+            book: List<DesignBook.Moment> = emptyList(),
+        ): String = buildString {
             val words = transcript.words
             append("Brief: ").append(prompt.trim().take(BRIEF_CHARS).ifEmpty { "(none)" }).append('\n')
             append("Video: ").append(g.title).append(" (").append(g.topic).append(", ").append(g.domain).append(")\n")
@@ -136,6 +147,9 @@ class Understander(private val model: LanguageModel) {
                 val names = g.entities.filter { it.at in lines[k].range }.map { it.name }
                 if (names.isNotEmpty()) append("   names in this line: ").append(names.joinToString(", ")).append('\n')
                 if (k == lines.lastIndex && g.cta != null) append("   this is the last line; the call to action keyword is: ").append(g.cta.keyword).append('\n')
+                val said = words.subList(lines[k].first, lines[k].last + 1).map { it.text }
+                DesignBook.recall(said, book, EXAMPLES, latin = said.none { w -> w.any { it in '\u0600'..'\u06FF' } }).takeIf { it.isNotEmpty() }
+                    ?.let { append(DesignBook.examples(it)).append('\n') }
             }
         }
 
@@ -149,6 +163,9 @@ class Understander(private val model: LanguageModel) {
         /** Lines per call, and the reply budget per line. */
         private const val GROUP = 3
         private const val LINE_TOKENS = 320
+        private const val GLOBAL_TOKENS = 900
+        private const val CLOUD_LINE_TOKENS = 2_400
+        private const val CLOUD_GLOBAL_TOKENS = 8_000
 
         fun userMessage(transcript: Transcript, prompt: String, lines: List<Lines.Line>): String = buildString {
             append("Brief:\n").append(prompt.trim().ifEmpty { "(none: decide everything)" }).append("\n\n")
@@ -194,6 +211,9 @@ class Understander(private val model: LanguageModel) {
         )
 
         private const val BRIEF_CHARS = 700
+
+        /** Examples shown under each line. */
+        private const val EXAMPLES = 2
 
         /** Keeps only what points inside a transcript of [n] words and [lineCount] lines. */
         fun sanitize(u: Understanding, n: Int, lineCount: Int): Understanding {

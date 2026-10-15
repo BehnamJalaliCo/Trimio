@@ -181,14 +181,21 @@ class Planner(
                 "phrase" -> captionRng.pick(listOf(4, 5))
                 else -> captionRng.pick(style.captions.words)
             }
-            val showCaptions = taste.captions && u.brief.captions != "none"
+            val seen = reference?.devices
+            val showCaptions = taste.captions && u.brief.captions != "none" && seen?.captions != "none"
             // The reference's own colour, when the creator attached one to follow (the seed's pick is still drawn).
             val accent = paletteRng.pick(style.accents).let { reference?.accentHex ?: it }
             val score = Score(
                 look = look,
                 accent = accent,
                 bpm = music?.bpm?.toFloat(),
-                captions = CaptionScore(show = showCaptions, maxWords = captionWords, place = style.captions.place, mark = shows.captionMark(style)),
+                captions = CaptionScore(
+                    show = showCaptions,
+                    // The reference's caption length and mark, when the eyes saw them.
+                    maxWords = seen?.captionWords?.takeIf { it in 1..MAX_REFERENCE_WORDS && taste.captionWords == null } ?: captionWords,
+                    place = style.captions.place,
+                    mark = when (seen?.highlight) { "box" -> "block"; "color" -> "ink"; else -> shows.captionMark(style) },
+                ),
                 scenes = scenes,
                 auto = false,
                 variety = Shows.variety(seed),
@@ -219,9 +226,22 @@ class Planner(
             var previousTakeover = false
             // A beat that runs on past its line (a list of names, a held data graphic) keeps its scene until it is done.
             var coveredUntil = -1
+            // Seconds the current stage has run: the cards that follow on the next lines join it as slides.
+            var stageRun = 0f
             for ((k, line) in lines.withIndex()) {
                 val read = reads[k]
                 val covered = line.first <= coveredUntil && scenes.isNotEmpty()
+                // «۱۰ سیگنال در روز» then «استاپ ۹۰٪ / سود ۱۰٪»: a card on the next line takes the stage's place as a slide
+                // (the speaker stays in the corner) instead of cutting back and forth or crowding two cards together.
+                if (!covered && previousTakeover && read.show in TAKEOVER_SHOWS && k !in threads && k < lines.lastIndex && stageRun + duration(k, k) <= MAX_STAGE_RUN) {
+                    val slide = beatsFor(k, line, read, takeover = true, hasHook = false)
+                    if (slide.isNotEmpty() && slide.none { it.recipe == "comment" || it.recipe == "endcard" }) {
+                        scenes[scenes.lastIndex] = scenes.last().let { it.copy(beats = it.beats + slide) }
+                        stageRun += duration(k, k)
+                        coveredUntil = maxOf(coveredUntil, slide.maxOfOrNull { it.until ?: it.at ?: -1 } ?: -1)
+                        continue
+                    }
+                }
                 // A line merged into a running beat can bring two full-frame scenes together: never.
                 val takeover = k in takeovers && !covered && !previousTakeover
                 val beats = mutableListOf<BeatScore>()
@@ -236,6 +256,7 @@ class Planner(
                     scenes[scenes.lastIndex] = scenes.last().let { it.copy(beats = it.beats + beats) }
                     continue
                 }
+                if (takeover) stageRun = duration(k, k)
                 val sc = scene(k, line, read, takeover, previousTakeover, beats)
                 // The hook line heard again after the cold open: a punch-in, not the same figure twice.
                 scenes += if (opening?.line == k && !takeover) sc.copy(camera = "push-in") else sc
@@ -249,7 +270,9 @@ class Planner(
             // A graphic a cut would leave on screen for less than a glance is dropped, not flashed.
             val rhythm = Rhythm(words, lines, reads, u, paced, fillRng, energy, usedRecipes, usedVisuals, ask.keyword, ::locate)
             // A data graphic that cannot be read in full (a full-frame scene or the ask comes right after) is dropped.
-            val least = { b: BeatScore -> if (b.recipe in PLAIN_DATA && b.time == null) DATA_HOLD else 0f }
+            // On a stage of its own a figure is the whole frame and reads in a glance; over the speaker it needs longer.
+            val staged = scenes.filter { it.bg != null }.flatMap { it.beats }.toSet()
+            val least = { b: BeatScore -> if (b.recipe in PLAIN_DATA && b.time == null) (if (b in staged) STAGE_DATA_HOLD else DATA_HOLD) else 0f }
             rhythm.prune(scenes, least)
             if (footage) rhythm.keepAlive(scenes)
             rhythm.vary(scenes)
@@ -340,10 +363,12 @@ class Planner(
                 val heard = texts.subList(line.first, line.last + 1)
                 val own = spokenIn(title, line) ?: title.takeIf { it.isNotBlank() && Headlines.grounded(it, heard, around(k), briefTokens) }
                     ?.let { Proofreader.fromBrief(it.split(' '), brief).let { fixed -> it.split(' ').mapIndexed { i, w -> fixed[i] ?: w }.joinToString(" ") } }
+                    ?.let(::named)
                     ?.let { Headlines.written(it, rtl) }
                 // A title that does not read on its own ([Fragments]: «باید استفاده») is not shown; nor a lone word («پولی», «سایتمو»).
                 val fault = own?.let(Fragments::fault)
-                val headline = own?.takeIf { fault == null && Headlines.fits(it) }
+                // A verdict stamp is one word by nature («رایگان»): a lone word is a headline nowhere else.
+                val headline = own?.takeIf { fault == null && (Headlines.fits(it) || (r.show == "stamp" && it.split(' ').size == 1)) }
                 if (title.isNotBlank() && headline == null) {
                     val why = when {
                         own == null -> "not said"
@@ -391,6 +416,14 @@ class Planner(
             return parts.map { said[it] ?: return null }.joinToString(" ") { texts[it].trimEnd('.', '،', ',') }
         }
 
+        /** A name heard in Persian letters («نایک») written as the piece knows it («Nike»): a title never shows the recogniser's guess at a brand. */
+        private fun named(title: String): String = title.split(' ').joinToString(" ") { w ->
+            val k = NumberWords.normalize(w)
+            u.entities.firstOrNull { e ->
+                e.name.any { it in 'A'..'Z' || it in 'a'..'z' } && (e.at..maxOf(e.at, e.until)).any { i -> texts.getOrNull(i)?.let(NumberWords::normalize) == k }
+            }?.name ?: w
+        }
+
         private val briefTokens by lazy { brief.split(' ', '\n', '،', ',').filter { it.isNotBlank() } }
         private val briefWords by lazy { brief.split(' ', '\n', '،', ',', '.').map { NumberWords.normalize(it) }.filter { it.isNotEmpty() }.toSet() }
 
@@ -404,10 +437,12 @@ class Planner(
         private fun showFor(k: Int, line: Lines.Line, read: LineRead, number: NumberWords.Found?, brands: List<String>): String {
             val bigNumber = number != null && (number.percent || number.value >= 10)
             val plain = read.show == "none" || read.show == "headline"
+            val copy = if (read.show in PLAIN_READS) copied(k, read) else null
             return when {
                 // A list of names said in the line is always shown as logos, whatever was asked.
                 brands.size >= 2 -> "logos"
                 shares(k) != null -> "poll"
+                copy != null -> copy
                 else -> numbersSay(k, line, read, bigNumber) ?: when {
                     !grounded(line, read, number != null, brands.isNotEmpty()) -> plainShow(read)
                     read.show in setOf("counter", "meter") && number == null -> "headline"
@@ -464,7 +499,8 @@ class Planner(
             "none", "headline", "lower-third", "stamp" -> true
             "counter", "meter" -> number
             "logos" -> brands || read.items.any { locate(it, line) != null }
-            "comment" -> u.cta != null && line.last >= words.size * 2 / 3
+            // The comment field where the ask is said (its keyword or an ask word in the line), in the last third.
+            "comment" -> u.cta != null && line.last >= words.size * 2 / 3 && asks(line)
             // A list is of things, not the line's own words in order.
             "list", "objects" -> listed(line, read)
             "chart" -> number || (line.first..line.last).any { norm[it] in GROWTH || norm[it] in DECLINE }
@@ -483,6 +519,32 @@ class Planner(
             (read.role == "list" || !read.items.all { item -> line.range.any { texts[it].trimEnd('،', ',', '.') == item } }) &&
             // Items speak the video's language (or are names said in the line), never picture prompts.
             read.items.all { item -> !rtl || item.any { it in '\u0600'..'\u06FF' } || locate(item, line) != null }
+
+        /**
+         * The show the reference would give line [k] (the creator asked for its look): its kinds of graphics, in the order
+         * the eyes named them, the first whose material the line holds — a figure, a price, someone's words, a contrast.
+         */
+        private fun copied(k: Int, read: LineRead): String? {
+            val kinds = reference?.devices?.graphics?.takeIf { it.isNotEmpty() } ?: return null
+            val traits = DesignBook.traits(texts.subList(lines[k].first, lines[k].last + 1))
+            return kinds.firstNotNullOfOrNull { kind ->
+                when (kind) {
+                    "number" -> "counter".takeIf { DesignBook.Trait.Figure in traits && DesignBook.Trait.Money !in traits }
+                    "price" -> "price-tag".takeIf { DesignBook.Trait.Money in traits }
+                    "chat" -> "message".takeIf { DesignBook.Trait.Speech in traits }
+                    "comparison" -> "pros-cons".takeIf { DesignBook.Trait.Contrast in traits && read.items.size >= 2 }
+                    "steps", "list" -> "steps".takeIf { DesignBook.Trait.Steps in traits && read.items.size >= 2 }
+                    else -> null
+                }
+            }
+        }
+
+        /** The line asks viewers to do something: it says the call's keyword or an ask word («کامنت», «دایرکت», "comment"). */
+        private fun asks(line: Lines.Line): Boolean {
+            val said = texts.subList(line.first, line.last + 1)
+            val keyword = u.cta?.keyword?.let(NumberWords::normalize)?.takeIf { it.isNotBlank() }
+            return DesignBook.Trait.Ask in DesignBook.traits(said) || (keyword != null && said.any { NumberWords.normalize(it).startsWith(keyword) })
+        }
 
         /** An earlier line with the very same reading (a model loop). */
         private fun repeatOf(k: Int): Int? = u.lines.getOrNull(k)?.let { read ->
@@ -532,7 +594,9 @@ class Planner(
             // and he read it as cheap. A full-frame graphic now keeps him in a card in its corner (see [scene]).
             val total = duration(0, lines.lastIndex)
             // The share of full-frame graphics varies by seed (a calmer or a busier cut of the same piece).
-            val budget = total * paced.takeover * takeoverRng.range(0.6f, 1.35f)
+            // A reference that keeps its speaker in a corner card gives graphics the frame more often; one that keeps it full, less.
+            val framing = when (reference?.devices?.framing) { "corner" -> REFERENCE_CORNER; "full" -> REFERENCE_FULL; else -> 1f }
+            val budget = total * paced.takeover * framing * takeoverRng.range(0.6f, 1.35f)
             // Not in the first seconds: the viewer first meets the speaker (and the hook).
             // A thread takes the full frame only when it is long (three bubbles or more).
             val candidates = reads.indices.filter { k ->
@@ -627,7 +691,7 @@ class Planner(
 
         private fun primary(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
             val ui = if (takeover) uiOf(lines.indexOf(line)) else null
-            val title = { read.title.ifBlank { Phrases.title(words, line, hookKeys) }.takeIf { it.isNotBlank() && textKey(it) !in hookKeys } }
+            val title = { read.title.ifBlank { Phrases.title(words, line, hookKeys, alone = false) }.takeIf { it.isNotBlank() && textKey(it) !in hookKeys } }
             return ui?.let { UiBroll.beat(it, line.first, line.last, title(), read.items, u.entities.map { it.name }) }
                 ?: primaryShow(line, read, e, takeover)?.let { b -> shows.vary(b, texts, line, read, sense(line), takeover) }
         }
@@ -687,7 +751,7 @@ class Planner(
         }
 
         private fun headline(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? {
-            val title = read.title.ifBlank { Phrases.title(words, line, hookKeys) }.ifBlank { return null }
+            val title = read.title.ifBlank { Phrases.title(words, line, hookKeys, alone = false) }.ifBlank { return null }
             // The hook's words, or a title already shown, are not said twice on screen.
             if (textKey(title) in hookKeys || !shownTitles.add(textKey(title))) return null
             val quoted = locate(title, line) != null
@@ -707,6 +771,8 @@ class Planner(
                 recipe = "counter", at = at, until = minOf(line.last, at + q.count), value = q.value.toFloat(), decimals = q.decimals,
                 suffix = if (percent) "٪" else "", prefix = if ((percent && growth) || q.opened) "+" else "",
                 label = figures.unitLabel(q) ?: figures.near(q, line), energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
+                // Alone on a stage the figure is the frame: the big count-up, not a small card.
+                variant = if (takeover) 0 else null,
             )
         }
 
@@ -878,9 +944,15 @@ class Planner(
          * voucher, stats and a countdown are the piece's big moments; a progress bar sits over the
          * speaker at the top.
          */
+        /**
+         * What may take the frame (the speaker kept in a corner card), by how much it gains from it: cards and data. A
+         * headline or a lone word never does — the owner's reel put «شفافیت» alone on a dark page and read it as cheap.
+         */
         val TAKEOVER_SHOWS = mapOf(
             "voucher" to 1.1f, "network" to 1f, "stats" to 1f, "meter" to 0.95f, "countdown" to 0.95f, "chart" to 0.9f, "objects" to 0.8f, "list" to 0.75f,
-            "terminal" to 0.6f, "message" to 0.6f, "poll" to 0.7f, "counter" to 0.45f, "headline" to 0.25f,
+            "terminal" to 0.6f, "message" to 0.6f, "poll" to 0.7f, "counter" to 0.45f,
+            "price-tag" to 0.9f, "pros-cons" to 0.9f, "versus" to 0.9f, "before-after" to 0.9f, "steps" to 0.8f, "timeline" to 0.8f, "ranking" to 0.8f,
+            "ring" to 0.7f, "stat-stack" to 0.8f, "candles" to 0.8f, "order" to 0.7f, "wallet" to 0.6f,
         )
 
         /** Lines a chat thread may run over: none with a figure, names or the ask of their own. */
@@ -916,8 +988,20 @@ class Planner(
         val PLAIN_DATA = setOf("counter", "meter", "chart", "network", "terminal")
         const val DATA_HOLD = 3.2f
 
+        /** The longest run of cards one stage carries before the speaker comes back full. */
+        const val MAX_STAGE_RUN = 11f
+
+        /** A figure alone on a stage: the whole frame, read in a glance. */
+        const val STAGE_DATA_HOLD = 1.6f
+
         /** The fewest items a list card shows. */
         const val MIN_LIST = 3
+
+        /** Readings a reference's kinds of graphics may replace. */
+        val PLAIN_READS = setOf("none", "headline", "list")
+        const val REFERENCE_CORNER = 1.5f
+        const val REFERENCE_FULL = 0.5f
+        const val MAX_REFERENCE_WORDS = 6
 
         /** Words that count what comes before them («نه تاش», «یه دونه‌ش»): never the name of a share. */
         val COUNTERS = setOf("تا", "تاش", "تاشون", "تاشو", "تاییش", "دونه", "دونهش", "دونش", "عدد", "نفر")

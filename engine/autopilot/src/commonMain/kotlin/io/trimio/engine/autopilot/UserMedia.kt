@@ -39,7 +39,9 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
 
     /** The look of the reference the creator attached to follow, if any ([ReferenceStyle]). */
     val reference: ReferenceStyle.Read? by lazy {
-        readings.firstOrNull { it.role == Role.Reference }?.let { byId[it.id] }?.let { a -> ReferenceStyle.read(listOf(a.thumbnail) + a.frames, a.duration) }
+        readings.firstOrNull { it.role == Role.Reference }?.let { r ->
+            byId[r.id]?.let { a -> ReferenceStyle.read(listOf(a.thumbnail) + a.frames, a.duration)?.copy(devices = r.devices) }
+        }
     }
 
     private class Hit(val at: Int, val score: Float, val why: String)

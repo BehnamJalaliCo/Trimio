@@ -38,10 +38,31 @@ class AssetReader(private val eyes: LanguageModel? = null) {
     /** One reading per asset, in order. [persian]: the transcript's language, for the eyes' keywords. */
     suspend fun read(assets: List<UserAsset>, brief: String, persian: Boolean, log: (String) -> Unit = {}): List<AssetReading> = assets.map { a ->
         val rules = rules(a, brief, assets)
-        val seen = eyes?.takeIf { it.canSee }?.let { m -> runCatching { look(m, a, persian) }.onFailure { log("asset ${a.id}: eyes failed (${it.message})") }.getOrNull() }
-        val reading = if (seen == null) rules else merge(rules, seen, a)
+        val reading = if (rules.role == Role.Reference) {
+            // A look to follow: the eyes say how it frames, captions and pictures things; nothing of it goes on screen.
+            val devices = eyes?.takeIf { it.canSee }?.let { m -> runCatching { study(m, a) }.onFailure { log("asset ${a.id}: eyes failed (${it.message})") }.getOrNull() }
+            rules.copy(devices = devices, by = if (devices != null) "eyes" else "rules")
+        } else {
+            val seen = eyes?.takeIf { it.canSee }?.let { m -> runCatching { look(m, a, persian) }.onFailure { log("asset ${a.id}: eyes failed (${it.message})") }.getOrNull() }
+            if (seen == null) rules else merge(rules, seen, a)
+        }
+        reading.devices?.let { d -> log("asset ${a.id}: reference — speaker ${d.framing}, captions ${d.captions} (${d.captionWords} words, ${d.highlight}), graphics ${d.graphics}") }
         log("asset ${a.id}: ${reading.role} «${reading.subject}» by ${reading.by}; keywords ${reading.keywords.take(KEYWORDS)}; cue ${reading.cue}; where ${reading.where}")
         reading
+    }
+
+    /** The reference's devices, from a few of its frames: how a motion editor would describe what to copy. */
+    private suspend fun study(m: LanguageModel, a: UserAsset): ReferenceStyle.Devices {
+        val images = (listOf(a.thumbnail) + a.frames).let { all -> if (all.size <= STUDY_FRAMES) all else (0 until STUDY_FRAMES).map { all[it * (all.size - 1) / (STUDY_FRAMES - 1)] } }
+        val question = "These are frames of a short video a creator wants their own edit to look like. Describe its editing devices: how the " +
+            "speaker is framed (full: the speaker fills the frame; corner: the speaker shrinks to a small card while a graphic fills the frame; " +
+            "none: no speaker), where the captions sit (top, middle, bottom or none) and how many words a caption shows, how a word is marked " +
+            "(box: a coloured box behind it; color: a coloured word; none), which kinds of graphics appear (number, price, chat, list, steps, " +
+            "chart, comparison, logos, quote, map, poll, comment) and the background of its graphics (dark, light, paper, gradient)."
+        return m.generateStructured(
+            GenerationRequest(system = STUDY_SYSTEM, messages = listOf(ChatMessage(ChatRole.User, question, images)), schema = STUDY_SCHEMA, maxTokens = 220, temperature = 0f),
+            ReferenceStyle.Devices.serializer(),
+        )
     }
 
     private suspend fun look(m: LanguageModel, a: UserAsset, persian: Boolean): Seen {
@@ -81,6 +102,19 @@ class AssetReader(private val eyes: LanguageModel? = null) {
                 keywords = keywords, by = "eyes",
             )
         }
+
+        private const val STUDY_FRAMES = 4
+        private const val STUDY_SYSTEM = "You are a motion editor studying a reference video's editing devices. Answer in JSON."
+        private val STUDY_SCHEMA: JsonObject = Json.parseToJsonElement(
+            """{"type":"object","properties":{
+              "framing":{"type":"string","enum":["full","corner","none"]},
+              "captions":{"type":"string","enum":["top","middle","bottom","none"]},
+              "caption_words":{"type":"integer"},
+              "highlight":{"type":"string","enum":["box","color","none"]},
+              "graphics":{"type":"array","items":{"type":"string","enum":["number","price","chat","list","steps","chart","comparison","logos","quote","map","poll","comment"]},"maxItems":6},
+              "background":{"type":"string","enum":["dark","light","paper","gradient"]}},
+              "required":["framing","captions","caption_words","highlight","graphics","background"]}""",
+        ).jsonObject
 
         private val ROLES = mapOf("logo" to Role.Logo, "product" to Role.Product, "screenshot" to Role.Screenshot, "broll" to Role.Broll, "photo" to Role.Photo)
 

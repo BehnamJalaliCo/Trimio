@@ -268,10 +268,8 @@ internal class Rhythm(
         }
         stress ?: return null
         val phrase = phraseAt(stress)
-        // A lone word only when it names something (an entity): «کلیپت» alone says nothing.
-        val named = u.entities.any { stress in it.at..maxOf(it.at, it.until) }
-        val reads = Fragments.fault(phrase) == null || (named && ' ' !in phrase)
-        return phrase.takeIf { reads && fresh(it, shown) && (' ' in it || (named && NumberWords.normalize(it).length >= LONE_NOUN)) }?.let { stress to it }
+        // Never a lone word, a name included: «روبات», «تلگرامی» popping alone read as noise on the owner's reel.
+        return phrase.takeIf { Fragments.fault(it) == null && fresh(it, shown) && ' ' in it }?.let { stress to it }
     }
 
     /** Two or three words around a noun: the noun and the nouns or adjectives after (or before) it, within its line. */
@@ -378,7 +376,6 @@ internal class Rhythm(
         private const val MIN_LEAD = 0.8f
         private const val MIN_LIFE = 1.5f
         private const val RETRY_STEP = 0.5f
-        private const val LONE_NOUN = 4
         private const val MIN_SHOT = 1.0f
         private const val FILL_HOLD = 1.6f
         private const val STAMP_SPACING = 8f

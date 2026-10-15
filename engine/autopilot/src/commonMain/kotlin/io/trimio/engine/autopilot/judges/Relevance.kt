@@ -45,7 +45,8 @@ internal class Relevance(private val c: Jury.Context) {
         // A name in Latin letters on a Persian piece («Tether» for «تتر») cannot be matched by spelling: the script judge reads those.
         // Items come in one by one and stay up: each may be said while the graphic is up.
         val life = words.indices.filter { i -> start(i) >= p.at - BEFORE && start(i) <= p.out + AFTER }
-        val shown = listOfNotNull(b.text).map { it to window } + b.items.map { it.removePrefix(">") to life }
+        // A poll's question frames its options («۱۰ سیگنال در روز» over «استاپ / سود»): the options are what is said.
+        val shown = listOfNotNull(b.text?.takeIf { b.recipe !in FRAMED }).map { it to window } + b.items.map { it.removePrefix(">") to life }
         for ((text, near) in shown.filter { (t, _) -> t.isNotBlank() && (!rtl || Bench.persian(t)) }) {
             val content = text.replace(" | ", " ").split(' ').map(Phrases::key).filter { k -> k.length >= 2 && Words.isContent(k) && k !in brief }
             val hits = content.count { k -> near.any { same(keys[it], k) } }
@@ -86,6 +87,9 @@ internal class Relevance(private val c: Jury.Context) {
         val EXEMPT = setOf("comment", "endcard", "message", "lower-third", "pop-captions", "url", "pip", "photo", "b-roll")
         /** Figures whose number is the one said (a countdown's or a progress bar's may be worked out from what is said). */
         val FIGURES = setOf("counter", "meter", "voucher", "ring", "stat-stack")
+
+        /** Graphics whose text frames their items (a poll's question): the items are judged, not the frame. */
+        val FRAMED = setOf("poll")
 
         /** Data graphics: judged by their figure (or not at all), never by the words of their labels. */
         val DATA = setOf("counter", "meter", "voucher", "stats", "countdown", "progress", "chart", "bars", "price-tag", "ring", "stat-stack")

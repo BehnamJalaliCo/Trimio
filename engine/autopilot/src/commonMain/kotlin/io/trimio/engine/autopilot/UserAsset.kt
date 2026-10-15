@@ -50,6 +50,8 @@ data class AssetReading(
     val where: Where? = null,
     /** The form the brief asks for a clip: picture-in-picture rather than a full-frame cut. */
     val inset: Boolean = false,
+    /** What the eyes saw a reference do ([Role.Reference]): its framing, captions and kinds of graphics. */
+    val devices: ReferenceStyle.Devices? = null,
     /** A light mark (white on clear): it needs a dark tile. */
     val light: Boolean = false,
     /** How it was read: "eyes" or "rules". */

@@ -174,7 +174,7 @@ class Compiler(
             val nominal = scenes.mapIndexed { k, sc ->
                 if (k == 0) 0f else (sc.time ?: sc.from?.let { start(it) - Craft.SCENE_LEAD } ?: 0f).coerceIn(0f, duration)
             }
-            sceneStarts = nominal.mapIndexed { k, s -> if (k == 0) s else stageStart(scenes[k], s, nominal.getOrElse(k + 1) { duration }) }
+            sceneStarts = nominal.mapIndexed { k, s -> if (k == 0) s else stageStart(scenes[k], s, nominal.getOrElse(k + 1) { duration }, nominal[k - 1]) }
             sceneEnds = sceneStarts.drop(1) + duration
         }
 
@@ -182,13 +182,16 @@ class Compiler(
          * A takeover cuts in with its graphic: an empty stage before the graphic lands reads as a
          * mistake, so the speaker stays on screen until just before it.
          */
-        private fun stageStart(scene: SceneScore, nominal: Float, next: Float): Float {
+        private fun stageStart(scene: SceneScore, nominal: Float, next: Float, previous: Float): Float {
             if (input.footage == null || sceneBg(scene, input) == "media") return nominal
             val from = scene.from ?: 0
             val lands = scene.beats.mapNotNull { b ->
                 b.time ?: b.at?.let { start(it) } ?: b.text?.let { t -> locate(t, norm, from..words.lastIndex.coerceAtLeast(from))?.let { start(it.first) } }
             }.minOrNull() ?: return nominal
-            return (lands - Craft.SCENE_LEAD).coerceIn(nominal, maxOf(nominal, next - MIN_SCENE))
+            // A graphic brought in early (to be read in full) brings its stage with it: never a card over the speaker
+            // for a moment before the frame turns into its stage.
+            val earliest = minOf(nominal, maxOf(previous + MIN_SCENE, lands - Craft.SCENE_LEAD))
+            return (lands - Craft.SCENE_LEAD).coerceIn(earliest, maxOf(earliest, next - MIN_SCENE))
         }
 
         fun start(i: Int) = words.getOrNull(i.coerceIn(0, (words.size - 1).coerceAtLeast(0)))?.range?.startMs?.div(1000f) ?: 0f
@@ -366,7 +369,8 @@ class Compiler(
             if (input.footage == null) return
             for (k in scenes.indices.filterNot { i -> overFootage(scenes[i]) }) {
                 val last = beats.filter { it.scene == k }.maxByOrNull { it.out } ?: continue
-                if (sceneEnds[k] - last.out in 0f..STAGE_HOLD) last.out = sceneEnds[k] + 0.05f
+                // A stage that outlives its last card would stand empty: the card stays up to the cut back to the speaker.
+                if (sceneEnds[k] - last.out >= 0f) last.out = sceneEnds[k] + 0.05f
             }
         }
 

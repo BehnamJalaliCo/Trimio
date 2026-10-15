@@ -195,4 +195,25 @@ class UserMediaTest {
         // A clip the brief says nothing about stays a clip to show.
         assertEquals(Role.Broll, AssetReader.rules(clip, "یه ریلز جذاب بساز").role)
     }
+
+    /** With eyes, a reference is studied for its devices: the planner follows its framing, captions and kinds of graphics. */
+    @Test
+    fun theEyesStudyAReferencesDevices() {
+        val eyes = object : LanguageModel {
+            override val id = "fake-eyes"
+            override val isLocal = true
+            override val canSee = true
+            override suspend fun generate(request: GenerationRequest, onText: (String) -> Unit) = Generation(
+                """{"framing":"corner","captions":"bottom","caption_words":3,"highlight":"box","graphics":["chat","price","number"],"background":"dark"}""",
+                StopReason.EndTurn, id,
+            )
+        }
+        val brief = "دقیقا مثل این ویدیو ادیت کن"
+        val r = runBlocking { AssetReader(eyes).read(listOf(clip), brief, persian = true) }
+        assertEquals(Role.Reference, r[0].role)
+        val devices = assertNotNull(r[0].devices, "the eyes studied it")
+        assertEquals("corner", devices.framing)
+        assertEquals(listOf("chat", "price", "number"), devices.graphics)
+        assertEquals(devices, UserMedia(listOf(clip), r, brief).reference?.devices, "the planner gets what the eyes saw")
+    }
 }

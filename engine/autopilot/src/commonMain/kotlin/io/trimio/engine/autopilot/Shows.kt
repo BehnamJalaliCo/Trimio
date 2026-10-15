@@ -52,7 +52,7 @@ internal class Shows(
         when (b.recipe) {
             "counter" -> figure(b, norm, sense, crypto, out)
             "list" -> list(b, norm, read, out)
-            "chart" -> if (crypto) out += b.copy(recipe = "candles", label = b.label?.takeIf { it.isNotBlank() } ?: pair(texts, line)) to 0.6f
+            "chart" -> (b.label?.takeIf { it.isNotBlank() } ?: pair(texts, line) ?: read.title.ifBlank { null })?.takeIf { crypto }?.let { out += b.copy(recipe = "candles", label = it) to 0.6f }
             "stamp" -> out += b.copy(recipe = "burst", icon = if (mood == "playful") "heart" else "fire") to 0.35f
             "logos" -> tickers(b.items)?.takeIf { crypto && it.size >= 2 }?.let { out += b.copy(recipe = "tape", items = it) to 0.4f }
             "headline", "mask-rise", "slam", "stack", "flip", "spread", "blur-in", "type-on", "glitch" -> headline(b, texts, line, norm, read, takeover, out)
@@ -127,7 +127,11 @@ internal class Shows(
             "ring" -> q.firstOrNull { it.kind == Quantities.Kind.Percent }?.let { base.copy(at = it.at, value = it.value.toFloat(), label = title) }
             "price-tag", "receipt" -> sense.money?.let { base.copy(at = it.at, value = it.value.toFloat(), suffix = it.unit.takeIf { u -> u.isNotBlank() }?.let { u -> " $u" }, label = title) }
             "stat-stack", "social-proof" -> base.copy(points = q.map { it.value.toFloat() }, items = q.map { it.unit }).takeIf { q.isNotEmpty() }
-            "candles" -> base.copy(label = pair(texts, line), points = q.map { it.value.toFloat() }.takeIf { it.size >= 4 })
+            // Without the closes said, the chart is a shape: full-bleed under its name, never a card or a pill quoting a change nobody said.
+            "candles" -> (pair(texts, line) ?: title)?.let {
+                val said = q.map { v -> v.value.toFloat() }.takeIf { p -> p.size >= 4 }
+                base.copy(label = it, points = said, variant = if (said == null) 1 else null)
+            }
             "order" -> sense.money?.let { order(base, line.range.map { i -> NumberWords.normalize(texts[i]) }, sense) }
             "phone" -> base.copy(label = title, items = items.take(3))
             else -> null
@@ -143,10 +147,10 @@ internal class Shows(
         return b.copy(recipe = "order", items = listOf(side), value = money.value.toFloat(), label = null, prefix = null, suffix = null)
     }
 
-    /** "BTC/USDT" when the line names a coin, else the generic pair. */
-    private fun pair(texts: List<String>, line: Lines.Line): String {
-        val coin = line.range.firstNotNullOfOrNull { TICKERS[NumberWords.normalize(texts[it]).lowercase()] }
-        return "${coin ?: "BTC"}/USDT"
+    /** "BTC/USDT" when the line names a coin; else null — a pair the speaker never named is an invented fact on screen. */
+    private fun pair(texts: List<String>, line: Lines.Line): String? {
+        val coin = line.range.firstNotNullOfOrNull { TICKERS[NumberWords.normalize(texts[it]).lowercase()] } ?: return null
+        return "$coin/USDT"
     }
 
     private fun tickers(names: List<String>): List<String>? = names.map { TICKERS[it.lowercase()] ?: return null }
