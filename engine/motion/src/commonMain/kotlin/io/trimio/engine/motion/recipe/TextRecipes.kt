@@ -60,6 +60,14 @@ internal object Craft {
     /** Emphasis marks on the words that matter, each when it is spoken (or after the entrance). */
     fun marks(cue: Cue, look: Look, starts: List<Float>, settle: Float): List<Decoration> {
         hand(cue, look, starts, settle)?.let { return it }
+        // The storyboard's captions: the stressed words on a block whose colour says what they mean ([Meaning]).
+        if (cue.mark?.lowercase() == "meaning") {
+            return groups(cue.emphasis).map { range ->
+                val at = maxOf(starts.getOrElse(range.first) { cue.at } + settle, cue.at + settle)
+                val c = Board.tone(Meaning.name(Meaning.tone(range.mapNotNull { cue.words.getOrNull(it) })))
+                Decoration.Block(range, at, c, Board.on(c), radius = 0.12f)
+            }
+        }
         val style = when (cue.mark?.lowercase()) {
             "ink", "color", "colour" -> Look.Mark.Ink
             "underline", "line" -> Look.Mark.Underline

@@ -87,6 +87,7 @@ class Autopilot(
         val compiled: Compiler.Output,
         val score: Score,
         val plan: Planner.Plan,
+        /** The reading of the whole transcript (before the content cut): what a variation or a resumed run reuses. */
         val understanding: Understanding,
         val soundtrack: Soundtrack.Result,
         val edit: EditPlan,
@@ -170,7 +171,9 @@ class Autopilot(
         // still no word (and no name) stays off the captions ([OnScreenSpelling]).
         val names = understanding.entities.map { it.name } + Glossary.read(request.prompt).terms.keys + request.prompt.split(' ', '\n', '،', ',')
         val checked = OnScreenSpelling.check(analysis.transcript.withFixes(lineFixes), lexicon, names, model) { report += it }
-        val transcript = checked.words
+        // What to say at all: repeats, early asks and a hesitant start go before any picture is planned ([StoryCut]).
+        val story = storyCut(request, analysis.edit, checked, lines, understanding, report)
+        val transcript = story.transcript
         report += "understand: ${understanding.title} | ${understanding.domain}/${understanding.mood} | hook line ${understanding.hook?.line} | cta ${understanding.cta?.keyword}"
 
         onStage("research", 0.45f)
@@ -182,8 +185,8 @@ class Autopilot(
         rest(eyes)
 
         onStage("plan", 0.55f)
-        val cut = onOwnBeat(analysis.edit, request.sourceTempo, report)
-        val reading = Reading(request, cut, transcript, lines, understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks, checked.shown)
+        val cut = onOwnBeat(story.edit, request.sourceTempo, report)
+        val reading = Reading(request, cut, transcript, story.lines, story.understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks, story.shown)
         val first = draft(reading, request.seed, look = true, onStage) { report += it }
         // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
         // Whatever goes wrong inside the jury, the edit is still delivered (the first cut), and the report says why.
@@ -216,6 +219,28 @@ class Autopilot(
         onStage("done", 1f)
         val source = Compiled(d.compiler, input(d.score, reading.shown, d.edit, request))
         return Production(d.compiled, d.score, d.plan, understanding, sound, d.edit, report, panel, source, bench(reading, d, analysis.pauses, levels))
+    }
+
+    /**
+     * The content cut ([StoryCut]) of a talking piece, applied to the silence cut and the words: none for an explainer
+     * (no footage), a draft resumed, or a brief that keeps every word.
+     */
+    private fun storyCut(
+        request: Request,
+        edit: EditPlan,
+        checked: OnScreenSpelling.Result,
+        lines: List<Lines.Line>,
+        understanding: Understanding,
+        report: MutableList<String>,
+    ): StoryCut.Applied {
+        val none = StoryCut.Applied(edit, checked.words, checked.shown, lines, understanding, checked.words.words.indices.associateWith { it })
+        if (request.footage == null || StoryCut.keepsAll(request.prompt)) return none
+        val cut = StoryCut.choose(checked.words.words, lines, understanding.hook?.line, understanding.cta?.keyword.orEmpty())
+        if (cut.isEmpty) return none
+        val applied = StoryCut.apply(cut, edit, checked.words, checked.shown, lines, understanding)
+        report += cut.notes
+        report += "story cut: ${cut.dropped.size} of ${lines.size} lines, ${round1(edit.duration)}s → ${round1(applied.edit.duration)}s"
+        return applied
     }
 
     private fun bench(r: Reading, d: Draft, pauses: List<ClosedFloatingPointRange<Float>>, levels: Soundtrack.Levels) =
@@ -307,7 +332,9 @@ class Autopilot(
         val music = MusicEdit.arrange(planned.music, edit, output, r.lines, r.understanding)
         // No music of ours over the video's own: its beat is the grid the hits snap to.
         val own = request.sourceTempo?.takeIf { music == null }
-        val base = own?.let { (bpm, first) -> planned.score.copy(bpm = bpm, beatOffset = first) } ?: planned.score
+        // A talking head is told in cards over the speaker, never on full-frame stages ([Storyboard]).
+        val told = if (Storyboard.wanted(request.prompt, request.footage != null)) Storyboard.board(planned.score, output, log) else planned.score
+        val base = own?.let { (bpm, first) -> told.copy(bpm = bpm, beatOffset = first) } ?: told
         own?.let { (bpm, _) -> log("music: the video's own, ${round1(bpm)} bpm (none added)") }
         val plan = planned.copy(score = MusicEdit.gridded(base, music))
         music?.let { m -> log("music: ${m.mood.id} at ${round1(m.grid.bpm.toFloat())} bpm, ${m.sections.joinToString(" ") { "${it.kind.name.lowercase()}@${round1(it.from.toFloat())}" }}") }

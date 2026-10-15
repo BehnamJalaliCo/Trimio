@@ -409,3 +409,23 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   red, chips that tick off, a browser, a versus card that stays and grows, a chat window, a three-step ask, an end card),
   graphics that stay and change state, and captions whose key word sits on a block coloured by meaning. Next: that edit
   as a measured decision list (the bar), cutting by content, and a storyboard design system of such elements.
+
+## 15 Oct — foundation first: the bar, the content cut, the storyboard
+
+- The bar (`REFERENCE_EDL.md`): the 5/10 edit measured against the source — its audio matched to the source every
+  quarter second (24-band spectra, correlation 0.7–0.85), every kept stretch mapped to the words, every graphic
+  catalogued. 155 s → 97.5 s: every idea said once, the ask once at the end, the hesitant opening moved, no pause of
+  0.3 s left. The level is ours (−14 LUFS both); what differs is the cut and a bed that never drops between phrases.
+- The content cut (`StoryCut`, before any picture is planned): whole clauses go — a hesitant opening, every ask before
+  the last run of asks, a clause whose content words were all said six seconds or more before (a point developed over
+  a few clauses is no repeat), and what is left stranded between two cuts. The ask and its lead-in are never cut, never
+  more than 45 % of what is said, nothing in a piece under 40 s, and a brief that keeps every word keeps it. The words,
+  lines and reading are re-indexed to what is left; the stretches cut are kept on the edit (`EditPlan.removed`) so no
+  later fix plays them again to keep a pause. On the owner's reel: 31 s cut where the reference cut, 0.4 s cut where it
+  kept; the rant about other channels (13 s) stays — it repeats an idea in other words, which needs meaning, not words.
+- The storyboard (`Storyboard`, `BoardFamilies`): a talking head is told in cards over the speaker — never a full-frame
+  stage, never a corner inset. One interface language (dark glass, icons in coloured circles, green for a gain or "us",
+  red for a loss, money or "them", yellow for attention). Cards hold state: a count said and broken down («ده تا… نه تاش
+  استاپ… یه دونه‌ش سود») is one grid that turns red and green on the words that say so; a versus card grows lines; a
+  step tracker ticks; chips tick green. One kinetic title in the piece; every other title is a pill. Captions run four
+  words with the stressed one on a block coloured by what it means (`Meaning`, mark "meaning").

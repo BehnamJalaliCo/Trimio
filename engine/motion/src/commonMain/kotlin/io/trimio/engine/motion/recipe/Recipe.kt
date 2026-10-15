@@ -152,7 +152,7 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
     val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all +
-        UiRecipes.all + MediaRecipes.all + YouTubeRecipes.all + Families.all + io.trimio.engine.motion.art.AnimatedRecipes.all
+        UiRecipes.all + MediaRecipes.all + YouTubeRecipes.all + Families.all + BoardFamilies.all + io.trimio.engine.motion.art.AnimatedRecipes.all
 
     private val aliases = mapOf(
         "rise" to "mask-rise", "reveal" to "mask-rise", "headline" to "mask-rise", "title" to "mask-rise",

@@ -18,6 +18,11 @@ class EditPlan(
     val opening: List<Segment> = emptyList(),
     /** A held tail after the last word (picture and music, no voice): room for a late ask's end card. */
     val outro: Outro? = null,
+    /**
+     * Stretches of the source the content cut took out (a repeat, an early ask): words, not pauses. A cut fixed later
+     * (a pause kept back in) never reaches into one of them.
+     */
+    val removed: List<ClosedFloatingPointRange<Float>> = emptyList(),
 ) {
 
     /**
@@ -79,7 +84,9 @@ class EditPlan(
         var out = segments.first().outStart
         for (s in segments) {
             val last = joined.lastOrNull()
-            val start = if (last == null) s.sourceStart else last.sourceEnd + kotlin.math.floor((s.sourceStart - last.sourceEnd) / period) * period
+            // A jump over words the content cut took out is no pause: it stays where it is.
+            val content = last != null && removed.any { it.start < s.sourceStart && it.endInclusive > last.sourceEnd }
+            val start = if (last == null || content) s.sourceStart else last.sourceEnd + kotlin.math.floor((s.sourceStart - last.sourceEnd) / period) * period
             if (last != null && start <= last.sourceEnd + SAME) {
                 joined[joined.lastIndex] = Segment(last.sourceStart, s.sourceEnd, last.outStart)
                 out = last.outStart + s.sourceEnd - last.sourceStart
@@ -88,7 +95,7 @@ class EditPlan(
                 out += s.sourceEnd - start
             }
         }
-        return EditPlan(joined, opening, outro)
+        return EditPlan(joined, opening, outro, removed)
     }
 
     /** Everything that plays, in output order (the cold open first): what footage and voice follow. */
@@ -144,7 +151,7 @@ class EditPlan(
         val body = segments.mapIndexed { i, s ->
             if (i == 0) s.copy(sourceStart = from, outStart = s.outStart + shift) else s.copy(outStart = s.outStart + shift + grown)
         }
-        return EditPlan(body, pieces, outro)
+        return EditPlan(body, pieces, outro, removed)
     }
 
     /**
@@ -155,9 +162,31 @@ class EditPlan(
     fun withOutro(seconds: Float, sourceDuration: Float): EditPlan {
         val last = segments.lastOrNull() ?: return this
         val length = seconds.coerceIn(0f, MAX_OUTRO)
-        if (length <= 0f) return EditPlan(segments, opening)
+        if (length <= 0f) return EditPlan(segments, opening, removed = removed)
         val running = (sourceDuration - last.sourceEnd).coerceIn(0f, length)
-        return EditPlan(segments, opening, Outro(length, last.sourceEnd, running))
+        return EditPlan(segments, opening, Outro(length, last.sourceEnd, running), removed)
+    }
+
+    /**
+     * The same cut with [spans] of the source (seconds) taken out of the body: what the content cut drops. The body
+     * closes up behind each span; the cold open and the end hold stay as they are.
+     */
+    fun without(spans: List<ClosedFloatingPointRange<Float>>): EditPlan {
+        val cuts = spans.filter { it.endInclusive > it.start }.sortedBy { it.start }
+        if (cuts.isEmpty() || segments.isEmpty()) return this
+        val pieces = segments.flatMap { s ->
+            var parts = listOf(s.sourceStart to s.sourceEnd)
+            for (c in cuts) {
+                parts = parts.flatMap { (a, b) ->
+                    if (c.endInclusive <= a || c.start >= b) listOf(a to b) else listOfNotNull((a to c.start).takeIf { c.start > a }, (c.endInclusive to b).takeIf { c.endInclusive < b })
+                }
+            }
+            parts
+        }.filter { (a, b) -> b - a > SAME }
+        if (pieces.isEmpty()) return this
+        var out = segments.first().outStart
+        val body = pieces.map { (a, b) -> Segment(a, b, out).also { out += b - a } }
+        return EditPlan(body, opening, outro?.copy(sourceStart = body.last().sourceEnd), removed + cuts)
     }
 
     companion object {

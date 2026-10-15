@@ -177,7 +177,7 @@ data class Delivery(
             return Delivery(
                 prompt = r.prompt, seed = r.seed, footage = r.footage, fps = r.fps, subject = r.subject?.let(Frame::of),
                 transcript = bench.transcript, lines = bench.lines, pauses = bench.pauses.map { Gap(it.start, it.endInclusive) },
-                understanding = p.understanding, score = p.score, planned = p.plan.score, music = p.plan.music?.id,
+                understanding = bench.understanding, score = p.score, planned = p.plan.score, music = p.plan.music?.id,
                 choices = p.plan.choices, notes = p.plan.notes, cut = Cut.of(p.edit), levels = bench.levels,
                 marks = bench.marks, icons = bench.icons.map(Icon::of), panel = p.panel?.verdicts, report = p.report, voices = r.voices,
                 plain = bench.plain, recorded = bench.recorded, duration = bench.duration,

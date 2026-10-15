@@ -127,4 +127,9 @@ data class BeatScore(
     val brand: String? = null,
     /** Which treatment of the recipe to build (its layout and choreography); null lets the score's variety pick. */
     val variant: Int? = null,
+    /**
+     * The word each of [items] lands on (−1: found by quoting it), for items that are not words said aloud: a card's
+     * states ("loss:9:…" lands on «استاپ»).
+     */
+    val itemAt: List<Int> = emptyList(),
 )

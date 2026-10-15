@@ -65,6 +65,9 @@ internal object JumpCuts {
     /** [edit] with the pause after body segment [i] kept (segments i and i+1 played as one). */
     fun joined(edit: EditPlan, i: Int): EditPlan {
         if (i !in 0 until edit.segments.lastIndex) return edit
+        // Words the content cut took out are never played again to keep a pause.
+        val (a, b) = edit.segments[i].sourceEnd to edit.segments[i + 1].sourceStart
+        if (edit.removed.any { it.start < b && it.endInclusive > a }) return edit
         val spans = edit.segments.map { it.sourceStart to it.sourceEnd }.toMutableList()
         spans[i] = spans[i].first to spans[i + 1].second
         spans.removeAt(i + 1)
@@ -153,6 +156,6 @@ internal object JumpCuts {
     private fun rebuilt(edit: EditPlan, spans: List<Pair<Float, Float>>): EditPlan {
         var out = edit.segments.first().outStart
         val segments = spans.map { (a, b) -> EditPlan.Segment(a, b, out).also { out += b - a } }
-        return EditPlan(segments, edit.opening, edit.outro)
+        return EditPlan(segments, edit.opening, edit.outro, edit.removed)
     }
 }
