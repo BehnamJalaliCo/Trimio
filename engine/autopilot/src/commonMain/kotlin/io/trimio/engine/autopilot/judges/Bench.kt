@@ -212,7 +212,15 @@ internal object Bench {
     fun persian(s: String) = s.any { it in 'ؠ'..'ۿ' && it.isLetter() }
 
     /** The words a viewer reads on a beat of the score: its text, label, items and marks. */
-    fun shownTexts(b: BeatScore): List<String> = listOfNotNull(b.text, b.label) + b.items.map { it.removePrefix(">") }
+    fun shownTexts(b: BeatScore): List<String> = listOfNotNull(b.text, b.label) + b.items.map { shownItem(b, it) }
+
+    /** An item as it reads on screen: a storyboard card's tone and count («loss:9:») are not shown, its parts read as words. */
+    fun shownItem(b: BeatScore, item: String): String =
+        if (b.recipe.startsWith(BOARD)) item.replace(BOARD_HEAD, "").replace('|', ' ') else item.removePrefix(">")
+
+    /** A storyboard card's item head: its tone and its count. */
+    val BOARD_HEAD = Regex("^[a-z]+:(\\d+:)?")
+    private const val BOARD = "board-"
 
     fun finding(at: Float, severity: Severity, what: String, fix: String) = Finding(at, severity, what, fix)
 

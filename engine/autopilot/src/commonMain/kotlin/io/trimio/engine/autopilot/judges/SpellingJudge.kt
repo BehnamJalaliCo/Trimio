@@ -155,7 +155,14 @@ class SpellingJudge : Judge {
             halfSpaces(s, lex).forEach { (w, right) -> out = out.replace(w, right) }
             return if (Bench.persian(out)) Numerals.toPersian(out) else out
         }
-        fun BeatScore.fixed() = copy(text = text?.let(::fix), label = label?.let(::fix), items = items.map(::fix), emphasis = emphasis.map(::fix))
+        // A storyboard card's item keeps its tone and count («loss:9:») as they are; only its words are fixed.
+        fun item(b: BeatScore, it: String) = if (b.recipe.startsWith("board-")) {
+            val head = Bench.BOARD_HEAD.find(it)?.value.orEmpty()
+            head + it.removePrefix(head).split('|').joinToString("|", transform = ::fix)
+        } else {
+            fix(it)
+        }
+        fun BeatScore.fixed() = copy(text = text?.let(::fix), label = label?.let(::fix), items = items.map { item(this, it) }, emphasis = emphasis.map(::fix))
         var score = checked.copy(scenes = checked.scenes.map { s -> s.copy(beats = s.beats.map { it.fixed() }) })
         // English on a Persian piece: the words go, or the graphic takes a plain Persian form, or it goes.
         val script = Script(c)

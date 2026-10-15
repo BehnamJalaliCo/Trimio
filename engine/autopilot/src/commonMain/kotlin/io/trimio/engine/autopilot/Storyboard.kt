@@ -330,7 +330,7 @@ internal object Storyboard {
     private val FIGURES = setOf("counter", "meter", "ring", "stat-stack", "burst", "countdown", "progress", "stats", "voucher", "price-tag", "receipt", "chart", "bars")
     private val KEEP = setOf(
         "comment", "endcard", "ui-browser", "ui-chat", "logo-mark", "pop-captions", "subtitles", "callout",
-        "board-tiles", "board-pill", "board-quote", "board-price", "board-versus", "board-steps", "board-chips",
+        "board-tiles", "board-pill", "board-quote", "board-price", "board-versus", "board-steps", "board-chips", "board-chat",
     )
     private val OURS = listOf("مونه", "مون", "مان")
     private val COUNTERS = setOf("تا", "دونه", "عدد", "دانه", "نفر")

@@ -45,5 +45,7 @@ class WrittenFormsTest {
         assertEquals("ورودیمون", WrittenForms.of("برودیمون", said))
         // A word said once among others like it stays: no other stem is said twice.
         assertNull(WrittenForms.of("بارون", "امروز بارون اومد و همه جا خیس شد".split(' ')))
+        // A short common word is never taken for another said often («اولیه» is not «پولی»).
+        assertNull(WrittenForms.of("اولیه", "پولی نمی‌دی پولی می‌گیره سرمایه اولیه".split(' ')))
     }
 }

@@ -80,4 +80,13 @@ class StoryboardTest {
         assertTrue(found.items[1].startsWith("loss:اونا|۲٬۷۰۰٬۰۰۰"), found.items[1])
         assertTrue(found.items.drop(2).isNotEmpty(), "the gains said after it grow the card: ${found.items}")
     }
+
+    @Test
+    fun everyCardOfTheStoryboardStaysACardWhenTranslatedAgain() {
+        val told = Storyboard.board(Score(scenes = listOf(SceneScore(from = 0))), words)
+        for (recipe in listOf("board-tiles", "board-pill", "board-quote", "board-price", "board-versus", "board-steps", "board-chips", "board-chat")) {
+            val card = BeatScore(recipe = recipe, at = 1, text = "یه کانال سیگنال", items = listOf("gain:ما|۵۰ تتر", "loss:اونا|۱۰۰ تتر"))
+            assertEquals(recipe, Storyboard.translated(told, card)?.recipe, recipe)
+        }
+    }
 }

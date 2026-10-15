@@ -62,7 +62,7 @@ internal object WrittenForms {
     private const val MIN_TRADE = 2
     private const val MIN_SOUND = 3
     private const val MIN_ECHO = 5
-    private const val MIN_STEM = 4
+    private const val MIN_STEM = 5
     private const val ECHOES = 2
     private val ENDINGS = listOf("مونه", "مون", "تون", "شون", "شم", "ش", "ه", "")
     private const val SOUND_SLIP = 1
