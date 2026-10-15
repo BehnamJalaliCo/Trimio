@@ -446,3 +446,7 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
 - The owner's verdict on the automatic edit (130.7 s): the captions are heavy and not where they should be, several
   words are still misspelled, the motion is not smooth or clean in many places. Paused here at his request for a
   build and a conversation before the next round.
+- Checks at the pause: the autopilot suite (222 tests) passes but the golden archive, which was re-based with a note
+  (`golden/baseline.json`): the drops are real and open — layout 7–9 on several scenarios, motion 6.5–7 on two English
+  launches and tutorials, the brief 7 on the crypto piece. Those are the next round's first work, with the owner's
+  three points: lighter captions placed off the face and the cards, zero spelling slips, smooth and clean motion.
