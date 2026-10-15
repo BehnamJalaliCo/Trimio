@@ -29,7 +29,37 @@ internal class Glossary(
         return sites.firstOrNull { it.equals(core, ignoreCase = true) } ?: core.lowercase()
     }
 
+    /**
+     * [u] with every site it writes spelled as the brief spells it: a model that read «کوین‌پرو دات کام» as
+     * "CoinPro.com" while the brief says coinepro.com shows the brief's (the same domain ending, the name at most
+     * [SITE_SLIP] letters off, case aside).
+     */
+    fun respell(u: Understanding): Understanding {
+        if (sites.isEmpty()) return u
+        fun fix(text: String): String = DOMAIN_IN_TEXT.replace(text) { m -> site(m.value, near = true) ?: m.value }
+        return u.copy(
+            entities = u.entities.map { it.copy(name = fix(it.name)) },
+            lines = u.lines.map { l -> l.copy(fixed = fix(l.fixed), title = fix(l.title), items = l.items.map(::fix)) },
+            hook = u.hook?.let { it.copy(title = fix(it.title)) },
+            title = fix(u.title),
+        )
+    }
+
+    /** The brief's site [found] stands for, when it is one of them or a slip of one. */
+    private fun site(found: String, near: Boolean): String? {
+        val dot = found.lastIndexOf('.')
+        if (dot <= 0) return null
+        val name = found.substring(0, dot).lowercase()
+        val end = found.substring(dot).lowercase()
+        return sites.firstOrNull { s ->
+            val sd = s.lastIndexOf('.')
+            s.substring(sd).lowercase() == end && (s.substring(0, sd).lowercase() == name || (near && PersianRepairs.distance(s.substring(0, sd).lowercase(), name) <= SITE_SLIP))
+        }
+    }
+
     companion object {
+        private val DOMAIN_IN_TEXT = Regex("(?i)\\b[a-z0-9][a-z0-9-]*\\.[a-z]{2,6}\\b")
+        private const val SITE_SLIP = 2
         private val FILES = Regex("(?i)\\.(png|jpe?g|gif|webp|svg|heic|mp4|mov|m4v|webm|pdf|txt)$")
         private val SITE = Regex("(?i)(?:https?://)?(?:www\\.)?([a-z0-9][a-z0-9-]*(?:\\.[a-z0-9-]+)*\\.[a-z]{2,6})")
         private val EXPLAIN = listOf("توضیح", "تعریف", "explain", "define", "definition", "what it means")

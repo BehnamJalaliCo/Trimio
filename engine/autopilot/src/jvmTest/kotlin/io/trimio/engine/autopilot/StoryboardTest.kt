@@ -12,7 +12,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StoryboardTest {
-    private val said = "رفتم یه دونه کانال دیدم، ده تا دونه در روز کلن سیگنال می‌ده، نه تاش استاب می‌خوره، یه دونه‌ش سود داره، " +
+    private val said = "رفتم یه دونه کانال دیدم، ده تا دونه در روز کلن سیگنال می‌ده، " +
+        "نه تاش استاب می‌خوره، یه دونه‌ش سود داره، " +
         "اونم کردن تو بوق و کرنا که آقا ما داریم سود می‌دیم، ورودیشم دو میلیون و هفتصد هزار تومنه"
     private val words = said.split(' ').mapIndexed { i, w -> Word(w, TimeRange(i * 400L, i * 400L + 350), language = Language.Persian) }
     private val texts = words.map { it.text }
@@ -27,7 +28,7 @@ class StoryboardTest {
         assertTrue("سیگنال" in grid.text!!, grid.text)
         assertEquals(listOf("loss:9", "gain:1"), grid.items.map { it.substringBeforeLast(':') })
         // Each state lands on its own number, as it is said.
-        assertEquals(listOf(at("نه"), texts.indexOf("یه", at("نه"))), grid.itemAt)
+        assertEquals(listOf(at("نه"), (at("نه") until texts.size).first { texts[it] == "یه" }), grid.itemAt)
     }
 
     @Test
@@ -38,7 +39,10 @@ class StoryboardTest {
                 SceneScore(from = at("ده"), bg = "aurora", inset = "corner", transition = "whip", beats = listOf(BeatScore(recipe = "counter", at = at("ده"), value = 10f))),
                 SceneScore(
                     from = at("اونم"),
-                    beats = listOf(BeatScore(recipe = "stack", text = "ما سود می‌دیم", at = at("اونم"), energy = 0.9f), BeatScore(recipe = "price-tag", at = at("دو"), value = 2_700_000f, suffix = "تومان")),
+                    beats = listOf(
+                        BeatScore(recipe = "stack", text = "ما سود می‌دیم", at = at("اونم"), energy = 0.9f),
+                        BeatScore(recipe = "price-tag", at = at("دو"), value = 2_700_000f, suffix = "تومان"),
+                    ),
                 ),
             ),
         )

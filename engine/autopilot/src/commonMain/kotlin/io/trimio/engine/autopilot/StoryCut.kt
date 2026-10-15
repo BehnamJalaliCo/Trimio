@@ -73,15 +73,21 @@ internal object StoryCut {
         val dropped = sortedMapOf<Int, String>()
         private var ending: Float? = null
 
-        /** The ask and what leads into it («if you want to trade without worry, …») are the ending: never a repeat. */
-        fun closing(k: Int) = ending?.let { seconds(text[k].first()) >= it && k !in dropped } == true
+        /** Where the piece's own ending starts: its last [ENDING_SHARE], where a story pays off and callbacks are meant. */
+        private val close = text.firstOrNull()?.let { a -> text.last().let { z -> seconds(a.first()) + (end(z.last()) - seconds(a.first())) * (1f - ENDING_SHARE) } }
+
+        /** The ask and what leads into it («if you want to trade without worry, …») are the ending: never a repeat; nor is the ending. */
+        fun closing(k: Int) = k !in dropped && (ending?.let { seconds(text[k].first()) >= it } == true || close?.let { seconds(text[k].first()) >= it } == true)
 
         private fun kept(k: Int) = k !in dropped && !closing(k) && k !in inHook
 
         /** The opening: what comes before the first clause that says something. */
         fun opening() {
             for (k in text.indices.take(MAX_OPENING)) {
-                if (text[k].none { normal(it.text) in HESITATIONS } && content(text[k]).size > 1) break
+                // «اصلا نمی‌دونم چی بگم»: a hesitation that says next to nothing; «اِم الان ساعت شش صبحه» says something.
+                val said = content(text[k]).size
+                val hesitant = text[k].any { normal(it.text) in HESITATIONS } && said <= HESITANT_CONTENT
+                if (!hesitant && said > 0) break
                 dropped[k] = "a hesitant opening"
             }
             if (dropped.size == text.size) dropped.clear()
@@ -97,14 +103,31 @@ internal object StoryCut {
             ending = seconds(text[from].first()) - ASK_LEAD
         }
 
-        /** Repeats: first telling wins; a word counts as said when it was last said [GAP] seconds before. */
+        /**
+         * Repeats: first telling wins. A clause repeats when one earlier passage ([PASSAGE] seconds of kept clauses,
+         * ending [GAP] seconds or more before it) already said [COVERED] of its content words — scattered words said
+         * here and there are no repeat. An instruction («بریزید», «برش بزنید») is a step, never a repeat.
+         */
         fun repeats() {
-            val lastSaid = mutableMapOf<String, Float>()
+            val said = mutableListOf<Pair<Float, Set<String>>>()
+            val last = mutableMapOf<String, Float>()
             for (k in text.indices.filter { it !in dropped }) {
                 val c = content(text[k])
                 val start = seconds(text[k].first())
-                val covered = c.count { w -> lastSaid[w]?.let { start - it >= GAP } == true }
-                if (kept(k) && c.size >= MIN_CONTENT && covered >= c.size * COVERED) dropped[k] = "said before" else c.forEach { lastSaid[it] = end(text[k].last()) }
+                // A word said in the last few seconds is a point being developed («280 times. 280 times.»), not repeated.
+                val fresh = c.filter { w -> last[w]?.let { start - it < GAP } == true }.toSet()
+                val earlier = said.filter { (t, _) -> start - t >= GAP }
+                val covered = earlier.maxOfOrNull { (from, _) ->
+                    val passage = earlier.filter { (t, _) -> t >= from && t - from <= PASSAGE }.flatMap { it.second }.toSet()
+                    c.count { it in passage && it !in fresh }
+                } ?: 0
+                val cuttable = kept(k) && text[k].none { instruction(it.text) }
+                if (cuttable && c.size >= MIN_CONTENT && covered >= c.size * COVERED) {
+                    dropped[k] = "said before"
+                } else {
+                    said += start to c.toSet()
+                    c.forEach { last[it] = end(text[k].last()) }
+                }
             }
         }
 
@@ -192,8 +215,9 @@ internal object StoryCut {
             while (j + 1 < words.size && j + 1 in gone) j++
             val before = words.getOrNull(i - 1)
             val after = words.getOrNull(j + 1)
-            val from = before?.let { b -> end(b) + minOf(EDGE, (seconds(words[i]) - end(b)) / 2f) } ?: (seconds(words[i]) - EDGE).coerceAtLeast(0f)
-            val to = after?.let { a -> seconds(a) - minOf(EDGE, (seconds(a) - end(words[j])) / 2f) } ?: (end(words[j]) + EDGE)
+            // A cut at the very start or end takes the edit's head or tail with it: no sliver of room tone is left.
+            val from = before?.let { b -> end(b) + minOf(EDGE, (seconds(words[i]) - end(b)) / 2f) } ?: 0f
+            val to = after?.let { a -> seconds(a) - minOf(EDGE, (seconds(a) - end(words[j])) / 2f) } ?: Float.MAX_VALUE
             if (to > from) spans += from..to
             i = j + 1
         }
@@ -213,6 +237,12 @@ internal object StoryCut {
             }
         }
         return runs
+    }
+
+    /** An instruction to the viewer: a Persian plural imperative («بریزید», «بزنین»), not «باید». */
+    private fun instruction(word: String): Boolean {
+        val w = normal(word)
+        return w.length >= MIN_WORD + 1 && w.startsWith("ب") && (w.endsWith("ید") || w.endsWith("ین")) && w != "باید" && w !in STOP
     }
 
     /** Whether [line] asks the viewer for something: two different asking words, or the piece's keyword with one. */
@@ -259,6 +289,8 @@ internal object StoryCut {
     private const val MIN_LINES = 6
     private const val MIN_PIECE = 40f
     private const val MAX_OPENING = 3
+    /** A hesitation with this many content words or fewer says nothing yet. */
+    private const val HESITANT_CONTENT = 1
     /** Asking clauses this close (in clauses) are one ask. */
     private const val ASK_REACH = 3
     /** Seconds before the last ask that lead into it. */
@@ -268,14 +300,18 @@ internal object StoryCut {
     private const val BREAKS = "،,.!?؟…;؛"
     private const val MIN_CONTENT = 2
     private const val MIN_WORD = 3
-    private const val COVERED = 0.65f
+    private const val COVERED = 0.7f
     private const val GAP = 6f
     private const val ISLAND = 8f
+    /** Seconds of kept clauses that count as one telling of an idea. */
+    private const val PASSAGE = 10f
+    /** The share at the end of a piece that is its own ending. */
+    private const val ENDING_SHARE = 0.15f
     private const val MAX_SHARE = 0.45f
     /** The cut stops this far from a word kept on either side (half the pause when it is shorter). */
     private const val EDGE = 0.06f
 
-    private val HESITATIONS = setOf("نمیدونم", "نمیدونستم", "وای", "خب", "اممم", "ام", "um", "uh", "erm")
+    private val HESITATIONS = setOf("نمیدونم", "نمیدونستم", "وای", "اممم", "ام", "um", "uh", "erm")
     /** Asking words, as a word starts: Persian and English. */
     private val ASKS = listOf(
         "کامنت", "دایرکت", "دایریکت", "بفرست", "بفرستید", "کلمه", "عضو", "فالو", "لینک", "بیو", "سیو", "شیر", "سابسکرایب", "کانال",
@@ -291,6 +327,8 @@ internal object StoryCut {
         "اینم", "ولی", "یا", "اگر", "اگه", "چی", "چه", "چجوری", "کدوم", "واسه", "برای", "توی", "دارن", "داره", "داریم", "دارم", "داری",
         "بری", "برو", "بیا", "بیاید", "بیایید", "نه", "هر", "خیلی", "فلان", "بیسار", "مثلا", "نمیدونم", "میدونم", "وای", "خب", "حالا", "باید",
         "شما", "شه", "میشه", "نمیشه", "چون", "پس", "اینجا", "اونجا", "دیگر", "است", "هستش", "کنید", "بکنید", "رفتم", "گفتم", "میکنن", "میکنه",
+        "کردم", "کردی", "کرد", "کردیم", "کردن", "کردند", "کنم", "کنن", "شد", "شدم", "شدی", "شدیم", "بودم", "بودیم", "داشتم", "داشتیم",
+        "دادم", "دادیم", "گفت", "زدم", "زدیم", "میکنم", "میکنی", "میکنیم", "میشه", "میخوام", "میخوای", "نمیشه", "باشه", "باشین", "هستی",
         "the", "and", "you", "your", "that", "this", "for", "are", "with", "just", "like", "but", "what", "they", "have", "can",
     )
     private val KEEP_ALL = listOf("چیزی حذف نکن", "چیزی رو حذف نکن", "کات نزن", "همه رو نگه دار", "بدون حذف", "keep everything", "don't cut", "do not cut", "no cuts")

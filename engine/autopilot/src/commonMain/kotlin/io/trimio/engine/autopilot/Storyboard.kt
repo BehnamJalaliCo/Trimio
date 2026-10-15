@@ -111,31 +111,38 @@ internal object Storyboard {
     fun tiles(texts: List<String>): List<Grid> {
         val qs = Quantities.read(texts)
         val out = mutableListOf<Grid>()
-        var after = -1
         for (whole in qs) {
-            val n = whole.value.toInt()
-            if (whole.at <= after || n !in WHOLE || whole.value != n.toDouble() || whole.kind != Quantities.Kind.Plain) continue
-            val parts = qs.filter { it.at > whole.last && it.at <= whole.last + REACH && it.value >= 1 && it.value < n }.mapNotNull { q ->
-                val near = (q.at + q.count until minOf(texts.size, q.at + q.count + NEAR)).map { texts[it] }
-                val tone = Meaning.tone(near).takeIf { it != Meaning.Tone.Mark } ?: return@mapNotNull null
-                val said = near.firstOrNull { Meaning.tone(it) == tone } ?: return@mapNotNull null
-                Triple(q, tone, said)
-            }.distinctBy { it.second }
-            if (parts.isEmpty() || parts.sumOf { it.first.value.toInt() } > n) continue
-            val noun = (whole.last + 1 until minOf(texts.size, whole.last + 1 + NOUN)).map { texts[it].trim('،', ',', '.') }
-                .firstOrNull { w -> w.length >= 3 && w !in COUNTERS && !w.startsWith("می") && Meaning.tone(w) == Meaning.Tone.Mark && w !in FILLERS }
-            val persian = texts.any { w -> w.any { it in '؀'..'ۿ' } }
-            fun num(v: Int) = Quantities.digits(v.toDouble(), persian)
-            val items = parts.map { (q, tone, said) -> "${Meaning.name(tone)}:${q.value.toInt()}:${num(q.value.toInt())} ${said.trim('،', ',', '.')}" }
-            val last = parts.maxOf { (q, _, _) -> q.at + q.count + NEAR - 1 }.coerceAtMost(texts.lastIndex)
-            val beat = BeatScore(
-                recipe = "board-tiles", at = whole.at, until = last, value = n.toFloat(), text = listOfNotNull(num(n), noun).joinToString(" "),
-                items = items, itemAt = parts.map { (q, _, _) -> q.at }, place = "top",
-            )
-            out += Grid(beat, whole.at..last)
-            after = last
+            if (whole.at <= (out.lastOrNull()?.words?.last ?: -1)) continue
+            grid(whole, qs, texts)?.let { out += it }
         }
         return out
+    }
+
+    /** The grid [whole] opens, when parts of it follow. */
+    private fun grid(whole: Quantities.Quantity, qs: List<Quantities.Quantity>, texts: List<String>): Grid? {
+        val n = whole.value.toInt()
+        val counted = n in WHOLE && whole.value == n.toDouble()
+        if (!counted || whole.kind != Quantities.Kind.Plain) return null
+        val parts = qs.filter { it.at > whole.last && it.at <= whole.last + REACH && it.value >= 1 && it.value < n }.mapNotNull { q ->
+            val near = (q.at + q.count until minOf(texts.size, q.at + q.count + NEAR)).map { texts[it] }
+            val tone = Meaning.tone(near).takeIf { it != Meaning.Tone.Mark } ?: return@mapNotNull null
+            val said = near.firstOrNull { Meaning.tone(it) == tone } ?: return@mapNotNull null
+            Triple(q, tone, said)
+        }.distinctBy { it.second }
+        if (parts.isEmpty() || parts.sumOf { it.first.value.toInt() } > n) return null
+        val noun = (whole.last + 1 until minOf(texts.size, whole.last + 1 + NOUN)).map { texts[it].trim('،', ',', '.') }
+            .firstOrNull { w -> w.length >= 3 && w !in COUNTERS && !w.startsWith("می") && Meaning.tone(w) == Meaning.Tone.Mark && w !in FILLERS }
+        // A count of things (signals, trades, students), never a stretch of time («شش ماه», "six months").
+        if (noun == null || TIME.any { noun.lowercase().startsWith(it) }) return null
+        val persian = texts.any { w -> w.any { it in '\u0600'..'\u06FF' } }
+        fun num(v: Int) = Quantities.digits(v.toDouble(), persian)
+        val items = parts.map { (q, tone, said) -> "${Meaning.name(tone)}:${q.value.toInt()}:${num(q.value.toInt())} ${said.trim('،', ',', '.')}" }
+        val last = parts.maxOf { (q, _, _) -> q.at + q.count + NEAR - 1 }.coerceAtMost(texts.lastIndex)
+        val beat = BeatScore(
+            recipe = "board-tiles", at = whole.at, until = last, value = n.toFloat(), text = listOfNotNull(num(n), noun).joinToString(" "),
+            items = items, itemAt = parts.map { (q, _, _) -> q.at }, place = "top",
+        )
+        return Grid(beat, whole.at..last)
     }
 
     private fun iconFor(words: List<String>): String {
@@ -163,9 +170,13 @@ internal object Storyboard {
     private val STAGE_WORDS = listOf("تمام صفحه", "فول اسکرین", "صحنه کامل", "full screen", "full-screen", "full frame", "full-frame")
     private val TITLES = setOf("slam", "stack", "spread", "mask-rise", "blur-in", "flip", "type-on", "glitch")
     private val FIGURES = setOf("counter", "meter", "ring", "stat-stack", "burst", "countdown", "progress", "stats", "voucher", "price-tag", "receipt", "chart", "bars")
-    private val KEEP = setOf("comment", "endcard", "ui-browser", "ui-chat", "url", "logo-mark", "pop-captions", "subtitles", "callout", "board-tiles", "board-pill", "board-quote", "board-price", "board-versus", "board-steps", "board-chips")
+    private val KEEP = setOf(
+        "comment", "endcard", "ui-browser", "ui-chat", "url", "logo-mark", "pop-captions", "subtitles", "callout",
+        "board-tiles", "board-pill", "board-quote", "board-price", "board-versus", "board-steps", "board-chips",
+    )
     private val OURS = listOf("مون", "مان")
     private val COUNTERS = setOf("تا", "دونه", "عدد", "دانه", "نفر")
+    private val TIME = listOf("ماه", "سال", "ساعت", "دقیقه", "هفته", "ثانیه", "month", "year", "hour", "minute", "week", "second", "day")
     private val FILLERS = setOf("کلن", "کلا", "اصلا", "در", "روز")
     private val ICONS = linkedMapOf(
         "سیگنال" to "chart", "کانال" to "send", "تلگرام" to "send", "سایت" to "browser", ".com" to "browser", "ربات" to "bolt", "چت" to "chat",

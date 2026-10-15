@@ -14,7 +14,8 @@ import kotlinx.serialization.json.jsonObject
 
 /**
  * The last pass over the words before anything is planned or drawn: every word that will be read
- * on screen must be one ([ScreenWords]). Each one that is not goes through the fix chain —
+ * on screen must be one ([ScreenWords]), in its written form ([WrittenForms]: «دولار» → «دلار»). Each
+ * one that is not goes through the fix chain —
  *
  * 1. the word list's sure repair ([ScreenWords.respelled]: «کاراموز» → «کارآموز», «مودل» → «مدل»);
  * 2. the director's proofreading when a model is on the device: one word for the misheard one, in
@@ -34,14 +35,20 @@ internal object OnScreenSpelling {
         lexicon: PersianSpelling,
         names: Collection<String>,
         model: LanguageModel?,
+        sites: List<String> = emptyList(),
         log: (String) -> Unit,
     ): Result {
         val texts = transcript.words.map { it.text }
         val plain = ScreenWords(lexicon)
         val spoken = ScreenWords.namesIn(texts) { w -> plain.shows(w) || plain.respelled(w) != null }
         val screen = ScreenWords(lexicon, names + spoken)
+        // 0. Words said one way and written another («دولار» → «دلار»), known to the list as said ([WrittenForms]).
+        val written = texts.indices.mapNotNull { i -> WrittenForms.of(texts[i], texts, sites)?.let { i to it } }.toMap()
+        written.forEach { (i, w) -> log("screen words (written form): ${texts[i]} → $w") }
         // 1. The word list's own repairs.
-        val listed = texts.indices.mapNotNull { i -> if (screen.shows(texts[i])) null else screen.respelled(texts[i], texts.getOrNull(i + 1))?.let { i to it } }.toMap()
+        val listed = written + texts.indices.mapNotNull { i ->
+            if (i in written || screen.shows(texts[i])) null else screen.respelled(texts[i], texts.getOrNull(i + 1))?.let { i to it }
+        }.toMap()
         listed.forEach { (i, w) -> log("screen words (lexicon): ${texts[i]} → $w") }
         val first = texts.mapIndexed { i, w -> listed[i] ?: w }
         // 2. The director's proofreading of what is still unknown.

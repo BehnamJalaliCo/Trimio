@@ -156,7 +156,9 @@ class Autopilot(
         // What the brief says in so many words («پرانرژی», «کلمه‌به‌کلمه») wins over the model's reading of it;
         // music the brief leaves open is matched by meaning when the retrieval add-on is installed.
         val opening = analysis.transcript.words.take(OPENING_WORDS).joinToString(" ") { it.text }
-        val understanding = MusicShelf.pick(read.copy(brief = RulesUnderstander.brief(request.prompt).over(read.brief)), opening) { report += it }
+        // The brief's sites as it spells them, wherever the reading writes one (coinepro.com, not "CoinPro.com").
+        val sited = Glossary.read(request.prompt).respell(read)
+        val understanding = MusicShelf.pick(sited.copy(brief = RulesUnderstander.brief(request.prompt).over(read.brief)), opening) { report += it }
         // The meaning search (embedder and reranker) never stays loaded beside the director between its uses.
         ArtShelf.release()
         // The director's line-by-line spelling, aligned word for word to what was heard.
@@ -170,7 +172,7 @@ class Autopilot(
         // Every word on screen is a word: the list's sure repairs, then the director's proofreading; what is
         // still no word (and no name) stays off the captions ([OnScreenSpelling]).
         val names = understanding.entities.map { it.name } + Glossary.read(request.prompt).terms.keys + request.prompt.split(' ', '\n', '،', ',')
-        val checked = OnScreenSpelling.check(analysis.transcript.withFixes(lineFixes), lexicon, names, model) { report += it }
+        val checked = OnScreenSpelling.check(analysis.transcript.withFixes(lineFixes), lexicon, names, model, Glossary.read(request.prompt).sites) { report += it }
         // What to say at all: repeats, early asks and a hesitant start go before any picture is planned ([StoryCut]).
         val story = storyCut(request, analysis.edit, checked, lines, understanding, report)
         val transcript = story.transcript

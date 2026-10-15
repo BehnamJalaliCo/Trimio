@@ -27,7 +27,7 @@ class StoryCutTest {
         "ما همه سیگنال‌ها رو روی سایت گذاشتیم شفاف.",
         "هر کسی می‌تونه نتیجه‌ها رو ببینه و بررسی کنه.",
         "ورودی ما فقط پنجاه تتره و رایگانه.",
-        "بقیه نه تاش استاپ می‌خوره سود هم نداره.",
+        "دوباره نه تاش استاپ می‌خوره و یکیش سود داره.",
         "پشتیبانی هم داریم هر روز جواب می‌دیم.",
         "ربات معاملاتی هم ساختیم که خودکار کار می‌کنه.",
         "اگه می‌خوای بدون دغدغه ترید کنی بیا.",
@@ -55,7 +55,7 @@ class StoryCutTest {
         assertTrue(gone(cut, line("کلمه")))
         assertTrue(kept(cut, lines.indexOfLast { words[it.first].text == "کلمه" }))
         // «Nine of them hit stop-loss», said again a minute on.
-        assertTrue(gone(cut, line("بقیه")), cut.notes.joinToString("\n"))
+        assertTrue(gone(cut, line("دوباره")), cut.notes.joinToString("\n"))
         // What is said once stays.
         for (start in listOf("رفتم", "نه", "ورودیش", "ما", "ورودی", "ربات", "اگه")) assertTrue(kept(cut, line(start)), start)
     }

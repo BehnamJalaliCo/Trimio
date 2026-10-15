@@ -148,7 +148,8 @@ object BoardFamilies {
                 val cy = top + r * (tile + gap) + tile / 2f
                 val land = cue.at - Craft.LEAD + i * APPEAR
                 val (to, at) = turn[i] ?: (Board.RAISED to Float.POSITIVE_INFINITY)
-                val body = if (at.isFinite()) Board.turning(cx, cy, tile, tile, tile * 0.22f, Board.RAISED, to, at, "tile-$i") else Board.card(cx, cy, tile, tile, tile * 0.22f, Board.RAISED, null, "tile-$i")
+                val corner = tile * 0.22f
+                val body = if (at.isFinite()) Board.turning(cx, cy, tile, tile, corner, Board.RAISED, to, at, "tile-$i") else Board.card(cx, cy, tile, tile, corner, Board.RAISED, null, "tile-$i")
                 val neutral = Kit.icon("chart", cx, cy, tile * 0.46f, Board.MUTED, land)
                 val parts = mutableListOf<Node>(body, if (at.isFinite()) Board.during(neutral, land, at, "tile-$i-idle") else neutral)
                 if (at.isFinite()) parts += Kit.icon(if (to == Board.GAIN) "check" else "close", cx, cy, tile * 0.52f, Board.on(to), at, tile * 0.012f)
@@ -308,7 +309,9 @@ object BoardFamilies {
                 val what = parts.getOrNull(2).orEmpty()
                 val card = mutableListOf<Node>(Board.card(cx, cy, cw, ch, ch * 0.14f, Board.GROUND, c.copy(alpha = 0.7f), "versus-card-$i"))
                 if (who.isNotBlank()) card += Board.text(fit, who, 800, ch * 0.15f, cw * 0.8f, ch * 0.2f, Board.ink(c), cx, cy - ch * 0.3f, t, cue.rtl, Board.GROUND, name = "versus-who-$i")
-                if (figure.isNotBlank()) card += Board.text(fit, figure, 900, ch * 0.22f, cw * 0.86f, ch * 0.3f, Board.ink(c), cx, cy, t + 0.1f, cue.rtl, Board.GROUND, Kit.Reveal.Pop, name = "versus-figure-$i")
+                if (figure.isNotBlank()) {
+                    card += Board.text(fit, figure, 900, ch * 0.22f, cw * 0.86f, ch * 0.3f, Board.ink(c), cx, cy, t + 0.1f, cue.rtl, Board.GROUND, Kit.Reveal.Pop, name = "versus-figure-$i")
+                }
                 if (what.isNotBlank()) card += Board.text(fit, what, 600, ch * 0.12f, cw * 0.8f, ch * 0.18f, Board.MUTED, cx, cy + ch * 0.3f, t + 0.15f, cue.rtl, Board.GROUND, name = "versus-what-$i")
                 nodes += Group(card, Transform(anchorX = 0f, anchorY = 0f, opacity = Anim.tween(0f, 1f, t, t + Board.FADE)), start = t - 0.02f, name = "versus-side-$i")
             }
@@ -372,7 +375,8 @@ object BoardFamilies {
                     *(done?.let { arrayOf(Triple(it, Board.GAIN, Easing.ExpoOut)) } ?: emptyArray()),
                 )
                 nodes += ShapeNode(ShapeSpec.Ellipse(d.anim, d.anim), fill = Fill.Solid(color), transform = Transform(x = x.anim, y = dotY.anim, scale = Board.pulse(now)), name = "steps-dot-$i")
-                val number = Board.text(fit, Kit.digits("${i + 1}", cue.rtl), 900, d * 0.5f, d * 0.8f, d * 0.7f, Board.INK, x, dotY, at, cue.rtl, Board.RAISED, Kit.Reveal.None, name = "steps-number-$i")
+                val digit = Kit.digits("${i + 1}", cue.rtl)
+                val number = Board.text(fit, digit, 900, d * 0.5f, d * 0.8f, d * 0.7f, Board.INK, x, dotY, at, cue.rtl, Board.RAISED, Kit.Reveal.None, name = "steps-number-$i")
                 nodes += if (done != null) Board.during(number, at, done, "steps-number-$i-on") else number
                 if (done != null) nodes += Kit.icon("check", x, dotY, d * 0.56f, Board.DARK, done, d * 0.05f)
                 nodes += Board.text(fit, label, 700, h * 0.15f, span * 0.92f, h * 0.24f, Board.INK, x, labelY, at + 0.1f, cue.rtl, Board.GROUND, name = "steps-label-$i")
