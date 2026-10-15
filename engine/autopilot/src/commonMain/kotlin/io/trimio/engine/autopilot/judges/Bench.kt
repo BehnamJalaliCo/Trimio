@@ -18,6 +18,7 @@ internal object Bench {
     const val CAPTIONS = "pop-captions"
     const val COMMENT = "comment"
     const val STAMP = "stamp"
+    private val THREADS = setOf("message")
 
     val TEXT = setOf("slam", "mask-rise", "type-on", "blur-in", "flip", "spread", "stack", "glitch")
 
@@ -102,8 +103,10 @@ internal object Bench {
             .firstOrNull { i ->
                 val cut = start(words, i) - SCENE_LEAD
                 val host = starts.indexOfLast { it <= cut }
+                // A punch-in is a cut on the speaker: inside a stage (a graphic filling the frame) it would cut it short.
                 score.scenes.none { it.from == i } && (asked == null || start(words, i) < asked - SCENE_LEAD) &&
-                    (host < 0 || score.scenes[host].beats.none { beatStart(it, host, score, words, starts) in (cut - MIN_READ)..cut })
+                    (host < 0 || (score.scenes[host].bg.let { it == null || it == "media" } && score.scenes[host].beats.none { beatStart(it, host, score, words, starts) in (cut - MIN_READ)..cut } &&
+                        !threadOn(score.scenes[host], words, cut)))
             } ?: return null
         // Beats of the scene being cut that land after the cut go with the new scene: left behind,
         // their scene would end before they land (a beat that holds for less than nothing).
@@ -127,11 +130,16 @@ internal object Bench {
         val late = asked != null && t > asked - SCENE_LEAD
         if (t <= MIN_READ || crowded || late) return null
         val host = starts.indexOfLast { it <= t }.coerceAtLeast(0)
+        if (score.scenes[host].bg.let { it != null && it != "media" }) return null
         val moved = score.scenes[host].beats.filter { beatStart(it, host, score, words, starts) > t }
         val kept = score.scenes.mapIndexed { k, s -> if (k == host) s.copy(beats = s.beats - moved.toSet()) else s }
         val scenes = (kept + SceneScore(time = t, beats = moved)).sortedBy { s -> s.time ?: s.from?.let { start(words, it) } ?: 0f }
         return score.copy(scenes = scenes)
     }
+
+    /** A chat thread in [scene] still landing its messages at [t]: a cut there would take it away before they are said. */
+    private fun threadOn(scene: SceneScore, words: List<Word>, t: Float) =
+        scene.beats.any { b -> b.recipe in THREADS && b.until?.let { start(words, it) > t } == true }
 
     /** When the call to action lands in [score], if it is there. */
     fun askedBy(score: Score, words: List<Word>): Float? {
@@ -174,8 +182,8 @@ internal object Bench {
                 recipe = "counter", at = b.at, until = b.until, time = b.time, value = b.value, decimals = b.decimals, prefix = b.prefix,
                 suffix = b.suffix, label = b.label, place = b.place, energy = b.energy,
             )
-            // A data card's label («تکمیل», "time left») describes its figure; alone it says nothing.
-            val words = (b.text ?: b.label?.takeIf { b.recipe !in DATA } ?: b.items.take(PLAIN_ITEMS).joinToString(" ")).replace(" | ", " ").trim()
+            // A data card's words (a bar's «تکمیل» stamp, "time left") describe its figure; alone they say nothing.
+            val words = (b.text?.takeIf { b.recipe !in DATA } ?: b.label?.takeIf { b.recipe !in DATA } ?: b.items.take(PLAIN_ITEMS).joinToString(" ")).replace(" | ", " ").trim()
             if (words.isBlank() || words.split(' ').size > PLAIN_WORDS) return null
             return BeatScore(recipe = "mask-rise", at = b.at, time = b.time, text = words, place = b.place, energy = b.energy, mark = b.mark, hold = b.hold)
         }

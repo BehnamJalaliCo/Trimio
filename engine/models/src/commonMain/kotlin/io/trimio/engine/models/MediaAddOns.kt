@@ -45,6 +45,15 @@ object MediaAddOns {
         work = 30_000_000,
     )
 
+    /** MediaPipe Selfie Segmentation (Google, Apache-2.0; ONNX community export): the speaker cut out of the picture. */
+    val personMatte = onnx(
+        "mediapipe-selfie-seg", "onnx-community/mediapipe_selfie_segmentation", "onnx/model.onnx", "mediapipe_selfie_segmentation.onnx",
+        462_352, "3241ac4ad8aa35bdaf33946776db29f7c283a413aa0b0dacb9483594b4531aad", "Apache-2.0",
+        "جداسازی گوینده", "Speaker cut-out",
+        pro(AddOnGroup.Picture, "متن پشت سر گوینده، گوینده روی صحنهٔ طراحی‌شده", "Text behind the speaker, the speaker over a designed stage", "layout"),
+        work = 10_000_000,
+    )
+
     /** TransNetV2 (ONNX export of the MIT weights): shot boundaries for cuts and B-roll. */
     val shots = onnx(
         "transnetv2", "elya5/transnetv2", "transnetv2.onnx", "transnetv2.onnx",
@@ -153,7 +162,7 @@ object MediaAddOns {
 
     /** Every media add-on, in the order the tiers screen lists them. */
     val all: List<ModelSpec> = listOf(
-        faces, shots, ocrDetector, ocrRecognizer, ocrDictionary, beats, beatsFrontend, punctuation, punctuationTokenizer,
+        faces, personMatte, shots, ocrDetector, ocrRecognizer, ocrDictionary, beats, beatsFrontend, punctuation, punctuationTokenizer,
         aligner, alignerTokens, speakerTurns, speakerVoices,
     )
 }

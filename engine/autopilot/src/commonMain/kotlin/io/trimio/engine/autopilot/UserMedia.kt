@@ -210,7 +210,7 @@ internal class UserMedia(private val assets: List<UserAsset>, private val readin
         if (k < 0 || s.scenes[k].from == i) return s
         val sc = s.scenes[k]
         val (moved, kept) = sc.beats.partition { b -> (b.at ?: -1) >= i }
-        val tail = SceneScore(from = i, bg = sc.bg, camera = sc.camera, beats = moved)
+        val tail = SceneScore(from = i, bg = sc.bg, camera = sc.camera, beats = moved, inset = sc.inset)
         return s.copy(scenes = s.scenes.take(k) + sc.copy(beats = kept) + tail + s.scenes.drop(k + 1))
     }
 

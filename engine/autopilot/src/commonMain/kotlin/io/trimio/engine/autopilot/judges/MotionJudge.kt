@@ -12,7 +12,7 @@ import io.trimio.engine.motion.score.Score
 /**
  * The motion designer's eye on choreography. Every graphic holds long enough to be read: text at
  * least its reading time (the compiler's 0.35 s + 0.055 s a letter, at least 1 s), figures at
- * least [dataHold] (3.2 s; the cold open's figure holds while the opening plays), other elements their
+ * least [dataHold] (3.2 s; the cold open's figure holds while the opening plays; one figure alone on a stage 2.2 s), other elements their
  * recipe's own minimum. An entrance never plays over an exit in the same band; a treatment is not
  * used twice back to back within [repeatWindow]; and a longer piece uses a range of treatments.
  */
@@ -31,7 +31,8 @@ class MotionJudge(
             val sev = if (held >= need * MAJOR_SHARE) Severity.Minor else Severity.Major
             Bench.finding(g.at, sev, "${g.recipe} holds ${Bench.r1(held)}s of the ${Bench.r1(need)}s it needs", "hold it to ${Bench.r1(need)}s")
         }.capped(MAX_SHORT)
-        f += crossing(graphics).map { (a, b) ->
+        // On a stage of its own a card replacing the one before is a slide: one leaves as the next comes in.
+        f += crossing(graphics).filterNot { (a, b) -> c.footage && !a.overFootage && !b.overFootage }.map { (a, b) ->
             Bench.finding(b.at, Severity.Minor, "${b.recipe} enters over ${a.recipe}'s exit in the ${b.zone} band", "move it to the other band or wait for the exit")
         }.capped()
         f += repeats(c, graphics).map { (a, b) ->
@@ -57,6 +58,8 @@ class MotionJudge(
             val opening = prelude > 0f && g.at < prelude
             val need = when {
                 g.recipe in Bench.DATA && opening -> (prelude - OPENING_SLACK).coerceIn(MIN_OPENING, dataHold)
+                // One figure filling a frame of its own («۱۰», what it counts under it) is read in a glance.
+                g.recipe in STAGE_FIGURES && !g.overFootage -> STAGE_FIGURE_HOLD
                 g.recipe in Bench.DATA -> dataHold
                 g.recipe in Bench.TEXT || (g.recipe == Bench.STAMP && g.text.isNotBlank()) -> maxOf(MIN_READ, 0.35f + 0.055f * g.text.length) * READ_SLACK
                 else -> Recipes.named(g.recipe)?.minHold ?: MIN_READ
@@ -133,7 +136,8 @@ class MotionJudge(
             val at = Bench.locate(score, c.words, g) ?: continue
             // Held longer; and when the next scene leaves no room after it, it lands a little earlier instead.
             val early = (need - (g.out - g.at) + 0.1f).coerceIn(0f, MAX_EARLY)
-            score = Bench.mapBeat(score, at) { it.copy(hold = need + 0.1f, time = (g.at - early).coerceAtLeast(0f), at = null) }
+            // Never held shorter than it was asked to be (a chat thread holds until its last message is said).
+            score = Bench.mapBeat(score, at) { it.copy(hold = maxOf(need + 0.1f, it.hold ?: 0f), time = (g.at - early).coerceAtLeast(0f), at = null) }
             score = unblock(score, c, at.first, g.at + need + 0.1f)
         }
         for ((_, b) in crossing(graphics)) {
@@ -197,6 +201,8 @@ class MotionJudge(
 
     private companion object {
         const val MIN_READ = 1.0f
+        val STAGE_FIGURES = setOf("counter", "meter")
+        const val STAGE_FIGURE_HOLD = 2.2f
         const val MAX_EARLY = 0.6f
         const val READ_SLACK = 0.9f
         const val MIN_OPENING = 1.2f

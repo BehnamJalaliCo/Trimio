@@ -53,6 +53,8 @@ class Planner(
     fun plan(words: List<Word>, lines: List<Lines.Line>, u: Understanding, seed: Long, footage: Boolean = true, opening: Opening? = null): Plan =
         Session(words, lines, u, seed, footage, opening?.takeIf { it.line in lines.indices }).run()
 
+    // One planning session holds every reading and choice of one edit: its parts share that state, so they stay together.
+    @Suppress("LargeClass")
     private inner class Session(
         val words: List<Word>,
         val lines: List<Lines.Line>,
@@ -220,6 +222,8 @@ class Planner(
         }
 
         /** The edit cut into scenes: one per line (lines a running beat holds join its scene), after the cold open. */
+        // The edit's one pass over its lines: each case (the hook, a slide on the stage, a line a beat covers, the ask) is a branch of it.
+        @Suppress("CyclomaticComplexMethod", "LoopWithTooManyJumpStatements")
         private fun cut(takeovers: Set<Int>): MutableList<SceneScore> {
             val scenes = mutableListOf<SceneScore>()
             opening?.let { scenes += hooks.openingScene(it, reads).also { sc -> hookKeys += sc.beats.mapNotNull { b -> b.text?.let(::textKey) } } }
@@ -233,7 +237,8 @@ class Planner(
                 val covered = line.first <= coveredUntil && scenes.isNotEmpty()
                 // «۱۰ سیگنال در روز» then «استاپ ۹۰٪ / سود ۱۰٪»: a card on the next line takes the stage's place as a slide
                 // (the speaker stays in the corner) instead of cutting back and forth or crowding two cards together.
-                if (!covered && previousTakeover && read.show in TAKEOVER_SHOWS && k !in threads && k < lines.lastIndex && stageRun + duration(k, k) <= MAX_STAGE_RUN) {
+                val slides = !covered && previousTakeover && read.show in TAKEOVER_SHOWS && k !in threads && k < lines.lastIndex && stageRun + duration(k, k) <= MAX_STAGE_RUN
+                if (slides) {
                     val slide = beatsFor(k, line, read, takeover = true, hasHook = false)
                     if (slide.isNotEmpty() && slide.none { it.recipe == "comment" || it.recipe == "endcard" }) {
                         scenes[scenes.lastIndex] = scenes.last().let { it.copy(beats = it.beats + slide) }
@@ -253,6 +258,21 @@ class Planner(
                 // The ask is the last screen: its scene runs to the end, and nothing new joins the field (the DM step excepted).
                 if (beats.any { it.recipe == "comment" || it.recipe == "endcard" }) coveredUntil = words.lastIndex
                 if (covered) {
+                    val asks = beats.filter { it.recipe == "comment" || it.recipe == "endcard" }
+                    val stage = scenes.last()
+                    // The ask is the speaker's, never a card squeezed beside a stage's graphic: once that graphic has been
+                    // read the frame cuts back to the speaker and the ask comes up there.
+                    val read = stage.beats.maxOfOrNull { b -> (b.time ?: startOf(b.at ?: line.first)) + (b.hold ?: STAGE_DATA_HOLD) }
+                    val back = read?.let { r -> (line.first..words.lastIndex).firstOrNull { startOf(it) >= r - SCENE_LEAD } }
+                    if (asks.isNotEmpty() && stage.bg != null && back != null) {
+                        val from = startOf(back)
+                        // What lands before the cut stays on the stage; the rest (the DM step) comes with the ask.
+                        val (stay, go) = (beats - asks.toSet()).partition { b -> (b.time ?: startOf(b.at ?: line.first)) < from }
+                        scenes[scenes.lastIndex] = stage.copy(beats = stage.beats + stay)
+                        scenes += SceneScore(from = back, beats = asks.map { a -> if (startOf(a.at ?: back) < from) a.copy(time = from) else a } + go)
+                        previousTakeover = false
+                        continue
+                    }
                     scenes[scenes.lastIndex] = scenes.last().let { it.copy(beats = it.beats + beats) }
                     continue
                 }
@@ -277,9 +297,33 @@ class Planner(
             if (footage) rhythm.keepAlive(scenes)
             rhythm.vary(scenes)
             rhythm.prune(scenes, least)
-            // A full-frame stage whose graphic was pruned would stand empty: the speaker stays instead.
-            for (k in scenes.indices) if (scenes[k].bg != null && scenes[k].beats.isEmpty()) scenes[k] = scenes[k].copy(bg = null, transition = null)
+            // A full-frame stage whose graphic was pruned would stand empty: the speaker stays instead, full frame.
+            for (k in scenes.indices) if (scenes[k].bg != null && scenes[k].beats.isEmpty()) scenes[k] = scenes[k].copy(bg = null, transition = null, inset = null)
+            if (footage) cutBack(scenes)
             notes += rhythm.notes
+        }
+
+        /**
+         * A stage outstays its graphic when the line it covers runs on («۱۰ تیپ در روز», then six seconds more of talk):
+         * ten seconds of one chart is dead air. Once its graphics are read the frame cuts back to the speaker, on the
+         * next word.
+         */
+        private fun cutBack(scenes: MutableList<SceneScore>) {
+            var k = 0
+            while (k < scenes.size) {
+                val sc = scenes[k]
+                val from = sc.from
+                if (sc.bg != null && from != null && sc.beats.isNotEmpty()) {
+                    val read = sc.beats.maxOf { b -> (b.time ?: startOf(b.at ?: from)) + (b.hold ?: STAGE_DATA_HOLD) }
+                    val next = scenes.getOrNull(k + 1)?.let { n -> n.time ?: n.from?.let(::startOf) } ?: endOf(words.lastIndex)
+                    val back = (from + 1..words.lastIndex).firstOrNull { startOf(it) >= read + CUT_BACK_LEAD }
+                    if (back != null && next - read > STAGE_OVERHANG && next - startOf(back) >= MIN_SPEAKER_RUN) {
+                        scenes.add(k + 1, SceneScore(from = back))
+                        notes += "stage at word $from: back to the speaker at word $back (${((next - read) * 10).toInt() / 10f}s past its graphic)"
+                    }
+                }
+                k++
+            }
         }
 
         /** The payoff first, unless a cold open showed it or the first line's own graphic (the two phones named, a figure) is the hook itself. */
@@ -443,7 +487,7 @@ class Planner(
                 brands.size >= 2 -> "logos"
                 shares(k) != null -> "poll"
                 copy != null -> copy
-                else -> numbersSay(k, line, read, bigNumber) ?: when {
+                else -> numbersSay(k, read, bigNumber) ?: when {
                     !grounded(line, read, number != null, brands.isNotEmpty()) -> plainShow(read)
                     read.show in setOf("counter", "meter") && number == null -> "headline"
                     read.show == "logos" && brands.isEmpty() && read.items.isEmpty() -> "headline"
@@ -455,7 +499,7 @@ class Planner(
         }
 
         /** What the line's numbers decide about its show, or null when they leave it to the reading. */
-        private fun numbersSay(k: Int, line: Lines.Line, read: LineRead, bigNumber: Boolean): String? {
+        private fun numbersSay(k: Int, read: LineRead, bigNumber: Boolean): String? {
             val sense = senses[k]
             // Money is a voucher only when it is given (a gift, credit, capital), never a price or a fee.
             val rich = sense.richShow()?.takeIf { it != "voucher" || sense.gift }
@@ -696,6 +740,8 @@ class Planner(
                 ?: primaryShow(line, read, e, takeover)?.let { b -> shows.vary(b, texts, line, read, sense(line), takeover) }
         }
 
+        // A table: one show, the beat that makes it.
+        @Suppress("CyclomaticComplexMethod")
         private fun primaryShow(line: Lines.Line, read: LineRead, e: Float, takeover: Boolean): BeatScore? = when (compact(read, takeover)) {
             "counter" -> counter(line, read, e, takeover)
             "logos" -> logos(line, read)
@@ -770,10 +816,21 @@ class Planner(
             return BeatScore(
                 recipe = "counter", at = at, until = minOf(line.last, at + q.count), value = q.value.toFloat(), decimals = q.decimals,
                 suffix = if (percent) "٪" else "", prefix = if ((percent && growth) || q.opened) "+" else "",
-                label = figures.unitLabel(q) ?: figures.near(q, line), energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
+                label = titled(read, q) ?: figures.unitLabel(q) ?: figures.near(q, line), energy = maxOf(e, 0.7f), place = if (takeover) "center" else "top",
                 // Alone on a stage the figure is the frame: the big count-up, not a small card.
                 variant = if (takeover) 0 else null,
             )
+        }
+
+        /**
+         * What the figure counts in the line's headline, the number taken out («۱۰ سیگنال در روز» → «سیگنال در روز», «۵۰ دلار
+         * کف ورود» → «دلار کف ورود»): a big «۱۰» alone on a stage says nothing. Null when the headline holds no such number.
+         */
+        private fun titled(read: LineRead, q: Quantities.Quantity): String? {
+            val words = read.title.split(' ').filter { it.isNotBlank() }
+            val n = NumberWords.findAll(words).filter { it.value == q.value }.singleOrNull() ?: return null
+            val rest = words.filterIndexed { i, _ -> i !in n.start until n.start + n.count }
+            return rest.joinToString(" ").takeIf { rest.size in 1..MAX_COUNTER_LABEL && Fragments.fault(it) == null }
         }
 
         private fun place(takeover: Boolean) = if (takeover) "center" else "top"
@@ -996,6 +1053,18 @@ class Planner(
 
         /** The fewest items a list card shows. */
         const val MIN_LIST = 3
+
+        /** Words of a headline left under a counter's number. */
+        const val MAX_COUNTER_LABEL = 4
+
+        /** Seconds a stage may stand on past its graphics' read before the frame cuts back to the speaker. */
+        const val STAGE_OVERHANG = 1.5f
+
+        /** The cut back comes on the first word this long after the read. */
+        const val CUT_BACK_LEAD = 0.2f
+
+        /** The speaker's stretch a cut back opens must last at least this long. */
+        const val MIN_SPEAKER_RUN = 1.5f
 
         /** Readings a reference's kinds of graphics may replace. */
         val PLAIN_READS = setOf("none", "headline", "list")

@@ -93,6 +93,8 @@ data class Cue(
     val variety: Int = 0,
     /** Who says it, for spoken captions (0, 1, … when two voices or more were heard): each voice gets its colour. */
     val speaker: Int = 0,
+    /** The speaker's head in the frame (px), when the footage behind the graphic shows them and it is known. */
+    val head: Box? = null,
 ) {
     val duration: Float get() = out - at
     val words: List<String> get() = text.split(' ').filter { it.isNotEmpty() }

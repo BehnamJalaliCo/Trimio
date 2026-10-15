@@ -68,6 +68,8 @@ internal object Fragments {
     private fun whole(words: List<String>): Boolean = words.size in 2..3 && words.last() in LIGHT && words[words.size - 2].let { it in COMPLEMENTS || Phrases.nounish(it) }
 
     /** A lone word stands only when it names something: a common noun as written, or a term. */
+    // One rule a line: each kind of word that cannot end or stand alone.
+    @Suppress("CyclomaticComplexMethod")
     private fun lone(w: String): String? = when {
         w in ADVERBS || w in QUANTIFIERS || w in MODALS || w in OPENERS || w in CLOSERS || w in PRONOUNS -> "«$w» alone says nothing"
         Phrases.verb(key(w)) || w in LIGHT || w in COMPLEMENTS -> "«$w» alone is half a verb"

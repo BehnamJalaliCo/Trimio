@@ -77,6 +77,10 @@ class Autopilot(
         val voices: List<io.trimio.engine.motion.score.Voice> = emptyList(),
         /** The video's own music (bpm, first beat), when it has one: no music is added and the hits land on its beat. */
         val sourceTempo: Pair<Float, Float>? = null,
+        /** The renderer can cut the speaker out of the footage (the person-matte add-on): a short title may stand behind them. */
+        val matte: Boolean = false,
+        /** The top of the speaker's head (a share of the frame's height), found through the matte: where a title stands behind them. */
+        val crown: Float? = null,
     )
 
     data class Production(
@@ -384,7 +388,8 @@ class Autopilot(
     private fun context(r: Reading, d: Draft, sound: Soundtrack.Result? = null, levels: Soundtrack.Levels = Soundtrack.Levels()) = Jury.Context(
         compiled = d.compiled, score = d.score, words = d.output, lines = r.lines, understanding = r.understanding, prompt = r.request.prompt,
         music = d.plan.music, arrangement = d.music, edit = d.edit, source = r.transcript.words, prelude = d.edit.preludeWords(r.shown), subject = r.request.subject,
-        footage = r.request.footage != null, sound = sound, levels = levels, looks = d.looks, lexicon = r.lexicon, measure = measure, voice = r.request.voice,
+        footage = r.request.footage != null, cutout = r.request.matte && r.request.crown != null, sound = sound, levels = levels, looks = d.looks,
+        lexicon = r.lexicon, measure = measure, voice = r.request.voice,
         brand = { r.brands.find(it)?.isMonogram == false }, assets = r.request.assets.map { it.id }, geometry = geometry, pictures = d.pictures,
     )
 
@@ -454,7 +459,13 @@ class Autopilot(
             visual = visual?.let { result.picks[it] ?: if (it in result.picks) null else it },
             visuals = visuals.map { result.picks[it] ?: it },
         )
-        val resolved = score.copy(scenes = score.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> b.resolved().takeIf { r -> !(b.recipe in PICTURE_BEATS && r.visual == null) } }) })
+        // A figure of nobody in particular (an account silhouette for «a person trading») says nothing on its own.
+        fun generic(id: String?) = id != null && id.substringAfter(':').lowercase().let { n -> GENERIC_FIGURES.any { n == it || n.startsWith("$it-") } }
+        val resolved = score.copy(
+            scenes = score.scenes.map { s ->
+                s.copy(beats = s.beats.mapNotNull { b -> b.resolved().takeIf { r -> !(b.recipe in PICTURE_BEATS && (r.visual == null || (generic(r.visual) && b.label.isNullOrBlank()))) } })
+            },
+        )
         return resolved to result
     }
 
@@ -486,7 +497,7 @@ class Autopilot(
         compiler.compile(input(score, transcript, edit, request)).also(onCompiled)
 
     private fun input(score: Score, transcript: Transcript, edit: EditPlan, request: Request) =
-        Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices)
+        Compiler.Input(score, transcript, footage = request.footage, fps = request.fps, edit = edit, subject = request.subject, voices = request.voices, matte = request.matte, crown = request.crown)
 
     private companion object {
         const val CRITIC_PASSES = 2
@@ -511,6 +522,9 @@ class Autopilot(
 
         /** Beats that are only their picture: without one they are dropped. */
         val PICTURE_BEATS = setOf("object", "animated", "live-reaction")
+
+        /** Pictures of nobody in particular (by name, or emoji code point): shown only with words of their own. */
+        val GENERIC_FIGURES = setOf("account", "user", "person", "people", "human", "avatar", "1f464", "1f465")
 
         fun round1(v: Float) = kotlin.math.round(v * 10f) / 10f
     }

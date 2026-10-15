@@ -483,9 +483,12 @@ class Productions(
         }
         // The video's own music: no music of ours on top.
         val brief = if (m.tempo != null) request.brief + "\n\nno music (the video has its own)" else request.brief
+        // The speaker can be cut out of the footage (the person-matte add-on): a short title may stand behind them.
+        val matte = video && runCatching { platform.perception()?.has(io.trimio.engine.models.MediaAddOns.personMatte) == true }.getOrDefault(false)
         val ask = Autopilot.Request(
             m.transcript, m.voice, brief, request.seed, footage = if (video) FOOTAGE else null, subject = m.subject,
             understanding = m.understanding, assets = m.assets, draft = m.draft, voices = m.voices, sourceTempo = m.tempo,
+            matte = matte, crown = if (matte) crownOf(m.frames, platform.perception()) else null,
         )
         return autopilot.produce(ask, progress)
     }

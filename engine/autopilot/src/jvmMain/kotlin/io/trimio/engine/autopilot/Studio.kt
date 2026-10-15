@@ -18,6 +18,7 @@ import io.trimio.engine.motion.export.Delivery
 import io.trimio.engine.motion.export.FfmpegFootage
 import io.trimio.engine.motion.export.MotionExporter
 import io.trimio.engine.motion.export.UserMediaFiles
+import io.trimio.engine.motion.MattedMedia
 import io.trimio.engine.motion.MediaSources
 import io.trimio.engine.motion.recipe.BrandLibrary
 import io.trimio.engine.motion.score.Subject
@@ -42,7 +43,17 @@ class Studio(
     private val eyes: LanguageModel? = model?.takeIf { it.canSee },
     /** The installed face add-on's head over the pixel finder's (the app's AddOnPass); the default keeps the finder's. */
     private val head: suspend (List<RgbImage>, SubjectFinder.Found?) -> SubjectFinder.Found? = { _, found -> found },
+    /** The person-matte add-on, when installed: the speaker cut out of the footage ([MattedMedia]). */
+    private val matte: Matting? = null,
 ) {
+    /**
+     * A matting network: for each footage stream ([person] makes one, keeping its own run of frames steady), [size]² RGB
+     * bytes of a frame at a time in, the person's alpha out (null: it could not run).
+     */
+    class Matting(val size: Int, val person: () -> (ByteArray, Float) -> FloatArray?, val crown: (List<RgbImage>) -> Float? = { null })
+
+    private fun matted(media: io.trimio.engine.motion.MediaSource) = matte?.let { MattedMedia(media, it.size, it.person()) } ?: media
+
     private val text = TextLayoutEngine(TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr), kotlinx.coroutines.runBlocking { MotionFonts.load() })
 
     /** Plans one edit of [video]. [transcript] skips recognition when given. */
@@ -58,7 +69,10 @@ class Studio(
         val found = head(frames, SubjectFinder.locate(frames))
         val subject = eyes?.let { SubjectGrounding(it).ground(frames, found) } ?: found?.subject
         return Autopilot(text, brands, visuals, model, knowledge, taste, eyes, eyes?.let { grabber(video, assets) }).produce(
-            Autopilot.Request(transcript, voice, prompt, seed, footage = "main", subject = subject, understanding = understanding, assets = assets),
+            Autopilot.Request(
+                transcript, voice, prompt, seed, footage = "main", subject = subject, understanding = understanding, assets = assets,
+                matte = matte != null, crown = matte?.crown?.invoke(frames),
+            ),
             onStage,
         )
     }
@@ -66,8 +80,9 @@ class Studio(
     /** Small frames of a compiled edit (288×512 RGB) for the eyes. */
     private fun grabber(video: File, assets: List<UserAsset>) = FrameGrabber { output, times ->
         val c = output.composition
-        MediaSources(assets.map { UserMediaFiles.source(it.id, File(it.source), c.fps, c.width, c.height) } + FfmpegFootage(video, c.fps, c.width, c.height)).use { footage ->
-            val frames = MotionExporter.Frames(c, footage)
+        val sources = MediaSources(assets.map { UserMediaFiles.source(it.id, File(it.source), c.fps, c.width, c.height) } + FfmpegFootage(video, c.fps, c.width, c.height))
+        (matted(sources) as AutoCloseable).use { footage ->
+            val frames = MotionExporter.Frames(c, footage as io.trimio.engine.motion.MediaSource)
             times.map { t -> Media.small(frames.draw(t), LOOK_W, LOOK_H) }
         }
     }
@@ -76,13 +91,16 @@ class Studio(
     fun render(
         production: Autopilot.Production, video: File, out: File, delivery: Delivery = Delivery(),
         assets: List<UserAsset> = emptyList(), onFrame: (Int, Int) -> Unit = { _, _ -> },
+        /** Only this stretch of the edit (seconds), for a look at one passage without the whole render. */
+        clip: ClosedFloatingPointRange<Float>? = null,
     ) {
         val c = production.compiled.composition
         val wav = File(out.absoluteFile.parentFile, out.nameWithoutExtension + ".wav")
         Media.writeWav(production.soundtrack.audio, wav)
         // The creator's media answer to their own ids before the footage.
         fun media() = MediaSources(assets.map { UserMediaFiles.source(it.id, File(it.source), c.fps, c.width, c.height) } + FfmpegFootage(video, c.fps, c.width, c.height))
-        MotionExporter(c, { if (assets.isEmpty()) FfmpegFootage(video, c.fps, c.width, c.height) else media() }, delivery).export(out, wav, onProgress = onFrame)
+        MotionExporter(c, { matted(if (assets.isEmpty()) FfmpegFootage(video, c.fps, c.width, c.height) else media()) }, delivery)
+            .export(out, wav, from = clip?.start ?: 0f, to = clip?.endInclusive ?: c.duration, onProgress = onFrame)
         wav.delete()
     }
 

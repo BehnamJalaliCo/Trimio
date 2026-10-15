@@ -371,6 +371,8 @@ class MediaNode(
     mask: Mask? = null,
     blend: BlendMode = BlendMode.SrcOver,
     name: String = "media",
+    /** Only the person in the picture ([MediaSource.matte]); nothing at all when no matte can be had. */
+    val matte: Boolean = false,
 ) : Node(transform, start, end, mask, blend, name)
 
 /** Procedural full-frame effects: backgrounds, light and texture. */

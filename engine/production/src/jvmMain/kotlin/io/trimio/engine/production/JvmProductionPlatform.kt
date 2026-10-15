@@ -57,7 +57,8 @@ class JvmProductionPlatform(
         // The creator's media answer to their own ids before the footage, which answers every id.
         val own = assets.map { UserMediaFiles.source(it.id, File(it.source), fps, width, height) }
         val footage = if (request.kind == SourceKind.Video) listOf(FfmpegFootage(File(request.media), fps, width, height)) else emptyList()
-        return MediaSources(own + footage + FilmPictures)
+        val all = MediaSources(own + footage + FilmPictures)
+        return if (request.kind == SourceKind.Video) matted(all, perception()) else all
     }
 
     override fun measurer() = TextMeasurer(createFontFamilyResolver(), Density(1f), LayoutDirection.Ltr)

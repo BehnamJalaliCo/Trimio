@@ -50,7 +50,8 @@ class RhythmJudge(
     private data class Stage(val scene: Int, val from: Float, val to: Float, val bare: Float)
 
     private fun emptyStages(c: Jury.Context, graphics: List<Compiler.Placed>): List<Stage> {
-        if (!c.footage) return emptyList()
+        // A stage the speaker stands on (cut out of the picture) is never empty: they are on it.
+        if (!c.footage || c.cutout) return emptyList()
         val starts = Bench.sceneStarts(c.score, c.words)
         return c.score.scenes.indices.filter { k -> !Bench.overFootage(c, k) }.mapNotNull { k ->
             val b = (starts.getOrNull(k + 1) ?: c.duration).coerceAtMost(c.duration)
@@ -123,7 +124,7 @@ class RhythmJudge(
         val empty = emptyStages(c, graphics)
         if (empty.isNotEmpty()) {
             val stages = empty.map { it.scene }.toSet()
-            score = score.copy(scenes = score.scenes.mapIndexed { k, s -> if (k in stages) s.copy(bg = null, transition = null) else s })
+            score = score.copy(scenes = score.scenes.mapIndexed { k, s -> if (k in stages) s.copy(bg = null, transition = null, inset = null) else s })
             for ((_, a, b) in empty.filter { (_, a, b) -> b - a > maxDead }) score = Bench.punchAt(score, c.words, (a + b) / 2f) ?: score
         }
         // Clutter: the latest arrival of each crowd leaves, unless it is the call to action or a figure the piece hangs on.

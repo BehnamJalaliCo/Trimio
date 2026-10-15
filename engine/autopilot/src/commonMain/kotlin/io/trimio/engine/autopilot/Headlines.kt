@@ -60,14 +60,20 @@ internal object Headlines {
     private fun persianSeparators(w: String): String = w.replace(Regex("(?<=[0-9۰-۹]),(?=[0-9۰-۹])"), "٬").replace(Regex("(?<=[0-9۰-۹])\\.(?=[0-9۰-۹])"), "٫")
 
     /** The same word apart from its endings, its spoken form, or a slip of one letter. */
-    private fun same(a: String, b: String): Boolean {
+    private fun same(a: String, b: String): Boolean = close(a, b) || close(written(a), written(b))
+
+    /** [w] with a spoken stem in its written form («تومنه» → «تومانه»): the endings then match as they do on any word. */
+    private fun written(w: String): String = SPOKEN.entries.firstOrNull { w.startsWith(it.key) }?.let { (k, v) -> v + w.removePrefix(k) } ?: w
+
+    private fun close(a: String, b: String): Boolean {
         if (a == b) return true
         val stem = a.zip(b).takeWhile { (x, y) -> x == y }.size
         // «سیگنال» and «سیگنالها», «ورود» and «ورودیمونه», «کاربران» and «کاربراشم»: a shared stem, endings of a few letters.
         // A stem of three letters is too short to share two endings («اونم» is not «اون‌ها»): one word must be the stem itself.
         val short = stem == MIN_STEM && minOf(a.length, b.length) - stem > 0
         val ending = if (stem > MIN_STEM) LONG_ENDING else SHORT_ENDING
-        if (stem >= MIN_STEM && !short && a.length - stem <= ending && b.length - stem <= ending) return true
+        val endings = a.length - stem <= ending && b.length - stem <= ending
+        if (stem >= MIN_STEM && !short && endings) return true
         return minOf(a.length, b.length) >= MIN_SLIP && distance(a, b) <= 1
     }
 
@@ -91,6 +97,9 @@ internal object Headlines {
         "در", "با", "و", "از", "به", "برای", "را", "رو", "که", "تا", "یا", "این", "آن", "اون", "ما", "من", "شما", "او", "است", "هست", "هستیم",
         "هستند", "هستن", "یک", "یه", "the", "a", "an", "of", "to", "in", "on", "for", "and", "is", "are", "with", "your", "our",
     )
+
+    /** Spoken stems too far from their written form for a slip of one letter («تومن», «دولار»). */
+    private val SPOKEN = mapOf("تومن" to "تومان", "دولار" to "دلار")
 
     private const val MIN_WORDS = 2
     private const val MAX_WORDS = 6

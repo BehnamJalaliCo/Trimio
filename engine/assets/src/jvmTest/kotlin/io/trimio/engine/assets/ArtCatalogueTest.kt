@@ -36,6 +36,14 @@ class ArtCatalogueTest {
     }
 
     @Test
+    fun crudePicturesAreNeverOffered() {
+        val catalogue = bundled ?: return
+        // «Pile of digital coins» once found the pile of poo for a line about profit.
+        assertNull(catalogue.entry("noto:1f4a9"))
+        assertTrue(catalogue.search("pile of digital coins", limit = 10).none { it.entry.key == "1f4a9" })
+    }
+
+    @Test
     fun sourcesUnderARefusedLicenceNeverReachTheCatalogue() {
         val index = """
             {"v":1,"sources":{

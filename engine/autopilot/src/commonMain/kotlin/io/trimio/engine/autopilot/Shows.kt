@@ -108,9 +108,22 @@ internal class Shows(
     }
 
     /**
+     * A headline beside the figure it shows: the number and its unit taken out («ورودی ۲٬۷۰۰٬۰۰۰ تومان» → «ورودی»), since the
+     * card draws them itself; null when nothing is left.
+     */
+    private fun besides(title: String, q: Quantities.Quantity): String? {
+        val words = title.split(' ').filter { it.isNotBlank() }
+        val figure = NumberWords.findAll(words).filter { kotlin.math.abs(it.value - q.value) < 0.01 }.flatMap { it.start until it.start + it.count }.toSet()
+        val rest = words.filterIndexed { i, w -> i !in figure && Quantities.unitOf(w.trim('٪', '%')) == null && w.trim('٪', '%').isNotEmpty() }
+        return rest.joinToString(" ").takeIf { rest.isNotEmpty() && Fragments.fault(it) == null }
+    }
+
+    /**
      * The beat for a family the understanding named for the line ([read].show), from what the line
      * holds (its items, its title as said, its numbers), or null when it lacks what the family needs.
      */
+    // A table: one family, what it needs from the line.
+    @Suppress("CyclomaticComplexMethod")
     fun direct(show: String, texts: List<String>, line: Lines.Line, read: LineRead, sense: Quantities.Sense, e: Float, place: String): BeatScore? {
         val title = read.title.takeIf { it.isNotBlank() }
         val items = read.items.filter { it.isNotBlank() }
@@ -124,8 +137,10 @@ internal class Shows(
             "chapter", "poll", "burst", "callout", "bubble" -> title?.let { base.copy(text = it, value = ordinal(line.range.map { i -> NumberWords.normalize(texts[i]) })) }
             "wallet" -> base.copy(label = title)
             "map-pin" -> title?.let { base.copy(text = it) }
-            "ring" -> q.firstOrNull { it.kind == Quantities.Kind.Percent }?.let { base.copy(at = it.at, value = it.value.toFloat(), label = title) }
-            "price-tag", "receipt" -> sense.money?.let { base.copy(at = it.at, value = it.value.toFloat(), suffix = it.unit.takeIf { u -> u.isNotBlank() }?.let { u -> " $u" }, label = title) }
+            "ring" -> q.firstOrNull { it.kind == Quantities.Kind.Percent }?.let { base.copy(at = it.at, value = it.value.toFloat(), label = title?.let { t -> besides(t, it) }) }
+            "price-tag", "receipt" -> sense.money?.let {
+                base.copy(at = it.at, value = it.value.toFloat(), suffix = it.unit.takeIf { u -> u.isNotBlank() }?.let { u -> " $u" }, label = title?.let { t -> besides(t, it) })
+            }
             "stat-stack", "social-proof" -> base.copy(points = q.map { it.value.toFloat() }, items = q.map { it.unit }).takeIf { q.isNotEmpty() }
             // Without the closes said, the chart is a shape: full-bleed under its name, never a card or a pill quoting a change nobody said.
             "candles" -> (pair(texts, line) ?: title)?.let {

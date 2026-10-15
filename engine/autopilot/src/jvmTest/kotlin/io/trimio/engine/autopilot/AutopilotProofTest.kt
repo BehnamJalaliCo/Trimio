@@ -47,7 +47,9 @@ class AutopilotProofTest {
 
     private val json = Json { prettyPrint = true; encodeDefaults = false }
 
+    // The harness reads every option the proof run takes; each is one branch.
     @Test
+    @Suppress("CyclomaticComplexMethod")
     fun proof() {
         val video = System.getProperty("auto.video")?.let(::File)?.takeIf { it.isFile } ?: return
         val prompt = System.getProperty("auto.prompt")?.let { p -> File(p).takeIf { it.isFile }?.readText() ?: p }.orEmpty()
@@ -97,9 +99,26 @@ class AutopilotProofTest {
         val assets = System.getProperty("auto.assets")?.let(::File)?.takeIf { it.isDirectory }?.listFiles()?.filter { it.isFile }?.sortedBy { it.name }
             ?.mapIndexed { i, f -> Media.asset(f, "asset-$i") }.orEmpty()
         val voice = Media.audio(video, Studio.RATE)
+        // -Pauto.matte=<model.onnx>: the person-matte add-on (MediaPipe selfie segmentation): titles set behind the speaker.
+        val matting = System.getProperty("auto.matte")?.let { path ->
+            val network = io.trimio.engine.onnx.OrtEngine().load(path)
+            val size = io.trimio.engine.perception.matte.SelfieMatte.SIZE
+            Studio.Matting(
+                size,
+                {
+                    val person = io.trimio.engine.perception.matte.PersonMatte(network)
+                    val alpha: (ByteArray, Float) -> FloatArray? = { rgb, t -> person.alpha(io.trimio.engine.perception.Frame(size, size, rgb, t)) }
+                    alpha
+                },
+                { frames ->
+                    val all = frames.map { io.trimio.engine.perception.Frame(it.width, it.height, it.rgb) }
+                    io.trimio.engine.perception.matte.PersonMatte(network).crown(all).also { println("matte: crown at $it") }
+                },
+            )
+        }
         for (seed in seeds) {
             val t0 = System.nanoTime()
-            val studio = Studio(brands, visuals, llm, knowledge, head = addOns::head)
+            val studio = Studio(brands, visuals, llm, knowledge, head = addOns::head, matte = matting)
             // -Pauto.reuse=<file>: plan from a saved reading (no model run), for fast iteration and variations.
             val reuse = System.getProperty("auto.reuse")?.let(::File)?.takeIf { it.isFile }?.let { json.decodeFromString(Understanding.serializer(), it.readText()) }
             val planned0 = runBlocking { studio.produce(video, prompt, seed, transcript, reuse, assets) { stage, p -> println("seed $seed: $stage ${(p * 100).toInt()}%") } }
@@ -129,7 +148,9 @@ class AutopilotProofTest {
             if (System.getProperty("auto.video.out") != "false") {
                 kotlinx.coroutines.runBlocking { llm?.release() }
                 val t1 = System.nanoTime()
-                studio.render(production, video, File(out, "seed-$seed.mp4"), assets = assets)
+                // -Pauto.clip=<from>,<to>: only that stretch of the edit (seconds), to look at one passage quickly.
+                val clip = System.getProperty("auto.clip")?.split(',')?.mapNotNull { it.trim().toFloatOrNull() }?.takeIf { it.size == 2 }?.let { (a, b) -> a..b }
+                studio.render(production, video, File(out, "seed-$seed.mp4"), assets = assets, clip = clip)
                 println("seed $seed rendered in ${(System.nanoTime() - t1) / 1e9}s")
             }
         }

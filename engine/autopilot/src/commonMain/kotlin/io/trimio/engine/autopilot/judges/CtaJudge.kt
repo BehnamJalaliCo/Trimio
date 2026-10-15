@@ -143,7 +143,8 @@ class CtaJudge(
             score = Bench.mapBeat(score, r) { b -> if (g.at > comment.at) null else b.copy(hold = maxOf(MIN_LEFT, comment.at - g.at)) }
         }
         dmWord(c.words, comment.at)?.takeIf { graphics.none { it.recipe == Bench.STAMP && it.at >= comment.at - 0.1f } }?.let { i ->
-            val text = (i..minOf(i + 1, c.words.lastIndex)).joinToString(" ") { c.words[it].text.trimEnd('.', '،', ',') }
+            // The step in one word, as written («دایرکتتو چک کن» → «دایرکت»): two words cut from the speech read as a fragment.
+            val text = if (c.words[i].text.any { it in '\u0600'..'\u06FF' }) "دایرکت" else "DM"
             score = Bench.addBeat(score, minOf(k, score.scenes.lastIndex), BeatScore(recipe = Bench.STAMP, at = i, text = text, hold = STAMP_HOLD, energy = 0.8f, place = "lower"))
         }
         return score.takeIf { it != c.score }

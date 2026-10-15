@@ -92,7 +92,8 @@ class AndroidProductionPlatform(
             else StillMedia(asset.id, decode(attached.source, maxOf(width, height)).asImageBitmap())
         }
         val footage = if (request.kind == SourceKind.Video) listOf(AndroidFootage(app, request.media, width, height)) else emptyList()
-        return MediaSources(sources + footage + FilmPictures)
+        val all = MediaSources(sources + footage + FilmPictures)
+        return if (request.kind == SourceKind.Video) matted(all, perception()) else all
     }
 
     override fun measurer() = TextMeasurer(createFontFamilyResolver(app), Density(1f), LayoutDirection.Ltr)

@@ -60,7 +60,8 @@ data class ArtHit(val entry: ArtEntry, val relevance: Float)
  * character n-gram [SemanticIndex] the rest of the asset matching uses.
  */
 class ArtCatalogue(entries: List<ArtEntry>) {
-    val entries: List<ArtEntry> = entries.filter { it.source.licence.allowed }
+    // Pictures no edit shows, whatever a search matches them on (a «pile of digital coins» once found the pile of poo).
+    val entries: List<ArtEntry> = entries.filter { it.source.licence.allowed && shown(it) }
 
     private val byId = this.entries.associateBy { it.id }
     private val maxPopularity = (this.entries.maxOfOrNull { it.popularity } ?: 0).coerceAtLeast(1)
@@ -117,6 +118,15 @@ class ArtCatalogue(entries: List<ArtEntry>) {
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+        /**
+         * Emoji never shown in an edit, by code point: crude (pile of poo, middle finger, cursing, vomiting, nauseated),
+         * read as innuendo (aubergine, peach, splashing drops), or a weapon.
+         */
+        private val NEVER = setOf("1f4a9", "1f595", "1f92c", "1f92e", "1f922", "1f346", "1f351", "1f4a6", "1f52b")
+
+        /** Whether [entry] may be shown in an edit at all ([NEVER]). */
+        fun shown(entry: ArtEntry): Boolean = entry.key.lowercase().substringBefore('.') !in NEVER
 
         /**
          * How well a picture called [name] with keywords [tags] shows an English [query], 0..1 — the

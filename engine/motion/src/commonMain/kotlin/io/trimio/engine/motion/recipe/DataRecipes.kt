@@ -746,7 +746,9 @@ object DataRecipes {
             )
             val body = mutableListOf<Node>()
             body += surface(look, t, tint)
-            body += stub(look, fit, t, tint, mark, at)
+            // Money that is no coin («۵۰ دلار», «۲ میلیون تومان») gets a cash mark, not a crypto coin's.
+            val fiat = FIAT.any { it in cue.suffix.lowercase() || it in cue.prefix }
+            body += stub(look, fit, t, tint, mark, at, fiat)
             body += amount(cue, look, fit, t, tint, count, land)
             body += barcode(look, t, cue.seed)
             val card = ShapeNode(ShapeSpec.Rect(w.anim, h.anim, (h * CORNER).anim), fill = Color.White.fill(), transform = Transform(x = (w / 2f).anim, y = (h / 2f).anim))
@@ -835,7 +837,7 @@ object DataRecipes {
         }
 
         /** The currency's mark on the stub: traced, then filled; a coin when no mark is known. */
-        private fun stub(look: Look, fit: Fitter, t: Ticket, tint: Color, mark: BrandMark?, at: Float): List<Node> {
+        private fun stub(look: Look, fit: Fitter, t: Ticket, tint: Color, mark: BrandMark?, at: Float, fiat: Boolean): List<Node> {
             val glyph = if (luminance(tint) > LIGHT) Color(0xFF111111).copy(alpha = 0.9f) else Color.White
             val s = minOf(t.stubW * 0.5f, t.h * 0.42f)
             val y = t.h * 0.44f
@@ -857,7 +859,7 @@ object DataRecipes {
                 )
             } else {
                 nodes += ShapeNode(
-                    ShapeSpec.Path(Icons.path("coin")!!, Icons.VIEWPORT, s), stroke = Stroke(glyph.fill(), s * 0.06f),
+                    ShapeSpec.Path(Icons.path(if (fiat) "cash-coin" else "coin")!!, Icons.VIEWPORT, s), stroke = Stroke(glyph.fill(), s * 0.06f),
                     trimEnd = Anim.tween(0f, 1f, at + 0.3f, at + 0.9f, Easing.ExpoOut), transform = Transform(x = t.stubCx.anim, y = y.anim), name = "voucher-coin",
                 )
             }
@@ -966,6 +968,9 @@ object DataRecipes {
     private const val STAMP_DROP = 0.16f
     private const val RATIO = 2.15f
     private const val STAGE_RATIO = 1.7f
+
+    /** Currencies that are cash, not coins: a voucher in them shows a cash mark. */
+    private val FIAT = listOf("دلار", "تومان", "ریال", "یورو", "$", "€", "usd", "eur", "dollar", "euro")
     private const val CORNER = 0.09f
     private const val DASHES = 9
     private const val BARS = 18

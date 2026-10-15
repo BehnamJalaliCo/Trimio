@@ -142,6 +142,8 @@ internal class Rhythm(
         val hold = b.hold
         val until = b.until
         val end = when {
+            // A thread whose last message is said later than its hold runs until it is said, as the compiler holds it.
+            hold != null && until != null && b.recipe in UNCAPPED -> maxOf(start + hold, endOf(until) + LINGER)
             hold != null -> start + hold
             until != null -> endOf(until) + LINGER
             b.recipe in TEXT_RECIPES -> start + maxOf(1f, 0.35f + 0.055f * (b.text?.length ?: TYPICAL_TEXT))

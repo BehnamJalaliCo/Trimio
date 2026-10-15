@@ -104,6 +104,13 @@ class Compiler(
         val subject: Subject? = null,
         /** Who speaks when, on the source clock, when two voices or more were heard: each voice's captions get its own colour. */
         val voices: List<Voice> = emptyList(),
+        /**
+         * The speaker can be cut out of the footage ([io.trimio.engine.motion.MediaSource.matte]): a short title is then set
+         * behind their head, the signature of a premium edit; without it nothing is ever placed behind them.
+         */
+        val matte: Boolean = false,
+        /** The top of the speaker's head, as a share of the frame's height (found through the matte), when known. */
+        val crown: Float? = null,
     )
 
     /** A beat as placed: its slot in frame pixels ([left], [top], [right], [bottom]) and on-screen time. */
@@ -114,6 +121,8 @@ class Compiler(
         val overFootage: Boolean = false,
         /** Which treatment of the recipe was built ([Recipe.variants]): layout, choreography and type. */
         val variant: Int = 0,
+        /** Set behind the speaker: they stand in front of it, so it covers no part of them. */
+        val behind: Boolean = false,
     )
 
     data class Output(
@@ -129,6 +138,8 @@ class Compiler(
         val zone: Layout.Zone,
         val scene: Int,
         val minOut: Float,
+        /** Set behind the speaker's head ([Input.matte]). */
+        val behind: Boolean = false,
     ) {
         var out: Float = cue.out
     }
@@ -241,7 +252,9 @@ class Compiler(
                 EffectNode(Effect.Vignette((look.vignette * texture).anim)),
                 EffectNode(Effect.Grain(look.grain * texture)).takeIf { look.grain > 0f },
             )
-            val root = Group(picture(base(), "footage") + sceneGroups + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
+            // The speaker stands in front of a title set behind them: their cut-out over it, under the captions.
+            val people = beats.filter { it.behind }.flatMap { b -> person(b.cue.at - PERSON_LEAD, b.out) }
+            val root = Group(picture(base(), "footage") + sceneGroups + people + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx, duration)
             val order = (beats + captionBeats).sortedBy { it.cue.at }
@@ -252,7 +265,7 @@ class Compiler(
                 Placed(
                     it.recipe.name, it.zone.name.lowercase(), c.at, it.out, c.text,
                     box?.left ?: (c.x - c.width / 2f), box?.top ?: (c.y - c.height / 2f), box?.right ?: (c.x + c.width / 2f), box?.bottom ?: (c.y + c.height / 2f),
-                    c.overMedia, c.variant,
+                    c.overMedia, c.variant, it.behind,
                 )
             }
             return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes, order.map { built.getValue(it).nodes })
@@ -284,7 +297,8 @@ class Compiler(
                 if (restMemo.size > REST_MEMO) restMemo.remove(restMemo.keys.first())
                 ink?.let { rests[b.id] = it }
                 val lens = Lens.over(camera, from, end)
-                val move = ink?.let { filled(b, it) ?: safely(it, type, b.cue.overMedia, lens) } ?: return@mapValues out
+                // A callout points at the speaker or rings their head: the face is its subject, not a place to keep off.
+                val move = ink?.let { filled(b, it) ?: safely(it, type, b.cue.overMedia, lens, avoidFace = b.recipe.name != "callout" && !b.behind) } ?: return@mapValues out
                 rests[b.id] = move.third
                 notes += "kept ${b.recipe.name} inside the frame"
                 out.copy(nodes = listOf(Group(out.nodes, transform = move.first, name = "keep-inside")), box = out.box?.let(move.second))
@@ -297,7 +311,8 @@ class Compiler(
          * editor scales a card up when it takes the whole frame. Null when it already fills it, or over the footage.
          */
         private fun filled(b: Beat, ink: Geometry.Ink): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
-            if (b.cue.overMedia || input.footage == null || b.zone != Layout.Zone.Center || ink.width < 1f || ink.height < 1f) return null
+            if (b.cue.overMedia || input.footage == null || b.zone != Layout.Zone.Center) return null
+            if (ink.width < 1f || ink.height < 1f) return null
             val fw = w.toFloat()
             val fh = h.toFloat()
             val room = minOf(b.cue.width, fw * (1f - 2f * SAFE_SIDE)) * STAGE_FILL
@@ -326,6 +341,7 @@ class Compiler(
             type: Geometry.Ink?,
             overMedia: Boolean,
             lens: Lens = Lens(),
+            avoidFace: Boolean = true,
         ): Triple<Transform, (io.trimio.engine.motion.recipe.Box) -> io.trimio.engine.motion.recipe.Box, Geometry.Ink>? {
             val fw = w.toFloat()
             val fh = h.toFloat()
@@ -337,7 +353,7 @@ class Compiler(
             var top = lens.y(fh * SAFE_TOP, fh, near = true)
             var bottom = lens.y(fh * if (tall) SAFE_BOTTOM_TALL else SAFE_BOTTOM, fh, near = false)
             // Over the speaker the face is off limits too: a graphic above it stays above the brow, one below it under the chin.
-            val face = input.subject?.face?.takeIf { overMedia }
+            val face = input.subject?.face?.takeIf { overMedia && avoidFace }
             if (face != null && covers(box, face)) {
                 if ((box.top + box.bottom) / 2f < face.centerY * fh) bottom = minOf(bottom, face.top * fh - FACE_GAP) else top = maxOf(top, face.bottom * fh + FACE_GAP)
             }
@@ -375,6 +391,8 @@ class Compiler(
         }
 
         /** What, when and where for one requested beat. */
+        // What, when and where for a beat: every option a score may give is one branch.
+        @Suppress("CyclomaticComplexMethod")
         private fun resolve(b: BeatScore, k: Int, scene: SceneScore, range: IntRange, id: Int): Beat {
             val recipe = Recipes.named(b.recipe) ?: guess(b).also { notes += "recipe '${b.recipe}' → ${it.name}" }
             val quoted = b.text?.let { locate(it, norm, range) }
@@ -393,7 +411,11 @@ class Compiler(
             val zone = layout.place(
                 wanted, at, out, minOut, id, locked = recipe.name == "lower-third", allowed = if (over) layout.footageZones else Layout.Zone.entries.toSet(), replace = stage,
             )
-            val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over, stage = stage, inset = stage && scene.inset?.lowercase() in INSETS)
+            val behind = behind(recipe, over, zone, words, at)
+            val slot = behind ?: layout.slot(
+                zone, recipe.preferredHeight, aroundSubject = over, stage = stage, inset = stage && scene.inset?.lowercase() in INSETS,
+                floor = cutoutFloor?.takeIf { stage && cutout(scene) },
+            )
             val cue = Cue(
                 // A style that sets Latin headlines in capitals does so here; captions stay as said.
                 text = if (recipe.kind == Recipe.Kind.Text) look.cased(beatText) else beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
@@ -404,9 +426,34 @@ class Compiler(
                 items = b.items, itemTimes = b.items.map { item -> locate(item.removePrefix(">"), norm, range)?.let { start(it.first) } },
                 rtl = rtlOf(beatText, b.label), seed = id * 7 + 3,
                 media = b.media, aspect = b.aspect ?: 1f, frameWidth = w.toFloat(), frameHeight = h.toFloat(), variety = score.variety,
+                head = input.subject?.takeIf { over }?.let { io.trimio.engine.motion.recipe.Box(it.left * w, it.top * h, it.right * w, it.bottom * h) },
             )
-            return Beat(id, recipe, treated(recipe, pictured(cue, b), b, id), zone, k, minOut)
+            return Beat(id, recipe, treated(recipe, pictured(cue, b), b, id), zone, k, minOut, behind = behind != null)
         }
+
+        /**
+         * Where a short title goes when it is set behind the speaker's head, the cover-line look: across the frame, its lower
+         * half hidden behind the top of the head (the speaker cut out over it, [person]). Only a big title of a few words,
+         * over the footage, in the upper band, when the speaker can be cut out; at most one in [BEHIND_EVERY] seconds, so it
+         * stays a signature rather than a habit. Null for every other beat.
+         */
+        private fun behind(recipe: Recipe, over: Boolean, zone: Layout.Zone, words: Int, at: Float): Layout.Slot? {
+            val sub = input.subject ?: return null
+            val crown = input.crown ?: return null
+            val fits = recipe.name in BEHIND_TITLES && words in 1..BEHIND_WORDS && at - lastBehind >= BEHIND_EVERY
+            val room = input.matte && over && zone != Layout.Zone.Lower
+            if (!fits || !room) return null
+            lastBehind = at
+            // Where the top of the head is on screen, the footage's zoom about the subject included.
+            val zoom = footageZoom().at(at)
+            val cy = sub.centerY * h
+            val top = cy + (crown * h - cy) * zoom
+            val height = h * BEHIND_HEIGHT
+            // The line's middle sits a little below the crown, so its foot is behind the head wherever it moves in the shot.
+            return Layout.Slot(zone, w / 2f, top + h * BEHIND_SINK, w * BEHIND_WIDTH, height)
+        }
+
+        private var lastBehind = -BEHIND_EVERY
 
         /** The last treatment each recipe got: the same device twice in a row takes another form. */
         private val lastVariant = mutableMapOf<String, Int>()
@@ -446,8 +493,9 @@ class Compiler(
 
         /** Elements not tied to words stay for the scene; spoken text stays while it is said. */
         private fun naturalEnd(b: BeatScore, recipe: Recipe, at: Float, lastIndex: Int?, sceneEnd: Float, readable: Float): Float {
-            b.hold?.let { return at + it }
             val spokenEnd = lastIndex?.let { end(it) + LINGER }
+            // A thread's hold is its least: its messages land as they are said, so it stays until the last one is.
+            b.hold?.let { return if (recipe.name in LONG_FORM && spokenEnd != null) maxOf(at + it, spokenEnd) else at + it }
             val tied = recipe.kind == Recipe.Kind.Text || b.text != null || b.until != null
             return when {
                 spokenEnd != null && tied -> spokenEnd
@@ -487,13 +535,55 @@ class Compiler(
                 "plain" -> bg += EffectNode(Effect.Flash(look.canvas, Anim.One), start = s)
             }
             val nodes = picture(bg, "stage-$k").toMutableList()
-            nodes += inset(k, s, e)
+            nodes += if (cutout(scene)) cutout(k, s, e) else inset(k, s, e)
             built.filterKeys { it.scene == k }.values.forEach { nodes += it.nodes }
             val enter = entering(k)
             val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat(), look.settle)
             transitionOverlay(enter, s, look, transitions, sfx, w.toFloat(), h.toFloat())
             val t = Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim + tx, y = (h / 2f).anim, scale = sc, opacity = op)
-            return Group(nodes, transform = t, start = s - 0.6f, end = e + 0.3f, name = "scene-$k")
+            // A scene stays a moment past its cut for the next one to come in over it; a stage cut back to the speaker
+            // ends on the cut, or it stands empty over the footage once its cards and card of the speaker have gone.
+            val back = input.footage != null && !overFootage(scene) && scenes.getOrNull(k + 1)?.let(::overFootage) == true
+            return Group(nodes, transform = t, start = s - 0.6f, end = if (back) e else e + 0.3f, name = "scene-$k")
+        }
+
+        /**
+         * Whether [scene] keeps the speaker on its stage cut out of the picture rather than in a card: a stage that would hold
+         * their card, when the renderer can cut them out and where their head is known ([Input.crown]).
+         */
+        private fun cutout(scene: SceneScore) =
+            cutoutFloor != null && scene.inset?.lowercase() in INSETS && sceneBg(scene, input) != "media"
+
+        /** How far down the frame a cut-out speaker's head starts (a share of its height), less a margin; null without a matte. */
+        private val cutoutFloor: Float? = input.crown?.takeIf { input.matte && input.footage != null && h > w }
+            ?.let { c -> 1f - (1f - c) * CUTOUT_SCALE - CUTOUT_MARGIN }
+
+        /**
+         * The speaker on a stage of their own ([cutout]): cut out of the footage, the room gone, they settle back to the foot of
+         * the frame as the stage opens (from the whole picture to [CUTOUT_SCALE] of it, about the bottom edge), the graphic
+         * taking the room above their head; they grow back as it ends, unless the next scene keeps them too.
+         */
+        private fun cutout(k: Int, s: Float, e: Float): List<Node> {
+            val footage = input.footage ?: return emptyList()
+            fun kept(j: Int) = scenes.getOrNull(j)?.let { cutout(it) } == true
+            val opens = !kept(k - 1)
+            val closes = !kept(k + 1)
+            val scale = anim(if (opens) 1f else CUTOUT_SCALE, s) {
+                to(CUTOUT_SCALE, s + if (opens) INSET_IN else 0f, Easing.ExpoOut)
+                if (closes) {
+                    to(CUTOUT_SCALE, e - INSET_OUT, Easing.Linear)
+                    to(1f, e, Easing.ExpoIn)
+                }
+            }
+            val segments = input.edit?.played ?: listOf(EditPlan.Segment(0f, duration, 0f))
+            val opening = input.edit?.opening?.size ?: 0
+            return segments.withIndex().filter { (i, seg) -> i >= opening && seg.outEnd > s - SCENE_PAD && seg.outStart < e + SCENE_PAD }.map { (i, seg) ->
+                MediaNode(
+                    footage, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = seg.sourceStart, grade = gradeOf(look),
+                    transform = Transform(x = (w / 2f).anim, y = h.toFloat().anim, anchorX = 0.5f, anchorY = 1f, scale = scale),
+                    start = seg.outStart, end = seg.outEnd, name = "cutout-$i", matte = true,
+                )
+            }.let { clips -> listOf(Group(clips, start = s - SCENE_PAD, end = e, name = "cutout")) }
         }
 
         /**
@@ -546,7 +636,10 @@ class Compiler(
             }
             val shadow = Shadow(Color.Black.copy(alpha = 0.5f), 0f, rh * 0.03f, rh * 0.1f)
             return listOf(
-                Group(listOf(ShapeNode(rimShape, fill = look.ink.copy(alpha = 0.9f).fill(), shadow = shadow, transform = rimAt)), transform = transform, start = s - SCENE_PAD, end = e, name = "inset-rim"),
+                Group(
+                    listOf(ShapeNode(rimShape, fill = look.ink.copy(alpha = 0.9f).fill(), shadow = shadow, transform = rimAt)),
+                    transform = transform, start = s - SCENE_PAD, end = e, name = "inset-rim",
+                ),
                 Group(clips, transform = transform, start = s - SCENE_PAD, end = e, mask = Mask(ShapeNode(maskShape, fill = Color.White.fill(), transform = maskAt)), name = "inset"),
             )
         }
@@ -555,6 +648,26 @@ class Compiler(
          * Footage, cut to the edit, graded, with scrims so text never depends on the picture, and
          * punched in on the speaker scene by scene (jump-cut rhythm); or a living gradient.
          */
+        /**
+         * The speaker alone from [from] to [to]: the footage through its person matte, laid exactly over the footage below
+         * (the same cut, the same zoom), so whatever was drawn between the two stands behind them.
+         */
+        private fun person(from: Float, to: Float): List<Node> {
+            val footage = input.footage ?: return emptyList()
+            val zoom = footageZoom()
+            val sub = input.subject ?: return emptyList()
+            val segments = input.edit?.played ?: listOf(EditPlan.Segment(0f, duration, 0f))
+            val opening = input.edit?.opening?.size ?: 0
+            return segments.withIndex().filter { (i, seg) -> i >= opening && seg.outEnd > from && seg.outStart < to }.map { (i, seg) ->
+                val start = maxOf(seg.outStart, from)
+                MediaNode(
+                    footage, w.toFloat(), h.toFloat(), Fit.Cover, sourceOffset = seg.sourceStart + (start - seg.outStart), grade = gradeOf(look),
+                    transform = Transform(x = (w * sub.centerX).anim, y = (h * sub.centerY).anim, anchorX = sub.centerX, anchorY = sub.centerY, scale = zoom),
+                    start = start, end = minOf(seg.outEnd, to), name = "person-$i", matte = true,
+                )
+            }
+        }
+
         private fun base(): List<Node> = if (input.footage != null) {
             val zoom = footageZoom()
             val sub = input.subject ?: Subject(0.3f, 0.3f, 0.7f, 0.6f)
@@ -956,6 +1069,23 @@ class Compiler(
 
         // The speaker's card on a stage of its own (SceneScore.inset).
         private val INSETS = setOf("corner", "top")
+
+        /** A cut-out speaker on a stage: their size there (about the bottom edge), and the room kept above their head. */
+        private const val CUTOUT_SCALE = 0.8f
+        private const val CUTOUT_MARGIN = 0.03f
+
+        /** Titles that may stand behind the speaker, the longest they may be, and how often. */
+        private val BEHIND_TITLES = setOf("slam", "stack", "spread", "mask-rise", "blur-in", "flip")
+        private const val BEHIND_WORDS = 3
+        private const val BEHIND_EVERY = 8f
+
+        /** A title behind the head: its band's height and width in the frame, and how far below the crown its middle sits. */
+        private const val BEHIND_HEIGHT = 0.16f
+        private const val BEHIND_WIDTH = 0.94f
+        private const val BEHIND_SINK = 0.045f
+
+        /** The speaker stands in front from a moment before the title behind them starts its entrance. */
+        private const val PERSON_LEAD = 0.15f
         private const val INSET_ROOM = 1.5f
         private const val INSET_MIN = 0.32f
         private const val INSET_ASPECT = 1.15f

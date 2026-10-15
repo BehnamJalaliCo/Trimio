@@ -1,5 +1,5 @@
 {
-    "note": "Re-based 2026-10-13 (phase 8c real-video quality) because the on-screen word policy got stricter, not because the edits got worse: every Persian word on screen must now be a word the lexicon knows, a protected glossary term or a given name (ScreenWords); words the recogniser produced that are none of these are left off the captions (a rare correct loanword like «آیلتسم» or «رایتینگم» included), and graphics drop any word they cannot vouch for. The only moves are in the \"words\" accuracy metric (share of on-screen words matching the truth among words that are either true or recognition errors): fewer correct-but-unknown words on screen shrink the denominator, so a remaining sound-alike («شش» for «شیش») weighs more. No jury judge moved down in any run (old-jury proof: the panel scores per judge are equal or higher in every scenario; only \"words\" changed).",
+    "note": "15 Oct: the director's own headlines are shown when every word stands for one said (Headlines.grounded), so a few names reach the screen as the recogniser heard them («نایک», «آدیداس»: on-screen word accuracy a few hundredths lower); a lone figure on a stage now holds as a slide, so a talk with three figures shows three counters (real estate: motion 9.5, «vary the treatments»). Everything else held or rose.",
     "runs": {
         "en-cooking-pasta/1": {
             "min": 10.0,
@@ -15,7 +15,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.56
+                "words": 9.53
             }
         },
         "en-cooking-pasta~food-warm/1": {
@@ -32,7 +32,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.56
+                "words": 9.53
             }
         },
         "en-launch-earbuds/1": {
@@ -49,7 +49,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 9.85
             }
         },
         "en-launch-earbuds~cinematic-trailer/1": {
@@ -66,7 +66,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 9.85
             }
         },
         "en-launch-earbuds~minimal-mono/1": {
@@ -83,7 +83,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 9.85
             }
         },
         "en-launch-earbuds~noir/1": {
@@ -100,7 +100,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 9.85
             }
         },
         "en-launch-earbuds~tech-product/1": {
@@ -117,7 +117,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 9.85
             }
         },
         "en-news-ai/1": {
@@ -134,7 +134,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.69
+                "words": 9.67
             }
         },
         "en-news-ai~finance-terminal/1": {
@@ -151,7 +151,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.69
+                "words": 9.67
             }
         },
         "en-news-ai~news-broadcast/1": {
@@ -168,7 +168,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.69
+                "words": 9.67
             }
         },
         "en-news-ai~podcast-studio/1": {
@@ -185,7 +185,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.68
+                "words": 9.66
             }
         },
         "en-testimonial-coach/1": {
@@ -253,7 +253,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.86
+                "words": 9.89
             }
         },
         "en-tutorial-excel~corporate-clean/1": {
@@ -287,7 +287,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.86
+                "words": 9.89
             }
         },
         "en-tutorial-excel~kinetic-poster/1": {
@@ -321,7 +321,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.86
+                "words": 9.89
             }
         },
         "en-tutorial-excel~swiss-grid/1": {
@@ -423,7 +423,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.91
             }
         },
         "fa-cooking-kuku~food-warm/1": {
@@ -440,7 +440,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.91
             }
         },
         "fa-cooking-kuku~kids-bright/1": {
@@ -457,7 +457,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.92
             }
         },
         "fa-cooking-kuku~playful-pop/1": {
@@ -474,7 +474,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.92
             }
         },
         "fa-crypto-bitcoin/1": {
@@ -491,7 +491,7 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 10.0,
-                "words": 9.68
+                "words": 9.59
             }
         },
         "fa-crypto-bitcoin~finance-terminal/1": {
@@ -508,7 +508,7 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.59
             }
         },
         "fa-crypto-bitcoin~neon-cyber/1": {
@@ -525,7 +525,7 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.59
             }
         },
         "fa-crypto-bitcoin~noir/1": {
@@ -542,7 +542,7 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 10.0,
-                "words": 9.68
+                "words": 9.59
             }
         },
         "fa-fitness-abs/1": {
@@ -559,7 +559,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.71
             }
         },
         "fa-fitness-abs~sports-energy/1": {
@@ -576,7 +576,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.71
             }
         },
         "fa-fitness-abs~street-hype/1": {
@@ -593,7 +593,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.71
             }
         },
         "fa-flash-sale-15s/1": {
@@ -610,7 +610,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.39
+                "words": 9.43
             }
         },
         "fa-flash-sale-15s~bold-brutalist/1": {
@@ -627,7 +627,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.44
             }
         },
         "fa-flash-sale-15s~kinetic-poster/1": {
@@ -644,7 +644,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.44
             }
         },
         "fa-flash-sale-15s~playful-pop/1": {
@@ -661,7 +661,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.44
             }
         },
         "fa-flash-sale-15s~street-hype/1": {
@@ -678,7 +678,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.44
             }
         },
         "fa-glossary-rsi/1": {
@@ -712,7 +712,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.8
+                "words": 9.82
             }
         },
         "fa-launch-serum/1": {
@@ -729,7 +729,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.85
+                "words": 9.83
             }
         },
         "fa-launch-serum~beauty-soft/1": {
@@ -746,7 +746,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.85
+                "words": 9.83
             }
         },
         "fa-launch-serum~luxury-gold/1": {
@@ -763,7 +763,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.85
+                "words": 9.83
             }
         },
         "fa-medical-vitamin-d/1": {
@@ -780,7 +780,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 10.0
             }
         },
         "fa-medical-vitamin-d~beauty-soft/1": {
@@ -797,7 +797,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 10.0
             }
         },
         "fa-medical-vitamin-d~calm-wellness/1": {
@@ -814,7 +814,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 10.0
             }
         },
         "fa-medical-vitamin-d~lumen/1": {
@@ -831,7 +831,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.86
+                "words": 10.0
             }
         },
         "fa-medical-vitamin-d~minimal-mono/1": {
@@ -848,7 +848,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.87
+                "words": 10.0
             }
         },
         "fa-mixed-ai-tools/1": {
@@ -882,7 +882,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.88
+                "words": 9.89
             }
         },
         "fa-mixed-ai-tools~gaming/1": {
@@ -899,7 +899,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.88
+                "words": 9.89
             }
         },
         "fa-mixed-ai-tools~lumen/1": {
@@ -1001,7 +1001,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.94
+                "words": 9.95
             }
         },
         "fa-motivation-story~retro-vhs/1": {
@@ -1035,7 +1035,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.57
+                "words": 9.68
             }
         },
         "fa-news-inflation~news-broadcast/1": {
@@ -1052,7 +1052,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.57
+                "words": 9.68
             }
         },
         "fa-news-inflation~swiss-grid/1": {
@@ -1069,7 +1069,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.6
+                "words": 9.68
             }
         },
         "fa-podcast-quote/1": {
@@ -1086,7 +1086,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.74
+                "words": 9.72
             }
         },
         "fa-podcast-quote~podcast-studio/1": {
@@ -1103,16 +1103,16 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.73
+                "words": 9.72
             }
         },
         "fa-real-estate/1": {
-            "min": 10.0,
-            "mean": 10.0,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 10.0,
+                "motion": 9.5,
                 "typography": 10.0,
                 "spelling": 10.0,
                 "layout": 10.0,
@@ -1120,16 +1120,16 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.65
+                "words": 9.67
             }
         },
         "fa-real-estate~luxury-gold/1": {
-            "min": 10.0,
-            "mean": 10.0,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 10.0,
+                "motion": 9.5,
                 "typography": 10.0,
                 "spelling": 10.0,
                 "layout": 10.0,
@@ -1137,16 +1137,16 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.65
+                "words": 9.68
             }
         },
         "fa-real-estate~real-estate-premium/1": {
-            "min": 10.0,
-            "mean": 10.0,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 10.0,
+                "motion": 9.5,
                 "typography": 10.0,
                 "spelling": 10.0,
                 "layout": 10.0,
@@ -1154,7 +1154,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.65
+                "words": 9.67
             }
         },
         "fa-tech-review-phones/1": {
@@ -1171,7 +1171,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.8
+                "words": 9.83
             }
         },
         "fa-tech-review-phones~gaming/1": {
@@ -1188,7 +1188,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.81
+                "words": 9.83
             }
         },
         "fa-tech-review-phones~retro-vhs/1": {
@@ -1205,7 +1205,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.82
+                "words": 9.83
             }
         },
         "fa-tech-review-phones~tech-product/1": {
@@ -1222,7 +1222,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.8
+                "words": 9.83
             }
         },
         "fa-testimonial-ielts/1": {
@@ -1239,7 +1239,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.85
+                "words": 9.86
             }
         },
         "fa-testimonial-ielts~corporate-clean/1": {
@@ -1256,7 +1256,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.84
+                "words": 9.86
             }
         },
         "fa-testimonial-ielts~documentary/1": {
@@ -1273,7 +1273,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.85
+                "words": 9.86
             }
         },
         "fa-travel-yazd/1": {
@@ -1290,7 +1290,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.42
+                "words": 9.46
             }
         },
         "fa-travel-yazd~documentary/1": {
@@ -1307,7 +1307,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.42
+                "words": 9.46
             }
         },
         "fa-travel-yazd~travel-film/1": {
@@ -1324,7 +1324,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.43
+                "words": 9.44
             }
         },
         "fa-tutorial-english/1": {
@@ -1341,7 +1341,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.78
+                "words": 9.77
             }
         },
         "fa-tutorial-english~education-chalk/1": {
@@ -1358,7 +1358,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.78
+                "words": 9.77
             }
         },
         "fa-tutorial-english~kids-bright/1": {
@@ -1392,7 +1392,7 @@
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.79
+                "words": 9.78
             }
         }
     }

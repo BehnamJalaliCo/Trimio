@@ -54,7 +54,7 @@ object DesignBook {
         if (norm.any { it in SPEECH }) out += Trait.Speech
         if (norm.any { it in TIME } && numbers.isNotEmpty()) out += Trait.Time
         if (norm.count { it in ORDINALS } >= 2) out += Trait.Steps
-        if (norm.any { it.contains(".com") || it.contains(".ir") || it == "سایت" || it == "سایتمون" }) out += Trait.Site
+        if (norm.any { w -> w in SITE_WORDS || SITE_ENDS.any { w.contains(it) } }) out += Trait.Site
         if (norm.any { w -> FREE.any { w.startsWith(it) } }) out += Trait.Free
         if (norm.any { it in SELF }) out += Trait.Self
         return out
@@ -72,7 +72,8 @@ object DesignBook {
             val theirs = traits(words)
             val shared = (mine intersect theirs).size
             val odd = (mine union theirs).size - shared
-            val overlap = words.map(::stem).filter { it.length >= MIN_STEM }.toSet().let { s -> if (s.isEmpty() || stems.isEmpty()) 0f else (s intersect stems).size.toFloat() / minOf(s.size, stems.size) }
+            val overlap = words.map(::stem).filter { it.length >= MIN_STEM }.toSet()
+                .let { s -> if (s.isEmpty() || stems.isEmpty()) 0f else (s intersect stems).size.toFloat() / minOf(s.size, stems.size) }
             m to (shared * TRAIT_WEIGHT - odd * MISMATCH_WEIGHT + overlap * WORD_WEIGHT)
         }.filter { (m, score) -> score > 0f && fits(m, mine) }.sortedByDescending { it.second }.take(k).map { it.first }
     }
@@ -113,6 +114,8 @@ object DesignBook {
     private val TIME = setOf("ساعت", "روز", "دقیقه", "ثانیه", "هفته", "ماه", "جمعه", "hours", "days", "minutes")
     private val ORDINALS = setOf("اول", "دوم", "سوم", "چهارم", "بعد", "first", "second", "third", "then")
     private val FREE = listOf("رایگان", "مجانی", "free")
+    private val SITE_WORDS = setOf("سایت", "سایتمون")
+    private val SITE_ENDS = listOf(".com", ".ir")
     private val SELF = setOf("من", "هستم", "اسمم", "i'm", "my")
     private const val MIN_STEM = 2
     private const val TRAIT_WEIGHT = 3f

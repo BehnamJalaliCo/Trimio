@@ -55,8 +55,9 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
      * The only graphic on a full-frame stage, small and up in the band meant for above a head that
      * is not there: the stage is an empty dark frame with a card in its corner.
      */
-    private fun offStage(frame: Frame, g: Geometry.Track, graphics: List<Geometry.Track>): List<Fault> {
-        if (g.placed.overFootage) return emptyList()
+    private fun offStage(frame: Frame, g: Geometry.Track, graphics: List<Geometry.Track>, cutout: Boolean): List<Fault> {
+        // Over the footage, or above a speaker cut out at the foot of the stage: where the card is meant to be.
+        if (g.placed.overFootage || cutout) return emptyList()
         val rest = g.rest?.takeIf { !frame.fills(it) } ?: return emptyList()
         val alone = graphics.none { o -> o !== g && !o.placed.overFootage && Bench.overlap(o.placed.at, o.placed.out, g.placed.at, g.placed.out) > TIME_TOL }
         val high = (rest.top + rest.bottom) / 2f < frame.h * HIGH && rest.height < frame.h * SMALL_ON_STAGE
@@ -84,10 +85,12 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
         val graphics = tracks.filter { it.placed.recipe != Bench.CAPTIONS }
         val captions = tracks.filter { it.placed.recipe == Bench.CAPTIONS }
         val out = mutableListOf<Fault>()
-        for (g in graphics) out += clipped(frame, g) + unsafe(frame, g) + tiny(frame, g) + offStage(frame, g, graphics)
+        for (g in graphics) out += clipped(frame, g) + unsafe(frame, g) + tiny(frame, g) + offStage(frame, g, graphics, c.cutout)
         out += graphics.indices.flatMap { i -> (i + 1 until graphics.size).mapNotNull { j -> collision(frame, graphics[i], graphics[j]) } }
         out += captions.mapNotNull { cap -> graphics.firstOrNull { g -> under(frame, cap, g) }?.let { g -> Fault(g.placed, Kind.Caption, "a caption runs under ${g.placed.recipe}", Severity.Major) } }
-        out += graphics.filter { g -> g.placed.overFootage && onFace(c, frame, g) }.map { Fault(it.placed, Kind.Face, "${it.placed.recipe} covers the speaker's face", Severity.Major) }
+        // A callout's ring circles the head on purpose (an outline, the face seen through it): never a cover.
+        out += graphics.filter { g -> g.placed.overFootage && g.placed.recipe != RINGS && !g.placed.behind && onFace(c, frame, g) }
+            .map { Fault(it.placed, Kind.Face, "${it.placed.recipe} covers the speaker's face", Severity.Major) }
         out += c.looks.filter { it.coversFace }.map { Fault(it.beat, Kind.Face, "${it.beat.recipe} covers the speaker's face (seen)", Severity.Major) }
         return out
     }
@@ -199,7 +202,7 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
         val area = (face[2] - face[0]) * (face[3] - face[1])
         val covering = graphics.filter { g ->
             val share = Bench.overlap(face[0], face[2], g.left, g.right) * Bench.overlap(face[1], face[3], g.top, g.bottom) / area
-            g.overFootage && area > 0f && share > faceShare
+            g.overFootage && g.recipe != RINGS && !g.behind && area > 0f && share > faceShare
         }
         return (covering + seen).distinctBy { it.recipe to it.at }
     }
@@ -233,6 +236,7 @@ class LayoutJudge(private val faceShare: Float = 0.08f) : Judge {
     private companion object {
         const val STAGE = "grid"
         const val ZOOM = "zoom"
+        const val RINGS = "callout"
         const val MAX_EACH = 3
         const val TIME_TOL = 0.12f
         /** Two looks this close in time are the same moment. */

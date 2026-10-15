@@ -29,6 +29,12 @@ import kotlin.math.sqrt
 fun interface MediaSource {
     fun frame(source: String, time: Float): ImageBitmap?
 
+    /**
+     * Where the person is in [source]'s frame at [time]: an image whose alpha is 1 on them and 0 elsewhere (any size; it
+     * is stretched over the frame), or null when no matte can be had (no model installed, a still with nobody in it).
+     */
+    fun matte(source: String, time: Float): ImageBitmap? = null
+
     companion object {
         val None = MediaSource { _, _ -> null }
     }
@@ -41,6 +47,8 @@ fun interface MediaSource {
  * Quality features: per-unit text animation that keeps Persian shaping, alpha masks, 3D layers in
  * perspective, multi-sample blur, and film motion blur (temporal supersampling of moving layers).
  */
+// Every kind of node draws here, one renderer for preview, desktop and Android: its parts share one canvas state.
+@Suppress("LargeClass")
 class MotionRenderer(
     val composition: Composition,
     measurer: TextMeasurer,
@@ -582,27 +590,55 @@ class MotionRenderer(
     // ---------------------------------------------------------------- media
 
     private fun DrawScope.drawMedia(node: MediaNode, t: Float, alpha: Float) {
-        val image = media.frame(node.source, node.sourceOffset + (t - node.start).coerceAtLeast(0f) * node.speed)
-        val box = Size(node.width, node.height)
-        val radius = node.radius.at(t)
-        val clip = androidx.compose.ui.graphics.Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, box.width, box.height, radius, radius)) }
-        clipPath(clip) {
-            if (image == null) {
-                drawRect(Brush.linearGradient(listOf(Color(0xFF2A2420), Color(0xFF0E0C0B)), Offset.Zero, Offset(box.width, box.height)), size = box, alpha = alpha)
-                return@clipPath
+        val at = node.sourceOffset + (t - node.start).coerceAtLeast(0f) * node.speed
+        // The person alone (text set behind them, a speaker cut out over a stage): without a matte nothing is drawn, so
+        // whatever this layer would have covered simply stays in front.
+        val matte = if (node.matte) media.matte(node.source, at) ?: return else null
+        val image = media.frame(node.source, at)
+        if (matte != null) {
+            if (image == null) return
+            layer(Rect(Offset.Zero, Size(node.width, node.height)), alpha = 1f, blend = BlendMode.SrcOver) {
+                drawFootage(node, image, alpha, t, readAgainst = false)
+                val (offset, size) = fitted(node, image)
+                // The matte is the frame's own shape: stretched exactly over where the frame was drawn.
+                drawImage(matte, dstOffset = offset, dstSize = size, blendMode = BlendMode.DstIn, filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
             }
-            val iw = image.width.toFloat()
-            val ih = image.height.toFloat()
-            val k = if (node.fit == Fit.Cover) maxOf(box.width / iw, box.height / ih) else minOf(box.width / iw, box.height / ih)
-            val dw = iw * k
-            val dh = ih * k
+            return
+        }
+        if (image == null) {
+            val box = Size(node.width, node.height)
+            clipPath(rounded(node, t)) { drawRect(Brush.linearGradient(listOf(Color(0xFF2A2420), Color(0xFF0E0C0B)), Offset.Zero, Offset(box.width, box.height)), size = box, alpha = alpha) }
+            return
+        }
+        drawFootage(node, image, alpha, t, readAgainst = true)
+    }
+
+    private fun rounded(node: MediaNode, t: Float): androidx.compose.ui.graphics.Path {
+        val radius = node.radius.at(t)
+        return androidx.compose.ui.graphics.Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, node.width, node.height, radius, radius)) }
+    }
+
+    /** Where [image] lands in [node]'s box, covering or contained. */
+    private fun fitted(node: MediaNode, image: ImageBitmap): Pair<androidx.compose.ui.unit.IntOffset, androidx.compose.ui.unit.IntSize> {
+        val iw = image.width.toFloat()
+        val ih = image.height.toFloat()
+        val k = if (node.fit == Fit.Cover) maxOf(node.width / iw, node.height / ih) else minOf(node.width / iw, node.height / ih)
+        val dw = iw * k
+        val dh = ih * k
+        return androidx.compose.ui.unit.IntOffset(((node.width - dw) / 2).toInt(), ((node.height - dh) / 2).toInt()) to androidx.compose.ui.unit.IntSize(dw.toInt(), dh.toInt())
+    }
+
+    private fun DrawScope.drawFootage(node: MediaNode, image: ImageBitmap, alpha: Float, t: Float, readAgainst: Boolean) {
+        val box = Size(node.width, node.height)
+        clipPath(rounded(node, t)) {
             // Footage that fills the frame is what text over it is read against.
             val screen = current.mapBounds(Rect(Offset.Zero, box))
-            if (screen.width >= frame.width * FOOTAGE_COVER && screen.height >= frame.height * FOOTAGE_COVER) backdrop.footage(image, current, box, node.fit)
+            if (readAgainst && screen.width >= frame.width * FOOTAGE_COVER && screen.height >= frame.height * FOOTAGE_COVER) backdrop.footage(image, current, box, node.fit)
+            val (offset, size) = fitted(node, image)
             drawImage(
                 image,
-                dstOffset = androidx.compose.ui.unit.IntOffset(((box.width - dw) / 2).toInt(), ((box.height - dh) / 2).toInt()),
-                dstSize = androidx.compose.ui.unit.IntSize(dw.toInt(), dh.toInt()),
+                dstOffset = offset,
+                dstSize = size,
                 alpha = alpha,
                 colorFilter = gradeFilter(node.grade, t),
                 // Cubic resampling: punch-ins and scaled footage stay sharp instead of bilinear-soft.

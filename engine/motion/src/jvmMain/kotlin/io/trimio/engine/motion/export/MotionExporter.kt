@@ -237,6 +237,11 @@ class MotionExporter(
             val a = System.nanoTime()
             return inner.frame(source, time).also { ns += System.nanoTime() - a }
         }
+
+        override fun matte(source: String, time: Float): ImageBitmap? {
+            val a = System.nanoTime()
+            return inner.matte(source, time).also { ns += System.nanoTime() - a }
+        }
     }
 
     fun export(file: File, audio: File? = null, from: Float = 0f, to: Float = composition.duration, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }) =

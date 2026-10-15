@@ -52,11 +52,24 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
      * Where a beat in [zone] is drawn. On a stage of its own ([stage]: the footage covered) the centre's graphic is the
      * scene, so it takes the whole band; with the speaker's card in the corner ([inset]) the bands start below the card.
      */
-    fun slot(zone: Zone, preferredHeight: Float, aroundSubject: Boolean = false, stage: Boolean = false, inset: Boolean = false): Slot {
-        val (top, bottom) = if (inset && tall) insetExtent(zone) else extent(zone, aroundSubject)
+    fun slot(zone: Zone, preferredHeight: Float, aroundSubject: Boolean = false, stage: Boolean = false, inset: Boolean = false, floor: Float? = null): Slot {
+        val (top, bottom) = when {
+            floor != null && tall -> cutoutExtent(zone, floor)
+            inset && tall -> insetExtent(zone)
+            else -> extent(zone, aroundSubject)
+        }
         val zoneH = (bottom - top) * height
         val h = if (stage && zone == Zone.Center) zoneH else minOf(zoneH, preferredHeight * height).coerceAtLeast(zoneH * 0.5f)
         return Slot(zone, (left + right) / 2f, (top + bottom) / 2f * height, right - left, h)
+    }
+
+    /**
+     * Vertical extents on a stage the speaker stands in, cut out from the shoulders up at the foot of the frame: every band
+     * keeps above their head ([floor], a share of the height), the centre's graphic taking the room there is.
+     */
+    private fun cutoutExtent(zone: Zone, floor: Float): Pair<Float, Float> = when (zone) {
+        Zone.Top -> CUTOUT_TOP to minOf(floor, CUTOUT_TOP + CUTOUT_BAND)
+        Zone.Center, Zone.Lower, Zone.Full -> CUTOUT_TOP to floor
     }
 
     /** Vertical extents on a stage that keeps the speaker's card at the top ([SceneScore.inset]): every band clears it. */
@@ -122,5 +135,9 @@ internal class Layout(val width: Int, val height: Int, private val subject: Subj
     private companion object {
         const val OVERLAP_TOLERANCE = 0.08f
         const val REPLACE_SLACK = 0.4f
+
+        /** Above a cut-out speaker: where the bands start under the platform's top bar, and a top band's height. */
+        const val CUTOUT_TOP = 0.08f
+        const val CUTOUT_BAND = 0.14f
     }
 }

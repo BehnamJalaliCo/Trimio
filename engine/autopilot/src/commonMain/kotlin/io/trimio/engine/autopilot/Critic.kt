@@ -22,6 +22,8 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
         val clean: Boolean get() = issues.isEmpty()
     }
 
+    // Five checks in the order an editor makes them, each with its fix.
+    @Suppress("CyclomaticComplexMethod")
     fun review(score: Score, out: Compiler.Output, words: List<Word>, lines: List<Lines.Line>, cta: Cta?): Review {
         val issues = mutableListOf<Issue>()
         var scenes = score.scenes
@@ -41,7 +43,15 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
         val quiet = changes.zipWithNext().filter { (a, b) -> b - a > maxStill && graphics.none { g -> g.at < b - 0.05f && g.out > a + 0.05f } }
         for ((a, b) in quiet) {
             val mid = (a + b) / 2f
-            val word = words.indexOfFirst { it.range.startMs / 1000f >= mid }.takeIf { w -> w > 0 && scenes.none { it.from == w } } ?: continue
+            // A cut on the speaker, never inside a stage (it would cut its graphic before it lands) nor a chat thread still
+            // being told: the word nearest the middle of the stretch that is free.
+            fun free(w: Int): Boolean {
+                val host = scenes.lastOrNull { (it.from ?: 0) <= w } ?: return true
+                return host.bg == null && host.beats.none { it.recipe == THREAD && (it.until ?: -1) >= w }
+            }
+            val word = words.indices.filter { i -> words[i].range.startMs / 1000f in (a + EDGE)..(b - EDGE) }
+                .sortedBy { i -> kotlin.math.abs(words[i].range.startMs / 1000f - mid) }
+                .firstOrNull { w -> w > 0 && scenes.none { it.from == w } && free(w) } ?: continue
             issues += Issue(a, "still", "${kotlin.math.round((b - a) * 10f) / 10f}s without a visual change")
             // A new scene over footage alternates the punch-in: the cheapest, most natural change.
             scenes = (scenes + SceneScore(from = word)).sortedBy { it.from ?: 0 }
@@ -88,6 +98,10 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
 
     private companion object {
         const val CAPTIONS = "pop-captions"
+        const val THREAD = "message"
+
+        /** A cut keeps this far from either end of the still stretch it breaks. */
+        const val EDGE = 0.8f
         val TEXT_RECIPES = setOf("slam", "mask-rise", "type-on", "blur-in", "flip", "spread", "stack", "glitch")
         val ALTERNATE = mapOf(
             "slam" to "stack", "mask-rise" to "flip", "type-on" to "mask-rise", "blur-in" to "mask-rise",

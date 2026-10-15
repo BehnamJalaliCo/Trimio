@@ -227,7 +227,7 @@ object Quantities {
         put(Kind.Money, "DOGE", "Dogecoin", "doge", "dogecoin")
         put(Kind.Money, "BNB", "BNB", "bnb")
         put(Kind.Money, "XRP", "XRP", "xrp", "ریپل")
-        put(Kind.Money, "دلار", null, "دلار")
+        put(Kind.Money, "دلار", null, "دلار", "دولار")
         put(Kind.Money, "$", null, "usd", "dollar", "dollars", "bucks")
         put(Kind.Money, "تومان", null, "تومان", "تومن")
         put(Kind.Money, "ریال", null, "ریال")

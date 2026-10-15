@@ -12,6 +12,8 @@ class MediaSources(private val sources: List<MediaSource>) : MediaSource, AutoCl
 
     override fun frame(source: String, time: Float): ImageBitmap? = sources.firstNotNullOfOrNull { it.frame(source, time) }
 
+    override fun matte(source: String, time: Float): ImageBitmap? = sources.firstNotNullOfOrNull { it.matte(source, time) }
+
     override fun close() = sources.forEach { (it as? AutoCloseable)?.close() }
 }
 

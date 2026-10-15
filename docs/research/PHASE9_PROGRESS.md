@@ -339,3 +339,73 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
     that sets Latin in capitals («ChatGPT», «CoinPro.com»).
   - An editor's own score can be compiled over the same words and cut (`-Pauto.score`) to set the director's edit and
     a hand-cut one side by side.
+
+## 15 Oct — an editor's memory on the device, and the stage that stood empty
+
+- The owner's order after the references: «مثل این بساز» must be intelligent, with the internet allowed and no paid
+  service. The intelligence stays on the device:
+  - The director reads every line with two examples from an editor's memory (`DesignBook`, 73 moments across
+    domains: what was said, the device shown, its headline and items) recalled by what the line does — a figure,
+    money, a share of a whole, names, a question, an ask, a contrast, reported speech, time, steps, a site, «free».
+    The moments are paraphrases with invented names, never the owner's lines or real brands.
+  - A clip offered as a look («مثل این ویدیو», «به سبک این») is followed, not shown (`Role.Reference`): its palette,
+    tone, accent and pace are read from its frames (`ReferenceStyle`), and the eyes, when installed, say how it frames
+    the speaker, where its captions sit and how long they are, how it marks a word and which graphics it uses.
+  - With the phone's director (E4B, its own chat format) and the memory, the owner's reel reads as an editor would:
+    the ten signals a day as a big count on a stage, nine stops and one win as a poll, the fee as a price, «رایگان» as
+    a stamp, ten tips a day as candles, the entry floor as a figure, the comment ask at the end.
+- What the frames showed after that:
+  - A stage cut back to the speaker stood empty for 0.3 s (its cards and the speaker's card gone, the stars still
+    up): a scene keeps its overlap for the next one to come in over it only when the next is a stage too.
+  - A stage outstayed its graphic when its line ran on (ten seconds of one chart): past its read the frame now cuts back
+    to the speaker on the next word (`Planner.cutBack`).
+  - A lone «۱۰» said nothing: a counter takes what it counts from the line's headline («سیگنال در روز»). One figure
+    alone on a stage needs 2.2 s, not 3.2 s, and a card replacing another on a stage is a slide, not a crossing.
+  - «دولار» is the spoken «دلار»; a price in words puts its unit under the figure; a price card never invents
+    «قیمت ویژه»; a voucher in cash shows a cash mark, not a coin's.
+  - Candles under a headline («۱۰ تیپ در روز») show it over the chart in full ink, never as a faint mark behind it.
+  - A callout points at the speaker's real head (`Cue.head`); its ring is drawn only where the head is known.
+  - A chat thread stays until its last message is said, whatever hold a revision gave it; a jury punch-in never
+    cuts a stage.
+  - The critic's cut for a still stretch lands on the speaker, never inside a stage before its graphic lands or a chat
+    thread still being told (it had cut the thread's stage before its first message, leaving it no time at all).
+  - The ask never squeezes in beside a stage's graphic: once that graphic is read the frame cuts back to the speaker and
+    the ask comes up there. A data card's words (a bar's «تکمیل») are never turned into a title of their own, and the
+    DM step is the one written word «دایرکت».
+  - Pictures: crude or suggestive emoji are never offered, whatever a search matches them on («a pile of digital coins»
+    found the pile of poo); a figure of nobody in particular (an account silhouette) is shown only with words of its own.
+  - A price or a share beside its headline shows the headline without the figure («ورودی» over «۲٬۷۰۰٬۰۰۰ تومان»), and on a
+    stage of its own a price is mostly the burst, which fills the frame.
+- Measured honestly: the phone's director read the reel afresh with the generalised memory (none of the owner's lines in
+  it). It still names a poll for nine stops and one win, the fee as a price, «رایگان» as a stamp, the DM thread as a
+  chat, the entry floor as a figure and the comment ask; this time the ten signals came as a title and the ten tips as a
+  count rather than candles — a small model's reading varies between runs.
+
+## 15 Oct — the owner's 4/10, and the plan for a premium look
+
+- His verdict on the automatic edit: 4 of 10 (3 for what changed). The edit, the motion design and the placement read as
+  a template, not After Effects or Premiere. Three roots, not scattered bugs: the jury gave 10 to what he gives 4; the
+  engine did not know where the speaker's body is, so it guessed where graphics go (flat cards, a starfield, small type);
+  the camera and rhythm were a template's.
+- The plan, in order of effect: (1) a bar measured on his references and a judge of frames against them; (2) the person
+  cut out of the picture; (3) premium kinetic type; (4) a camera language; (5) designed stages and 3D pictures. Each step
+  is tried on a short passage of his video, not a full render; a 30-second passage goes to him after steps 2 and 3.
+- Step 2, the speaker cut out (`MediaAddOns.personMatte`: MediaPipe Selfie Segmentation, Apache-2.0, 0.46 MB, about 5 ms
+  a frame on a desktop CPU):
+  - The renderer draws footage through a person matte (`MediaSource.matte`, `MediaNode.matte`, `MattedMedia`): each
+    frame's alpha, steadied against the frame before and hardened at the edge (`PersonMatte`).
+  - The crown of the head is found through the matte on a few frames (`PersonMatte.crown`); a short big title is then set
+    behind the head, the cover-line look (`Compiler.behind`: one at most every 8 s, the foot of the letters behind the
+    crown, the face never behind them).
+  - A full-frame stage keeps the speaker cut out at the foot of the frame (settling back to 80 % as the stage opens) in
+    place of the small card in the corner; its graphics take the room above their head (`Layout.cutoutExtent`). The jury
+    knows such a stage is never empty and that a card above the head is placed, not stranded.
+  - Without the add-on nothing changes: no title is ever placed behind a speaker who cannot be cut out.
+- Luxury gold now stands on a gold light from above through haze instead of drifting motes, and its captions run two or
+  three words with the key one on a gold block, as his black-and-gold references set them.
+- The 30-second passage scored 1; the owner then sent the same reel edited by a large cloud model from his own brief
+  (scored 5). It cut the talk to 97 s by meaning, not only silence, and gave every sentence a small interface graphic
+  in one design language (a grid of ten signals that turns into nine crosses and one tick, a quote bubble, a price in
+  red, chips that tick off, a browser, a versus card that stays and grows, a chat window, a three-step ask, an end card),
+  graphics that stay and change state, and captions whose key word sits on a block coloured by meaning. Next: that edit
+  as a measured decision list (the bar), cutting by content, and a storyboard design system of such elements.

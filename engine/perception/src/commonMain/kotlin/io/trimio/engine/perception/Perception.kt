@@ -68,6 +68,22 @@ class Perception(
         }
     }
 
+    /**
+     * The person matte for a render ([io.trimio.engine.perception.matte.PersonMatte]): opened on its own for as long as the
+     * render runs (frames are drawn one after another, beside no other network), closed by the caller; null when the
+     * add-on is not installed or will not open.
+     */
+    fun personMatte(): io.trimio.engine.perception.matte.PersonMatte? {
+        val path = files.pathOf(io.trimio.engine.models.MediaAddOns.personMatte) ?: return null
+        if (!engine.available()) return null
+        return try {
+            io.trimio.engine.perception.matte.PersonMatte(engine.load(path, SessionConfig(threads = MATTE_THREADS))).also { note("matte: ${io.trimio.engine.models.MediaAddOns.personMatte.id}") }
+        } catch (e: NeuralEngineException) {
+            note("matte: failed (${e.message?.take(MAX_REASON)})")
+            null
+        }
+    }
+
     /** An installed helper file (a tokenizer, a dictionary, filters) as text; null when missing or unreadable. */
     fun readText(spec: ModelSpec): String? = files.pathOf(spec)?.let { p ->
         runCatching { SystemFileSystem.source(Path(p)).buffered().use { it.readString() } }.getOrNull()
@@ -84,5 +100,6 @@ class Perception(
     private companion object {
         const val MAX_NOTES = 200
         const val MAX_REASON = 160
+        const val MATTE_THREADS = 2
     }
 }

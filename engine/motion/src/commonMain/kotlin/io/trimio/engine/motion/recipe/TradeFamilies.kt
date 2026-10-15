@@ -122,6 +122,12 @@ object TradeFamilies {
 
         private fun pair(cue: Cue) = (cue.label ?: cue.text).ifBlank { "BTC/USDT" }
 
+        /** A label in Persian («۱۰ تیپ در روز») reads right to left; a pair («BTC/USDT») left to right. */
+        private fun persian(s: String) = s.any { it in '\u0600'..'\u06FF' }
+
+        /** The label is a headline, not a pair: words with a space between them, or Persian. */
+        private fun titled(cue: Cue) = pair(cue).let { it.trim().contains(' ') || persian(it) }
+
         private fun change(cs: List<Candle>) = (cs.last().c - cs.first().o) / cs.first().o.coerceAtLeast(1e-6f) * 100f
 
         /** The pair, its last price and a change chip across the top of [b]. */
@@ -129,7 +135,7 @@ object TradeFamilies {
             val ink = Kit.inkOn(look, ground)
             val pf = Kit.fit(fit, pair(cue), Kit.labelVoice(look, Typo.Data).copy(weight = 800), size, b.width * 0.4f, size * 1.6f)
             val y = b.top + size
-            val nodes = mutableListOf<Node>(Kit.words(pair(cue), pf, ink, b.left + size * 0.6f + pf.width / 2f, y, p.at + 0.1f, ground, false, Kit.Reveal.Fade, name = "candles-pair"))
+            val nodes = mutableListOf<Node>(Kit.words(pair(cue), pf, ink, b.left + size * 0.6f + pf.width / 2f, y, p.at + 0.1f, ground, persian(pair(cue)), Kit.Reveal.Fade, name = "candles-pair"))
             val ch = change(cs)
             val chip = if (ch >= 0f) look.positive else look.negative
             val text = pct(ch, p.rtl)
@@ -176,11 +182,22 @@ object TradeFamilies {
             val ground = free(look, cue)
             val cs = candles(cue, CANDLES + 6)
             val nodes = mutableListOf<Node>()
+            // A headline («۱۰ تیپ در روز») is words to read: over the chart in full ink, never a faint mark behind it.
+            if (titled(cue)) {
+                val tf = Kit.fit(fit, pair(cue), look.headline, b.height * 0.1f, b.width * 0.92f, b.height * 0.2f, lines = 2)
+                val ink = ground?.let { Kit.inkOn(look, it) } ?: look.ink
+                nodes += Kit.words(pair(cue), tf, ink, b.centerX, b.top + tf.height / 2f, p.at, ground, p.rtl, name = "candles-title")
+                val gap = Craft.pace(cue.energy, 0.07f, 0.04f)
+                val area = Box(b.left, b.top + tf.height + b.height * 0.06f, b.right, b.bottom)
+                for (k in 1..3) nodes += Kit.line(area.left, area.top + area.height * k / 4f, area.right, area.top + area.height * k / 4f, ink.copy(alpha = 0.04f), 2f, p.at, 0.5f, "grid")
+                nodes += candleNodes(look, cs, area, p.at + 0.3f, gap, volume = true).first
+                return Kit.built(cue, look, p, b, nodes, name, listOf(Sfx(p.at + 0.2f, SfxKind.Riser, 0.4f)))
+            }
             val mark = Kit.fit(fit, pair(cue).substringBefore('/'), look.headline, b.height * 0.42f, b.width * 0.9f, b.height * 0.5f)
             val faint = (ground?.let { Kit.inkOn(look, it) } ?: look.ink).copy(alpha = 0.08f)
             // A watermark, not words to read: never guarded, never held to the floor.
             val watermark = io.trimio.engine.motion.TextNode(
-                pair(cue).substringBefore('/'), mark.type, faint.fill(), rtl = false,
+                pair(cue).substringBefore('/'), mark.type, faint.fill(), rtl = persian(pair(cue)),
                 transform = Transform(x = b.centerX.anim, y = b.centerY.anim, opacity = Anim.tween(0f, 1f, p.at, p.at + 0.6f)), name = "candles-watermark",
             )
             nodes += Craft.onBody(watermark)
@@ -197,7 +214,7 @@ object TradeFamilies {
             val ink = Kit.inkOn(look, s.ground)
             val nodes = Kit.panel(look, cue, s, b.centerX, b.centerY, b.width, b.height, b.height / 2f, "candles-pill").toMutableList()
             val pf = Kit.fit(fit, pair(cue), Kit.labelVoice(look, Typo.Data).copy(weight = 800), b.height * 0.3f, b.width * 0.3f, b.height * 0.6f)
-            nodes += Kit.words(pair(cue), pf, ink, b.left + b.height * 0.45f + pf.width / 2f, b.centerY, p.at + 0.1f, s.ground, false, Kit.Reveal.Fade, name = "candles-pair")
+            nodes += Kit.words(pair(cue), pf, ink, b.left + b.height * 0.45f + pf.width / 2f, b.centerY, p.at + 0.1f, s.ground, persian(pair(cue)), Kit.Reveal.Fade, name = "candles-pair")
             val ch = change(cs)
             val text = pct(ch, p.rtl)
             val cf = Kit.fit(fit, text, Kit.numberVoice(look, Typo.Data), b.height * 0.32f, b.width * 0.25f, b.height * 0.6f)

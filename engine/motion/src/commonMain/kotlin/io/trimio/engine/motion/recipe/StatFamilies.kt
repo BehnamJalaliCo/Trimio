@@ -421,6 +421,9 @@ object StatFamilies {
         override val minHold = 2.6f
         override val preferredHeight = 0.24f
 
+        // On a frame of its own the price is the picture: the burst fills it, a wide card would sit small in the middle.
+        override fun layoutWeight(look: Look, cue: Cue, layout: Int): Float = if (cue.overMedia) 1f else STAGE_LAYOUTS[layout]
+
         override fun compose(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan): Built {
             val v = cue.value ?: return Built(emptyList())
             return when (p.layout) {
@@ -480,11 +483,20 @@ object StatFamilies {
                 name = "sale-burst",
             )
             val nodes = mutableListOf<Node>(star)
-            val nf = Kit.fit(fit, priceSize(cue, v), Kit.numberVoice(look, p.typo), d * 0.24f, d * 0.62f, d * 0.3f)
+            // A unit in words («تومان») goes under the figure: on one line with seven digits the price shrinks to a
+            // small print on a big star.
+            val unit = cue.suffix.trim().takeIf { u -> u.any { it.isLetter() } }
+            val figure = if (unit != null) cue.prefix + Kit.format(v, cue.decimals, false) else priceSize(cue, v)
+            val nf = Kit.fit(fit, figure, Kit.numberVoice(look, p.typo), d * 0.24f, d * 0.62f, d * 0.3f)
+            val ny = b.centerY + d * if (unit != null) 0.02f else 0.06f
             nodes += Kit.number(
-                v, cue.from ?: 0f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size, ink, b.centerX, b.centerY + d * 0.06f,
+                v, cue.from ?: 0f, cue.decimals, cue.prefix, if (unit != null) "" else cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size, ink, b.centerX, ny,
                 p.at + 0.25f, 0.8f, s.ground, p.rtl,
             )
+            unit?.let {
+                val uf = Kit.fit(fit, it, Kit.labelVoice(look, p.typo).copy(weight = 800), d * 0.1f, d * 0.4f, d * 0.13f)
+                nodes += Kit.words(it, uf, ink, b.centerX, ny + nf.height / 2f + uf.height * 0.6f, p.at + 0.45f, s.ground, p.rtl, Kit.Reveal.Fade, name = "sale-unit")
+            }
             // The old price, else what it is; never «فقط» on its own: a price said as a complaint is no bargain.
             val top = cue.from?.let { Kit.digits(priceSize(cue, it), p.rtl) } ?: cue.label.orEmpty()
             if (top.isNotBlank()) {
@@ -503,19 +515,25 @@ object StatFamilies {
             val ink = Kit.inkOn(look, s.ground)
             val nodes = Kit.panel(look, cue, s, b.centerX, b.centerY, b.width, b.height, b.height * 0.14f, "price-card").toMutableList()
             val pad = b.height * 0.14f
-            val label = cue.label ?: cue.text.ifBlank { Kit.say(p.rtl, "قیمت ویژه", "Special price") }
-            val lf = Kit.fit(fit, label, Kit.titleVoice(look, p.typo), b.height * 0.15f, b.width * 0.8f, b.height * 0.22f)
-            nodes += Kit.words(label, lf, ink, Kit.fromStart(Kit.startX(b, p.rtl, pad), lf.width, p.rtl), b.top + pad + lf.height / 2f, p.at + 0.1f, s.ground, p.rtl, name = "price-label")
-            val nf = Kit.fit(fit, priceSize(cue, v), Kit.numberVoice(look, p.typo), b.height * 0.36f, b.width * 0.62f, b.height * 0.42f)
-            val ny = b.bottom - pad - nf.height / 2f
+            // What the price is for, only as said: never a «قیمت ویژه» nobody spoke of.
+            val label = cue.label ?: cue.text.ifBlank { null }
+            val lf = label?.let { Kit.fit(fit, it, Kit.titleVoice(look, p.typo), b.height * 0.15f, b.width * 0.8f, b.height * 0.22f) }
+            if (label != null && lf != null) {
+                nodes += Kit.words(label, lf, ink, Kit.fromStart(Kit.startX(b, p.rtl, pad), lf.width, p.rtl), b.top + pad + lf.height / 2f, p.at + 0.1f, s.ground, p.rtl, name = "price-label")
+            }
+            val lh = lf?.height ?: 0f
+            val nf = Kit.fit(fit, priceSize(cue, v), Kit.numberVoice(look, p.typo), b.height * if (lf == null) 0.5f else 0.36f, b.width * 0.8f, b.height * if (lf == null) 0.6f else 0.42f)
+            // The price alone is the card: centred, as big as the card allows.
+            val alone = lf == null && cue.from == null
+            val ny = if (alone) b.centerY else b.bottom - pad - nf.height / 2f
             nodes += Kit.number(
                 v, cue.from ?: v * 1.4f, cue.decimals, cue.prefix, cue.suffix, Kit.numberVoice(look, p.typo), nf.type.size,
-                Kit.tint(look, look.accent, s.ground), Kit.fromStart(Kit.startX(b, p.rtl, pad), nf.width, p.rtl), ny, p.at + 0.3f, 1f, s.ground, p.rtl,
+                Kit.tint(look, look.accent, s.ground), if (alone) b.centerX else Kit.fromStart(Kit.startX(b, p.rtl, pad), nf.width, p.rtl), ny, p.at + 0.3f, 1f, s.ground, p.rtl,
             )
             cue.from?.takeIf { it > v }?.let { old ->
                 val of = Kit.fit(fit, priceSize(cue, old), Kit.numberVoice(look, p.typo), b.height * 0.16f, b.width * 0.3f, b.height * 0.2f)
                 val ox = Kit.fromEnd(Kit.endX(b, p.rtl, pad), of.width, p.rtl)
-                val oy = b.top + pad + lf.height + of.height
+                val oy = b.top + pad + lh + of.height
                 nodes += Kit.words(Kit.digits(priceSize(cue, old), p.rtl), of, Kit.quiet(look, s.ground), ox, oy, p.at + 0.2f, s.ground, p.rtl, Kit.Reveal.Fade, name = "old-price")
                 nodes += Kit.line(ox - of.width * 0.55f, oy, ox + of.width * 0.55f, oy, look.hot, of.type.size * 0.1f, p.at + 0.7f, 0.25f, "strike")
                 val off = ((1f - v / old) * 100f).toInt()
@@ -550,6 +568,9 @@ object StatFamilies {
     /** A swing tag pointing left (mirrored for right-to-left), filling a 100 box. */
     private const val TAG = "M0 44L20 0H94Q100 0 100 8V92Q100 100 94 100H20L0 56Z"
     private const val SPIKES = 12
+
+    /** A price tag's layouts on a stage of its own (tag, burst, card): mostly the burst. */
+    private val STAGE_LAYOUTS = listOf(0.5f, 3f, 0.3f)
     private const val MAX = 4
     private const val FIVE = 5f
     private const val DEFAULT_LIKES = 1200f

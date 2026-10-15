@@ -53,6 +53,13 @@ object TalkFamilies {
     private const val QUOTES = "M8 62C8 34 22 16 44 10L47 19C33 25 27 35 27 44C36 44 44 51 44 61C44 72 36 80 25 80C15 80 8 72 8 62Z" +
         "M56 62C56 34 70 16 92 10L95 19C81 25 75 35 75 44C84 44 92 51 92 61C92 72 84 80 73 80C63 80 56 72 56 62Z"
 
+    /** A callout's ring round the speaker's head, as a share of the head's own size. */
+    private const val RING_AIR = 1.3f
+
+    /** A callout's note: its type size as a share of its slot's width, and at most this share of the slot's height. */
+    private const val NOTE_SIZE = 0.1f
+    private const val NOTE_HEIGHT = 0.45f
+
     // ------------------------------------------------------------------ quote
 
     /** A quote ([Cue.text]) with who said it ([Cue.label]): under big marks, beside a rule, or on a card. */
@@ -553,18 +560,26 @@ object TalkFamilies {
             val text = cue.text.ifBlank { cue.label ?: return Built(emptyList()) }
             val fw = cue.frameWidth.takeIf { it > 0f } ?: (cue.width / 0.82f)
             val fh = cue.frameHeight.takeIf { it > 0f } ?: (fw * 16f / 9f)
-            // Where the speaker is: below the slot, toward the frame's middle (on a stage, the foot of the slot).
-            val target = if (cue.overMedia) fw / 2f to (cue.y + cue.height / 2f + fh * 0.1f).coerceAtMost(fh * 0.5f) else cue.x to cue.y + cue.height * 0.42f
-            return when (p.layout) {
-                1 -> leader(cue, look, fit, p, text, target)
-                2 -> ring(cue, look, fit, p, text, target, fw)
+            // Where the speaker is: their head when it is known (the side of it nearest the note), else a guess below the
+            // slot toward the frame's middle (on a stage, the foot of the slot).
+            val head = cue.head
+            val target = when {
+                head != null -> (if (cue.y < head.top) head.centerX to head.top else head.centerX to head.bottom)
+                cue.overMedia -> fw / 2f to (cue.y + cue.height / 2f + fh * 0.1f).coerceAtMost(fh * 0.5f)
+                else -> cue.x to cue.y + cue.height * 0.42f
+            }
+            return when {
+                p.layout == 1 -> leader(cue, look, fit, p, text, target)
+                // A ring is drawn around the head itself: where it is not known, a ring would circle the wall.
+                p.layout == 2 && head != null -> ring(cue, look, fit, p, text, head)
                 else -> arrow(cue, look, fit, p, text, target)
             }
         }
 
         private fun label(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, text: String, b: Box, pill: Boolean): Pair<List<Node>, Box> {
             val voice = if (p.typo == Typo.Data) Kit.titleVoice(look, p.typo) else look.headline
-            val f = Kit.fit(fit, text, voice, minOf(b.height * 0.36f, b.width * 0.075f), b.width * 0.7f, minOf(b.height * 0.6f, b.width * 0.24f), lines = 2)
+            // A note read at a glance on a phone: large type, two lines at most.
+            val f = Kit.fit(fit, text, voice, minOf(b.height * NOTE_HEIGHT, b.width * NOTE_SIZE), b.width * 0.8f, minOf(b.height * 0.7f, b.width * 0.3f), lines = 2)
             val w = f.width + (if (pill) f.type.size * 1.2f else 0f)
             val h = f.height + (if (pill) f.type.size * 0.6f else 0f)
             val cx = Kit.fromStart(Kit.startX(b, p.rtl, 0f), w, p.rtl)
@@ -634,12 +649,14 @@ object TalkFamilies {
             return Kit.built(cue, look, p, box, nodes, name, listOf(Sfx(draw, SfxKind.Click, 0.5f)), listOf(Craft.punch(draw + 0.5f, 0.04f)))
         }
 
-        private fun ring(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, text: String, target: Pair<Float, Float>, fw: Float): Built {
+        private fun ring(cue: Cue, look: Look, fit: Fitter, p: Kit.Plan, text: String, head: Box): Built {
             val slot = Box.around(cue.x, cue.y, cue.width, cue.height)
             val (words, lb) = label(cue, look, fit, p, text, Box(slot.left, slot.top, slot.right, slot.top + slot.height * 0.7f), pill = true)
-            val r = fw * 0.2f
-            val cx = target.first
-            val cy = target.second + r * 0.5f
+            val fw = cue.frameWidth.takeIf { it > 0f } ?: (cue.width / 0.82f)
+            // Round the head with a little air: the ellipse below is 1.15 times as tall as it is wide.
+            val r = maxOf(head.width, head.height / 1.15f) / 2f * RING_AIR
+            val cx = head.centerX
+            val cy = head.centerY
             val draw = p.at + 0.25f
             val pts = (0..60).map { i ->
                 val a = -1.2f + i / 60f * 2.15f * kotlin.math.PI.toFloat()

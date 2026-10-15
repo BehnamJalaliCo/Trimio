@@ -136,6 +136,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         val prelude: List<Word> = emptyList(),
         val subject: Subject? = null,
         val footage: Boolean = true,
+        /** The speaker stands on full-frame stages cut out of the picture (the person matte): a card above their head is placed, not stranded. */
+        val cutout: Boolean = false,
         /** The mastered mix, when it exists; judges fall back to the plan before mastering. */
         val sound: Soundtrack.Result? = null,
         val levels: Soundtrack.Levels = Soundtrack.Levels(),

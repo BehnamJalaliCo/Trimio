@@ -110,6 +110,8 @@ class ScreenWordsTest {
             "ورود با پنجاه دلار" to "پنجاه دولار کف ورودیمونه رایگان هستیم",
             "تمام سیگنال‌ها در CoinPro.com" to "CoinPro.com می‌تونی بری، تمام سیگنال همونو گذاشتیم،",
             "شارژ حساب خودت" to "اونم تازه حساب خودتو شارج می‌کنی،",
+            // «تومن» is how «تومان» is said.
+            "ورودی ۲,۷۰۰,۰۰۰ تومان" to "راضی، ورودیشم دو میلیون و هفتصد هزار تومنه،",
         )
         for ((title, said) in grounded) assertTrue(Headlines.grounded(title, line(said), emptyList(), brief), title)
         val invented = mapOf(

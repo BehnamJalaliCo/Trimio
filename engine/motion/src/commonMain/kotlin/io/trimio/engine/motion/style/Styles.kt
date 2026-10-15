@@ -588,8 +588,9 @@ internal object Styles {
             hot = 0xFFE8C987, card = 0x14F7EFDC, rim = 0x55D4AF6A,
             headline = Voice(Expressive, 700, 1.2f), caption = Voice(Expressive, 800, 1.3f), body = Voice(Expressive, 500, 1.4f),
             number = Voice(Accent, 600, 1f), label = Voice(Accent, 500, 1.2f, 0.3f),
-            grain = 0f, vignette = 0.6f, roundness = 0.5f, mark = Mark.Underline, caps = true, plate = false,
-            grade = Grade((-0.02f).anim, 1.04f.anim, 0.9f.anim, 0.3f.anim), ease = Ease.Sine, backdrop = "dust", lens = null,
+            grain = 0f, vignette = 0.6f, roundness = 0.5f, mark = Mark.Block, caps = true, plate = false,
+            // A gold light from above through haze (the owner's black-and-gold references), not motes drifting like stars.
+            grade = Grade((-0.02f).anim, 1.04f.anim, 0.9f.anim, 0.3f.anim), ease = Ease.Sine, backdrop = "glow", lens = null,
         ),
         accents = listOf("#D4AF6A", "#E8E1D3", "#C9A27E"),
         motion = MotionGrammar(
@@ -597,7 +598,8 @@ internal object Styles {
             entrances = weights("blur-in 1.4, mask-rise 1, spread 0.7, flip 0.2, type-on 0.2, slam 0.1"),
             enter = weights("leak 1.2, zoom 0.8, dip 0.6"), exit = weights("zoom 0.8, cut 0.6, whip 0.2, dip 0.5"), push = 1.2f, still = 0.6f,
         ),
-        captions = CaptionTreatment(marks = weights("underline 1, ink 0.8, block 0.3"), words = listOf(3, 4)),
+        // Two or three words at a time, the key one on a gold block, as the black-and-gold reels set them.
+        captions = CaptionTreatment(marks = weights("block 1, underline 0.3, ink 0.3"), words = listOf(2, 3, 3)),
         rhythm = Cadence(density = 0.8f, takeover = 0.9f, stages = weights("aurora 1, grid 0.1")),
         sound = "luxury",
         fit = Fit(

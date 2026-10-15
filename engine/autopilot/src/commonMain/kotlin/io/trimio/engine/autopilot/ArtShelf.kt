@@ -86,7 +86,7 @@ class ArtShelf(
         val hits = runCatching { if (fetch == null) service.local(query, limit) else service.search(query, limit, fetch) }.getOrDefault(emptyList())
         return hits.mapNotNull { hit ->
             val relevance = ArtCatalogue.relevance(query, hit.entry.name, hit.entry.tags)
-            if (relevance <= floor || relevance < ArtCatalogue.MIN_RELEVANCE) return@mapNotNull null
+            if (relevance <= floor || relevance < ArtCatalogue.MIN_RELEVANCE || !ArtCatalogue.shown(hit.entry)) return@mapNotNull null
             cache.put(hit.entry.source.urlOf(hit.entry.key), hit.document)
             icon(hit.entry, null)?.let { Found(it, relevance, hit.entry) }
         }
