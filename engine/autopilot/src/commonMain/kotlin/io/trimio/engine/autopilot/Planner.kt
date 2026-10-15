@@ -468,6 +468,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         /** Which lines become full-frame graphics: the strongest candidates, never adjacent, within budget. */
         private fun chooseTakeovers(reads: List<LineRead>): Set<Int> {
             if (!footage) return lines.indices.toSet()
+            // A talking head stays on screen: the owner's reel cut to dark full-frame pages (a lone «۱۰», a chat window
+            // for 11 s, the call to action without him) and he read it as cheap. Graphics play over the speaker.
+            if (TALKING_HEAD) return emptySet()
             val total = duration(0, lines.lastIndex)
             // The share of full-frame graphics varies by seed (a calmer or a busier cut of the same piece).
             val budget = total * paced.takeover * takeoverRng.range(0.6f, 1.35f)
@@ -859,6 +862,9 @@ class Planner(private val taste: Taste = Taste(), private val brief: String = ""
         val UPGRADABLE = setOf("headline", "counter", "none")
 
         const val MIN_TAKEOVER_S = 1.4f
+
+        /** Video reels keep the speaker in frame: no full-frame stages over footage (see [Session.chooseTakeovers]). */
+        const val TALKING_HEAD = true
         const val EARLIEST_TAKEOVER_MS = 3500L
         const val MIN_NODES = 7
         const val PICTURE_CHANCE = 0.7f

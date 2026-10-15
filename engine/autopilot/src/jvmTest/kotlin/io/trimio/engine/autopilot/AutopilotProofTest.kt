@@ -104,6 +104,8 @@ class AutopilotProofTest {
             }
             // -Pauto.sheet=true: a contact sheet of the edit, one frame at every graphic once it has landed (the art director's look).
             if (System.getProperty("auto.sheet") == "true") Sheet.draw(production, video, File(out, "seed-$seed-sheet.png"))
+            // -Pauto.every=<s>: every frame of the piece at that step, as a JPEG sheet (the whole viewing, not only the graphics).
+            System.getProperty("auto.every")?.toFloatOrNull()?.let { step -> Sheet.draw(production, video, File(out, "seed-$seed-every.jpg"), Sheet.every(production, step)) }
             val planned = (System.nanoTime() - t0) / 1e9
             // The real benchmark's acceptance counts (unknown words, fragments, cuts inside words, every graphic text).
             val counted = BenchmarkCount.lines(production, voice, runBlocking { PersianSpelling.load() })

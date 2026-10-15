@@ -188,12 +188,12 @@ internal class Rhythm(
     private fun fillAt(scenes: MutableList<SceneScore>, k: Int, t0: Float): String? {
         // Where nothing fits, look again a little earlier and allow a quicker cut.
         val spots = spots(scenes, k, t0, relaxed = false)?.takeIf { it.any } ?: spots(scenes, k, t0, relaxed = true) ?: return null
+        // Over a talking head a quiet stretch takes a cut to a closer frame, the way an editor keeps it alive; a lone word
+        // or a generic icon popping up («روبات», a person, a star) read as noise on the owner's reel.
         val options = listOfNotNull(
-            // A picture of what is named says more than any word on screen.
-            ("picture" to 2.5f).takeIf { spots.picture != null },
-            ("pop" to 1f).takeIf { spots.pop != null },
-            ("punch" to 0.9f).takeIf { spots.cut != null },
-            ("stamp" to 0.3f).takeIf { stampable(spots) },
+            ("picture" to 0.35f).takeIf { spots.picture != null },
+            ("pop" to 0.2f).takeIf { spots.pop != null },
+            ("punch" to 3f).takeIf { spots.cut != null },
         ).map { (kind, w) -> kind to w * (if (kind == lastFill) 0.25f else 1f) * (if (kind == "punch") 1f else taste.density.coerceIn(0.5f, 1.5f)) }
         if (options.isEmpty()) return null
         val kind = rng.weighted(options)

@@ -20,6 +20,11 @@ object Sheet {
     private const val LABEL = 34
     private const val COLUMNS = 6
     private const val LAND = 0.8f
+    private const val JPEG_QUALITY = 82
+
+    /** A frame every [step] seconds, the whole piece (a review of everything the viewer sees, not only the graphics). */
+    fun every(p: Autopilot.Production, step: Float): List<Float> =
+        generateSequence(0.5f) { it + step }.takeWhile { it < p.compiled.composition.duration }.toList()
 
     fun times(p: Autopilot.Production): List<Float> {
         val graphics = p.compiled.beats.filter { it.recipe != "pop-captions" }
@@ -48,6 +53,7 @@ object Sheet {
                 sheet.canvas.drawString("${"%.1f".format(t)}s $up".take(40), x + 4f, y + 22f, font, ink)
             }
         }
-        out.writeBytes(sheet.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        val format = if (out.extension == "jpg") EncodedImageFormat.JPEG else EncodedImageFormat.PNG
+        out.writeBytes(sheet.makeImageSnapshot().encodeToData(format, JPEG_QUALITY)!!.bytes)
     }
 }
