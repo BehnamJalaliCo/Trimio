@@ -342,7 +342,11 @@ class Autopilot(
         val plan = planned.copy(score = MusicEdit.gridded(base, music))
         music?.let { m -> log("music: ${m.mood.id} at ${round1(m.grid.bpm.toFloat())} bpm, ${m.sections.joinToString(" ") { "${it.kind.name.lowercase()}@${round1(it.from.toFloat())}" }}") }
         // The creator's pictures and clips at their moments, the brief's sites and terms on screen.
-        val placed = r.media.apply(plan.score, output, r.lines, seed, log)
+        val applied = r.media.apply(plan.score, output, r.lines, seed, log)
+        // What the creator's media and the brief add is said in cards too, when the piece is told in them.
+        val placed = if (!Storyboard.told(applied)) applied else applied.copy(
+            scenes = applied.scenes.map { s -> s.copy(beats = s.beats.mapNotNull { b -> Storyboard.translated(applied, b) }) },
+        )
 
         onStage("pictures", 0.6f)
         val picked = pictures(placed, output, r.lines, log)

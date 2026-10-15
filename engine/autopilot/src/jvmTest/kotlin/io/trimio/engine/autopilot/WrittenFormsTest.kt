@@ -38,4 +38,12 @@ class WrittenFormsTest {
         assertEquals("همه چیز در coinepro.com", fixed.lines.single().title)
         assertEquals(listOf("coinepro.com"), fixed.lines.single().items)
     }
+
+    @Test
+    fun aWordMisheardByItsFirstLetterIsTheOneThePieceKeepsSaying() {
+        val said = "ورودیشم دو میلیون تومنه کلن پنجاه تتر ورودی مونه اصلا به ما پولی نمی‌دی برودیمون رایگانه".split(' ')
+        assertEquals("ورودیمون", WrittenForms.of("برودیمون", said))
+        // A word said once among others like it stays: no other stem is said twice.
+        assertNull(WrittenForms.of("بارون", "امروز بارون اومد و همه جا خیس شد".split(' ')))
+    }
 }

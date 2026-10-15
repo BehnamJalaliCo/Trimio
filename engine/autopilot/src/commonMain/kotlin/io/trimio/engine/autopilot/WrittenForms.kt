@@ -17,9 +17,28 @@ internal object WrittenForms {
         val core = word.trimEnd(*TRAIL)
         val tail = word.substring(core.length)
         val plain = core.replace("‌", "")
-        val written = ALWAYS[plain] ?: TRADING[plain]?.takeIf { trading(texts) } ?: site(plain, sites) ?: return null
+        val written = ALWAYS[plain] ?: TRADING[plain]?.takeIf { trading(texts) } ?: site(plain, sites) ?: echo(plain, texts) ?: return null
         return written + tail
     }
+
+    /**
+     * A word misheard by its first letter as another word the list knows («برودیمون» for «ورودیمون»): the piece itself
+     * says which one was meant. When its stem is said nowhere else in the piece and the stem with another first letter
+     * is said at least [ECHOES] times («ورودی», «ورودیشم», «ورودی مونه»), it is that word, its endings kept.
+     */
+    private fun echo(heard: String, texts: List<String>): String? {
+        if (heard.length < MIN_ECHO || heard.none { it in '\u0600'..'\u06FF' }) return null
+        val said = texts.map { it.trimEnd(*TRAIL).replace("\u200C", "") }
+        val endings = ENDINGS.filter { heard.endsWith(it) && heard.length - it.length >= MIN_STEM }
+        // A stem said again in the piece is what was said: no echo of another.
+        if (endings.any { e -> said.count { it.startsWith(heard.dropLast(e.length)) } > 1 }) return null
+        return endings.firstNotNullOfOrNull { e -> echoed(heard.dropLast(e.length), said)?.plus(e) }
+    }
+
+    /** [stem] with another first letter, said at least [ECHOES] times in [said], when there is exactly one such. */
+    private fun echoed(stem: String, said: List<String>): String? =
+        said.filter { it.length >= stem.length && it.first() != stem.first() && it.substring(1).startsWith(stem.substring(1)) }
+            .groupingBy { it.first() + stem.substring(1) }.eachCount().filterValues { it >= ECHOES }.keys.singleOrNull()
 
     private fun site(heard: String, sites: List<String>): String? {
         val dot = heard.lastIndexOf('.')
@@ -42,5 +61,9 @@ internal object WrittenForms {
     private val TRADE_WORDS = listOf("سیگنال", "ترید", "تتر", "کریپتو", "بیتکوین", "استاپ", "استاب", "فیوچرز", "اسپات", "لیکوئید", "تریدر")
     private const val MIN_TRADE = 2
     private const val MIN_SOUND = 3
+    private const val MIN_ECHO = 5
+    private const val MIN_STEM = 4
+    private const val ECHOES = 2
+    private val ENDINGS = listOf("مونه", "مون", "تون", "شون", "شم", "ش", "ه", "")
     private const val SOUND_SLIP = 1
 }

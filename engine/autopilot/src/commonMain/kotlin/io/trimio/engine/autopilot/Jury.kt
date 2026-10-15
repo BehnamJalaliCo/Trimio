@@ -317,6 +317,8 @@ class Jury(val judges: List<Judge> = standard(), val budget: Budget = Budget()) 
         while (!panel.unanimous && round < budget.rounds) {
             // Stuck findings first: their own fixes already failed them; the remedies ride on the joint fix.
             val further = runCatching { io.trimio.engine.autopilot.judges.Remedies.beyond(ctx, panel, stuck, fixes(ctx, panel)) }.getOrNull()
+                // A remedy never takes the storyboard's cards apart, as no judge's fix may.
+                ?.let { r -> r.copy(score = Storyboard.kept(ctx.score, r.score)) }
                 ?.let { listOf("further remedies" to it) }.orEmpty()
             val options = (further + options(ctx, panel)).filter { it.second.key !in tried }
             if (options.isNotEmpty()) round++

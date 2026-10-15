@@ -310,16 +310,16 @@ object BoardFamilies {
                 val figure = parts.getOrNull(1).orEmpty()
                 val what = parts.getOrNull(2).orEmpty()
                 val card = mutableListOf<Node>(Board.card(cx, cy, cw, ch, ch * 0.14f, Board.GROUND, c.copy(alpha = 0.7f), "versus-card-$i"))
-                if (who.isNotBlank()) card += Board.text(fit, who, 800, ch * 0.15f, cw * 0.8f, ch * 0.2f, Board.ink(c), cx, cy - ch * 0.3f, t, cue.rtl, Board.GROUND, name = "versus-who-$i")
+                if (who.isNotBlank()) card += Board.text(fit, who, 800, ch * 0.17f, cw * 0.8f, ch * 0.22f, Board.ink(c), cx, cy - ch * 0.3f, t, cue.rtl, Board.GROUND, name = "versus-who-$i")
                 if (figure.isNotBlank()) {
                     card += Board.text(fit, figure, 900, ch * 0.22f, cw * 0.86f, ch * 0.3f, Board.ink(c), cx, cy, t + 0.1f, cue.rtl, Board.GROUND, Kit.Reveal.Pop, name = "versus-figure-$i")
                 }
-                if (what.isNotBlank()) card += Board.text(fit, what, 600, ch * 0.12f, cw * 0.8f, ch * 0.18f, Board.MUTED, cx, cy + ch * 0.3f, t + 0.15f, cue.rtl, Board.GROUND, name = "versus-what-$i")
+                if (what.isNotBlank()) card += Board.text(fit, what, 700, ch * 0.15f, cw * 0.84f, ch * 0.2f, Board.MUTED, cx, cy + ch * 0.3f, t + 0.15f, cue.rtl, Board.GROUND, name = "versus-what-$i")
                 nodes += Group(card, Transform(anchorX = 0f, anchorY = 0f, opacity = Anim.tween(0f, 1f, t, t + Board.FADE)), start = t - 0.02f, name = "versus-side-$i")
             }
             val vs = ch * 0.34f
             nodes += Board.disc(box.centerX, cy, vs, Board.MARK, "versus-disc")
-            nodes += Board.text(fit, "VS", 900, vs * 0.4f, vs * 0.8f, vs * 0.6f, Board.DARK, box.centerX, cy, at + 0.3f, false, Board.MARK, Kit.Reveal.Pop, name = "versus-vs")
+            nodes += Board.text(fit, "VS", 900, vs * 0.46f, vs * 0.86f, vs * 0.64f, Board.DARK, box.centerX, cy, at + 0.3f, false, Board.MARK, Kit.Reveal.Pop, name = "versus-vs")
             extras.forEachIndexed { i, (tone, words, t) ->
                 val c = Board.tone(tone)
                 val y = box.top + ch + rh * 0.3f + rh * 1.15f * i + rh / 2f

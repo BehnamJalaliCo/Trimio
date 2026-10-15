@@ -51,6 +51,8 @@ internal class Script(private val c: Jury.Context) {
         // A lone letter is a monogram (a brand's initial on its tile), not a word.
         if (!latin(w) || w.count { it.isLetter() } <= 1) return true
         val low = w.lowercase()
+        // The versus mark between two sides reads as a sign in any language («VS»), as the reference edits set it.
+        if (low == "vs") return true
         val named = low in allowed || part(low)
         if (named || c.brand(w) || TIMES.matches(low)) return true
         // A site or a dotted name made of allowed parts (nobitex.ir).
