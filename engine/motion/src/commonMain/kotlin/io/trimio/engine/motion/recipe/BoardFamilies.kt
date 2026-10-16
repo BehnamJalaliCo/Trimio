@@ -261,7 +261,8 @@ object BoardFamilies {
             val eyebrow = cue.label.orEmpty()
             val fig = Kit.fit(fit, cue.text, Board.voice(900), h * 0.42f, cue.width * 0.8f, h * 0.5f)
             val eb = if (eyebrow.isNotBlank()) Kit.fit(fit, eyebrow, Board.voice(600), h * 0.2f, cue.width * 0.8f, h * 0.26f) else null
-            val w = maxOf(fig.width, eb?.width ?: 0f) + h * 0.6f
+            // A short figure («100») still reads as a card on a phone: never narrower than [MIN_PRICE] of the band.
+            val w = maxOf(maxOf(fig.width, eb?.width ?: 0f) + h * 0.6f, cue.width * MIN_PRICE)
             val box = Kit.box(cue, w, h)
             val at = cue.at - Craft.LEAD
             val figY = if (eb != null) box.top + h * 0.62f else box.centerY
@@ -270,6 +271,8 @@ object BoardFamilies {
             nodes += Kit.words(cue.text, fig, Board.ink(tone), box.centerX, figY, at + 0.12f, Board.GROUND, cue.rtl, Kit.Reveal.Pop, name = "price-figure")
             return Board.built(cue, look, box, nodes, "board-price")
         }
+
+        private val MIN_PRICE = 0.42f
     }
 
     /**

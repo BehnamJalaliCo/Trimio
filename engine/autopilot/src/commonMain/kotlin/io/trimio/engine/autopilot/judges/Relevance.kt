@@ -86,7 +86,8 @@ internal class Relevance(private val c: Jury.Context) {
         const val PICTURE_FIT = 0.5f
 
         /** Graphics that are about the piece, not a line: the ask, its end card, a thread told over lines, the speaker's name. */
-        val EXEMPT = setOf("comment", "endcard", "message", "lower-third", "pop-captions", "url", "pip", "photo", "b-roll")
+        // A storyboard price card is placed on the words that say its figure («a hundred» → «100»): relevant by construction.
+        val EXEMPT = setOf("comment", "endcard", "message", "lower-third", "pop-captions", "url", "pip", "photo", "b-roll", "board-price")
         /** Figures whose number is the one said (a countdown's or a progress bar's may be worked out from what is said). */
         val FIGURES = setOf("counter", "meter", "voucher", "ring", "stat-stack")
 
