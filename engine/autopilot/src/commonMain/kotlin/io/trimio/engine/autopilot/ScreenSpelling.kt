@@ -69,7 +69,7 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
         return head + item.removePrefix(head).split('|').joinToString("|") { part -> phrase(part, log).trim() }
     }
 
-    private fun phrase(s: String, log: (String) -> Unit): String = s.split(' ').map { token ->
+    private fun phrase(s: String, log: (String) -> Unit): String = s.replace(LATIN_GROUPS, "\u066C").split(' ').map { token ->
         // A word said one way and written another («تیپی» → «تیپ», «دولار» → «دلار») is written on every card too.
         WrittenForms.of(token, spokenWords)?.also { log("screen spelling (written form): «$token» → «$it»") } ?: token
     }.mapNotNull { token ->
@@ -91,6 +91,9 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
     private fun known(c: String) = plain(c) in brief || plain(c) in mine || words.shows(c)
 
     private companion object {
+        /** A Latin comma between Persian digits («۲,۷۰۰,۰۰۰») is written with the Persian thousands sign («۲٬۷۰۰٬۰۰۰»). */
+        val LATIN_GROUPS = Regex("(?<=[۰-۹]),(?=[۰-۹]{3})")
+
         const val BOARD = "board-"
         val SEPARATORS = Regex("[\\s,،.!?؟:;()\\[\\]{}«»\"“”/]+")
         const val ZWNJ = '\u200C'
@@ -112,4 +115,5 @@ class ScreenSpelling(private val lexicon: PersianSpelling, spoken: List<String>,
 
         fun persian(w: String) = w.any { it in '\u0620'..'\u06FF' && it.isLetter() }
     }
+
 }

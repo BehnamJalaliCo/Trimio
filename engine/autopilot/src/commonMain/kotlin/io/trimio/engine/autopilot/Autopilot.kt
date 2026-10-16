@@ -239,7 +239,10 @@ class Autopilot(
         if (request.footage == null || StoryCut.keepsAll(request.prompt)) return none
         val cut = StoryCut.choose(checked.words.words, lines, understanding.hook?.line, understanding.cta?.keyword.orEmpty(), understanding.lines.map { it.gist })
         if (cut.isEmpty) return none
-        val applied = StoryCut.apply(cut, edit, checked.words, checked.shown, lines, understanding)
+        val cutApart = StoryCut.apply(cut, edit, checked.words, checked.shown, lines, understanding)
+        // The content cut's edges were set on the recogniser's word times: each moves into the quiet the voice really leaves.
+        val voiced = runCatching { JumpCuts.clean(cutApart.edit, io.trimio.engine.motion.score.CutPoints(VoiceLevel.levelled(request.voice))) }.getOrNull()
+        val applied = if (voiced == null) cutApart else StoryCut.Applied(voiced, cutApart.transcript, cutApart.shown, cutApart.lines, cutApart.understanding, cutApart.index)
         report += cut.notes
         report += "story cut: ${cut.dropped.size} of ${lines.size} lines, ${round1(edit.duration)}s → ${round1(applied.edit.duration)}s"
         return applied
