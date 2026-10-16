@@ -458,3 +458,6 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   accents and caption styles, lighter phrase captions that never break on a leaning word, a steady music bed,
   content-cut edges in the voice's quiet, every revision spelled, no unvouched word on screen. The owner's reel:
   125 s, the jury's 10 on every judge after polishing; the cut and the caption band are still open.
+- Release 1.0.31 carries round 10. On the phone: the new stages (accents, caption styles) fetch a few small
+  documents once and keep them; a lean run (after a low-memory kill) skips the accents. The low-memory work of
+  1.0.27–1.0.28 stands; no new heavy stage was added.
