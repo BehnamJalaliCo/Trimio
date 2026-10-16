@@ -117,6 +117,8 @@ class LongFormTest {
         val placed = out.compiled.beats
         val subscribe = placed.filter { it.recipe == "yt-subscribe" }
         assertEquals(1, subscribe.size, "one subscribe ask")
+        // Every device is on screen for real: it ends after it starts.
+        assertTrue(placed.filter { it.recipe != "subtitles" }.all { it.out > it.at + 1f }, "a device never shown: $placed")
         assertTrue(subscribe.single().at >= 59f, "after the first minute: ${subscribe.single().at}")
         val cards = placed.filter { it.recipe == "yt-chapter" }
         assertTrue(cards.size >= 2, "a card at every chapter after the first")

@@ -12,7 +12,7 @@ object SubtitleFiles {
     data class Cue(val from: Float, val to: Float, val text: String)
 
     fun cues(words: List<Word>): List<Cue> {
-        val said = words.filterNot { it.text.isBlank() || Words.isFiller(it.text) }
+        val said = words.filterNot { w -> w.text.none { it.isLetterOrDigit() } || Words.isFiller(w.text) }
         val lines = Words.captionLines(said, MAX_WORDS)
         return lines.mapIndexed { i, line ->
             val next = lines.getOrNull(i + 1)?.first()?.range?.startMs?.div(MS)

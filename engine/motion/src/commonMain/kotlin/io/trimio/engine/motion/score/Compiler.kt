@@ -235,9 +235,10 @@ class Compiler(
                 requested.forEach { beats += resolve(it, k, scene, range, beats.size) }
             }
             // Occupants that had to leave early.
+            val pushed = beats.filter { layout.outOf(it.id) != null }.map { it.id }.toSet()
             for (b in beats) b.out = layout.outOf(b.id) ?: b.out
-            // A card pushed out before it could be read is never on screen at all: a flash is no graphic.
-            beats.removeAll { it.out - it.cue.at < MIN_SHOWN }
+            // A card pushed out by the next before it could be read is never on screen at all: a flash is no graphic.
+            beats.removeAll { it.id in pushed && it.out - it.cue.at < MIN_SHOWN }
             holdStages(beats)
             // Graphics first, kept inside the frame: the captions then yield to where each one really rests.
             val graphics = keepInside(beats.associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }).mapValues { (b, built) ->
@@ -412,7 +413,9 @@ class Compiler(
             val spokenText = if (recipe.kind == Recipe.Kind.Text && atIndex != null) (atIndex..(lastIndex ?: atIndex)).joinToString(" ") { words[it].text } else ""
             val beatText = clean(b.text ?: spokenText)
             val readable = maxOf(MIN_READ, 0.35f + 0.055f * beatText.length, recipe.minHold)
-            val out = minOf(maxOf(naturalEnd(b, recipe, at, lastIndex, sceneEnds[k], readable), at + readable), sceneEnds[k] + 0.05f, at + if (recipe.name in LONG_FORM) MAX_THREAD_HOLD else MAX_HOLD)
+            // A beat timed past its scene's end (a long video's chapter cards, all listed in its first scene) ends with the scene it lands in.
+            val sceneEnd = sceneEnds[sceneStarts.indexOfLast { it <= at + 0.01f }.coerceIn(k, sceneEnds.lastIndex)]
+            val out = minOf(maxOf(naturalEnd(b, recipe, at, lastIndex, sceneEnd, readable), at + readable), sceneEnd + 0.05f, at + if (recipe.name in LONG_FORM) MAX_THREAD_HOLD else MAX_HOLD)
             val words = beatText.split(' ').count { it.isNotEmpty() }
             val minOut = minOf(at + readable, out)
             val over = overFootage(scene)
@@ -795,7 +798,7 @@ class Compiler(
         val prelude = input.transcript?.let { t -> input.edit?.preludeWords(t) }.orEmpty()
         // Hesitations («اِم», "um") are never shown; the words around them keep their own times.
         // A blank word was cut or merged by the creator (the editor): it has nothing to show either.
-        fun said(words: List<Word>) = words.filterNot { it.text.isBlank() || Words.isFiller(it.text) }
+        fun said(words: List<Word>) = words.filterNot { w -> w.text.none { it.isLetterOrDigit() } || Words.isFiller(w.text) }
         // The storyboard's captions are phrases: a group never runs across a comma into the next thought.
         val phrases = score.captions.mark in PHRASE_MARKS
         val most = score.captions.maxWords.coerceIn(1, MAX_CAPTION_WORDS)

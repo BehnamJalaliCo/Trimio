@@ -26,6 +26,7 @@ import kotlinx.serialization.json.jsonObject
  * Latin digits in a Persian talk are shown as Persian digits.
  */
 internal object OnScreenSpelling {
+    private const val ENDS = ".!?؟،,;؛…"
 
     /** The words for planning ([words], repaired) and for the screen ([shown]: what may not be shown blanked). */
     class Result(val words: Transcript, val shown: Transcript, val fixes: Map<Int, String>, val hidden: List<Int>)
@@ -74,7 +75,8 @@ internal object OnScreenSpelling {
             words.language,
             words.words.mapIndexed { i, w ->
                 when {
-                    i in hidden -> w.copy(text = "")
+                    // Left off the screen, its sentence's end stays: what comes after still starts a sentence.
+                    i in hidden -> w.copy(text = w.text.filter { it in ENDS })
                     persian && w.text.any { it in '0'..'9' } && w.text.none { it in 'A'..'Z' || it in 'a'..'z' } -> w.copy(text = Numerals.toPersian(w.text))
                     else -> w
                 }
