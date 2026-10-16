@@ -33,7 +33,7 @@ class SoundJudge(
         val f = mutableListOf<Finding>()
         val lv = c.levels
         if (c.music != null && (lv.musicUnderDb > MAX_UNDER_DB || lv.musicUnderDb > lv.musicGapDb - MIN_DUCK_DB)) {
-            f += Bench.finding(0f, Severity.Major, "music ducks only to ${lv.musicUnderDb} dB under the voice", "duck the bed to −20 dB under words")
+            f += Bench.finding(0f, Severity.Major, "music ducks only to ${lv.musicUnderDb} dB under the voice", "keep the bed at least 14 dB under words")
         }
         f += cues(c)
         val sound = c.sound
@@ -137,8 +137,9 @@ class SoundJudge(
 
     companion object {
         private const val HIT_MASK_S = 0.06f
-        private const val MAX_UNDER_DB = -15f
-        private const val MIN_DUCK_DB = 4f
+        /** A steady bed (the reference edit's ~10 dB under the voice): at least 14 dB under words, breathing up 3 dB in the gaps. */
+        private const val MAX_UNDER_DB = -14f
+        private const val MIN_DUCK_DB = 3f
         private const val MIN_MINUTES = 0.25f
         private const val NEAR_MS = 4
         private const val WIDE_MS = 30

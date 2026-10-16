@@ -37,7 +37,7 @@ class SpellingJudge : Judge {
             // Every word read on screen — graphics, captions, the cold open's, the end card — is a word, a term or a name.
             // Graphics strictly (words, terms, given names); captions may keep a probable name as said.
             val graphic = ScreenWords(lex, names(c, repeated = false), strict = true)
-            val caption = ScreenWords(lex, names(c, repeated = true))
+            val caption = ScreenWords(lex, names(c, repeated = false))
             val onScreen = shown(c).map { (t, s) -> Triple(t, s, graphic) } + Bench.captions(c).map { Triple(it.at, it.text, caption) }
             f += onScreen.flatMap { (t, s, check) ->
                 check.unknown(s).map { w -> Bench.finding(t, Severity.Major, "${if (check === caption) "caption " else ""}«$w» is no word", "the right spelling, or another phrase") }

@@ -62,8 +62,8 @@ internal object Dresser {
 
     /**
      * The caption style of a reel told in cards ([Storyboard]), unlike its page's last edits ([recent]): phrases with the
-     * word that matters inked by its meaning, a bold word-by-word pop, or a short line with the word being said on a
-     * moving highlight. Another piece only: a brief that names a caption style keeps it (the score already says so).
+     * word that matters inked by its meaning, or a short line with the word being said on a moving highlight. Both are
+     * light: the bold outlined pop weighs on a talking head and is not offered here. Another piece only: a brief that names a caption style keeps it (the score already says so).
      */
     fun captions(score: Score, recent: Set<String>, seed: Long): Pair<Score, String> {
         if (score.captions.mark != "meaning" || !score.captions.show) return score to ""
@@ -75,8 +75,7 @@ internal object Dresser {
     private const val CAPTIONS = "captions:"
     private val CAPTION_STYLES: List<Pair<String, (io.trimio.engine.motion.score.CaptionScore) -> io.trimio.engine.motion.score.CaptionScore>> = listOf(
         "phrase" to { c -> c },
-        "pop" to { c -> c.copy(maxWords = 3, mark = "pop") },
-        "highlight" to { c -> c.copy(maxWords = 4, mark = "highlight") },
+        "highlight" to { c -> c.copy(maxWords = 3, mark = "highlight") },
     )
 
     private val TITLES = setOf("slam", "stack", "mask-rise", "board-quote", "pop-title", "kinetic", "flip", "blur-in", "spread", "type-on")

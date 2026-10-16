@@ -40,7 +40,9 @@ internal object OnScreenSpelling {
     ): Result {
         val texts = transcript.words.map { it.text }
         val plain = ScreenWords(lexicon)
-        val spoken = ScreenWords.namesIn(texts) { w -> plain.shows(w) || plain.respelled(w) != null }
+        // A name is one the reading or the brief gives, or one a naming word introduces («اسمش …»): a word only said twice
+        // is as often a slip heard twice («کلابزاره» for «کلاه بذاره»), and the screen never shows a slip.
+        val spoken = ScreenWords.namesIn(texts, repeated = false) { w -> plain.shows(w) || plain.respelled(w) != null }
         val screen = ScreenWords(lexicon, names + spoken)
         // 0. Words said one way and written another («دولار» → «دلار»), known to the list as said ([WrittenForms]).
         val written = texts.indices.mapNotNull { i -> WrittenForms.of(texts[i], texts, sites)?.let { i to it } }.toMap()
