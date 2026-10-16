@@ -236,6 +236,8 @@ class Compiler(
             }
             // Occupants that had to leave early.
             for (b in beats) b.out = layout.outOf(b.id) ?: b.out
+            // A card pushed out before it could be read is never on screen at all: a flash is no graphic.
+            beats.removeAll { it.out - it.cue.at < MIN_SHOWN }
             holdStages(beats)
             // Graphics first, kept inside the frame: the captions then yield to where each one really rests.
             val graphics = keepInside(beats.associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }).mapValues { (b, built) ->
@@ -795,7 +797,7 @@ class Compiler(
         // A blank word was cut or merged by the creator (the editor): it has nothing to show either.
         fun said(words: List<Word>) = words.filterNot { it.text.isBlank() || Words.isFiller(it.text) }
         // The storyboard's captions are phrases: a group never runs across a comma into the next thought.
-        val phrases = score.captions.mark == "meaning"
+        val phrases = score.captions.mark in PHRASE_MARKS
         val most = score.captions.maxWords.coerceIn(1, MAX_CAPTION_WORDS)
         val lines = (if (prelude.isEmpty()) emptyList() else Words.captionLines(said(prelude), most, commas = phrases)) +
             Words.captionLines(said(session.transcript!!.words), most, commas = phrases)
@@ -1104,6 +1106,12 @@ class Compiler(
     companion object {
         /** A beat's visual naming a designer's template rather than a picture. */
         const val TEMPLATE = "template:"
+
+        /** Seconds a graphic must be on screen to be shown at all. */
+        private const val MIN_SHOWN = 0.4f
+
+        /** The storyboard's caption styles: each runs in phrases that never cross a comma. */
+        private val PHRASE_MARKS = setOf("meaning", "pop", "highlight")
 
         /** What a word of gain or loss adds to its claim on a caption's highlight. */
         private const val TONE_WORD = 0.7f

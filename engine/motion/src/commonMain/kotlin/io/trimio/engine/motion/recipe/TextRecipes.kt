@@ -223,7 +223,12 @@ object TextRecipes {
     val PopCaptions = object : Recipe("pop-captions", Kind.Text) {
         override val preferredHeight = 0.16f
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
-            if (cue.mark?.lowercase() == "meaning") return grouped(cue, look, fit)
+            when (cue.mark?.lowercase()) {
+                "meaning" -> return grouped(cue, look, fit)
+                // The storyboard's other caption styles: a bold word-by-word pop, a short line with a moving highlight.
+                "pop" -> return SubtitleRecipes.Pop.build(cue.copy(mark = null), look, fit)
+                "highlight" -> return SubtitleRecipes.Highlight.build(cue.copy(mark = null), look, fit)
+            }
             val f = fit.fit(cue.text, look.caption, minOf(cue.width * 0.118f, 112f), cue.width, cue.height, maxLines = 2)
             val n = cue.words.size
             val starts = Craft.wordStarts(cue, n, 0.12f)

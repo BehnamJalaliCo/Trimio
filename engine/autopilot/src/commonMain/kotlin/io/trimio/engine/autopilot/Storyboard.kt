@@ -173,7 +173,7 @@ internal object Storyboard {
     }
 
     /** Whether [score] is told in cards (its captions mark meaning): what the critic and the jury add to it must be too. */
-    fun told(score: Score): Boolean = score.captions.mark == MEANING
+    fun told(score: Score): Boolean = score.captions.mark in setOf(MEANING, "pop", "highlight")
 
     /**
      * A beat the critic or the jury adds to (or puts in place of one in) a [told] score, said in cards: a title is a

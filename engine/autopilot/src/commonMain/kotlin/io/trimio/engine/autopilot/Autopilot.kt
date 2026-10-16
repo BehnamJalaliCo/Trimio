@@ -358,14 +358,15 @@ class Autopilot(
         onStage("compile", 0.75f)
         val compiler = Compiler(text, r.brands, picked.second.library.withIcons(accents))
         // Nothing reaches the screen misspelled: every Persian word was heard, briefed or is known.
-        var score = ScreenSpelling(r.lexicon, texts, request.prompt).check(dressed, log)
+        val speller = ScreenSpelling(r.lexicon, texts, request.prompt)
+        var score = speller.check(dressed, log)
         var compiled = compile(compiler, score, r.shown, edit, request)
         val critic = Critic()
         repeat(CRITIC_PASSES) { pass ->
             val review = critic.review(score, compiled, output, r.lines, r.understanding.cta)
             review.issues.forEach { log("critic ${pass + 1}: ${it.kind} at ${round1(it.at)}s — ${it.detail}") }
             val revised = review.revised ?: return@repeat
-            score = revised
+            score = speller.check(revised, log)
             compiled = compile(compiler, score, r.shown, edit, request)
         }
         var looks = emptyList<VisionCritic.Look>()
@@ -378,7 +379,7 @@ class Autopilot(
             rest(looker)
             looks = seen
             if (revised != null) {
-                score = revised
+                score = speller.check(revised, log)
                 compiled = compile(compiler, score, r.shown, edit, request)
                 log("eyes: edit revised from what was seen")
             }
@@ -425,7 +426,9 @@ class Autopilot(
                 fix.music?.let { report += "jury: the music becomes ${it.id} (${it.bpm} bpm) for the brief" }
                 val same = edit === d.edit && mood == d.plan.music
                 val music = if (same) d.music else MusicEdit.arrange(mood, edit, output, r.lines, r.understanding)
-                val score = if (same) fix.score else MusicEdit.gridded(fix.score, music)
+                // A judge's revision is spelled like the first cut: nothing reaches the screen unchecked.
+                val spelled = ScreenSpelling(r.lexicon, r.transcript.words.map { it.text }, r.request.prompt).check(fix.score) { report += it }
+                val score = if (same) spelled else MusicEdit.gridded(spelled, music)
                 report += "jury: revision with ${score.scenes.sumOf { it.beats.size }} beats in ${score.scenes.size} scenes (was ${d.score.scenes.sumOf { it.beats.size }})"
                 d.copy(plan = d.plan.copy(music = mood), score = score, edit = edit, music = music, output = output, compiled = compile(d.compiler, score, r.shown, edit, r.request))
             },

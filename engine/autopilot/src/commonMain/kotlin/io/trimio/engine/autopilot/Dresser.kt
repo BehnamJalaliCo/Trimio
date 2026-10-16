@@ -75,8 +75,8 @@ internal object Dresser {
     private const val CAPTIONS = "captions:"
     private val CAPTION_STYLES: List<Pair<String, (io.trimio.engine.motion.score.CaptionScore) -> io.trimio.engine.motion.score.CaptionScore>> = listOf(
         "phrase" to { c -> c },
-        "pop" to { c -> c.copy(recipe = "sub-pop", maxWords = 3, mark = null) },
-        "highlight" to { c -> c.copy(recipe = "sub-highlight", maxWords = 4, mark = null) },
+        "pop" to { c -> c.copy(maxWords = 3, mark = "pop") },
+        "highlight" to { c -> c.copy(maxWords = 4, mark = "highlight") },
     )
 
     private val TITLES = setOf("slam", "stack", "mask-rise", "board-quote", "pop-title", "kinetic", "flip", "blur-in", "spread", "type-on")

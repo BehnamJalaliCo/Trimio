@@ -90,7 +90,8 @@ class Workbench internal constructor(
         val heard = transcript.words.map { it.text }
         val said = heard.map(::core).toSet()
         val warnings = own.flatMap { it.split(' ') }.map(::core).filter { w -> persian(w) && lexicon.count(w) == 0 && w !in said }.distinct()
-        var current = ScreenSpelling(lexicon, heard, prompt, own).check(score) { notes += it }
+        val speller = ScreenSpelling(lexicon, heard, prompt, own)
+        var current = speller.check(score) { notes += it }
         var compiled = compiler.compile(input(current, words, edit))
         val output = edit.remap(words).words
         repeat(if (plain) 0 else CRITIC_PASSES) {
@@ -99,7 +100,8 @@ class Workbench internal constructor(
             // What the creator turned off stays off: the critic does not put it back (the jury still says so).
             val revised = review.revised?.let { r -> r.copy(scenes = r.scenes.map { sc -> sc.copy(beats = sc.beats.filterNot(refused)) }) }
                 ?.takeIf { it != current } ?: return@repeat
-            current = revised
+            // What the critic adds is spelled like the rest: nothing reaches the screen unchecked.
+            current = speller.check(revised) { notes += it }
             compiled = compiler.compile(input(current, words, edit))
         }
         return Gated(current, compiled, input(current, words, edit), warnings, notes)

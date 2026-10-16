@@ -246,8 +246,9 @@ internal object StoryCut {
             val before = words.getOrNull(i - 1)
             val after = words.getOrNull(j + 1)
             // A cut at the very start or end takes the edit's head or tail with it: no sliver of room tone is left.
-            val from = before?.let { b -> end(b) + minOf(EDGE, (seconds(words[i]) - end(b)) / 2f) } ?: 0f
-            val to = after?.let { a -> seconds(a) - minOf(EDGE, (seconds(a) - end(words[j])) / 2f) } ?: Float.MAX_VALUE
+            // Words the recogniser timed overlapping leave no gap: the cut then sits on the kept word's own edge, never inside it.
+            val from = before?.let { b -> end(b) + ((seconds(words[i]) - end(b)) / 2f).coerceIn(0f, EDGE) } ?: 0f
+            val to = after?.let { a -> seconds(a) - ((seconds(a) - end(words[j])) / 2f).coerceIn(0f, EDGE) } ?: Float.MAX_VALUE
             if (to > from) spans += from..to
             i = j + 1
         }
