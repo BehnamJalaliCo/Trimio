@@ -237,7 +237,7 @@ class Autopilot(
     ): StoryCut.Applied {
         val none = StoryCut.Applied(edit, checked.words, checked.shown, lines, understanding, checked.words.words.indices.associateWith { it })
         if (request.footage == null || StoryCut.keepsAll(request.prompt)) return none
-        val cut = StoryCut.choose(checked.words.words, lines, understanding.hook?.line, understanding.cta?.keyword.orEmpty())
+        val cut = StoryCut.choose(checked.words.words, lines, understanding.hook?.line, understanding.cta?.keyword.orEmpty(), understanding.lines.map { it.gist })
         if (cut.isEmpty) return none
         val applied = StoryCut.apply(cut, edit, checked.words, checked.shown, lines, understanding)
         report += cut.notes
@@ -353,7 +353,7 @@ class Autopilot(
         ArtShelf.release()
 
         // The designer's accents on the moments that carry the piece, unlike what the page wore lately.
-        val (dressed, accents) = dress(picked.first, output, log)
+        val (dressed, accents) = dress(picked.first, output, seed, log)
 
         onStage("compile", 0.75f)
         val compiler = Compiler(text, r.brands, picked.second.library.withIcons(accents))
@@ -388,13 +388,16 @@ class Autopilot(
     }
 
     /** [score] dressed by the [Dresser] with accents from the shelf (none on a lean run or with nothing kept or reachable); and the accents worn. */
-    private suspend fun dress(score: Score, words: List<Word>, log: (String) -> Unit): Pair<Score, List<VectorIcon>> {
-        val roles = Dresser.roles(score)
-        if (roles.isEmpty() || lean()) return score to emptyList()
+    private suspend fun dress(score: Score, words: List<Word>, seed: Long, log: (String) -> Unit): Pair<Score, List<VectorIcon>> {
+        // The captions in a style the page did not wear lately.
+        val (captioned, style) = Dresser.captions(score, knowledge.worn(), seed)
+        if (style.isNotEmpty()) log("captions: ${style.removePrefix("captions:")} (${captioned.captions.recipe}, ${captioned.captions.maxWords} words)")
+        val roles = Dresser.roles(captioned)
+        if (roles.isEmpty() || lean()) return captioned.also { if (style.isNotEmpty()) knowledge.wore(listOf(style)) } to emptyList()
         val icons = kotlinx.coroutines.withTimeoutOrNull(ACCENTS_MS) { knowledge.templates(roles, perRole = 1) }.orEmpty()
-        val (dressed, worn) = Dresser.dress(score, words, icons)
-        if (worn.isEmpty()) return score to emptyList()
-        knowledge.wore(worn)
+        val (dressed, worn) = Dresser.dress(captioned, words, icons)
+        knowledge.wore(worn + listOfNotNull(style.ifEmpty { null }))
+        if (worn.isEmpty()) return captioned to emptyList()
         log("accents: ${worn.size} designer accents (${icons.filter { it.name in worn }.joinToString { "${it.keywords.firstOrNull()}:${it.name}" }})")
         return dressed to icons.filter { it.name in worn }
     }

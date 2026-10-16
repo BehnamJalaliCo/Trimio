@@ -47,6 +47,9 @@ interface Knowledge {
     /** Records the accents an edit wore, so the page's next edits wear others ([TemplateShelf.remember]). */
     suspend fun wore(templates: List<String>) = Unit
 
+    /** What the page's last edits wore (accents, caption styles): the next edit wears something else. */
+    suspend fun worn(): Set<String> = emptySet()
+
     /**
      * Animated pictures (an emoji that moves, a line icon that draws itself on) for an English
      * [query] and the Persian [line] it illustrates, in the style's [flavour] first, best first,
@@ -73,6 +76,8 @@ class BundledArt(private val base: Knowledge = Knowledge.Offline, private val ca
         base.wore(templates)
         runCatching { TemplateShelf.bundled(cache).remember(templates) }
     }
+
+    override suspend fun worn(): Set<String> = base.worn() + runCatching { TemplateShelf.bundled(cache).recent() }.getOrDefault(emptySet())
 
     override suspend fun animations(query: String, line: String, flavour: ArtFlavour, limit: Int): List<ArtShelf.Found> =
         ArtShelf.bundled(cache).find(query, line, flavour, limit, fetch = null)
@@ -136,6 +141,8 @@ class WebKnowledge(
     override suspend fun wore(templates: List<String>) {
         runCatching { TemplateShelf.bundled(assets).remember(templates) }
     }
+
+    override suspend fun worn(): Set<String> = runCatching { TemplateShelf.bundled(assets).recent() }.getOrDefault(emptySet())
 
     override suspend fun animations(query: String, line: String, flavour: ArtFlavour, limit: Int): List<ArtShelf.Found> =
         runCatching { ArtShelf.bundled(assets).find(query, line, flavour, limit) { url -> get(url)?.ifEmpty { null } } }.getOrDefault(emptyList())

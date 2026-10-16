@@ -24,7 +24,12 @@ internal object Dresser {
         b.recipe in AMOUNTS && b.mark == "loss" -> "cross"
         b.recipe in AMOUNTS && b.mark == "gain" -> "check"
         b.recipe in AMOUNTS -> "circle"
-        b.recipe in TITLES && !b.text.isNullOrBlank() -> "underline"
+        b.recipe in TITLES && !b.text.isNullOrBlank() -> when (io.trimio.engine.motion.recipe.Meaning.tone(b.text.orEmpty().split(' '))) {
+            io.trimio.engine.motion.recipe.Meaning.Tone.Loss -> "warning"
+            io.trimio.engine.motion.recipe.Meaning.Tone.Gain -> "burst"
+            else -> "underline"
+        }
+        b.recipe == "board-pill" && b.icon == "browser" -> "arrow"
         else -> null
     }
 
@@ -54,6 +59,25 @@ internal object Dresser {
         }
         return score.copy(scenes = scenes) to worn.distinct()
     }
+
+    /**
+     * The caption style of a reel told in cards ([Storyboard]), unlike its page's last edits ([recent]): phrases with the
+     * word that matters inked by its meaning, a bold word-by-word pop, or a short line with the word being said on a
+     * moving highlight. Another piece only: a brief that names a caption style keeps it (the score already says so).
+     */
+    fun captions(score: Score, recent: Set<String>, seed: Long): Pair<Score, String> {
+        if (score.captions.mark != "meaning" || !score.captions.show) return score to ""
+        val fresh = CAPTION_STYLES.filter { (id, _) -> CAPTIONS + id !in recent }.ifEmpty { CAPTION_STYLES }
+        val (id, style) = fresh[(seed.mod(fresh.size.toLong())).toInt()]
+        return score.copy(captions = style(score.captions)) to CAPTIONS + id
+    }
+
+    private const val CAPTIONS = "captions:"
+    private val CAPTION_STYLES: List<Pair<String, (io.trimio.engine.motion.score.CaptionScore) -> io.trimio.engine.motion.score.CaptionScore>> = listOf(
+        "phrase" to { c -> c },
+        "pop" to { c -> c.copy(recipe = "sub-pop", maxWords = 3, mark = null) },
+        "highlight" to { c -> c.copy(recipe = "sub-highlight", maxWords = 4, mark = null) },
+    )
 
     private val TITLES = setOf("slam", "stack", "mask-rise", "board-quote", "pop-title", "kinetic", "flip", "blur-in", "spread", "type-on")
     private val AMOUNTS = setOf("board-price", "counter", "ticker", "price-tag", "stat")

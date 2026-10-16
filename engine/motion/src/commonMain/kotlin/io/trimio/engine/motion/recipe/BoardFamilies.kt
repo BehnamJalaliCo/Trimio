@@ -462,6 +462,9 @@ object BoardFamilies {
             val name = cue.label?.takeIf { it.isNotBlank() } ?: "ChatGPT"
             val bubbles = Kit.items(cue, MAX).ifEmpty { listOfNotNull(cue.text.takeIf { it.isNotBlank() }) }
             if (bubbles.isEmpty()) return Built(emptyList())
+            // An empty window is never on screen: it opens as its first message is asked.
+            val first = Kit.itemAt(cue, 0, cue.at - Craft.LEAD + 0.4f, 0.9f)
+            if (first - cue.at > EMPTY && first < cue.out - minHold) return build(cue.copy(at = first - OPENS), look, fit)
             val w = cue.width * 0.9f
             val bar = w * 0.1f
             val row = w * 0.085f
@@ -492,6 +495,8 @@ object BoardFamilies {
         }
 
         private val MAX = 3
+        private val EMPTY = 0.8f
+        private val OPENS = 0.45f
     }
 
     val all: List<Recipe> get() = listOf(Tiles, Pill, Quote, Price, Versus, Tracker, Chips, Chat)

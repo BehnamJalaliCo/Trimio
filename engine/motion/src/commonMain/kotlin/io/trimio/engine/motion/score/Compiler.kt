@@ -821,11 +821,16 @@ class Compiler(
             if (headline || covered || layout.busy(zone, at - EXIT_TAIL, end)) { skipped++; continue }
             val lineWords = line.map { it.text }
             // One highlight per line: the strongest word (prosody, a number, or the director's pick).
-            val strongest = line.indices.filter { Words.isContent(lineWords[it]) }.maxByOrNull { j ->
+            // A verb is never the line's word (what is said is in its nouns, numbers, gains and losses).
+            val strongest = line.indices.filter { Words.isContent(lineWords[it]) && !verbal(lineWords[it]) }.maxByOrNull { j ->
                 val n = NumberWords.normalize(lineWords[j])
-                line[j].emphasis + (if (n in emphasisWords) 1f else 0f) + (if (NumberWords.at(lineWords, j) != null) 0.5f else 0f)
+                line[j].emphasis + (if (n in emphasisWords) 1f else 0f) + (if (NumberWords.at(lineWords, j) != null) 0.5f else 0f) +
+                    (if (io.trimio.engine.motion.recipe.Meaning.tone(lineWords[j]).let { it == io.trimio.engine.motion.recipe.Meaning.Tone.Gain || it == io.trimio.engine.motion.recipe.Meaning.Tone.Loss }) TONE_WORD else 0f)
             }
-            val strong = strongest?.takeIf { j -> stands(line[j].emphasis, NumberWords.normalize(lineWords[j]) in emphasisWords, NumberWords.at(lineWords, j)) }
+            val strong = strongest?.takeIf { j ->
+                stands(line[j].emphasis, NumberWords.normalize(lineWords[j]) in emphasisWords, NumberWords.at(lineWords, j)) ||
+                    io.trimio.engine.motion.recipe.Meaning.tone(lineWords[j]).let { it == io.trimio.engine.motion.recipe.Meaning.Tone.Gain || it == io.trimio.engine.motion.recipe.Meaning.Tone.Loss }
+            }
             val k = session.sceneStarts.indexOfLast { it <= at }.coerceAtLeast(0)
             val over = session.overFootage(session.scenes[k])
             val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over)
@@ -864,6 +869,15 @@ class Compiler(
     }
 
     /** Whether a caption word earns the line's one highlight. */
+    /** A Persian verb as said: the continuous «می‌…», its negative «نمی‌…», or the copula's short forms. */
+    private fun verbal(word: String): Boolean {
+        val w = word.trimEnd('،', ',', '.', '!', '?', '؟').replace("\u200C", "")
+        return w.startsWith("می") && w.length > 3 && w !in NOT_VERBS || w.startsWith("نمی") || w in COPULAS
+    }
+
+    private val NOT_VERBS = setOf("میلیون", "میلیارد", "میز", "میوه", "میانگین", "میزان", "میدان", "میدونی")
+    private val COPULAS = setOf("است", "هست", "بود", "شد", "هستن", "بودن", "شده", "کرد", "کردم", "کردن")
+
     private fun stands(prosody: Float, picked: Boolean, number: NumberWords.Found?) =
         prosody >= 0.6f || picked || (number != null && (number.percent || number.value >= 10))
 
@@ -1090,6 +1104,9 @@ class Compiler(
     companion object {
         /** A beat's visual naming a designer's template rather than a picture. */
         const val TEMPLATE = "template:"
+
+        /** What a word of gain or loss adds to its claim on a caption's highlight. */
+        private const val TONE_WORD = 0.7f
         private const val FIT_STEPS = 28
 
         // The speaker's card on a stage of its own (SceneScore.inset).

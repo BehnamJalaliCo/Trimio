@@ -60,12 +60,11 @@ internal object Craft {
     /** Emphasis marks on the words that matter, each when it is spoken (or after the entrance). */
     fun marks(cue: Cue, look: Look, starts: List<Float>, settle: Float): List<Decoration> {
         hand(cue, look, starts, settle)?.let { return it }
-        // The storyboard's captions: the stressed words on a block whose colour says what they mean ([Meaning]).
+        // The storyboard's captions: the stressed word inked in the colour of what it means ([Meaning]) — light, no plate.
         if (cue.mark?.lowercase() == "meaning") {
             return groups(cue.emphasis).map { range ->
                 val at = maxOf(starts.getOrElse(range.first) { cue.at } + settle, cue.at + settle)
-                val c = Board.tone(Meaning.name(Meaning.tone(range.mapNotNull { cue.words.getOrNull(it) })))
-                Decoration.Block(range, at, c, Board.on(c), radius = 0.12f)
+                Decoration.Ink(range, at, Board.tone(Meaning.name(Meaning.tone(range.mapNotNull { cue.words.getOrNull(it) }))))
             }
         }
         val style = when (cue.mark?.lowercase()) {
@@ -178,6 +177,10 @@ object TextRecipes {
     /** A 16:9 frame's caption band is far wider than tall; a 9:16 one is not. */
     private const val WIDE_BAND = 6f
 
+    /** A storyboard caption phrase: its size as a share of its band's width, and at most (px), read under a talking head without weighing on it. */
+    private const val PHRASE_SIZE = 0.082f
+    private const val PHRASE_MAX = 76f
+
     /** Words rise from behind their line, the signature headline move. */
     val MaskRise = object : Recipe("mask-rise", Kind.Text) {
         override fun build(cue: Cue, look: Look, fit: Fitter): Built {
@@ -237,7 +240,7 @@ object TextRecipes {
          * is said.
          */
         private fun grouped(cue: Cue, look: Look, fit: Fitter): Built {
-            val f = fit.fit(cue.text, look.caption, minOf(cue.width * 0.1f, 96f), cue.width, cue.height, maxLines = 2)
+            val f = fit.fit(cue.text, look.caption, minOf(cue.width * PHRASE_SIZE, PHRASE_MAX), cue.width, cue.height, maxLines = 2)
             val starts = Craft.wordStarts(cue, cue.words.size, 0.12f)
             val enter = TextAnimator(TextUnit.All, UnitState(dy = 0.18f, scale = 0.94f, opacity = 0f), at = cue.at - 0.06f, duration = 0.22f, ease = Easing.ExpoOut)
             val exit = TextAnimator(TextUnit.All, UnitState(dy = -0.1f, opacity = 0f), at = cue.out - 0.12f, duration = 0.12f, ease = Easing.Exit, shape = Shape.Out)

@@ -40,9 +40,13 @@ class Soundtrack(private val rate: Int = 48_000) {
 
     @Serializable
     data class Levels(
-        /** Music bed relative to the voice, under words and between them. */
-        val musicUnderDb: Float = -20f,
-        val musicGapDb: Float = -12f,
+        /**
+         * Music bed relative to the voice, under words and between them: a steady bed about 14 dB under the voice that
+         * only breathes up 3 dB between phrases (the reference edit's bed sits ~10 dB under and never drops out; a bed
+         * that sinks under every word and swells in every gap pumps).
+         */
+        val musicUnderDb: Float = -14f,
+        val musicGapDb: Float = -11f,
         val targetLufs: Double = -14.0,
         /** True-peak ceiling, dBTP (4× oversampled, as a DAC reconstructs it). */
         val ceilingDb: Float = -1.0f,

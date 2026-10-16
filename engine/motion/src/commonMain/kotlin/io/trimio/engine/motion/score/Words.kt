@@ -39,6 +39,21 @@ object Words {
      */
     private fun clauseEnd(w: Word) = w.text.lastOrNull()?.let { it == '،' || it == ',' } == true
 
+    /** A word that leans on the one after it: a conjunction, a preposition, a determiner, a noun in its linking («ezafe») form. */
+    fun leans(word: String): Boolean {
+        val w = word.trim().trimEnd('،', ',', '.', '!', '?', '؟')
+        return w in LEANS || (w.endsWith("\u200Cی") && w.length > 3) || w.endsWith("\u200Cهای")
+    }
+
+    /** A word that leans back on the one before it (an object marker, «هم»). */
+    fun trails(word: String): Boolean = word.trim().trimEnd('،', ',', '.', '!', '?', '؟') in TRAILS
+
+    private val LEANS = setOf(
+        "و", "یا", "که", "از", "به", "با", "در", "تو", "توی", "برای", "واسه", "این", "اون", "یه", "یک", "هر", "اگه", "اگر", "چون", "ولی", "اما",
+        "تا", "بی", "مثل", "مثلا", "مثلاً", "همین", "همون", "چند", "چه", "کدوم", "and", "or", "the", "a", "an", "to", "of", "in", "for", "with",
+    )
+    private val TRAILS = setOf("رو", "را", "هم", "ام", "ای", "است", "هست")
+
     fun captionLines(words: List<Word>, maxWords: Int, pauseSeconds: Float = 0.45f, minSeconds: Float = 0.55f, commas: Boolean = false): List<List<Word>> {
         val lines = mutableListOf<MutableList<Word>>()
         var current = mutableListOf<Word>()
@@ -48,11 +63,22 @@ object Words {
             val pause = next != null && (next.range.startMs - w.range.endMs) / 1000f > pauseSeconds
             val full = current.size >= maxWords || next == null
             val ends = w.endsSentence || (commas && clauseEnd(w))
-            if (ends || pause || full) {
-                lines += current
-                current = mutableListOf()
+            when {
+                // A full line never ends on a word that leans on the next («همه‌ی»، «یا»، «به»): that word opens the next line.
+                full && !ends && !pause && next != null && current.size > 1 && leans(w.text) -> {
+                    current.removeAt(current.lastIndex)
+                    lines += current
+                    current = mutableListOf(w)
+                }
+                // Nor does the next line open on a word that leans back («رو»، «هم»): it stays on this one.
+                full && !ends && !pause && next != null && current.size <= maxWords && trails(next.text) -> Unit
+                ends || pause || full -> {
+                    lines += current
+                    current = mutableListOf()
+                }
             }
         }
+        if (current.isNotEmpty()) lines += current
         fun seconds(l: List<Word>) = (l.last().range.endMs - l.first().range.startMs) / 1000f
         var i = 0
         while (i < lines.size) {

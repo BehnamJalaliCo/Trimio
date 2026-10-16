@@ -60,7 +60,7 @@ class StoryboardTest {
         assertEquals("loss", beats.single { it.recipe == "board-price" }.mark)
         assertTrue(beats.all { it.place == "top" })
         assertEquals("meaning", board.captions.mark)
-        assertEquals(4, board.captions.maxWords)
+        assertEquals(3, board.captions.maxWords)
     }
 
     @Test

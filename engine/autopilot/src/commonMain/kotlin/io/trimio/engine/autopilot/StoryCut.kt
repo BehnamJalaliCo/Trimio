@@ -53,7 +53,11 @@ internal object StoryCut {
         out
     }
 
-    fun choose(words: List<Word>, lines: List<Lines.Line>, hookLine: Int? = null, keyword: String = ""): Cut {
+    /**
+     * [gists]: what each of [lines] says in a few English words (the reading's [LineRead.gist]), when the director wrote them:
+     * a line whose gist an earlier line already said, and whose own words partly repeat it, is the same point made again.
+     */
+    fun choose(words: List<Word>, lines: List<Lines.Line>, hookLine: Int? = null, keyword: String = "", gists: List<String> = emptyList()): Cut {
         if (lines.size < MIN_LINES || words.isEmpty()) return Cut(emptySet(), emptyList())
         if (end(words.last()) - seconds(words.first()) < MIN_PIECE) return Cut(emptySet(), emptyList())
         val units = clauses(words, lines)
@@ -62,6 +66,7 @@ internal object StoryCut {
         pass.opening()
         pass.asks(keyword.let(::normal).takeIf { it.length >= 2 })
         pass.repeats()
+        if (gists.isNotEmpty()) pass.restated(units.map { u -> lines.indexOfFirst { u.first in it.range } }, gists)
         pass.islands()
         pass.capped()
         val notes = pass.dropped.map { (q, why) -> "story cut: ${seconds(pass.text[q].first()).one()}s «${pass.text[q].joinToString(" ") { it.text }}» — $why" }
@@ -128,6 +133,31 @@ internal object StoryCut {
                     said += start to c.toSet()
                     c.forEach { last[it] = end(text[k].last()) }
                 }
+            }
+        }
+
+        /**
+         * The same point made again in other words: a clause whose line's gist ([lineOf], [gists]) shares [GIST_SHARE] of its
+         * words with an earlier kept line's (at least [GAP] seconds before), and whose own content words already were said
+         * in part ([HALF_COVERED]) — the director's reading and the words agreeing, so a vague gist alone never cuts.
+         */
+        fun restated(lineOf: List<Int>, gists: List<String>) {
+            val said = mutableListOf<String>()
+            val heard = mutableSetOf<String>()
+            val keptGists = mutableListOf<Pair<Float, Set<String>>>()
+            for (k in text.indices) {
+                val c = content(text[k])
+                val start = seconds(text[k].first())
+                val g = gistWords(gists.getOrNull(lineOf[k]).orEmpty())
+                val match = g.size >= MIN_GIST && keptGists.any { (t, e) -> start - t >= GAP && (g intersect e).size >= maxOf(MIN_GIST, (g.size * GIST_SHARE).toInt()) }
+                val partly = c.isNotEmpty() && c.count { it in heard } >= c.size * HALF_COVERED
+                if (k !in dropped && match && partly && kept(k) && text[k].none { instruction(it.text) }) {
+                    dropped[k] = "said before"
+                    continue
+                }
+                if (k in dropped) continue
+                c.forEach { heard += it; said += it }
+                if (g.isNotEmpty()) keptGists += start to g
             }
         }
 
@@ -301,6 +331,16 @@ internal object StoryCut {
     private const val MIN_CONTENT = 2
     private const val MIN_WORD = 3
     private const val COVERED = 0.7f
+    private const val HALF_COVERED = 0.4f
+    private const val GIST_SHARE = 0.6f
+    private const val MIN_GIST = 2
+
+    /** A gist's words that carry its point: lower case, no filler, plurals and -ing folded. */
+    private fun gistWords(gist: String): Set<String> = gist.lowercase().split(Regex("[^a-z0-9]+"))
+        .filter { it.length > 2 && it !in GIST_STOP }.map { it.removeSuffix("ing").removeSuffix("s") }.toSet()
+
+    private val GIST_STOP = setOf("the", "and", "for", "that", "this", "with", "about", "they", "their", "them", "from", "are", "was", "his", "her", "you", "your",
+        "our", "has", "have", "not", "but", "who", "what", "how", "why", "says", "said", "speaker", "explains", "talks", "mentions", "people", "one", "out")
     private const val GAP = 6f
     private const val ISLAND = 8f
     /** Seconds of kept clauses that count as one telling of an idea. */

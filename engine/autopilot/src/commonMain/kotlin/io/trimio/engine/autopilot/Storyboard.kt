@@ -301,7 +301,7 @@ internal object Storyboard {
         }
     }
 
-    private const val CAPTION_WORDS = 4
+    private const val CAPTION_WORDS = 3
     private const val THOUSAND = 1000.0
     private const val QUOTE_STEM = 3
     private const val MEANING = "meaning"

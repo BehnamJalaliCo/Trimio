@@ -114,4 +114,25 @@ class TemplateSlotsTest {
         }
         if (rows.isNotEmpty()) FamilyLab.sheet(rows, File(out, "templates.png"))
     }
+
+    /** One look per template (as it rests, over the footage), six to a row, captioned with its id: for choosing the shelf. */
+    @Test
+    fun catalogue() {
+        val out = System.getenv("TRIMIO_SHEETS")?.takeIf { it.isNotBlank() }?.let(::File) ?: return
+        val dir = System.getenv("TRIMIO_CATALOGUE")?.let(::File)?.takeIf { it.isDirectory } ?: return
+        val real = System.getenv("TRIMIO_BOARD_FOOTAGE")?.let(::File)?.takeIf { it.isFile }?.let { Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap() }
+        val tiles = dir.listFiles { f -> f.extension == "json" }.orEmpty().sortedBy { it.name }.mapNotNull { f ->
+            val art = MotionArts.template(runCatching { f.readText() }.getOrDefault("")).first ?: return@mapNotNull null
+            val t = art.hold?.let { (it.start + it.endInclusive) / 2f } ?: (art.duration * 0.8f)
+            val icon = VectorIcon(f.nameWithoutExtension, "template", art.width, art.height, emptyList(), emptyList(), art)
+            val aspect = art.width / art.height
+            val n = VectorNode(icon, size = if (aspect >= 1f) 700f else 700f / aspect, transform = Transform(x = 540f.anim, y = 540f.anim)).also {
+                it.play = Anim.Keys(listOf(Anim.Key(0f, 0f, Easing.Linear), Anim.Key(30f, 30f, Easing.Linear)))
+            }
+            val root = Group(listOf(MediaNode("speaker", 1080f, 1920f, transform = Transform(x = 540f.anim, y = 960f.anim)), n), name = "root")
+            val img = MotionTestKit(Composition(1080, 1920, 30, 31f, Color.Black, root), MediaSource { _, _ -> real ?: FamilyLab.footage }).draw(t)
+            FamilyLab.Tile(img, 540f, 540f, 1080f, f.nameWithoutExtension)
+        }
+        tiles.chunked(36).forEachIndexed { i, page -> FamilyLab.sheet(page.chunked(6), File(out, "catalogue-$i.png"), px = 200) }
+    }
 }
