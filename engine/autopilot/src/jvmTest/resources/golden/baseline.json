@@ -1,5 +1,5 @@
 {
-    "note": "Round 10 (designers' work in the edit): the storyboard's captions are lighter phrases that never break on a leaning word and never highlight a verb, two light caption styles rotate by page memory, designer accents dress the beats, the bed is steady (-14 dB under the voice), content-cut edges sit in the voice's quiet, a card pushed out before it is read is dropped, a beat timed past its scene ends with the scene it lands in (long videos' chapter cards were never on screen), and only vouched words reach the captions. Most runs rose (mean 9.6 -> 9.9, 28 unanimous); the small \"words\" drops (0.02-0.03) are words now left off the captions because nothing vouches for them.",
+    "note": "Round 10 (designers' work in the edit): the storyboard's captions are lighter phrases that never break on a leaning word and never highlight a verb, two light caption styles rotate by page memory, designer accents dress the beats, the bed is steady (-14 dB under the voice), content-cut edges sit in the voice's quiet, a card pushed out before it is read is dropped, a beat timed past its scene ends with the scene it lands in (long videos' chapter cards were never on screen), and only vouched words reach the captions. Most runs rose (mean 9.6 -> 9.9, 28 unanimous); the small \"words\" drops (0.02-0.03) are words now left off the captions because nothing vouches for them.\nThen: the creator's emphasis shows in every caption style, gains and losses claim a caption's highlight only in the storyboard, a storyboard price card is never narrower than 42 % of its band and is relevant by construction (placed on the words that say its figure).",
     "runs": {
         "en-cooking-pasta/1": {
             "min": 9.0,
@@ -36,88 +36,88 @@
             }
         },
         "en-launch-earbuds/1": {
-            "min": 6.5,
-            "mean": 9.45,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 6.5,
+                "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.88
             }
         },
         "en-launch-earbuds~cinematic-trailer/1": {
-            "min": 6.5,
-            "mean": 9.45,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 6.5,
+                "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.88
             }
         },
         "en-launch-earbuds~minimal-mono/1": {
-            "min": 6.5,
-            "mean": 9.45,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 6.5,
+                "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.88
             }
         },
         "en-launch-earbuds~noir/1": {
-            "min": 6.5,
-            "mean": 9.45,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 6.5,
+                "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.88
             }
         },
         "en-launch-earbuds~tech-product/1": {
-            "min": 6.5,
-            "mean": 9.45,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 6.5,
+                "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 10.0
+                "words": 9.88
             }
         },
         "en-news-ai/1": {
@@ -134,7 +134,7 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 9.0,
-                "words": 9.69
+                "words": 9.7
             }
         },
         "en-news-ai~finance-terminal/1": {
@@ -151,7 +151,7 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 9.0,
-                "words": 9.69
+                "words": 9.7
             }
         },
         "en-news-ai~news-broadcast/1": {
@@ -168,7 +168,7 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 9.0,
-                "words": 9.69
+                "words": 9.7
             }
         },
         "en-news-ai~podcast-studio/1": {
@@ -185,19 +185,19 @@
                 "music": 10.0,
                 "brief": 9.0,
                 "cta": 9.0,
-                "words": 9.69
+                "words": 9.7
             }
         },
         "en-testimonial-coach/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -206,15 +206,15 @@
             }
         },
         "en-testimonial-coach~sports-energy/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -223,12 +223,12 @@
             }
         },
         "en-tutorial-app-assets/1": {
-            "min": 8.0,
-            "mean": 9.8,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 8.0,
+                "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
                 "layout": 10.0,
@@ -410,71 +410,71 @@
             }
         },
         "fa-cooking-kuku/1": {
-            "min": 8.0,
-            "mean": 9.7,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 9.0,
-                "words": 9.92
+                "words": 9.93
             }
         },
         "fa-cooking-kuku~food-warm/1": {
-            "min": 8.0,
-            "mean": 9.7,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 9.0,
-                "words": 9.92
+                "words": 9.93
             }
         },
         "fa-cooking-kuku~kids-bright/1": {
-            "min": 8.0,
-            "mean": 9.7,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 9.0,
-                "words": 9.92
+                "words": 9.93
             }
         },
         "fa-cooking-kuku~playful-pop/1": {
-            "min": 8.0,
-            "mean": 9.7,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 9.0,
-                "words": 9.92
+                "words": 9.93
             }
         },
         "fa-crypto-bitcoin/1": {
@@ -546,15 +546,15 @@
             }
         },
         "fa-fitness-abs/1": {
-            "min": 9.0,
-            "mean": 9.85,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -563,15 +563,15 @@
             }
         },
         "fa-fitness-abs~sports-energy/1": {
-            "min": 9.0,
-            "mean": 9.85,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -580,15 +580,15 @@
             }
         },
         "fa-fitness-abs~street-hype/1": {
-            "min": 9.0,
-            "mean": 9.85,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -597,100 +597,100 @@
             }
         },
         "fa-flash-sale-15s/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 8.75
+                "words": 9.27
             }
         },
         "fa-flash-sale-15s~bold-brutalist/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 8.75
+                "words": 9.27
             }
         },
         "fa-flash-sale-15s~kinetic-poster/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 8.75
+                "words": 9.27
             }
         },
         "fa-flash-sale-15s~playful-pop/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 8.75
+                "words": 9.27
             }
         },
         "fa-flash-sale-15s~street-hype/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 8.75
+                "words": 9.27
             }
         },
         "fa-glossary-rsi/1": {
-            "min": 9.0,
-            "mean": 9.85,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
-                "motion": 9.5,
+                "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -699,15 +699,15 @@
             }
         },
         "fa-launch-perfume-assets/1": {
-            "min": 8.0,
-            "mean": 9.7,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -717,14 +717,14 @@
         },
         "fa-launch-serum/1": {
             "min": 9.0,
-            "mean": 9.8,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -734,14 +734,14 @@
         },
         "fa-launch-serum~beauty-soft/1": {
             "min": 9.0,
-            "mean": 9.8,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -751,14 +751,14 @@
         },
         "fa-launch-serum~luxury-gold/1": {
             "min": 9.0,
-            "mean": 9.8,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -852,100 +852,100 @@
             }
         },
         "fa-mixed-ai-tools/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
-                "cta": 10.0,
-                "words": 9.85
+                "cta": 9.5,
+                "words": 9.88
             }
         },
         "fa-mixed-ai-tools~bold-brutalist/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
-                "cta": 10.0,
-                "words": 9.85
+                "cta": 9.5,
+                "words": 9.88
             }
         },
         "fa-mixed-ai-tools~gaming/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
-                "cta": 10.0,
-                "words": 9.85
+                "cta": 9.5,
+                "words": 9.88
             }
         },
         "fa-mixed-ai-tools~lumen/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
-                "cta": 10.0,
-                "words": 9.85
+                "cta": 9.5,
+                "words": 9.88
             }
         },
         "fa-mixed-ai-tools~neon-cyber/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 9.5,
+            "mean": 9.95,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
-                "cta": 10.0,
-                "words": 9.85
+                "cta": 9.5,
+                "words": 9.88
             }
         },
         "fa-motivation-story/1": {
-            "min": 8.0,
-            "mean": 9.8,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -954,15 +954,15 @@
             }
         },
         "fa-motivation-story~calm-wellness/1": {
-            "min": 8.0,
-            "mean": 9.8,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -971,15 +971,15 @@
             }
         },
         "fa-motivation-story~cinematic-trailer/1": {
-            "min": 8.0,
-            "mean": 9.8,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -988,15 +988,15 @@
             }
         },
         "fa-motivation-story~kinetic-poster/1": {
-            "min": 8.0,
-            "mean": 9.8,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -1005,15 +1005,15 @@
             }
         },
         "fa-motivation-story~retro-vhs/1": {
-            "min": 8.0,
-            "mean": 9.8,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 8.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
@@ -1022,54 +1022,54 @@
             }
         },
         "fa-news-inflation/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.69
             }
         },
         "fa-news-inflation~news-broadcast/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.69
             }
         },
         "fa-news-inflation~swiss-grid/1": {
-            "min": 9.0,
-            "mean": 9.9,
+            "min": 10.0,
+            "mean": 10.0,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 9.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 10.0,
-                "words": 9.66
+                "words": 9.69
             }
         },
         "fa-podcast-quote/1": {
@@ -1107,54 +1107,54 @@
             }
         },
         "fa-real-estate/1": {
-            "min": 7.0,
-            "mean": 9.6,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 7.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 9.0,
-                "words": 10.0
+                "words": 9.67
             }
         },
         "fa-real-estate~luxury-gold/1": {
-            "min": 7.0,
-            "mean": 9.6,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 7.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 9.0,
-                "words": 10.0
+                "words": 9.67
             }
         },
         "fa-real-estate~real-estate-premium/1": {
-            "min": 7.0,
-            "mean": 9.6,
+            "min": 9.0,
+            "mean": 9.9,
             "judges": {
                 "hook": 10.0,
                 "rhythm": 10.0,
                 "motion": 10.0,
                 "typography": 10.0,
                 "spelling": 10.0,
-                "layout": 7.0,
+                "layout": 10.0,
                 "sound": 10.0,
                 "music": 10.0,
                 "brief": 10.0,
                 "cta": 9.0,
-                "words": 10.0
+                "words": 9.67
             }
         },
         "fa-tech-review-phones/1": {
