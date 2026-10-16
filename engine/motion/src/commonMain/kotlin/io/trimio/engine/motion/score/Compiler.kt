@@ -826,7 +826,7 @@ class Compiler(
             if (headline || covered || layout.busy(zone, at - EXIT_TAIL, end)) { skipped++; continue }
             val lineWords = line.map { it.text }
             // One highlight per line: the strongest word (prosody, a number, a gain or a loss, or the director's pick).
-            val strong = strongest(line, emphasisWords)
+            val strong = strongest(line, emphasisWords, toneCounts = phrases)
             val k = session.sceneStarts.indexOfLast { it <= at }.coerceAtLeast(0)
             val over = session.overFootage(session.scenes[k])
             val slot = layout.slot(zone, recipe.preferredHeight, aroundSubject = over)
@@ -868,9 +868,10 @@ class Compiler(
      * The one word of a caption line that is marked, or null: prosody, the director's pick, a number, a gain or a loss —
      * never a verb (what is said is in its nouns, numbers, gains and losses).
      */
-    private fun strongest(line: List<Word>, picked: Set<String>): Int? {
+    private fun strongest(line: List<Word>, picked: Set<String>, toneCounts: Boolean): Int? {
         val texts = line.map { it.text }
-        fun toned(j: Int) = io.trimio.engine.motion.recipe.Meaning.tone(texts[j]).let { it != io.trimio.engine.motion.recipe.Meaning.Tone.Mark }
+        // Gains and losses claim the highlight in the storyboard's captions (marked by meaning); elsewhere the voice decides.
+        fun toned(j: Int) = toneCounts && io.trimio.engine.motion.recipe.Meaning.tone(texts[j]).let { it != io.trimio.engine.motion.recipe.Meaning.Tone.Mark }
         val best = line.indices.filter { Words.isContent(texts[it]) && !verbal(texts[it]) }.maxByOrNull { j ->
             line[j].emphasis + (if (NumberWords.normalize(texts[j]) in picked) 1f else 0f) +
                 (if (NumberWords.at(texts, j) != null) 0.5f else 0f) + (if (toned(j)) TONE_WORD else 0f)
@@ -1122,7 +1123,7 @@ class Compiler(
         private val COPULAS = setOf("است", "هست", "بود", "شد", "هستن", "بودن", "شده", "کرد", "کردم", "کردن")
 
         /** What a word of gain or loss adds to its claim on a caption's highlight. */
-        private const val TONE_WORD = 0.7f
+        private const val TONE_WORD = 0.3f
         private const val FIT_STEPS = 28
 
         // The speaker's card on a stage of its own (SceneScore.inset).

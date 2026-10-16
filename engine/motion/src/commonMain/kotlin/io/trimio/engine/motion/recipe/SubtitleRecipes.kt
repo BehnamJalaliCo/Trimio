@@ -108,7 +108,9 @@ object SubtitleRecipes {
             val blocks = spans(cue, cue.words.size).mapIndexed { i, (start, next) ->
                 Decoration.Block(i..i, start - 0.05f, look.accent, look.onAccent, duration = 0.08f, padX = 0.16f, padTop = 0.06f, padBottom = 0.1f, radius = 0.2f, until = next - 0.02f)
             }
-            val node = Craft.text(cue.copy(emphasis = emptySet()), f.type, look.ink, look, listOf(fadeIn(cue, lift = 0.15f), fadeOut(cue)), blocks, name = name)
+            // The word that matters keeps the accent once the highlight has moved on.
+            val kept = cue.emphasis.filter { it < cue.words.size }.map { i -> Decoration.Ink(i..i, spans(cue, cue.words.size)[i].second - 0.02f, look.accent) }
+            val node = Craft.text(cue.copy(emphasis = emptySet()), f.type, look.ink, look, listOf(fadeIn(cue, lift = 0.15f), fadeOut(cue)), blocks + kept, name = name)
             return Built(listOf(node))
         }
     }
