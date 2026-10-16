@@ -16,7 +16,7 @@ import io.trimio.engine.motion.visual.VectorIcon
 import io.trimio.engine.motion.visual.VectorLayer
 
 /** Draws [VectorNode]s: solid and gradient layers, strokes, and the layer-by-layer assemble. */
-internal class VectorPainter {
+internal class VectorPainter(private val slotText: ((VectorNode) -> io.trimio.engine.motion.art.SlotText?)? = null) {
     private class Prepared(val path: Path, val gradientPath: Path?, val brush: Brush?, val matrix: M3?)
 
     private val cache = HashMap<VectorIcon, List<Prepared?>>()
@@ -85,7 +85,7 @@ internal class VectorPainter {
         if (a <= 0.002f) return
         val k = node.width / art.width
         withTransform({ scale(k, k, Offset.Zero) }) {
-            art.draw(this, clock.coerceAtLeast(0f), io.trimio.engine.motion.art.ArtPaint(node.tint.at(t), a))
+            art.draw(this, clock.coerceAtLeast(0f), io.trimio.engine.motion.art.ArtPaint(node.tint.at(t), a, text = node.texts.takeIf { it.isNotEmpty() }?.let { slotText?.invoke(node) }))
         }
     }
 

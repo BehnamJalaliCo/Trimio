@@ -132,4 +132,9 @@ data class BeatScore(
      * states ("loss:9:…" lands on «استاپ»).
      */
     val itemAt: List<Int> = emptyList(),
+    /**
+     * A designer's accent beside what the beat shows (`template:<id>`): a brush underline under a
+     * title, a ring round a number, a hand tapping the ask. Placed from the beat's own box by its role.
+     */
+    val accent: String? = null,
 )

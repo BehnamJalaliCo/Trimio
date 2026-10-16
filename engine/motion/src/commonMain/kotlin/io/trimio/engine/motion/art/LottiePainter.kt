@@ -36,7 +36,12 @@ import kotlin.math.hypot
  * group (paths of nested groups included, in the group's space); trim paths cut every path above
  * them, nested ones too; items lower in the list draw underneath.
  */
-internal class LottiePainter(private val animation: LottieAnimation, private val paint: ArtPaint, private val colourful: Boolean) {
+internal class LottiePainter(
+    private val animation: LottieAnimation,
+    private val paint: ArtPaint,
+    private val colourful: Boolean,
+    private val slots: List<TemplateSlot> = emptyList(),
+) {
 
     fun draw(scope: DrawScope, frame: Float) = with(scope) {
         val w = animation.width
@@ -110,6 +115,10 @@ internal class LottiePainter(private val animation: LottieAnimation, private val
                     // A fading precomposition fades as one picture, not part by part.
                     if (opacity < OPAQUE) layer(Paint().apply { alpha = opacity }) { drawComp(comp, inner, 1f) } else drawComp(comp, inner, 1f)
                 }
+            }
+            is LContent.Text -> paint.text?.let { drawer ->
+                val slot = slots.getOrNull(c.slot) ?: return@let
+                drawer.draw(this, slot, { i, n -> c.doc.wordState(local, i, n) }, opacity)
             }
             LContent.Empty -> Unit
         }

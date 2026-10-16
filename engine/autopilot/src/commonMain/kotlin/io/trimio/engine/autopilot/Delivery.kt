@@ -113,7 +113,7 @@ data class Delivery(
         val keywords: List<String> = emptyList(),
         val motion: Motion? = null,
     ) {
-        fun icon() = VectorIcon(name, set, width, height, layers.map { it.layer() }, keywords, motion?.art(width, height))
+        fun icon() = VectorIcon(name, set, width, height, layers.map { it.layer() }, keywords, motion?.art(width, height, template = set == TemplateShelf.SET))
 
         companion object {
             fun of(i: VectorIcon) = Icon(i.name, i.set, i.width, i.height, i.layers.map(Layer::of), i.keywords, i.motion?.let(Motion::of))
@@ -123,7 +123,8 @@ data class Delivery(
     /** An animated picture's document ([io.trimio.engine.motion.art.MotionArt]): drawn again with no network. */
     @Serializable
     data class Motion(val format: String, val document: String, val loops: Boolean) {
-        fun art(width: Float, height: Float) = io.trimio.engine.motion.art.MotionArts.read(format, document, width, height, loops)
+        fun art(width: Float, height: Float, template: Boolean = false) =
+            if (template) io.trimio.engine.motion.art.MotionArts.template(document, loops).first else io.trimio.engine.motion.art.MotionArts.read(format, document, width, height, loops)
 
         companion object {
             fun of(m: io.trimio.engine.motion.art.MotionArt) = Motion(m.format, m.document, m.loops)

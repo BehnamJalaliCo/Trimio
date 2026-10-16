@@ -352,10 +352,13 @@ class Autopilot(
         val picked = pictures(placed, output, r.lines, log)
         ArtShelf.release()
 
+        // The designer's accents on the moments that carry the piece, unlike what the page wore lately.
+        val (dressed, accents) = dress(picked.first, output, log)
+
         onStage("compile", 0.75f)
-        val compiler = Compiler(text, r.brands, picked.second.library)
+        val compiler = Compiler(text, r.brands, picked.second.library.withIcons(accents))
         // Nothing reaches the screen misspelled: every Persian word was heard, briefed or is known.
-        var score = ScreenSpelling(r.lexicon, texts, request.prompt).check(picked.first, log)
+        var score = ScreenSpelling(r.lexicon, texts, request.prompt).check(dressed, log)
         var compiled = compile(compiler, score, r.shown, edit, request)
         val critic = Critic()
         repeat(CRITIC_PASSES) { pass ->
@@ -381,7 +384,19 @@ class Autopilot(
             }
         }
         val relevance = picked.second.let { p -> p.picks.mapNotNull { (q, id) -> id?.let { i -> p.relevance[q]?.let { i to it } } }.toMap() }
-        return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music, picked.second.found, relevance)
+        return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music, picked.second.found + accents, relevance)
+    }
+
+    /** [score] dressed by the [Dresser] with accents from the shelf (none on a lean run or with nothing kept or reachable); and the accents worn. */
+    private suspend fun dress(score: Score, words: List<Word>, log: (String) -> Unit): Pair<Score, List<VectorIcon>> {
+        val roles = Dresser.roles(score)
+        if (roles.isEmpty() || lean()) return score to emptyList()
+        val icons = kotlinx.coroutines.withTimeoutOrNull(ACCENTS_MS) { knowledge.templates(roles, perRole = 1) }.orEmpty()
+        val (dressed, worn) = Dresser.dress(score, words, icons)
+        if (worn.isEmpty()) return score to emptyList()
+        knowledge.wore(worn)
+        log("accents: ${worn.size} designer accents (${icons.filter { it.name in worn }.joinToString { "${it.keywords.firstOrNull()}:${it.name}" }})")
+        return dressed to icons.filter { it.name in worn }
     }
 
     /**
@@ -536,6 +551,9 @@ class Autopilot(
 
     private companion object {
         const val CRITIC_PASSES = 2
+
+        /** How long the designer's accents may take to arrive (kept on the device: instantly). */
+        const val ACCENTS_MS = 8_000L
         const val OPENING_WORDS = 60
         const val SECONDS_PER_MINUTE = 60f
         /** Masterings the sound judge may ask for after the first (each a mix and a sitting). */

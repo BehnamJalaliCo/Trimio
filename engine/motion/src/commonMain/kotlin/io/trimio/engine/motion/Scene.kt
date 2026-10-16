@@ -256,6 +256,9 @@ class TextNode(
 
     /** Set by the compiler on text over footage; see [Guard]. */
     var guard: Guard? = null
+
+    /** Moves its words from outside its own animators while it is drawn (a template's range selectors): (index, count) → state. */
+    internal var words: ((Int, Int) -> UnitState)? = null
 }
 
 /** A number that rolls from one value to another (prices, percentages, counts). */
@@ -333,6 +336,13 @@ class VectorNode(
      * own animation at composition time t. Null plays it from the start of [assemble] (or [start]).
      */
     var play: Anim? = null
+
+    /**
+     * For a template ([io.trimio.engine.motion.art.MotionArt.slots]): the edit's words for its text
+     * slots, the most prominent slot (largest type) first. A slot with no words stays empty — a
+     * designer's placeholder is never shown.
+     */
+    var texts: List<String> = emptyList()
 
     val width: Float get() = if (icon.width >= icon.height) size else size * icon.width / icon.height
     val height: Float get() = if (icon.height >= icon.width) size else size * icon.height / icon.width

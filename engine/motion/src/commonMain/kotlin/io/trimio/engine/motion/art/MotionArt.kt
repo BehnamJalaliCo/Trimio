@@ -36,6 +36,12 @@ interface MotionArt {
     /** Draws the frame [time] seconds after the art started to play (≥ 0) into its own box. */
     fun draw(scope: DrawScope, time: Float, paint: ArtPaint)
 
+    /** A template's text slots ([MotionArts.template]), in reading order; empty for a picture. */
+    val slots: List<TemplateSlot> get() = emptyList()
+
+    /** A template's rest, seconds: built in before it, leaving after it; null when it only builds in (it then holds its last frame). */
+    val hold: ClosedFloatingPointRange<Float>? get() = null
+
     companion object {
         const val FORMAT_LOTTIE = "lottie"
         const val FORMAT_SVG = "svg"
@@ -47,7 +53,40 @@ interface MotionArt {
  * look, mirrored for right-to-left reading, and a [halo] tone drawn soft and wide under a line
  * drawing so it reads over any footage (null: none).
  */
-data class ArtPaint(val tint: Color, val alpha: Float = 1f, val colouring: Colouring = Colouring.Auto, val mirror: Boolean = false, val halo: Color? = null)
+data class ArtPaint(
+    val tint: Color,
+    val alpha: Float = 1f,
+    val colouring: Colouring = Colouring.Auto,
+    val mirror: Boolean = false,
+    val halo: Color? = null,
+    /** Draws a template's text slots with the edit's words; null leaves them empty. */
+    val text: SlotText? = null,
+)
+
+/**
+ * A text slot of a template as its designer set it: the placeholder [text] (never shown), its
+ * [size] and [color], the justification (0 left, 1 right, 2 centre), tracking in thousandths of an
+ * em, leading in px, and the box it wraps in ([box]: left, top, width, height) or null for point text
+ * whose origin is the first line's baseline.
+ */
+data class TemplateSlot(
+    val index: Int,
+    val text: String,
+    val size: Float,
+    val bold: Boolean,
+    val color: Color,
+    val stroke: Color?,
+    val strokeWidth: Float,
+    val justify: Int,
+    val tracking: Float,
+    val leading: Float,
+    val box: androidx.compose.ui.geometry.Rect?,
+)
+
+/** Draws [slot] at the slot's own origin (the template's transforms already applied), its words moved by [words] (index, count). */
+fun interface SlotText {
+    fun draw(scope: DrawScope, slot: TemplateSlot, words: (Int, Int) -> io.trimio.engine.motion.UnitState, alpha: Float)
+}
 
 /** How an animation's colours meet the look's palette. */
 sealed interface Colouring {
@@ -80,6 +119,16 @@ object MotionArts {
     fun read(format: String, document: String, width: Float = DEFAULT_SVG_BOX, height: Float = DEFAULT_SVG_BOX, loops: Boolean? = null): MotionArt? =
         readOrWhy(format, document, width, height, loops).first
 
+    /** A Lottie template: its text layers kept as [MotionArt.slots]; plays once and holds its last frame unless [loops]. */
+    fun template(document: String, loops: Boolean = false): Pair<MotionArt?, String?> =
+        try {
+            LottieArt(LottieReader.read(document, texts = true), document, loops) to null
+        } catch (e: Unsupported) {
+            null to e.message
+        } catch (@Suppress("TooGenericExceptionCaught") e: RuntimeException) {
+            null to "unreadable: ${e.message}"
+        }
+
     /** As [read], with the reason when it is refused. */
     fun readOrWhy(format: String, document: String, width: Float = DEFAULT_SVG_BOX, height: Float = DEFAULT_SVG_BOX, loops: Boolean? = null): Pair<MotionArt?, String?> =
         try {
@@ -108,12 +157,36 @@ internal class LottieArt(private val animation: LottieAnimation, override val do
         animation.colours.any { c -> c.size >= 3 && (maxOf(c[0], c[1], c[2]) - minOf(c[0], c[1], c[2])) > CHROMA }
     }
 
+    override val hold: ClosedFloatingPointRange<Float>? get() = animation.hold
+
+    override val slots: List<TemplateSlot> by lazy {
+        animation.texts.map { t ->
+            val d = t.doc
+            val box = d.boxSize?.takeIf { it.size >= 2 && it[0] > 0f }?.let { sz ->
+                val ps = d.boxPosition ?: floatArrayOf(0f, 0f)
+                androidx.compose.ui.geometry.Rect(ps.getOrElse(0) { 0f }, ps.getOrElse(1) { 0f }, ps.getOrElse(0) { 0f } + sz[0], ps.getOrElse(1) { 0f } + sz[1])
+            }
+            TemplateSlot(
+                index = t.slot, text = d.text, size = d.size, bold = BOLD.containsMatchIn(d.font), color = colour(d.fill),
+                stroke = d.stroke?.takeIf { d.strokeWidth > 0f }?.let(::colour), strokeWidth = d.strokeWidth,
+                justify = d.justify, tracking = d.tracking, leading = d.lineHeight, box = box,
+            )
+        }
+    }
+
     override fun draw(scope: DrawScope, time: Float, paint: ArtPaint) {
         val local = if (loops) time.mod(duration) else time.coerceIn(0f, duration - 1f / animation.frameRate)
-        LottiePainter(animation, paint, colourful).draw(scope, animation.inPoint + local.coerceAtLeast(0f) * animation.frameRate)
+        LottiePainter(animation, paint, colourful, if (paint.text != null) slots else emptyList()).draw(scope, animation.inPoint + local.coerceAtLeast(0f) * animation.frameRate)
+    }
+
+    private fun colour(c: FloatArray): Color {
+        val scale = if (c.any { it > 1f }) 255f else 1f
+        fun ch(i: Int) = (c.getOrElse(i) { 0f } / scale).coerceIn(0f, 1f)
+        return Color(ch(0), ch(1), ch(2), 1f)
     }
 
     private companion object {
         const val CHROMA = 0.12f
+        val BOLD = Regex("(?i)bold|black|heavy|semibold|extra")
     }
 }

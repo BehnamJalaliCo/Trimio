@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.TextMeasurer
+import io.trimio.engine.motion.art.SlotText
+import io.trimio.engine.motion.art.TemplateSlot
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.graphics.drawscope.clipPath
 import kotlin.math.PI
@@ -56,7 +58,8 @@ class MotionRenderer(
     private val media: MediaSource = MediaSource.None,
 ) {
     internal val text = TextLayoutEngine(measurer, fonts)
-    private val vectors = VectorPainter()
+    private val vectors = VectorPainter { node -> SlotText { scope, slot, words, alpha -> scope.drawSlot(node, slot, words, alpha) } }
+    private val slotNodes = HashMap<Pair<VectorNode, Int>, TextNode>()
     private val soft = SoftFields()
     private val blocks = HashMap<TextNode, TextBlock>()
     private val frame = Rect(0f, 0f, composition.width.toFloat(), composition.height.toFloat())
@@ -258,7 +261,7 @@ class MotionRenderer(
         val plate = guarding?.takeIf { guard?.style == Guard.Style.Plate }
         val halo = guarding?.takeIf { guard?.style == Guard.Style.Halo }
         // Which unit level drives clipping: the finest unit any animator uses.
-        val unitLevel = node.animators.minOfOrNull { it.unit.ordinal }?.let { TextUnit.entries[it] } ?: TextUnit.All
+        val unitLevel = if (node.words != null) TextUnit.Word else node.animators.minOfOrNull { it.unit.ordinal }?.let { TextUnit.entries[it] } ?: TextUnit.All
         val maskLine = node.animators.any { it.clipToLine }
         for (line in block.lines) {
             val lineState = stateFor(node, block, TextUnit.Line, line.index, t) + stateFor(node, block, TextUnit.All, 0, t)
@@ -339,7 +342,52 @@ class MotionRenderer(
         var s = UnitState.REST
         val count = unitCount(block, unit)
         for (anim in node.animators) if (anim.unit == unit) s += anim.stateAt(t, index, count)
+        if (unit == TextUnit.Word) node.words?.let { s += it(index, count) }
         return s
+    }
+
+    /**
+     * A template's text slot with the edit's words: set in the brand's type at the designer's size,
+     * colour and justification — smaller when the words are longer than the designer's, so they keep
+     * to the space the design left them — and moved word by word by the template's own selectors.
+     */
+    private fun DrawScope.drawSlot(owner: VectorNode, slot: TemplateSlot, words: (Int, Int) -> UnitState, alpha: Float) {
+        val rank = owner.icon.motion?.slots.orEmpty().sortedByDescending { it.size }.indexOfFirst { it.index == slot.index }
+        val said = owner.texts.getOrNull(rank)?.takeIf { it.isNotBlank() } ?: return
+        val node = slotNodes.getOrPut(owner to slot.index) { slotNode(slot, said) }
+        val block = block(node)
+        val first = block.lines.firstOrNull() ?: return
+        val box = slot.box
+        val x = when {
+            box != null -> box.left + when (slot.justify) { 1 -> box.width - block.width; 2 -> (box.width - block.width) / 2f; else -> 0f }
+            else -> when (slot.justify) { 1 -> -block.width; 2 -> -block.width / 2f; else -> 0f }
+        }
+        val y = box?.top ?: -(first.top + first.height * BASELINE)
+        node.words = words
+        withM(M3.translate(x, y)) { drawTextNode(node, 0f, alpha) }
+        node.words = null
+    }
+
+    private fun slotNode(slot: TemplateSlot, said: String): TextNode {
+        val rtl = said.any { it in '\u0600'..'\u06FF' }
+        var type = TypeSpec(
+            role = if (slot.bold) io.trimio.core.brand.BrandFonts.Role.Display else io.trimio.core.brand.BrandFonts.Role.Expressive,
+            weight = if (slot.bold) BOLD_SLOT else REGULAR_SLOT,
+            size = slot.size,
+            lineHeight = (slot.leading / slot.size.coerceAtLeast(1f)).coerceIn(MIN_LEADING, MAX_LEADING),
+            tracking = if (rtl) 0f else slot.tracking / 1000f,
+        )
+        // The room the designer gave the words: the box, or the placeholder's own width.
+        val room = slot.box?.width ?: (text.measureLine(slot.text, text.style(type, rtl = false, slot.text)).size.width * ROOM).coerceAtLeast(slot.size * MIN_ROOM_EM)
+        val wide = text.measureLine(said, text.style(type, rtl, said)).size.width.toFloat()
+        if (wide > room) type = type.copy(size = slot.size * (room / wide).coerceAtLeast(MIN_FIT))
+        val align = when (slot.justify) { 1 -> TextAlign.End; 2 -> TextAlign.Center; else -> TextAlign.Start }
+        return TextNode(
+            text = said, type = type, fill = Fill.Solid(slot.color.anim),
+            maxWidth = if (slot.box != null || wide * (type.size / slot.size) > room) room else Float.POSITIVE_INFINITY,
+            align = align, rtl = rtl,
+            stroke = slot.stroke?.let { Stroke(Fill.Solid(it.anim), slot.strokeWidth) },
+        ).apply { onBody = true }
     }
 
     /** One line of text with the blocks, underlines and ink that belong to it. */
@@ -790,6 +838,16 @@ class MotionRenderer(
         const val MIN_FILTER = 0.001f
         const val BLOCK_AIR = 0.06f
         const val SEAM = 0.75f
+
+        // Template slots: where a point text sits on its baseline, the brand weights, and how far longer words may shrink.
+        const val BASELINE = 0.78f
+        const val BOLD_SLOT = 800
+        const val REGULAR_SLOT = 500
+        const val MIN_LEADING = 0.9f
+        const val MAX_LEADING = 1.6f
+        const val ROOM = 1.15f
+        const val MIN_ROOM_EM = 3f
+        const val MIN_FIT = 0.6f
     }
 }
 

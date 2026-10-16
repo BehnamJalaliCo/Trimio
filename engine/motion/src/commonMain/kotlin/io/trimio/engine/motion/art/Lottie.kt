@@ -34,9 +34,16 @@ internal class LottieAnimation(
     val outPoint: Float,
     val root: LComp,
     val assets: Map<String, LComp>,
+    /** Seconds where it rests between building in and leaving: the stretch an edit lengthens to fit what is said. */
+    val hold: ClosedFloatingPointRange<Float>? = null,
 ) {
     /** Seconds of one play. */
     val duration: Float get() = ((outPoint - inPoint) / frameRate).coerceAtLeast(1f / frameRate)
+
+    /** A template's text slots, in reading order (the root's layers top to bottom, then each precomposition's). */
+    val texts: List<LContent.Text> by lazy {
+        (listOf(root) + assets.values).flatMap { c -> c.layers.reversed().mapNotNull { it.content as? LContent.Text } }
+    }
 
     /** Every colour the animation can show (their first values), for deciding whether it is colourful. */
     val colours: List<FloatArray> by lazy { (listOf(root) + assets.values).flatMap { c -> c.layers.flatMap(LLayer::colours) } }
@@ -67,7 +74,77 @@ internal sealed interface LContent {
     class Shapes(val items: List<LShape>) : LContent
     class Solid(val color: FloatArray, val width: Float, val height: Float) : LContent
     class Precomp(val ref: String, val width: Float, val height: Float, val timeRemap: Value<FloatArray>?) : LContent
+
+    /** A template's text slot: drawn by the engine's own typesetter with the edit's words, never the designer's. */
+    class Text(val doc: LText) : LContent {
+        /** Its place in reading order among the document's text layers. */
+        var slot: Int = 0
+    }
     data object Empty : LContent
+}
+
+/**
+ * A text layer of a template as After Effects exported it: its first document (what the designer
+ * typed, at what size, colour and justification, as point text or in a box) and its range-selector
+ * animators. The animators move whole words — letters of Persian are joined, so a word is the
+ * smallest piece that may move apart.
+ */
+internal class LText(
+    val text: String,
+    val size: Float,
+    val font: String,
+    val fill: FloatArray,
+    val stroke: FloatArray?,
+    val strokeWidth: Float,
+    /** 0 left, 1 right, 2 centre (After Effects' numbering). */
+    val justify: Int,
+    /** Thousandths of an em. */
+    val tracking: Float,
+    val lineHeight: Float,
+    val boxPosition: FloatArray?,
+    val boxSize: FloatArray?,
+    val animators: List<LTextAnimator>,
+) {
+    /** Word [index] of [count] at [frame]: every animator's share of it, its properties scaled by that share. */
+    fun wordState(frame: Float, index: Int, count: Int): io.trimio.engine.motion.UnitState {
+        var s = io.trimio.engine.motion.UnitState.REST
+        for (a in animators) s += a.state(frame, index, count, size)
+        return s
+    }
+}
+
+/** One range selector (start, end, offset in % of the text) and the properties it applies to what it covers. */
+internal class LTextAnimator(
+    val start: Value<FloatArray>,
+    val end: Value<FloatArray>,
+    val offset: Value<FloatArray>,
+    val amount: Value<FloatArray>,
+    val opacity: Value<FloatArray>?,
+    val position: Value<FloatArray>?,
+    val scale: Value<FloatArray>?,
+    val rotation: Value<FloatArray>?,
+) {
+    fun state(frame: Float, index: Int, count: Int, size: Float): io.trimio.engine.motion.UnitState {
+        val o = offset.at(frame)[0]
+        val a = start.at(frame)[0] + o
+        val b = end.at(frame)[0] + o
+        val lo = minOf(a, b)
+        val hi = maxOf(a, b)
+        val n = count.coerceAtLeast(1)
+        val from = index * 100f / n
+        val to = (index + 1) * 100f / n
+        val share = ((minOf(hi, to) - maxOf(lo, from)) / (to - from)).coerceIn(0f, 1f) * (amount.at(frame)[0] / 100f)
+        if (share <= 0f) return io.trimio.engine.motion.UnitState.REST
+        val p = position?.at(frame)
+        val em = size.coerceAtLeast(1f)
+        return io.trimio.engine.motion.UnitState(
+            dx = (p?.getOrNull(0) ?: 0f) * share / em,
+            dy = (p?.getOrNull(1) ?: 0f) * share / em,
+            scale = scale?.at(frame)?.get(0)?.let { 1f + (it / 100f - 1f) * share } ?: 1f,
+            rotation = (rotation?.at(frame)?.get(0) ?: 0f) * share,
+            opacity = opacity?.at(frame)?.get(0)?.let { 1f + (it / 100f - 1f) * share } ?: 1f,
+        )
+    }
 }
 
 internal class LLayer(
@@ -179,29 +256,35 @@ private fun gradientColours(g: LShape.Gradient): List<FloatArray> {
 internal object LottieReader {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    fun read(text: String): LottieAnimation {
+    /**
+     * [texts] on: a template — its text layers become slots ([LContent.Text], numbered in reading
+     * order) that the engine fills with the edit's own words; otherwise a document with text is refused.
+     */
+    fun read(text: String, texts: Boolean = false): LottieAnimation {
         val o = json.parseToJsonElement(text).jsonObject
         if (o.int("ddd") == 1) refuse("3D layers")
         val assets = o["assets"]?.jsonArray.orEmpty().map { it.jsonObject }
         assets.firstOrNull { "layers" !in it }?.let { refuse("image or font assets") }
-        val comps = assets.associate { a -> a.getValue("id").jsonPrimitive.content to LComp(a.getValue("layers").jsonArray.map { layer(it.jsonObject) }) }
-        if (o["chars"] != null || o["fonts"]?.jsonObject?.get("list")?.jsonArray?.isNotEmpty() == true) refuse("text")
+        if (!texts && (o["chars"] != null || o["fonts"]?.jsonObject?.get("list")?.jsonArray?.isNotEmpty() == true)) refuse("text")
+        val comps = assets.associate { a -> a.getValue("id").jsonPrimitive.content to LComp(a.getValue("layers").jsonArray.map { layer(it.jsonObject, texts) }) }
         val animation = LottieAnimation(
             width = o.float("w") ?: refuse("no width"),
             height = o.float("h") ?: refuse("no height"),
             frameRate = o.float("fr")?.takeIf { it > 0f } ?: DEFAULT_RATE,
             inPoint = o.float("ip") ?: 0f,
             outPoint = o.float("op") ?: refuse("no out point"),
-            root = LComp(o.getValue("layers").jsonArray.map { layer(it.jsonObject) }),
+            root = LComp(o.getValue("layers").jsonArray.map { layer(it.jsonObject, texts) }),
             assets = comps,
+            hold = if (texts) hold(o) else null,
         )
         // Every precomposition a layer names must exist.
         (listOf(animation.root) + comps.values).flatMap { it.layers }.map { it.content }.filterIsInstance<LContent.Precomp>()
             .firstOrNull { it.ref !in comps }?.let { refuse("missing precomposition ${it.ref}") }
+        animation.texts.forEachIndexed { i, t -> t.slot = i }
         return animation
     }
 
-    private fun layer(o: JsonObject): LLayer {
+    private fun layer(o: JsonObject, texts: Boolean): LLayer {
         val type = o.int("ty") ?: 0
         if (o.int("ddd") == 1) refuse("3D layer")
         if (o["ef"]?.jsonArray?.isNotEmpty() == true) refuse("layer effects")
@@ -211,7 +294,7 @@ internal object LottieReader {
             3 -> LContent.Empty
             4 -> LContent.Shapes(shapes(o["shapes"]?.jsonArray.orEmpty()))
             2 -> refuse("image layer")
-            5 -> refuse("text layer")
+            5 -> if (texts) LContent.Text(textLayer(o)) else refuse("text layer")
             else -> LContent.Empty
         }
         return LLayer(
@@ -224,6 +307,67 @@ internal object LottieReader {
             content = content,
             blend = o.int("bm") ?: 0,
             hidden = o.bool("hd"),
+        )
+    }
+
+    /**
+     * Where a template rests: a marker named for it (hold, loop, pause, stay), else the longest
+     * stillness between keyframes when it is long enough to be the designer's rest; seconds.
+     */
+    private fun hold(o: JsonObject): ClosedFloatingPointRange<Float>? {
+        val rate = o.float("fr")?.takeIf { it > 0f } ?: DEFAULT_RATE
+        val ip = o.float("ip") ?: 0f
+        val op = o.float("op") ?: return null
+        o["markers"]?.jsonArray.orEmpty().map { it.jsonObject }.firstOrNull { m ->
+            REST.containsMatchIn(m["cm"]?.jsonPrimitive?.contentOrNull.orEmpty()) && (m.float("dr") ?: 0f) > 0f
+        }?.let { m -> val t = m.float("tm") ?: 0f; return ((t - ip) / rate)..((t + (m.float("dr") ?: 0f) - ip) / rate) }
+        val times = HashSet<Float>()
+        fun walk(e: JsonElement) {
+            when (e) {
+                is JsonObject -> {
+                    (e["k"] as? JsonArray)?.forEach { k -> (k as? JsonObject)?.float("t")?.let(times::add) }
+                    e.values.forEach(::walk)
+                }
+                is JsonArray -> e.forEach(::walk)
+                else -> Unit
+            }
+        }
+        walk(o.getValue("layers"))
+        o["assets"]?.let(::walk)
+        val keys = (times.filter { it > ip && it < op } + ip + op).distinct().sorted()
+        val gap = keys.zipWithNext().maxByOrNull { (a, b) -> b - a } ?: return null
+        if (gap.second - gap.first < (op - ip) * MIN_REST) return null
+        return ((gap.first - ip) / rate)..((gap.second - ip) / rate)
+    }
+
+    private fun textLayer(o: JsonObject): LText {
+        val t = o["t"]?.jsonObject ?: refuse("text layer without text")
+        val d = t["d"]?.jsonObject?.get("k")?.jsonArray?.firstOrNull()?.jsonObject?.get("s")?.jsonObject ?: refuse("text layer without a document")
+        fun arr(key: String) = d[key]?.jsonArray?.mapNotNull { it.jsonPrimitive.floatOrNull }?.toFloatArray()
+        val animators = t["a"]?.jsonArray.orEmpty().map { it.jsonObject }.map { a ->
+            val sel = a["s"]?.jsonObject ?: JsonObject(emptyMap())
+            if (sel["x"] != null) refuse("expression selector")
+            val props = a["a"]?.jsonObject ?: JsonObject(emptyMap())
+            LTextAnimator(
+                start = floats(sel["s"], ZERO), end = floats(sel["e"], HUNDRED), offset = floats(sel["o"], ZERO), amount = floats(sel["a"], HUNDRED),
+                opacity = props["o"]?.let { floats(it, HUNDRED) }, position = props["p"]?.let { floats(it, ORIGIN) },
+                scale = props["s"]?.let { floats(it, floatArrayOf(100f, 100f)) }, rotation = props["r"]?.let { floats(it, ZERO) },
+            )
+        }
+        val size = d.float("s") ?: DEFAULT_TEXT
+        return LText(
+            text = d["t"]?.jsonPrimitive?.contentOrNull.orEmpty().replace('\r', '\n'),
+            size = size,
+            font = d["f"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            fill = arr("fc") ?: floatArrayOf(1f, 1f, 1f),
+            stroke = arr("sc"),
+            strokeWidth = d.float("sw") ?: 0f,
+            justify = d.int("j") ?: 0,
+            tracking = d.float("tr") ?: 0f,
+            lineHeight = d.float("lh") ?: size * DEFAULT_LEADING,
+            boxPosition = arr("ps"),
+            boxSize = arr("sz"),
+            animators = animators,
         )
     }
 
@@ -355,6 +499,10 @@ internal object LottieReader {
     private fun JsonObject.bool(k: String): Boolean = (this[k] as? JsonPrimitive)?.let { it.booleanOrNull ?: (it.intOrNull == 1) } ?: false
 
     private const val DEFAULT_RATE = 30f
+    private const val DEFAULT_TEXT = 48f
+    private const val MIN_REST = 0.15f
+    private val REST = Regex("(?i)hold|loop|pause|stay|rest")
+    private const val DEFAULT_LEADING = 1.2f
     private val ZERO = floatArrayOf(0f)
     private val ONE = floatArrayOf(1f)
     private val HUNDRED = floatArrayOf(100f)

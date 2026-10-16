@@ -41,6 +41,12 @@ interface Knowledge {
     /** Price in USD and 24 h change in percent for a crypto asset named or symbolised [name]. */
     suspend fun price(name: String): Price? = null
 
+    /** Designers' accents for [roles] ([TemplateShelf]), [perRole] each, those the page wore lately last. */
+    suspend fun templates(roles: Set<String>, perRole: Int = 2): List<VectorIcon> = emptyList()
+
+    /** Records the accents an edit wore, so the page's next edits wear others ([TemplateShelf.remember]). */
+    suspend fun wore(templates: List<String>) = Unit
+
     /**
      * Animated pictures (an emoji that moves, a line icon that draws itself on) for an English
      * [query] and the Persian [line] it illustrates, in the style's [flavour] first, best first,
@@ -58,6 +64,16 @@ interface Knowledge {
  * from earlier edits): animations with no network at all.
  */
 class BundledArt(private val base: Knowledge = Knowledge.Offline, private val cache: AssetCache? = null) : Knowledge by base {
+    /** The web's answer, else the accents already kept on the device. */
+    override suspend fun templates(roles: Set<String>, perRole: Int): List<VectorIcon> = base.templates(roles, perRole).ifEmpty {
+        runCatching { TemplateShelf.bundled(cache).let { shelf -> shelf.icons(roles, shelf.recent(), perRole, fetch = null) } }.getOrDefault(emptyList())
+    }
+
+    override suspend fun wore(templates: List<String>) {
+        base.wore(templates)
+        runCatching { TemplateShelf.bundled(cache).remember(templates) }
+    }
+
     override suspend fun animations(query: String, line: String, flavour: ArtFlavour, limit: Int): List<ArtShelf.Found> =
         ArtShelf.bundled(cache).find(query, line, flavour, limit, fetch = null)
 }
@@ -111,6 +127,15 @@ class WebKnowledge(
             if (r.status.isSuccess()) r.bodyAsText() else ""
         }
     }.getOrNull()
+
+    override suspend fun templates(roles: Set<String>, perRole: Int): List<VectorIcon> = runCatching {
+        val shelf = TemplateShelf.bundled(assets)
+        shelf.icons(roles, shelf.recent(), perRole) { url -> get(url)?.ifEmpty { null } }
+    }.getOrDefault(emptyList())
+
+    override suspend fun wore(templates: List<String>) {
+        runCatching { TemplateShelf.bundled(assets).remember(templates) }
+    }
 
     override suspend fun animations(query: String, line: String, flavour: ArtFlavour, limit: Int): List<ArtShelf.Found> =
         runCatching { ArtShelf.bundled(assets).find(query, line, flavour, limit) { url -> get(url)?.ifEmpty { null } } }.getOrDefault(emptyList())

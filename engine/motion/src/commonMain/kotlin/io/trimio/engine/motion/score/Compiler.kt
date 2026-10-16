@@ -1,5 +1,6 @@
 package io.trimio.engine.motion.score
 
+import io.trimio.engine.motion.art.styled
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import io.trimio.core.model.transcript.Transcript
@@ -140,6 +141,8 @@ class Compiler(
         val minOut: Float,
         /** Set behind the speaker's head ([Input.matte]). */
         val behind: Boolean = false,
+        /** A designer's accent placed from the beat's box ([BeatScore.accent]). */
+        val accent: io.trimio.engine.motion.visual.VectorIcon? = null,
     ) {
         var out: Float = cue.out
     }
@@ -235,7 +238,12 @@ class Compiler(
             for (b in beats) b.out = layout.outOf(b.id) ?: b.out
             holdStages(beats)
             // Graphics first, kept inside the frame: the captions then yield to where each one really rests.
-            val graphics = keepInside(beats.associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) })
+            val graphics = keepInside(beats.associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }).mapValues { (b, built) ->
+                // The designer's accent goes where the beat really landed.
+                val accent = b.accent ?: return@mapValues built
+                val box = built.box ?: io.trimio.engine.motion.recipe.Box.around(b.cue.x, b.cue.y, b.cue.width, b.cue.height)
+                built.copy(nodes = built.nodes + io.trimio.engine.motion.art.TemplateRecipes.accent(accent, box, b.cue.at, b.out, b.cue.rtl))
+            }
             val captionBeats = if (score.captions.show && words.isNotEmpty()) captions(this, beats) else emptyList()
             val built = graphics + captionBeats.associateWith { b -> b.recipe.build(b.cue.copy(out = b.out), look, fitter) }
             // Text over footage keeps the look's contrast floor whatever the picture does behind it.
@@ -431,7 +439,7 @@ class Compiler(
                 media = b.media, aspect = b.aspect ?: 1f, frameWidth = w.toFloat(), frameHeight = h.toFloat(), variety = score.variety,
                 head = input.subject?.takeIf { over }?.let { io.trimio.engine.motion.recipe.Box(it.left * w, it.top * h, it.right * w, it.bottom * h) },
             )
-            return Beat(id, recipe, treated(recipe, pictured(cue, b), b, id), zone, k, minOut, behind = behind != null)
+            return Beat(id, recipe, treated(recipe, pictured(cue, b), b, id), zone, k, minOut, behind = behind != null, accent = b.accent?.let(::template))
         }
 
         /**
@@ -486,11 +494,19 @@ class Compiler(
             return q.size == range.count() && q.indices.all { j -> norm[range.first + j].trimEnd('.', '،', ',') == q[j].trimEnd('.', '،', ',') }
         }
 
+        /** A designer's template (`template:<id>`) as it was designed: its own colours, or the look's ink when it is a single-colour drawing. */
+        private fun template(visual: String): io.trimio.engine.motion.visual.VectorIcon? {
+            if (!visual.startsWith(TEMPLATE)) return null
+            val icon = visuals.named("template", visual.removePrefix(TEMPLATE)) ?: return null
+            val art = icon.motion ?: return null
+            return icon.copy(motion = art.styled(if (art.colourful) io.trimio.engine.motion.art.Colouring.Own else io.trimio.engine.motion.art.Colouring.Tint))
+        }
+
         /** Brand marks and pictures from the visual vocabulary for what the beat names. */
         private fun pictured(cue: Cue, b: BeatScore) = cue.copy(
             marks = b.items.map { brands.mark(it) }.ifEmpty { listOfNotNull(b.brand?.let { brands.find(it) }) },
             // Animated pictures take the look's colours and face the reading direction; stills are unchanged.
-            visual = b.visual?.let { visuals.find(it) }?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl, cue.overMedia) },
+            visual = b.visual?.let { v -> template(v) ?: visuals.find(v)?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl, cue.overMedia) } },
             itemVisuals = b.items.indices.map { i -> visuals.find(b.visuals.getOrNull(i) ?: b.items[i])?.let { io.trimio.engine.motion.art.AnimatedLayers.styled(it, look, cue.rtl, cue.overMedia) } },
         )
 
@@ -1072,6 +1088,8 @@ class Compiler(
     }
 
     companion object {
+        /** A beat's visual naming a designer's template rather than a picture. */
+        const val TEMPLATE = "template:"
         private const val FIT_STEPS = 28
 
         // The speaker's card on a stage of its own (SceneScore.inset).
