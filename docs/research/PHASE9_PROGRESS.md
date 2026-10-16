@@ -450,3 +450,11 @@ Owner's order (14 Oct 2026): review the latest release deeply first, then do all
   (`golden/baseline.json`): the drops are real and open — layout 7–9 on several scenarios, motion 6.5–7 on two English
   launches and tutorials, the brief 7 on the crypto piece. Those are the next round's first work, with the owner's
   three points: lighter captions placed off the face and the cards, zero spelling slips, smooth and clean motion.
+
+## 16 Oct — round 10: designers' work in the edit (`DESIGNER_TEMPLATES.md`)
+
+- Lottie templates with text slots (the edit's words in the brand's type, word by word through the designer's
+  selectors), a curated shelf of 46 designer accents placed from each beat's box by the Dresser, page memory for
+  accents and caption styles, lighter phrase captions that never break on a leaning word, a steady music bed,
+  content-cut edges in the voice's quiet, every revision spelled, no unvouched word on screen. The owner's reel:
+  125 s, the jury's 10 on every judge after polishing; the cut and the caption band are still open.

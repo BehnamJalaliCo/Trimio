@@ -37,10 +37,23 @@ engine perform designers' work instead of only drawing its own, and fixes what t
 
 - **Captions**: three words, lighter (smaller, no plate: the word that matters inked by its meaning), never ending
   on a word that leans on the next («همه‌ی», «یا», «به») nor opening on one that leans back («رو», «هم»); a verb is
-  never the highlighted word. Three caption styles rotate across the page's edits (phrase, bold pop, highlight).
+  never the highlighted word. Two light caption styles rotate across the page's edits (phrase, highlight); the bold pop weighed on a talking head and left.
 - **Empty chat window**: it opens as its first message is asked.
 - **Sound**: the bed sits 14 dB under the voice and only breathes up 3 dB between phrases (it used to sink 20 dB
   under every word and swell in every gap).
 - **The cut**: a line whose gist (the reading's English summary) an earlier line already said, and whose words
   partly repeat it, goes. On the owner's reel the director left most of the long rant without a gist, so the cut
   still keeps it: reaching the reference's 97 s needs a reading that understands every line.
+
+## 4. On the owner's reel (four proof runs)
+
+| Run | Cut | Jury, first cut | Jury, delivered | What it showed |
+|---|---|---|---|---|
+| r1 | 142 → 125.6 s | min 0, mean 7.4 | min 4, mean 8.4 | the new caption recipes were not counted as captions; a cut inside a word; an unread card |
+| r2 | 125.6 s | min 5.5, mean 8.9 | min 8, mean 9.7 | the content cut's edges on the recogniser's times, not the voice |
+| r3 | 125.0 s | min 7, mean 9.2 | min 9, mean 9.9 | the heavy pop captions; a broken hand accent; a slip shown as a "name" |
+| r4 | 125.0 s | min 7, mean 9.3 | 10 on every judge | highlight captions, three accents (arrow, tick, hand), no unknown word on screen |
+
+The jury's 10 is the engine's own check, not the bar: the bar is the owner's eye. What is still open: the
+cut (125 s against the reference's 97 s — the rant), captions over the microphone in this framing, and the
+library's accents are good but plain; real designer title packs would need the paid After Effects formats.
