@@ -49,7 +49,9 @@ internal object Dresser {
                 beats = s.beats.map { b ->
                     val at = seconds(b)
                     val icon = role(b)?.let(byRole::get)
-                    if (icon == null || at == null || at - last < GAP || count >= MAX || b.accent != null) return@map b
+                    val room = at != null && at - last >= GAP && count < MAX
+                    if (icon == null || !room || b.accent != null) return@map b
+                    at!!
                     last = at
                     count++
                     worn += icon.name

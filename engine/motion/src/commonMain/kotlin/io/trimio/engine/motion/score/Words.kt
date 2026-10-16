@@ -54,6 +54,21 @@ object Words {
     )
     private val TRAILS = setOf("رو", "را", "هم", "ام", "ای", "است", "هست")
 
+    private enum class Break { None, After, Before }
+
+    /**
+     * Where a caption line of [size] words ending on [w] breaks: after a sentence, a clause or a pause ([stops]) or
+     * when full; but a full line never ends on a word that leans on the next («همه‌ی»، «یا»، «به»: it opens the next
+     * line instead), nor leaves the next line to open on one that leans back («رو»، «هم»: it stays on this one).
+     */
+    private fun breakOf(size: Int, w: Word, next: Word?, maxWords: Int, stops: Boolean): Break = when {
+        stops || next == null -> Break.After
+        size < maxWords -> Break.None
+        size > 1 && leans(w.text) -> Break.Before
+        size <= maxWords && trails(next.text) -> Break.None
+        else -> Break.After
+    }
+
     fun captionLines(words: List<Word>, maxWords: Int, pauseSeconds: Float = 0.45f, minSeconds: Float = 0.55f, commas: Boolean = false): List<List<Word>> {
         val lines = mutableListOf<MutableList<Word>>()
         var current = mutableListOf<Word>()
@@ -61,21 +76,18 @@ object Words {
             current += w
             val next = words.getOrNull(i + 1)
             val pause = next != null && (next.range.startMs - w.range.endMs) / 1000f > pauseSeconds
-            val full = current.size >= maxWords || next == null
             val ends = w.endsSentence || (commas && clauseEnd(w))
-            when {
-                // A full line never ends on a word that leans on the next («همه‌ی»، «یا»، «به»): that word opens the next line.
-                full && !ends && !pause && next != null && current.size > 1 && leans(w.text) -> {
+            when (breakOf(current.size, w, next, maxWords, ends || pause)) {
+                Break.Before -> {
                     current.removeAt(current.lastIndex)
                     lines += current
                     current = mutableListOf(w)
                 }
-                // Nor does the next line open on a word that leans back («رو»، «هم»): it stays on this one.
-                full && !ends && !pause && next != null && current.size <= maxWords && trails(next.text) -> Unit
-                ends || pause || full -> {
+                Break.After -> {
                     lines += current
                     current = mutableListOf()
                 }
+                Break.None -> Unit
             }
         }
         if (current.isNotEmpty()) lines += current

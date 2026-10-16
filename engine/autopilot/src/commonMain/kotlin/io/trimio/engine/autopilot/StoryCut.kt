@@ -145,19 +145,19 @@ internal object StoryCut {
             val said = mutableListOf<String>()
             val heard = mutableSetOf<String>()
             val keptGists = mutableListOf<Pair<Float, Set<String>>>()
-            for (k in text.indices) {
+            for (k in text.indices.filter { it !in dropped }) {
                 val c = content(text[k])
                 val start = seconds(text[k].first())
                 val g = gistWords(gists.getOrNull(lineOf[k]).orEmpty())
                 val match = g.size >= MIN_GIST && keptGists.any { (t, e) -> start - t >= GAP && (g intersect e).size >= maxOf(MIN_GIST, (g.size * GIST_SHARE).toInt()) }
                 val partly = c.isNotEmpty() && c.count { it in heard } >= c.size * HALF_COVERED
-                if (k !in dropped && match && partly && kept(k) && text[k].none { instruction(it.text) }) {
+                val cuttable = kept(k) && text[k].none { instruction(it.text) }
+                if (match && partly && cuttable) {
                     dropped[k] = "said before"
-                    continue
+                } else {
+                    c.forEach { heard += it; said += it }
+                    if (g.isNotEmpty()) keptGists += start to g
                 }
-                if (k in dropped) continue
-                c.forEach { heard += it; said += it }
-                if (g.isNotEmpty()) keptGists += start to g
             }
         }
 
