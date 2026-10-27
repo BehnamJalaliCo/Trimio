@@ -34,7 +34,7 @@ class CaptionMetricsTest {
     fun readingRateIsTheBandMidpoint() {
         assertEquals(160f..180f, CaptionMetrics.wordsPerMinute)
         assertEquals(0.9f, CaptionMetrics.ReadableSlack)
-        assertEquals(60f / 170f, CaptionMetrics.secondsPerWord(), absoluteTolerance = 1e-6f)
+        assertEquals(60.0 / 170.0, CaptionMetrics.secondsPerWord().toDouble(), absoluteTolerance = 1e-6)
     }
 
     @Test
@@ -53,14 +53,14 @@ class CaptionMetricsTest {
     fun holdsBridgeToTheCraftRulebook() {
         // MotionSpec owns the hold numbers; the BBC rate only ever raises the floor.
         assertEquals(
-            MotionSpec.Time.holdForLine(3, isLast = false),
-            CaptionMetrics.holdForLine(3, isLast = false),
-            absoluteTolerance = 1e-5f,
+            MotionSpec.Time.holdForLine(3, isLast = false).toDouble(),
+            CaptionMetrics.holdForLine(3, isLast = false).toDouble(),
+            absoluteTolerance = 1e-5,
         )
-        assertEquals(2f, CaptionMetrics.holdForLine(2, isLast = true), absoluteTolerance = 1e-5f)
+        assertEquals(2.0, CaptionMetrics.holdForLine(2, isLast = true).toDouble(), absoluteTolerance = 1e-5)
         // Past ~28 words the reading floor overtakes the craft hold and the floor wins.
         val bbc = 100 * CaptionMetrics.secondsPerWord() * CaptionMetrics.ReadableSlack
-        assertEquals(bbc, CaptionMetrics.holdForLine(100, isLast = false), absoluteTolerance = 1e-4f)
+        assertEquals(bbc.toDouble(), CaptionMetrics.holdForLine(100, isLast = false).toDouble(), absoluteTolerance = 1e-4)
         assertTrue(CaptionMetrics.holdForLine(100, isLast = false) > MotionSpec.Time.holdForLine(100, isLast = false))
     }
 }

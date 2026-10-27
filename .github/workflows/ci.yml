@@ -40,6 +40,12 @@ jobs:
       - name: Static analysis (detekt, new findings only)
         run: ./gradlew detekt
 
+      - name: engine.motion tests first (annotated)
+        run: |
+          ./gradlew :engine:motion:jvmTest --continue 2>&1 | tee /tmp/motion.log || true
+          grep -E "^e: " /tmp/motion.log | head -15 | sed 's/^/::error title=motion::/'
+          grep -E "> .*FAILED" /tmp/motion.log | head -15 | sed 's/^/::error title=motion::/'
+
       - name: Unit, shader, screenshot and golden-frame tests
         run: ./gradlew jvmTest :server:test --continue
 
