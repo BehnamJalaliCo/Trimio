@@ -197,9 +197,9 @@ object TextNormalize {
         if (i + prefix.length > s.length) return false
         for (k in prefix.indices) {
             val c = s[i + k]
-            if (c == prefix[k]) continue
-            if (prefix[k] == FA_YEH && (c == ALEF_MAKSURA || c == AR_YEH)) continue
-            return false
+            val matches = c == prefix[k] ||
+                (prefix[k] == FA_YEH && (c == ALEF_MAKSURA || c == AR_YEH))
+            if (!matches) return false
         }
         return true
     }

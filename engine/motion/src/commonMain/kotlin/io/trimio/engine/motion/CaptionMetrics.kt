@@ -40,6 +40,7 @@ object CaptionMetrics {
      * format-independent — 9:16 stacks more, shorter lines ([maxLines]); it does not slow the
      * reader — so [isVertical] names the caption's format without moving the floor.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun fits(words: Int, durationSec: Float, isVertical: Boolean): Boolean =
         durationSec >= words * secondsPerWord() * ReadableSlack
 
