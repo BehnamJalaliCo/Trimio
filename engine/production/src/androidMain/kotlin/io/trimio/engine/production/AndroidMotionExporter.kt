@@ -37,7 +37,8 @@ import kotlin.math.roundToInt
  * The motion engine's own export on Android: every frame drawn by [MotionRenderer] straight onto
  * the H.264 encoder's input surface through a hardware canvas (runtime shaders render as in the
  * preview), the mastered soundtrack encoded to AAC (or a long-form edit's source sound, copied as recorded), both
- * muxed by [MediaMuxer] into an MP4.
+ * muxed by [MediaMuxer] into an MP4. The master is tagged BT.709 limited (players otherwise guess
+ * full-range BT.601 and wash the picture out) and the soundtrack is AAC-LC at desktop parity.
  *
  * The encoder runs without B-frames, so its output is in input order and every sample gets its
  * exact frame time (a canvas-posted buffer carries the wall clock, not the edit's).
@@ -71,6 +72,8 @@ class AndroidMotionExporter(private val context: Context) {
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
             setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
+            // Untagged output reads as full-range BT.601 in half the players: washed-out blacks.
+            EncodeParams.colourTags().forEach { (key, value) -> setInteger(key, value) }
         }
         val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -219,18 +222,19 @@ class AndroidMotionExporter(private val context: Context) {
         }
     }
 
-    /** The mono soundtrack to AAC-LC, all of it (a minute is about 1.5 MB), with its format. */
+    /** The mono soundtrack to AAC-LC at [EncodeParams.AUDIO_RATE], all of it, with its format. */
     private fun encodeAudio(sound: PcmAudio): Pair<MediaFormat, List<Sample>> {
-        val rate = sound.sampleRate
+        val rate = EncodeParams.AUDIO_RATE
+        val pcm = PcmAudio(EncodeParams.resample(sound.samples, sound.sampleRate, rate), rate)
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, rate, 1).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, AUDIO_BITRATE)
+            setInteger(MediaFormat.KEY_BIT_RATE, EncodeParams.AUDIO_BITRATE)
             setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, CHUNK * 2)
         }
         val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         codec.start()
-        val pump = AudioPump(codec, sound)
+        val pump = AudioPump(codec, pcm)
         try {
             while (!pump.done) pump.step()
         } finally {
@@ -290,7 +294,6 @@ class AndroidMotionExporter(private val context: Context) {
         private const val END_TIMEOUT_US = 100_000L
         private const val CHUNK = 4096
         private const val PCM_MAX = 32_767f
-        private const val AUDIO_BITRATE = 192_000
 
         /** About 0.27 bits a pixel at 30 fps: 16 Mbps for 1080×1920, generous for graphics edges; up to 80 Mbps for 4K60. */
         private fun bitrate(w: Int, h: Int, fps: Int): Int = (w.toLong() * h * fps * 27 / 100).coerceIn(4_000_000L, 80_000_000L).toInt()
