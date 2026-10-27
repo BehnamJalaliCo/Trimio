@@ -88,12 +88,19 @@ object TextNormalize {
     private fun mapLetters(s: String): String = buildString(s.length) {
         for (c in s) {
             when {
-                c in '\uFE80'..'\uFEFC' -> append(presentationBase(c))
-                c == AR_YEH || c == ALEF_MAKSURA -> append(FA_YEH)
-                c == AR_KAF -> append(FA_KEHEH)
-                else -> append(c)
+                // The decomposition yields base letters that must fold like any other (yeh of U+FEF3
+                // lands as Persian yeh, not the Arabic one).
+                c in '\uFE80'..'\uFEFC' -> for (b in presentationBase(c)) append(persianForm(b))
+                else -> append(persianForm(c))
             }
         }
+    }
+
+    /** The Persian spelling of a letter the recogniser or a presentation form left in Arabic shape. */
+    private fun persianForm(c: Char): Char = when (c) {
+        AR_YEH, ALEF_MAKSURA -> FA_YEH
+        AR_KAF -> FA_KEHEH
+        else -> c
     }
 
     /**
