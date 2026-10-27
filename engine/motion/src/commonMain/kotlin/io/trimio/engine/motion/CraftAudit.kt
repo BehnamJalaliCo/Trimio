@@ -64,7 +64,7 @@ object CraftAudit {
     private fun lineUnread(shot: Shot, e: Element): Finding? {
         val words = e.textWordCount ?: return null
         val visible = (e.disappearsAtSec ?: shot.endSec) - e.appearsAtSec
-        if (visible >= MotionSpec.holdForLine(words, isLast = false)) return null
+        if (visible >= MotionSpec.Time.holdForLine(words, isLast = false)) return null
         return Finding("line_unread", "${e.name} is briefer than the readable hold for $words words", e.appearsAtSec)
     }
 

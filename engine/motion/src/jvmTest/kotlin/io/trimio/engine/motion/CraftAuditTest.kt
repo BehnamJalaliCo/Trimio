@@ -11,7 +11,7 @@ class CraftAuditTest {
 
     @Test
     fun briefTextIsUnreadable() {
-        val needed = MotionSpec.holdForLine(3, isLast = false)
+        val needed = MotionSpec.Time.holdForLine(3, isLast = false)
         val brief = timeline(shot(el(words = 3, heightPx = 60f, disappearsAt = needed * 0.5f), el("decoy")))
         val held = timeline(shot(el(words = 3, heightPx = 60f), el("decoy"), end = needed + 1f))
         assertEquals(listOf("line_unread"), rules(brief))
