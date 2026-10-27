@@ -125,7 +125,14 @@ class TextLayoutEngine(val measurer: TextMeasurer, val fonts: MotionFonts) {
         val lineBox = type.size * type.lineHeight
         var wordIndex = 0
         var charIndex = 0
-        val shaped = lineTexts.mapIndexed { i, lineText ->
+        val shaped = lineTexts.mapIndexed { i, balanced ->
+            // One kashida pass per line before shaping: an RTL line short of its box is stretched
+            // toward it (an unbounded box has nothing to fill), then measured once below.
+            val lineText = if (RtlLayout.resolveDirection(balanced) == RtlLayout.TextDirection.Rtl && maxWidth.isFinite() && width(balanced) < maxWidth) {
+                Kashida.justifyWithKashida(balanced, maxWidth / width(balanced))
+            } else {
+                balanced
+            }
             val layout = measureLine(lineText, style)
             // Centre the ink (ascender to descender) in the line box.
             val glyphTop = i * lineBox + lineBox / 2f - (ink.top + ink.bottom) / 2f * type.size
