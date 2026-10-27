@@ -41,7 +41,7 @@ object AgslTransitions {
      * What runs below 33 when AGSL is out of reach: the `glsl3/` sources go through Media3/GLES3,
      * so the cut still happens — just not through TransitionShader.
      */
-    val glsl3FallbackNote: String = "Below API 33 the glsl3/ sources go through Media3/GLES3."
+    const val glsl3FallbackNote: String = "Below API 33 the glsl3/ sources go through Media3/GLES3."
 
     /**
      * Neighbours for names a recipe may still ask for: catalog siblings outside the pool, older

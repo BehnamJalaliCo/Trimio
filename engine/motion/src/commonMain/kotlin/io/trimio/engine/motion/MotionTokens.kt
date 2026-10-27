@@ -40,7 +40,7 @@ object MotionTokens {
      * When a pack wants a settle with a whisper of life instead of a curve, it takes the house
      * spring. A cubic-bezier cannot ring; [MotionSpec.Springs.Premium] can, just barely.
      */
-    val springPremiumNote: String =
+    const val springPremiumNote: String =
         "Living settle is MotionSpec.Springs.Premium (damping 0.8, frequency 2.0), not a cubic-bezier."
 
     /**
