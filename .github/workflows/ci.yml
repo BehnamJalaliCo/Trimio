@@ -43,6 +43,10 @@ jobs:
       - name: Unit, shader, screenshot and golden-frame tests
         run: ./gradlew jvmTest :server:test
 
+      - name: Annotate junit failures
+        if: failure()
+        run: python3 scripts/ci/annotate_junit.py .
+
       - name: Compile web target
         run: ./gradlew compileKotlinWasmJs
 
