@@ -1,0 +1,48 @@
+name: Phase0 diag
+
+on:
+  push:
+    paths:
+      - '.github/workflows/phase0-diag.yml'
+      - 'scripts/ci/annotate_junit.py'
+  workflow_dispatch:
+
+concurrency:
+  group: phase0-diag-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Image engine's ggml
+        run: git -C native/third_party/stable-diffusion.cpp submodule update --init --depth 1 ggml
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: ffmpeg
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+
+      - name: engine.motion tests only
+        run: ./gradlew :engine:motion:jvmTest --continue || true
+
+      - name: annotate engine.motion
+        if: always()
+        run: python3 scripts/ci/annotate_junit.py 'engine/motion/build/test-results'
+
+      - name: full jvmTest + server test
+        run: ./gradlew jvmTest :server:test --continue || true
+
+      - name: annotate all junit failures
+        if: always()
+        run: python3 scripts/ci/annotate_junit.py .
