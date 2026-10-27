@@ -30,7 +30,7 @@ for f in files:
                 msg = " ".join(msg.split())[:240]
                 fails.append((name, msg))
 
-# detekt checkstyle/xml reports: <file name="..."><error message="..." source="detekt.Rule" line="n"/></file>
+# detekt checkstyle/xml reports
 detekt_findings = []
 for f in sorted(set(glob.glob(os.path.join(root, "**", "reports", "detekt", "*.xml"), recursive=True))):
     try:
@@ -44,25 +44,20 @@ for f in sorted(set(glob.glob(os.path.join(root, "**", "reports", "detekt", "*.x
             msg = " ".join((err.get("message") or "").split())[:200]
             line = err.get("line") or "?"
             detekt_findings.append(("%s:%s" % (fname, line), "%s — %s" % (rule, msg)))
-# plain-text detekt reports (fallback)
-if not detekt_findings:
-    for f in sorted(set(glob.glob(os.path.join(root, "**", "reports", "detekt", "*.txt"), recursive=True))):
-        try:
-            with open(f, encoding="utf-8", errors="replace") as fh:
-                for ln in fh:
-                    ln = ln.strip()
-                    if ln and not ln.startswith("-") and "detekt" in ln.lower():
-                        detekt_findings.append(("detekt", ln[:240]))
-        except Exception:
-            pass
 
 all_findings = [("TEST " + n, m) for n, m in fails] + [("DETEKT " + n, m) for n, m in detekt_findings]
 for name, msg in all_findings[:10]:
     print("::error title=%s::%s" % (name, msg.replace("\r", " ").replace("\n", " ")))
 
-motion = {k: v for k, v in modules.items() if "motion" in k}
-print("::notice title=scan::junit-files=%d tests=%d skipped=%d test-failures=%d detekt-findings=%d motion-mods=%s" % (
-    len(files), tests, skips, len(fails), len(detekt_findings), motion))
+mod_list = ", ".join(sorted(modules.keys()))
+print("::notice title=scan::junit-files=%d tests=%d skipped=%d test-failures=%d detekt-findings=%d modules=[%s]" % (
+    len(files), tests, skips, len(fails), len(detekt_findings), mod_list[:300]))
+
+# Key modules that must have produced results — a missing one means its test task died early.
+for key in ("engine/motion", "engine/render", "engine/styles", "core/model", "server"):
+    if not any(key in m for m in modules):
+        print("::warning title=missing-tests::no junit XML for %s — its test task likely crashed or never ran" % key)
+
 for name, msg in all_findings[10:40]:
     print("FINDING %s :: %s" % (name, msg))
 if not files and not detekt_findings:

@@ -41,7 +41,7 @@ jobs:
         run: ./gradlew detekt
 
       - name: Unit, shader, screenshot and golden-frame tests
-        run: ./gradlew jvmTest :server:test
+        run: ./gradlew jvmTest :server:test --continue
 
       - name: Annotate junit failures
         if: failure()
