@@ -11,6 +11,9 @@ concurrency:
   group: phase0-diag-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  TRIMIO_BRAND_KEY: ${{ secrets.TRIMIO_BRAND_KEY }}
+
 jobs:
   diag:
     runs-on: ubuntu-latest
@@ -33,14 +36,7 @@ jobs:
       - name: ffmpeg
         run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
 
-      - name: engine.motion tests only
-        run: ./gradlew :engine:motion:jvmTest --continue || true
-
-      - name: annotate engine.motion
-        if: always()
-        run: python3 scripts/ci/annotate_junit.py 'engine/motion/build/test-results'
-
-      - name: full jvmTest + server test
+      - name: full jvmTest + server test (same as CI, brand key on)
         run: ./gradlew jvmTest :server:test --continue || true
 
       - name: annotate all junit failures
