@@ -7,6 +7,7 @@ import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.motion.Anim
 import io.trimio.engine.motion.Camera
+import io.trimio.engine.motion.CaptionMetrics
 import io.trimio.engine.motion.Composition
 import io.trimio.engine.motion.Easing
 import io.trimio.engine.motion.Effect
@@ -23,6 +24,7 @@ import io.trimio.engine.motion.ShapeNode
 import io.trimio.engine.motion.ShapeSpec
 import io.trimio.engine.motion.TextAlign
 import io.trimio.engine.motion.TextLayoutEngine
+import io.trimio.engine.motion.TextNormalize
 import io.trimio.engine.motion.Transform
 import io.trimio.engine.motion.anim
 import io.trimio.engine.motion.fill
@@ -572,7 +574,7 @@ class Compiler(
         }
 
         /**
-         * Whether [scene] keeps the speaker on its stage cut out of the picture rather than in a card: a stage that would hold
+         * Whether [scene] keeps the speaker on their stage cut out of the picture rather than in a card: a stage that would hold
          * their card, when the renderer can cut them out and where their head is known ([Input.crown]).
          */
         private fun cutout(scene: SceneScore) =
@@ -611,7 +613,7 @@ class Compiler(
         }
 
         /**
-         * The speaker kept on a stage of its own ([SceneScore.inset]): the footage, cut as everywhere else, shrinks
+         * The speaker kept on a stage of their own ([SceneScore.inset]): the footage, cut as everywhere else, shrinks
          * from the whole frame into a rounded card around the head and shoulders as the stage opens, and grows back as
          * it ends, unless the scene before or after keeps the card too (then it simply stays).
          */
@@ -810,7 +812,9 @@ class Compiler(
         for ((i, line) in lines.withIndex()) {
             val at = line.first().range.startMs / 1000f
             val next = lines.getOrNull(i + 1)?.first()?.range?.startMs?.div(1000f) ?: Float.MAX_VALUE
-            val natural = minOf(line.last().range.endMs / 1000f + 0.35f, next - 0.03f)
+            // A line holds as long as reading needs; CaptionMetrics raises the craft hold to the BBC floor.
+            val hold = CaptionMetrics.holdForLine(line.size, isLast = i == lines.lastIndex)
+            val natural = minOf(maxOf(line.last().range.endMs / 1000f + 0.35f, at + hold), next - 0.03f, session.duration)
             // A caption ends at the cut to a full-frame stage: it never runs on under the stage's graphic.
             val stage = session.sceneStarts.indices.firstOrNull { k -> session.sceneStarts[k] in (at + MIN_CAPTION)..natural && !session.overFootage(session.scenes[k]) }
             val end = stage?.let { session.sceneStarts[it] - 0.02f } ?: natural
@@ -889,8 +893,12 @@ class Compiler(
     private fun stands(prosody: Float, picked: Boolean, number: NumberWords.Found?) =
         prosody >= 0.6f || picked || (number != null && (number.percent || number.value >= 10))
 
-    /** Motion text drops sentence punctuation (periods, commas), keeping ? and !. */
-    private fun clean(s: String) = s.split(' ').filter { it.isNotEmpty() }
+    /**
+     * Motion text drops sentence punctuation (periods, commas), keeping ? and ! within the line:
+     * [TextNormalize] clears a line's ends and folds the Persian first; each word then loses its
+     * own trailing marks.
+     */
+    private fun clean(s: String) = TextNormalize.normalizeFa(s).split(' ').filter { it.isNotEmpty() }
         .map { it.trimEnd('.', ',', '،', '؛', ';', ':', '…') }.filter { it.isNotEmpty() }.joinToString(" ")
 
     private fun overlap(a0: Float, a1: Float, b0: Float, b1: Float) = (minOf(a1, b1) - maxOf(a0, b0)).coerceAtLeast(0f)
