@@ -120,14 +120,14 @@ class MotionGrammarTest {
         val a = animator(seed = 11)
         val same = animator(seed = 11)
         val t = 0.2f
-        assertEquals(a.stateAt(t, 2, 5).dy, same.stateAt(t, 2, 5).dy, "same seed must land the same")
-        val differ = (0 until 5).any { i -> abs(a.stateAt(t, i, 5).dy - a.stateAt(t, i, 5).dy) > 0f && false }
-        assertTrue(!differ)
-        val spans = (0 until 5).map { i ->
-            val rest = 0.6f
-            abs(a.stateAt(rest, i, 5).dy) // all rest by then
+        for (i in 0 until 5) {
+            assertEquals(a.stateAt(t, i, 5).dy, same.stateAt(t, i, 5).dy, "same seed must land unit $i the same")
         }
-        assertTrue(spans.all { it < 1e-3f }, "every unit is home once its (varied) span is over")
+        // With stagger 0 every unit starts together; easeVary alone must split their mid-flight states.
+        val mids = (0 until 5).map { a.stateAt(t, it, 5).dy }
+        assertTrue(mids.distinct().size > 1, "easeVary must give units different speeds: $mids")
+        val settled = (0 until 5).map { a.stateAt(0.8f, it, 5).dy }
+        assertTrue(settled.all { abs(it) < 1e-3f }, "every unit is home once its (varied) span is over")
     }
 
     // ------------------------------------------------------------------ overshoot bands
