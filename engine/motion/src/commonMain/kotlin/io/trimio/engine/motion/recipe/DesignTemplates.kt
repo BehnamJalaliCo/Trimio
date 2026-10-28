@@ -35,7 +35,7 @@ object DesignTemplates {
     private fun exitSpan(entry: Float) = entry * EXIT_SHARE
 
     private fun layers(at: Float, entry: Float, primary: Anim, trailPeak: Float = 1.2f): Transform {
-        val fade = anim(0f, at - FADE_LEAD - entry) { by(1f, FADE_LEAD + entry * 2.2f, Easing.Linear) }
+        val fade = anim(0f, at - FADE_LEAD) { by(1f, FADE_LEAD + entry * 1.5f, Easing.Linear) }
         val trail = Anim.Follow(anim(0f, at) { by(trailPeak, entry * 0.4f, Easing.ExpoOut); by(0f, entry * 0.6f, Easing.ExpoOut) }, FOLLOW_LAG, FOLLOW_DAMP)
         return Transform(x = primary, opacity = fade, blur = trail)
     }
@@ -177,8 +177,10 @@ object DesignTemplates {
             nodes += ShapeNode(ShapeSpec.Rect(Anim.tween(h * 0.3f, blockW, at, at + entry * 1.2f, Easing.ExpoOut), blockH.anim, (h * 0.08f * look.roundness).anim), fill = accent.fill,
                 transform = Transform(x = (if (cue.rtl) left + blockW else left).anim, y = blockY.anim, anchorX = if (cue.rtl) 1f else 0f), name = "hero-block")
             val nameCx = if (cue.rtl) left + blockW - pad - nameF.width / 2f else left + pad + nameF.width / 2f
-            nodes += TextNode(name, nameF.type, Kit.inkOn(look, accent.ground).fill(), rtl = cue.rtl, animators = listOf(TextAnimator(TextUnit.Word, UnitState(scale = 1.35f, opacity = 0f), at =
-                at + 0.04f, duration = entry * 1.4f, stagger = STAGGER_TIGHT, ease = SpringPlayful)),
+            nodes += TextNode(name, nameF.type, Kit.inkOn(look, accent.ground).fill(), rtl = cue.rtl, animators = listOf(
+                    TextAnimator(TextUnit.Word, UnitState(scale = 1.35f), at = at + 0.04f, duration = entry * 1.4f, stagger = STAGGER_TIGHT, ease = SpringPlayful),
+                    TextAnimator(TextUnit.Word, UnitState(opacity = 0f), at = at + 0.04f, duration = entry * 1.4f, stagger = STAGGER_TIGHT, ease = Easing.ExpoOut),
+                ),
                 transform = Transform(x = nameCx.anim, y = blockY.anim), name = "name")
             if (role != null && roleF != null) {
                 nodes += TextNode(role, roleF.type, Craft.secondary(cue, look).fill(), rtl = cue.rtl, shadow = Craft.shadow(cue, look, roleF.type.size), transform = Transform(x = nameCx.anim, y =
@@ -213,7 +215,7 @@ object DesignTemplates {
             val leave = Craft.exit(TextUnit.Word, cue, words.size)
             val marks = Craft.marks(cue, look, starts, entry * 0.8f)
             val node = Craft.text(cue, f.type, look.ink, look, listOf(cascade, leave), marks, name = name)
-            val travel = Anim.tween(0f, 0f, at, at + entry, Easing.ExpoOut)
+            val travel = Anim.tween(dir(cue) * 24f, 0f, at, at + entry, Easing.ExpoOut)
             return Built(listOf(staged(cue, entry, travel, listOf(node), name, at)), sfx = starts.mapIndexed { i, t -> Sfx(t, SfxKind.Swish, 0.35f + 0.05f * (i % 2)) }, box = Box.around(cue.x,
                 cue.y, cue.width * 0.92f, cue.height))
         }
@@ -231,17 +233,18 @@ object DesignTemplates {
             val f = fit.fit(cue.text, look.headline, Craft.big(cue, 0.3f), cue.width, cue.height, maxLines = 2)
             val starts = Craft.wordStarts(cue, words.size, STAGGER_TIGHT)
             val quiet = TextAnimator(TextUnit.Word, UnitState(dy = 0.35f, opacity = 0f), at = at, duration = entry * 1.5f, stagger = STAGGER_TIGHT, ease = Easing.ExpoOut, times = starts)
-            val pop = TextAnimator(TextUnit.Word, UnitState(scale = 0.55f, opacity = 0f), at = starts.getOrElse(key) { at }, duration = entry * 1.8f, ease = SpringPlayful, times =
-                listOf(starts.getOrElse(key) { at }))
+            val keyAt0 = starts.getOrElse(key) { at }
+            val pop = TextAnimator(TextUnit.Word, UnitState(scale = 0.55f), at = keyAt0, duration = entry * 1.8f, ease = SpringPlayful, times = listOf(keyAt0))
+            val popFade = TextAnimator(TextUnit.Word, UnitState(opacity = 0f), at = keyAt0, duration = entry * 1.8f, ease = Easing.ExpoOut, times = listOf(keyAt0))
             val leave = Craft.exit(TextUnit.Word, cue, words.size)
             val marks = Craft.marks(cue.copy(emphasis = setOf(key)), look, starts, entry * 0.7f)
-            val node = Craft.text(cue, f.type, look.ink, look, listOf(quiet, pop, leave), marks, name = name)
+            val node = Craft.text(cue, f.type, look.ink, look, listOf(quiet, pop, popFade, leave), marks, name = name)
             val lineWidth = f.width * 0.22f
             val keyAt = starts.getOrElse(key) { at }
             val underline = ShapeNode(ShapeSpec.Rect(lineWidth.anim, 4f.anim, 2f.anim), fill = look.accent.fill(), transform = Transform(x = cue.x.anim, y = (cue.y + f.height * 0.62f).anim,
                 scaleX = Anim.tween(0f, 1f, keyAt + entry * 0.5f, keyAt + entry * 1.5f, Easing.ExpoOut)),
                 start = at, end = cue.out + 0.02f, name = "keyword-underline")
-            val travel = Anim.tween(0f, 0f, at, at + entry, Easing.ExpoOut)
+            val travel = Anim.tween(dir(cue) * 24f, 0f, at, at + entry, Easing.ExpoOut)
             return Built(listOf(staged(cue, entry, travel, listOf(node, underline), name, at)), sfx = listOf(Sfx(keyAt + Craft.LEAD, SfxKind.Pop, 0.55f)), box = Box.around(cue.x, cue.y, cue.width
                 * 0.92f, cue.height))
         }
@@ -259,6 +262,10 @@ object DesignTemplates {
             val rowH = cue.height / words.size
             val nodes = mutableListOf<Node>()
             val starts = mutableListOf<Float>()
+            var left = Float.POSITIVE_INFINITY
+            var top = Float.POSITIVE_INFINITY
+            var right = Float.NEGATIVE_INFINITY
+            var bottom = Float.NEGATIVE_INFINITY
             for ((i, w) in words.withIndex()) {
                 val t0 = at + i * STAGGER_SOFT
                 starts += t0
@@ -268,6 +275,10 @@ object DesignTemplates {
                 val blockH = rowH * 0.72f
                 val y = cue.y - cue.height / 2f + rowH * (i + 0.5f)
                 val x = cue.x - d * (cue.width / 2f - blockW / 2f - rowH * 0.15f) + d * (i % 2) * cue.width * 0.04f
+                left = minOf(left, x - blockW / 2f)
+                right = maxOf(right, x + blockW / 2f)
+                top = minOf(top, y - blockH / 2f)
+                bottom = maxOf(bottom, y + blockH / 2f)
                 val s = if (i % 2 == 0) Kit.surface(look, cue, Kit.Tone.Accent) else Kit.surface(look, cue)
                 val ink = Kit.inkOn(look, s.ground)
                 nodes += Group(listOf(ShapeNode(ShapeSpec.Rect(blockW.anim, blockH.anim, (blockH * 0.16f * look.roundness).anim), fill = s.fill, stroke = s.stroke, shadow =
@@ -283,9 +294,12 @@ object DesignTemplates {
             }
             val leaveSpan = exitSpan(entry)
             val leaveT = cue.out - leaveSpan
-            return Built(listOf(Group(nodes, transform = Transform(y = anim(0f, leaveT) { by(-18f, leaveSpan, Easing.Exit) }, opacity = anim(1f, leaveT) { by(0f, leaveSpan, Easing.Exit) }), start
-                = at - 0.05f, end = cue.out + 0.02f, name = name)),
-                sfx = starts.map { Sfx(it, SfxKind.Click, 0.35f) })
+            val enterY = Anim.tween(-18f, 0f, at, at + entry, Easing.ExpoOut)
+            val enterOp = anim(0f, at - FADE_LEAD) { by(1f, FADE_LEAD + entry * 1.5f, Easing.Linear) }
+            val leaveY = anim(0f, leaveT) { by(-18f, leaveSpan, Easing.Exit) }
+            val leaveOp = anim(1f, leaveT) { by(0f, leaveSpan, Easing.Exit) }
+            val root = Group(nodes, transform = Transform(y = enterY + leaveY, opacity = enterOp * leaveOp), start = at - 0.05f, end = cue.out + 0.02f, name = name)
+            return Built(listOf(root), sfx = starts.map { Sfx(it, SfxKind.Click, 0.35f) }, box = Box(left, top, right, bottom))
         }
     }
 
@@ -313,8 +327,10 @@ object DesignTemplates {
                     name = "payoff-rule")
             } else {
                 val hf = fit.fit(headline, look.headline, h * 0.36f, cue.width * 0.92f, h * 0.48f, maxLines = 2)
-                nodes += TextNode(headline, hf.type, look.ink.fill(), rtl = cue.rtl, animators = listOf(TextAnimator(TextUnit.Word, UnitState(scale = 1.4f, opacity = 0f), at = at, duration =
-                    entry * 1.5f, stagger = STAGGER_TIGHT, ease = SpringPlayful)),
+                nodes += TextNode(headline, hf.type, look.ink.fill(), rtl = cue.rtl, animators = listOf(
+                    TextAnimator(TextUnit.Word, UnitState(scale = 1.4f), at = at, duration = entry * 1.5f, stagger = STAGGER_TIGHT, ease = SpringPlayful),
+                    TextAnimator(TextUnit.Word, UnitState(opacity = 0f), at = at, duration = entry * 1.5f, stagger = STAGGER_TIGHT, ease = Easing.ExpoOut),
+                ),
                     shadow = Craft.shadow(cue, look, hf.type.size), transform = Transform(x = cue.x.anim, y = (cue.y - h * 0.08f).anim), name = "payoff-headline")
             }
             val under = context ?: (if (value != null) headline.takeIf { it != cue.label } else null)
@@ -340,14 +356,17 @@ object DesignTemplates {
             val words = cue.words
             val f = fit.fit(cue.text, look.headline, Craft.big(cue, 0.34f), cue.width, cue.height, maxLines = 2)
             val starts = Craft.wordStarts(cue, words.size, STAGGER_TIGHT)
-            val slam = TextAnimator(TextUnit.Word, UnitState(scale = 2.2f + cue.energy * 0.6f, opacity = 0f), at = at, duration = entry * 1.3f, stagger = STAGGER_TIGHT, ease = SpringPlayful,
+            val slam = TextAnimator(TextUnit.Word, UnitState(scale = 2.2f + cue.energy * 0.6f), at = at, duration = entry * 1.3f, stagger = STAGGER_TIGHT, ease = SpringPlayful,
                 times = starts)
+            val slamFade = TextAnimator(TextUnit.Word, UnitState(opacity = 0f), at = at, duration = entry * 1.3f, stagger = STAGGER_TIGHT, ease = Easing.ExpoOut, times = starts)
             val leave = Craft.exit(TextUnit.Word, cue, words.size)
             val marks = Craft.marks(cue, look, starts, entry * 0.6f)
-            val node = Craft.text(cue, f.type, look.ink, look, listOf(slam, leave), marks, name = name)
+            val node = Craft.text(cue, f.type, look.ink, look, listOf(slam, slamFade, leave), marks, name = name)
             val land = starts.last() + entry * 0.7f
-            return Built(listOf(node), camera = listOf(Craft.punch(land, 0.04f + 0.03f * cue.energy)), sfx = listOf(Sfx(land, SfxKind.Hit, 0.75f)), overlays = if (cue.energy > 0.55f)
-                listOf(Craft.flash(land, look.accent, 0.14f)) else emptyList())
+            val travel = Anim.tween(dir(cue) * 26f, 0f, at, at + entry, Easing.ExpoOut)
+            return Built(listOf(staged(cue, entry, travel, listOf(node), name, at)), camera = listOf(Craft.punch(land, 0.04f + 0.03f * cue.energy)), sfx = listOf(Sfx(land, SfxKind.Hit, 0.75f)),
+                overlays = if (cue.energy > 0.55f) listOf(Craft.flash(land, look.accent, 0.14f)) else emptyList(),
+                box = Box.around(cue.x, cue.y, f.width, f.height))
         }
     }
 
@@ -383,9 +402,11 @@ object DesignTemplates {
             val pulse = anim(1f, land + 0.35f) { by(1.025f, 0.12f, Easing.SineInOut); by(1f, 0.28f, Easing.SineInOut) }
             val travel = Anim.tween(0f, 0f, at, at + entry, Easing.ExpoOut)
             val group = staged(cue, entry, travel, nodes, name, at, trailPeak = 0.5f)
-            return Built(listOf(Group(listOf(group), transform = Transform(x = cue.x.anim, y = cue.y.anim, anchorX = 0.5f, anchorY = 0.5f, scale = pulse), start = at - 0.05f, end = cue.out +
-                0.02f, name = "stat-pulse")),
-                sfx = listOf(Sfx(at, SfxKind.Riser, 0.35f), Sfx(land, SfxKind.Pop, 0.55f)))
+            val enterOp = anim(0f, at - FADE_LEAD) { by(1f, FADE_LEAD + entry * 1.5f, Easing.Linear) }
+            return Built(listOf(Group(listOf(group), transform = Transform(x = cue.x.anim, y = cue.y.anim, anchorX = 0.5f, anchorY = 0.5f, scale = pulse, opacity = enterOp), start = at - 0.05f,
+                end = cue.out + 0.02f, name = "stat-pulse")),
+                sfx = listOf(Sfx(at, SfxKind.Riser, 0.35f), Sfx(land, SfxKind.Pop, 0.55f)),
+                box = Box.around(cue.x, cue.y, cue.width * 0.9f, cue.height))
         }
     }
 
@@ -432,9 +453,14 @@ object DesignTemplates {
             }
             val leaveSpan = exitSpan(entry)
             val leaveT = cue.out - leaveSpan
-            return Built(listOf(Group(nodes, transform = Transform(y = anim(0f, leaveT) { by(-16f, leaveSpan, Easing.Exit) }, opacity = anim(1f, leaveT) { by(0f, leaveSpan, Easing.Exit) }, blur =
-                anim(0f, leaveT) { by(2f, leaveSpan, Easing.Exit) }), start = at - 0.05f, end = cue.out + 0.02f, name = name)),
-                sfx = (0 until n).map { Sfx(at + it * STAGGER_SOFT, SfxKind.Tick, 0.32f) } + Sfx(at + entry * 2.2f, SfxKind.Pop, 0.5f))
+            val enterY = Anim.tween(-16f, 0f, at, at + entry, Easing.ExpoOut)
+            val enterOp = anim(0f, at - FADE_LEAD) { by(1f, FADE_LEAD + entry * 1.5f, Easing.Linear) }
+            val leaveY = anim(0f, leaveT) { by(-16f, leaveSpan, Easing.Exit) }
+            val leaveOp = anim(1f, leaveT) { by(0f, leaveSpan, Easing.Exit) }
+            val leaveBlur = anim(0f, leaveT) { by(2f, leaveSpan, Easing.Exit) }
+            val root = Group(nodes, transform = Transform(y = enterY + leaveY, opacity = enterOp * leaveOp, blur = leaveBlur), start = at - 0.05f, end = cue.out + 0.02f, name = name)
+            val ticks = (0 until n).map { Sfx(at + it * STAGGER_SOFT, SfxKind.Tick, 0.32f) } + Sfx(at + entry * 2.2f, SfxKind.Pop, 0.5f)
+            return Built(listOf(root), sfx = ticks, box = Box(cue.x - cue.width / 2f, cue.y - cue.height * 0.35f, cue.x + cue.width / 2f, cue.y + cue.height * 0.7f))
         }
     }
 
