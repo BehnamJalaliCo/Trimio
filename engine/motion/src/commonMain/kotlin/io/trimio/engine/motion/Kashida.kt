@@ -5,9 +5,10 @@ import kotlin.math.abs
 /**
  * App-side kashida justification for Persian/Arabic lines. SkParagraph shapes and measures but
  * does not justify, so a line that falls short of its box is stretched by inserting tatweel
- * (U+0640) at cursive joins. This is a pragmatic approximation of W3C alreq: real joining is
- * done by the shaper — this only places raw tatweel at positions that already form a join.
- * The result must be re-measured; width change is approximate.
+ * (U+0640) at cursive joins. Every insertion is re-measured with the caller's measurer — the same
+ * engine that will draw the line — so the stretch is observed, not estimated. The quality
+ * ceilings follow W3C alreq conservatively: at most one tatweel per word, never across ZWNJ,
+ * never at a line edge, and the openings are visited in a spatially even order.
  */
 object Kashida {
 
@@ -23,11 +24,14 @@ object Kashida {
     /** Below this the stretch is noise; leave the line alone. */
     private const val RATIO_EPSILON = 1.02f
 
-    /** Line cap: one tatweel per ~12 characters, always at least one. */
-    private const val LINE_CAP_DIVISOR = 12
+    /** Hard ceiling on insertions per line, independent of how many words offer a join. */
+    private const val MAX_ROUNDS = 32
 
-    /** A tatweel advances roughly half an em; used to estimate how many inserts the ratio wants. */
-    private const val TATWEEL_LETTER_WIDTH = 0.5f
+    /** Advance model when no measurer is at hand: a tatweel is half an em. */
+    private const val TATWEEL_UNITS = 0.5f
+
+    /** Advance model when no measurer is at hand: a space is a third of an em. */
+    private const val SPACE_UNITS = 0.3f
 
     /**
      * Arabic letters that join only to the preceding letter (alef, dal, reh, waw and kin):
@@ -53,30 +57,42 @@ object Kashida {
     }
 
     /**
-     * Inserts tatweel into eligible joins of [line] so it stretches toward [targetWidthRatio]
-     * (desired/current width; > 1 means stretch). Conservative on purpose: at most one tatweel
-     * per word, words under [MIN_WORD_LETTERS] letters and ZWNJ compounds skipped, never at a
-     * line edge or beside a space, total capped at max(1, length/12). Deterministic — the same
-     * input always yields the same positions. Returns [line] unchanged when not RTL or when
-     * [targetWidthRatio] is at most 1.02.
+     * Stretches [line] toward [targetWidth] by inserting tatweel into eligible joins and
+     * re-measuring every candidate with [measure] — the layout engine's own measurer, so the
+     * width change is the one that will be drawn. The loop stops at [targetWidth] or at the
+     * quality ceilings (one tatweel per word, [MAX_ROUNDS] total). Returns [line] unchanged when
+     * it is not RTL or is already as wide as [targetWidth]. Deterministic — the same input and
+     * measurer always yield the same line.
      */
-    fun justifyWithKashida(line: String, targetWidthRatio: Float): String {
+    fun justifyToWidth(line: String, targetWidth: Float, measure: (String) -> Float): String {
+        if (!isRtlText(line)) return line
+        if (measure(line) >= targetWidth) return line
+        return stretchTo(line, targetWidth, measure)
+    }
+
+    /**
+     * Ratio form of [justifyToWidth]: [targetWidthRatio] is desired/current width (> 1 stretches).
+     * Pass [measure] to re-measure with the engine that will draw the line; when it is null a
+     * conservative advance model stands in (letters one em, tatweel half). Returns [line]
+     * unchanged when not RTL or when [targetWidthRatio] is at most 1.02.
+     */
+    fun justifyWithKashida(
+        line: String,
+        targetWidthRatio: Float,
+        measure: ((String) -> Float)? = null,
+    ): String {
         if (targetWidthRatio <= RATIO_EPSILON) return line
         if (!isRtlText(line)) return line
-        val slots = preferredSlots(line)
-        if (slots.isEmpty()) return line
-        val count = insertionCount(line, targetWidthRatio).coerceAtMost(slots.size)
-        if (count <= 0) return line
-        // Insert back to front so earlier indices stay valid.
-        val sb = StringBuilder(line)
-        for (i in pickEvenly(slots, count).sortedDescending()) sb.insert(i, TATWEEL)
-        return sb.toString()
+        val meter = measure ?: ::estimateWidth
+        val current = meter(line)
+        if (current <= 0f) return line
+        return stretchTo(line, current * targetWidthRatio, meter)
     }
 
     /**
      * Indices at which tatweel may be inserted (StringBuilder insert points) under the same
-     * eligibility rules as [justifyWithKashida], except the one-per-word policy — every legal
-     * join is listed. Empty when the line is not RTL. For tests and telemetry.
+     * eligibility rules as [justifyToWidth], except the one-per-word policy — every legal join
+     * is listed. Empty when the line is not RTL. For tests and telemetry.
      */
     fun stretchableSpans(line: String): List<Int> {
         if (!isRtlText(line)) return emptyList()
@@ -87,6 +103,29 @@ object Kashida {
     internal fun isArabicLetter(c: Char): Boolean {
         val code = c.code
         return (code in 0x0600..0x06FF || code in 0x0750..0x077F || code in 0x08A0..0x08FF) && c.isLetter()
+    }
+
+    /**
+     * The insert→measure→adjust loop: open the joins in a spatially even order, one tatweel at a
+     * time, and re-measure after each until [measure] sees [targetWidth] or the ceilings are met.
+     * Positions are tracked in the original string so earlier insertions never invalidate later
+     * ones.
+     */
+    private fun stretchTo(line: String, targetWidth: Float, measure: (String) -> Float): String {
+        val order = evenVisitOrder(preferredSlots(line))
+        if (order.isEmpty()) return line
+        val sb = StringBuilder(line)
+        val inserted = mutableListOf<Int>()
+        var i = 0
+        while (i < order.size && inserted.size < MAX_ROUNDS && measure(sb.toString()) < targetWidth) {
+            val orig = order[i]
+            var at = orig
+            for (done in inserted) if (done < orig) at++
+            sb.insert(at, TATWEEL)
+            inserted += orig
+            i++
+        }
+        return sb.toString()
     }
 
     private fun joinsForward(c: Char): Boolean =
@@ -135,16 +174,29 @@ object Kashida {
         else spans.minByOrNull { abs(it - (word.first + (word.second - word.first) / 2)) }
     }
 
-    private fun insertionCount(line: String, ratio: Float): Int {
-        val cap = maxOf(1, line.length / LINE_CAP_DIVISOR)
-        val letters = line.count { isArabicLetter(it) }
-        val demand = ((ratio - 1f) * letters / TATWEEL_LETTER_WIDTH).toInt().coerceAtLeast(1)
-        return minOf(demand, cap)
+    /**
+     * Visit order whose every prefix is spatially even: the middle slot first, then the medians of
+     * each half. An early stop therefore still spreads the stretch across the line instead of
+     * pouring it into the first words.
+     */
+    private fun evenVisitOrder(slots: List<Int>): List<Int> {
+        if (slots.size <= 2) return slots
+        val mid = slots.size / 2
+        return listOf(slots[mid]) +
+            evenVisitOrder(slots.subList(0, mid)) +
+            evenVisitOrder(slots.subList(mid + 1, slots.size))
     }
 
-    /** Deterministic even spread across [slots], preferring the middle when count is one. */
-    private fun pickEvenly(slots: List<Int>, count: Int): List<Int> {
-        if (count >= slots.size) return slots
-        return (0 until count).map { i -> slots[(i * slots.size + slots.size / 2) / count] }
+    /** Advance model when no measurer is at hand: letters one unit, tatweel half, spaces a third. */
+    private fun estimateWidth(s: String): Float {
+        var units = 0f
+        for (c in s) {
+            units += when {
+                c == TATWEEL -> TATWEEL_UNITS
+                c.isWhitespace() -> SPACE_UNITS
+                else -> 1f
+            }
+        }
+        return units
     }
 }
