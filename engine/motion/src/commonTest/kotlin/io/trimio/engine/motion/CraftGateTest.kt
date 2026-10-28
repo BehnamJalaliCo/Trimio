@@ -133,7 +133,7 @@ class CraftGateTest {
 
     @Test
     fun mapperCarriesTimesWordsAndEntry() {
-        val enter = TextAnimator(TextUnit.Word, UnitState(dy = 1f, opacity = 0f), at = 1f, duration = 0.4f, stagger = 0.1f)
+        val enter = TextAnimator(TextUnit.Word, UnitState(dy = 2f, opacity = 0f), at = 1f, duration = 0.4f, stagger = 0.1f)
         val c = composition(4f, text("one two three", start = 1f, end = 3.5f, size = 40f, animators = listOf(enter)))
         val timeline = CraftGate.map(c)
         val e = timeline.shots.flatMap { it.elements }.single()
@@ -142,7 +142,7 @@ class CraftGateTest {
         assertEquals(3.5f, e.disappearsAtSec, "end comes from the node window")
         assertEquals(3, e.textWordCount, "word count is real words: ${e.textWordCount}")
         assertEquals(40f, e.textHeightPx, "height is the type size: ${e.textHeightPx}")
-        assertEquals(0.7f, e.entrySec!!, "entry spans duration+stagger*(words-1): ${e.entrySec}")
+        assertEquals(0.6f, e.entrySec!!, "entry spans duration+stagger*(words-1): ${e.entrySec}")
         assertEquals("fade-rise", e.entryKind, "dy+opacity reads as fade-rise: ${e.entryKind}")
         assertEquals(1080f, e.shortSidePx, "short side of 1080x1920")
     }
