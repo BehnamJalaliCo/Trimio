@@ -58,6 +58,10 @@ data class UnitState(
 /**
  * Animates the units of a text node: unit i starts at `at + rank(i) * stagger` (or at `times[i]`
  * when given — word-synced captions), runs for [duration] with [ease].
+ *
+ * [jitter] and [easeVary] make the cascade organic instead of a metronome: each unit's step and
+ * ease-speed are spread by that fraction of the base, drawn from [seed] — same seed, same
+ * starts and landings, a new seed a new hand.
  */
 data class TextAnimator(
     val unit: TextUnit,
@@ -73,6 +77,10 @@ data class TextAnimator(
     /** Units travel behind their line's box (the classic mask rise). */
     val clipToLine: Boolean = false,
     val seed: Int = 3,
+    /** ±fraction of [stagger] per unit (0.3 = ±30% around the base step), from [seed]. */
+    val jitter: Float = 0f,
+    /** ±fraction of [duration] per unit, so units do not land in lockstep. */
+    val easeVary: Float = 0f,
 ) {
     fun startOf(index: Int, count: Int): Float {
         times?.let { ts -> return ts.getOrElse(index) { ts.lastOrNull() ?: at } }
@@ -83,12 +91,14 @@ data class TextAnimator(
             Order.EdgesIn -> minOf(index, count - 1 - index)
             Order.Random -> shuffled(count)[index]
         }
-        return at + rank * stagger
+        if (jitter == 0f) return at + rank * stagger
+        return at + rank * stagger * (1f + jitter * noise(rank))
     }
 
     fun stateAt(t: Float, index: Int, count: Int): UnitState {
         val s = startOf(index, count)
-        val raw = ((t - s) / duration).coerceIn(0f, 1f)
+        val span = if (easeVary == 0f) duration else duration * (1f + easeVary * noise(index + VARY_SALT))
+        val raw = ((t - s) / span.coerceAtLeast(MIN_DURATION)).coerceIn(0f, 1f)
         return when (shape) {
             Shape.In -> if (raw >= 1f) UnitState.REST else state.mix(ease.at(raw))
             Shape.Out -> if (raw <= 0f) UnitState.REST else state.mix(1f - ease.at(raw))
@@ -105,6 +115,18 @@ data class TextAnimator(
             val tmp = ranks[i]; ranks[i] = ranks[j]; ranks[j] = tmp
         }
         return ranks
+    }
+
+    /** Deterministic noise in −1..1 from [seed] and [key] — the organic cascade stays reproducible. */
+    private fun noise(key: Int): Float {
+        var r = seed * 1103515245 + key * 1103515245 + 12345
+        r = r * 1103515245 + 12345
+        return ((r ushr 8) and 0xFFFFFF) / 8388608f - 1f
+    }
+
+    private companion object {
+        const val VARY_SALT = 1000
+        const val MIN_DURATION = 0.001f
     }
 }
 
