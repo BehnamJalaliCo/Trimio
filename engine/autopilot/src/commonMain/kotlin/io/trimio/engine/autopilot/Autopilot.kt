@@ -186,7 +186,7 @@ class Autopilot(
         val marks = research(understanding, report, Glossary.read(request.prompt).sites.map { it.substringBefore('.') })
         val brandLibrary = if (marks.isEmpty()) brands else brands.withMarks(marks)
         // The creator's own media: what each one is (the eyes, or the rules), read once for every variation.
-        val persian = transcript.words.count { w -> w.text.any { it in '\u0600'.. '\u06FF' } } * 2 > transcript.words.size
+        val persian = transcript.words.count { w -> w.text.any { it in '؀'..'ۿ' } } * 2 > transcript.words.size
         val readings = AssetReader(eyes).read(request.assets, request.prompt, persian) { report += it }
         rest(eyes)
 
@@ -343,7 +343,7 @@ class Autopilot(
         )
         // The story path when a map is in hand ([DesignPass] → [StoryPlanner]); the rule plan is the
         // fallback when no map came — two ways through, never a broken run.
-        val planned = r.storyMap?.let { map -> storyPlan(map, output, ruled) } ?: ruled
+        val planned = storyPlan(r.storyMap, output, ruled)
         planned.notes.forEach(log)
         // The cue is composed to this edit; the score takes its grid, so hits snap to the music's beats.
         val music = MusicEdit.arrange(planned.music, edit, output, r.lines, r.understanding)
@@ -351,8 +351,7 @@ class Autopilot(
         val own = request.sourceTempo?.takeIf { music == null }
         // A talking head is told in cards over the speaker, never on full-frame stages ([Storyboard]);
         // a story map's treatments stand as designed — the cards would say them in their own tongue.
-        val boarded = Storyboard.wanted(request.prompt, request.footage != null) && r.storyMap == null
-        val told = if (boarded) Storyboard.board(planned.score, output, r.lines, r.understanding.lines, r.understanding.cta?.keyword, log) else planned.score
+        val told = if (toldInCards(r)) Storyboard.board(planned.score, output, r.lines, r.understanding.lines, r.understanding.cta?.keyword, log) else planned.score
         val base = own?.let { (bpm, first) -> told.copy(bpm = bpm, beatOffset = first) } ?: told
         own?.let { (bpm, _) -> log("music: the video's own, ${round1(bpm)} bpm (none added)") }
         val plan = planned.copy(score = MusicEdit.gridded(base, music))
@@ -406,17 +405,23 @@ class Autopilot(
     }
 
     /**
-     * The story path's plan: every beat of [map] earns one treatment and one reason ([DesignPass]),
-     * laid out in time ([StoryPlanner]) over [words]. The rule plan still dresses the piece (its look,
-     * captions and music) and carries its notes; its own scenes stand down for the story's.
+     * This seed's plan: the story map's when one is in hand — every beat earns one treatment and one
+     * reason ([DesignPass]), laid out in time ([StoryPlanner]) over [words]; else the rule planner's
+     * own ([Planner]). Either way the rule plan dresses the piece (its look, captions and music) and
+     * carries its notes; a map's scenes stand down for the story's.
      */
-    private fun storyPlan(map: StoryMap, words: List<Word>, ruled: Planner.Plan): Planner.Plan {
-        val design = DesignPass.design(map, words)
-        val story = StoryPlanner.plan(map, words, design)
-        val notes = ruled.notes + design.notes + story.notes +
-            "story: carries ${map.objects.joinToString().ifEmpty { "nothing" }}, never shows ${map.banned.joinToString().ifEmpty { "nothing" }}"
-        return ruled.copy(score = ruled.score.copy(scenes = story.score.scenes), notes = notes)
+    private fun storyPlan(map: StoryMap?, words: List<Word>, ruled: Planner.Plan): Planner.Plan {
+        val story = map ?: return ruled
+        val design = DesignPass.design(story, words)
+        val planned = StoryPlanner.plan(story, words, design)
+        val notes = ruled.notes + design.notes + planned.notes +
+            "story: carries ${story.objects.joinToString().ifEmpty { "nothing" }}, never shows ${story.banned.joinToString().ifEmpty { "nothing" }}"
+        return ruled.copy(score = ruled.score.copy(scenes = planned.score.scenes), notes = notes)
     }
+
+    /** Whether this piece is told in cards: a talking head with footage, and no story map to plan it. */
+    private fun toldInCards(r: Reading): Boolean =
+        Storyboard.wanted(r.request.prompt, r.request.footage != null) && r.storyMap == null
 
     /**
      * The narrative map the story path plans from: one the request carries (a creator's, or a
@@ -585,14 +590,14 @@ class Autopilot(
      */
     private fun real(word: String, lexicon: PersianSpelling, prompt: String): Boolean {
         val core = word.trim { !it.isLetterOrDigit() && it != '\u200C' }
-        if (core.none { it in '\u0600'.. '\u06FF' }) return true
+        if (core.none { it in '؀'..'ۿ' }) return true
         val said = prompt.replace("\u200C", "").split(Regex("[^\\p{L}\\p{N}]+")).toSet()
         return lexicon.count(core) > 0 || core.replace("\u200C", "") in said
     }
 
     /** A word said in Persian («تتر») respelled in Latin letters («Tether»): a translation, not a spelling fix. */
     private fun latinised(heard: String, fixed: String): Boolean =
-        heard.any { it in '\u0600'.. '\u06FF' } && fixed.none { it in '\u0600'.. '\u06FF' } && fixed.any { it.isLetter() }
+        heard.any { it in '؀'..'ۿ' } && fixed.none { it in '؀'..'ۿ' } && fixed.any { it.isLetter() }
 
     /**
      * The eyes after they looked: the director's own (its vision projector, about 1 GB, freed; the model stays) or a
