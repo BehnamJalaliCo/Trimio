@@ -210,14 +210,23 @@ object StyleBook {
         need(s.rhythm.stages.isNotEmpty() && s.rhythm.stages.keys.all { it in STAGES }, "stages ${s.rhythm.stages.keys}")
         need(s.rhythm.density in RHYTHM && s.rhythm.takeover in RHYTHM, "density/takeover out of range")
         need(s.motion.energy < 0f || s.motion.energy in 0f..1f, "energy ${s.motion.energy}")
-        val tex = l.texture
+        addAll(material(s))
+        need(s.fit.domains.isNotEmpty() && s.fit.moods.isNotEmpty(), "fits nothing")
+    }
+
+    /**
+     * What in [s]'s film material and token sheet falls outside the packs and the house bands: a
+     * texture or LUT the packs do not carry, a type scale that does not descend, units off band.
+     */
+    private fun material(s: StyleLanguage): List<String> = buildList {
+        fun need(ok: Boolean, what: String) { if (!ok) add("${s.id}: $what") }
+        val tex = s.look.texture
         need(tex == null || (tex.id in FilmTextures.overlays && tex.opacity in 0f..1f), "texture ${tex?.id}")
-        need(l.lut == null || l.lut in FilmTextures.luts, "lut ${l.lut}")
+        need(s.look.lut == null || s.look.lut in FilmTextures.luts, "lut ${s.look.lut}")
         val type = s.tokens.type
         need(type.ratio in TYPE_RATIO, "type ratio ${type.ratio}")
         need(type.display > type.title && type.title > type.caption && type.caption > type.label, "type steps ${type.display}/${type.title}/${type.caption}/${type.label}")
         need(s.tokens.spacing.unit in TOKEN_UNIT && s.tokens.radius.unit in TOKEN_UNIT, "spacing/radius unit ${s.tokens.spacing.unit}/${s.tokens.radius.unit}")
-        need(s.fit.domains.isNotEmpty() && s.fit.moods.isNotEmpty(), "fits nothing")
     }
 
     /** The compiler's stage for a graphic scene over footage: the canvas lit by the accent, heat and up colours. */
