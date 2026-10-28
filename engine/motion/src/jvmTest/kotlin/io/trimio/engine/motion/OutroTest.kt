@@ -21,7 +21,19 @@ class OutroTest {
     private val words = (0 until 12).map { i -> Word("کلمه$i", TimeRange(300L + i * 300L, 580L + i * 300L), language = Language.Persian) }
     private val lastWord = words.last().range.endMs / 1000f
 
-    private fun footage(root: Group): List<MediaNode> = root.children.filterIsInstance<MediaNode>()
+    /** Every media node in the tree - the compiler nests them under picture/finish groups. */
+    private fun footage(root: Group): List<MediaNode> {
+        val out = mutableListOf<MediaNode>()
+        fun walk(n: Node) {
+            when (n) {
+                is MediaNode -> out += n
+                is Group -> n.children.forEach(::walk)
+                else -> Unit
+            }
+        }
+        root.children.forEach(::walk)
+        return out
+    }
 
     @Test
     fun theSourceRunsOutSoTheLastFrameHolds() {
