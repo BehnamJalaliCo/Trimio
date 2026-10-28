@@ -122,6 +122,9 @@ class TransitionShadersTest {
     private val samplePoints = listOf(4 to 4, 16 to 16, 28 to 28, 16 to 4, 4 to 28)
     private val outgoing = Color(0xFFFF0000)
     private val incoming = Color(0xFF0000FF)
-    private const val SIZE = 32
-    private const val EPSILON = 0.02f
+
+    private companion object {
+        const val SIZE = 32
+        const val EPSILON = 0.02f
+    }
 }
