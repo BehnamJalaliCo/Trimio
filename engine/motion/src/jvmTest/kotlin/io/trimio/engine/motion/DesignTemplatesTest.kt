@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  * The designed template shelf's floors: registered and reachable, built readably in Persian and
  * English on a stage and over the speaker, gone by the end of the cue, every craft rule clean
  * (no linear motion, no unread flash-by, no opacity bounce, no uniform entry), timing inside the
- * designed bands (entry 200–350 ms, exit 65–75%), and enough variety between templates that the
+ * designed bands (entry 200-350 ms, exit 65-75%), and enough variety between templates that the
  * shelf does not read as one look in ten colours. Transition presets are designed, not random.
  */
 class DesignTemplatesTest {
@@ -26,7 +26,7 @@ class DesignTemplatesTest {
         val w = FamilyLab.W.toFloat()
         val h = FamilyLab.H.toFloat()
         val base = Cue(
-            at = 0.5f, out = 6f,
+            at = 0f, out = 5f,
             x = w / 2f, y = h * 0.35f, width = w * 0.82f, height = h * 0.18f,
             energy = energy, overMedia = over, rtl = rtl, seed = 5,
             variety = 7, frameWidth = w, frameHeight = h,
@@ -92,7 +92,6 @@ class DesignTemplatesTest {
             val comp = Composition(FamilyLab.W, FamilyLab.H, 30, cue.out + 0.5f, look.canvas, root)
             val result = CraftGate.audit(comp, hasAudio = built.sfx.isNotEmpty())
             for (f in result.findings) {
-                // A hook's punch flash is designed; film_silent only fires over 15 s.
                 if (f.rule == "film_silent") continue
                 problems += "${t.name} rtl=$rtl: ${f.rule} ${f.message}"
             }
@@ -102,8 +101,6 @@ class DesignTemplatesTest {
 
     @Test
     fun everyTemplateHasThreeLayersOfMotion() {
-        // Each template's entrance must combine travel + fade (the two outer layers); the trail
-        // is verified by the blur channel on the group transform.
         val problems = mutableListOf<String>()
         for (t in templates) {
             val cue = cueFor(t.name, rtl = true, over = false)
@@ -114,9 +111,9 @@ class DesignTemplatesTest {
                 continue
             }
             val tr = root.transform
-            val hasFade = tr.opacity.at(cue.at - 0.1f) < 0.5f && tr.opacity.at(cue.at + 0.5f) > 0.9f
-            val hasTravel = tr.x.at(cue.at - 0.05f) != tr.x.at(cue.at + 0.4f) || tr.y.at(cue.at - 0.05f) != tr.y.at(cue.at + 0.4f) ||
-                tr.scale.at(cue.at - 0.05f) != tr.scale.at(cue.at + 0.4f)
+            val hasFade = tr.opacity.at(cue.at - 0.01f) < 0.5f && tr.opacity.at(cue.at + 0.5f) > 0.9f
+            val hasTravel = tr.x.at(cue.at - 0.01f) != tr.x.at(cue.at + 0.4f) || tr.y.at(cue.at - 0.01f) != tr.y.at(cue.at + 0.4f) ||
+                tr.scale.at(cue.at - 0.01f) != tr.scale.at(cue.at + 0.4f)
             if (!hasFade) problems += "${t.name}: entrance has no overlapping fade"
             if (!hasTravel && t.name !in setOf("payoff", "stat-pulse")) problems += "${t.name}: entrance has no primary travel"
         }
@@ -125,8 +122,6 @@ class DesignTemplatesTest {
 
     @Test
     fun theShelfIsVariedNotOneLookInTenColours() {
-        // Every template must differ in at least two of: node count, presence of a camera move,
-        // presence of an overlay, sfx kind mix, preferred height band.
         val signatures = templates.map { t ->
             val cue = cueFor(t.name, rtl = true, over = false)
             val built = t.build(cue, Look.Noir, FamilyLab.fitter)
@@ -151,7 +146,6 @@ class DesignTemplatesTest {
     @Test
     fun transitionPresetsAreDesignedNotRandom() {
         assertTrue(TransitionPresets.all.size >= 7, "presets: ${TransitionPresets.all.keys}")
-        // Same preset, same cut time, same picture — no seed, no jitter.
         val look = Look.Noir
         val overlays1 = mutableListOf<Node>()
         val sfx1 = mutableListOf<io.trimio.engine.motion.recipe.Sfx>()
@@ -161,7 +155,6 @@ class DesignTemplatesTest {
         assertTrue(TransitionPresets.draw("whip", 2f, look, 1080f, 1920f, overlays2, sfx2))
         assertEquals(overlays1.size, overlays2.size, "same whip, same number of overlays")
         assertEquals(sfx1.size, sfx2.size, "same whip, same number of sounds")
-        // Every preset draws its picture and its sound within a second of the cut.
         for (name in listOf("whip", "whip-tight", "zoom-punch", "zoom-impact", "glitchlite-soft", "glitchlite-hard")) {
             val o = mutableListOf<Node>()
             val s = mutableListOf<io.trimio.engine.motion.recipe.Sfx>()
@@ -175,7 +168,6 @@ class DesignTemplatesTest {
 
     @Test
     fun transitionPresetsKeepTheDesignedBands() {
-        // Whip and zoom run 280–360 ms; glitch-lite bands live two frames (80–120 ms total).
         assertTrue(TransitionPresets.WhipRtl.span in 0.28f..0.36f, "whip span ${TransitionPresets.WhipRtl.span}")
         assertTrue(TransitionPresets.WhipTight.span in 0.28f..0.36f, "tight whip span ${TransitionPresets.WhipTight.span}")
         assertTrue(TransitionPresets.ZoomPunch.span in 0.28f..0.36f, "zoom span ${TransitionPresets.ZoomPunch.span}")
