@@ -104,7 +104,7 @@ class TransitionShadersTest {
     private fun sample(program: TransitionProgram, progress: Float, at: Pair<Int, Int> = 16 to 16): Color {
         val target = ImageBitmap(SIZE, SIZE)
         CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(target), Size(SIZE.toFloat(), SIZE.toFloat())) {
-            drawTransition(solid(OUTGOING), solid(INCOMING), program, progress)
+            drawTransition(solid(outgoing), solid(incoming), program, progress)
         }
         return target.toPixelMap()[at.first, at.second]
     }
@@ -120,8 +120,8 @@ class TransitionShadersTest {
     private fun near(a: Float, b: Float, message: String) = assertTrue(abs(a - b) < EPSILON, "$message ($a != $b)")
 
     private val samplePoints = listOf(4 to 4, 16 to 16, 28 to 28, 16 to 4, 4 to 28)
-    private val OUTGOING = Color(0xFFFF0000)
-    private val INCOMING = Color(0xFF0000FF)
-    private val SIZE = 32
-    private val EPSILON = 0.02f
+    private val outgoing = Color(0xFFFF0000)
+    private val incoming = Color(0xFF0000FF)
+    private const val SIZE = 32
+    private const val EPSILON = 0.02f
 }
