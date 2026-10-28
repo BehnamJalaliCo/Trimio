@@ -115,7 +115,7 @@ object CraftGate {
             is Group -> node.children.forEachIndexed { i, child ->
                 walk(child, from, to ?: windowEnd, shortSide, "$name[$i]", out)
             }
-            is TextNode -> out += textTimed(node, name, from, to, shortSide)
+            is TextNode -> out += textTimed(node, name, from, to)
             is CounterNode -> out += simpleTimed(node, name, from, to, "text", 1, node.type.size, shortSide)
             is ShapeNode -> out += simpleTimed(node, name, from, to, "graphic", null, null, shortSide)
             is VectorNode -> out += simpleTimed(node, name, from, to, "graphic", null, node.size, shortSide)
@@ -149,11 +149,11 @@ object CraftGate {
      * start times (word/line animators or word boxes); otherwise the node is one element and its
      * word count is the sum of its lines — the hold a reader needs for the whole block.
      */
-    private fun textTimed(node: TextNode, name: String, from: Float, to: Float?, shortSide: Float): List<Timed> {
+    private fun textTimed(node: TextNode, name: String, from: Float, to: Float?): List<Timed> {
         val counts = lineWordCounts(node.text)
         val height = node.type.size
         val motion = motionOf(node.transform, from, to)
-        val anim = textMotion(node, from, to)
+        val anim = textMotion(node)
         val entryKind = anim.entryKind ?: motion.entryKind
         val entrySec = anim.entrySec ?: motion.entrySec
         val exitSec = anim.exitSec ?: motion.exitSec
@@ -182,7 +182,7 @@ object CraftGate {
         val linear: Boolean,
     )
 
-    private fun textMotion(node: TextNode, from: Float, to: Float?): Motion {
+    private fun textMotion(node: TextNode): Motion {
         val ins = node.animators.filter { it.shape == Shape.In }
         val outs = node.animators.filter { it.shape == Shape.Out }
         val words = lineWordCounts(node.text).sum()
@@ -341,7 +341,7 @@ object CraftGate {
         val duration = composition.duration
         val sceneStarts = composition.root.children
             .filterIsInstance<Group>()
-            .mapNotNull { g -> SCENE_NAME.matchEntire(g.name)?.groupValues?.get(1)?.toFloatOrNull() to g.start }
+            .mapNotNull { g -> sceneName.matchEntire(g.name)?.groupValues?.get(1)?.toFloatOrNull() to g.start }
             .filter { it.first != null }
             .sortedBy { it.first }
             .map { maxOf(it.second, 0f) }
@@ -374,5 +374,5 @@ object CraftGate {
     private const val OvershootEps = 0.02f
     private const val LinearTol = 0.15f
     private const val ZWNJ = '\u200C'
-    private val SCENE_NAME = Regex("scene-(\\d+)")
+    private val sceneName = Regex("scene-(\\d+)")
 }
