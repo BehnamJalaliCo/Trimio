@@ -40,6 +40,17 @@ object CraftAudit {
 
     data class Timeline(val shots: List<Shot>, val hasAudio: Boolean = true, val durationSec: Float)
 
+    /**
+     * One piece's answer: what was judged and every rule it broke. A non-empty [findings] is a
+     * no-ship — integrators refuse the export rather than trade craft for a flattering score.
+     */
+    data class Result(val timeline: Timeline, val findings: List<Finding>) {
+        val ok: Boolean get() = findings.isEmpty()
+    }
+
+    /** [audit] wrapped as a [Result] so a gate can carry the timeline it judged. */
+    fun result(t: Timeline): Result = Result(t, audit(t))
+
     /** Every violated rule, ordered by [Finding.atSec] (null first) then rule id. */
     fun audit(t: Timeline): List<Finding> {
         val findings = mutableListOf<Finding>()
