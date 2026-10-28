@@ -173,7 +173,7 @@ class DesignTemplatesTest {
         assertTrue(TransitionPresets.ZoomPunch.span in 0.28f..0.36f, "zoom span ${TransitionPresets.ZoomPunch.span}")
         assertTrue(TransitionPresets.ZoomImpact.peakScale in 1.12f..1.22f, "zoom peak ${TransitionPresets.ZoomImpact.peakScale}")
         val g = TransitionPresets.GlitchLiteSoft
-        val total = g.bands * 0.012f * 2f + g.bandLife
+        val total = 2f * 0.012f + g.bandLife // max stagger (i % 3) * 0.012 + one band life
         assertTrue(total <= 0.12f, "glitch-lite burst $total exceeds 120 ms")
         assertTrue(g.bandLife <= 2f / 30f + 0.001f, "band life ${g.bandLife}")
     }
