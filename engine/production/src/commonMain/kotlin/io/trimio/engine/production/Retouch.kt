@@ -3,6 +3,7 @@ package io.trimio.engine.production
 import io.trimio.core.model.time.TimeRange
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
+import io.trimio.engine.assets.BeatGrid
 import io.trimio.engine.assets.MusicMood
 import io.trimio.engine.autopilot.Autopilot
 import io.trimio.engine.autopilot.Workbench
@@ -14,6 +15,7 @@ import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.style.StyleBook
+import kotlin.math.abs
 
 /**
  * Applies the creator's [EditOverrides] to the director's production: the words (their text and
@@ -27,7 +29,11 @@ import io.trimio.engine.motion.style.StyleBook
  * respected (the spelling gate warns, it does not rewrite).
  */
 object Retouch {
-    /** The furthest a cut moves to land on a beat (seconds). */
+    /**
+     * The furthest [Cuts.snap] nudges a cut onto a beat (seconds). The editor's own snap — the one
+     * [apply] runs whenever the music's grid is known — opens the window to [BeatGrid.halfBeat]:
+     * a cut lands on a beat, not merely near one.
+     */
     const val BEAT_SNAP = 0.08f
     const val MIN_MUSIC_DB = -32f
     const val MAX_MUSIC_DB = -6f
@@ -37,6 +43,9 @@ object Retouch {
 
     /** A beat without an energy of its own moves at this (the compiler's middle). */
     const val DEFAULT_ENERGY = 0.6f
+
+    /** A word's tail is never cut into by a beat snap: it keeps this much after it. */
+    private const val WORD_TAIL_S = 0.03f
 
     /**
      * The edit with the overrides applied, and what the gates said about it. [mixed] is false when
@@ -61,8 +70,9 @@ object Retouch {
         val mood = mood(base, o)
         var edit = Cuts.of(base.edit, bench, o)
         var arrangement = bench.arrange(mood, edit, words)
-        if (o.beatCuts == true && arrangement != null) {
-            edit = Cuts.snap(edit, arrangement.grid, words.words)
+        val onGrid = snapped(edit, arrangement?.grid, words.words, o.beatCuts)
+        if (onGrid !== edit) {
+            edit = onGrid
             arrangement = bench.arrange(mood, edit, words)
         }
         val planned = score(base, bench, o, words)
@@ -141,6 +151,47 @@ object Retouch {
         val hits = o.hits.filter { it in words.words.indices && words.words[it].text.isNotBlank() }
             .map { Sfx(edit.toOutput(words.words[it].range.startMs / MS), SfxKind.Hit, HIT_GAIN) }
         return (kept + hits).sortedBy { it.at }
+    }
+
+    // ------------------------------------------------------------------------------ beat snap
+
+    /**
+     * The edit with its cuts on the music's grid: the real beat-snap — on whenever a grid is known
+     * ([beatCuts] only turns it off), in a [BeatGrid.halfBeat] window. An animation's landing snaps
+     * the same way at compile time ([BeatGrid.snapLanding]).
+     */
+    internal fun snapped(edit: EditPlan, grid: BeatGrid?, words: List<Word>, beatCuts: Boolean?): EditPlan =
+        if (beatCuts == false || grid == null) edit else snapCuts(edit, grid, words)
+
+    /**
+     * Every cut between two body pieces moved onto the nearest beat of [grid]: the window is
+     * [BeatGrid.halfBeat] — a cut lands on a beat, not merely near one — and the outgoing piece
+     * runs on into the pause it was cut from, never onto a word in the gap (a deleted word stays
+     * deleted) and never into its own last word. The pieces after it move with it.
+     */
+    internal fun snapCuts(edit: EditPlan, grid: BeatGrid, words: List<Word>): EditPlan {
+        val body = edit.segments
+        if (body.size < 2) return edit
+        val window = grid.halfBeat
+        val out = mutableListOf<EditPlan.Segment>()
+        var at = body.first().outStart
+        for ((k, s) in body.withIndex()) {
+            var end = s.sourceEnd
+            val next = body.getOrNull(k + 1)
+            if (next != null) {
+                val t = at + s.length
+                val d = grid.nearestBeat(t.toDouble()) - t
+                val lastWord = words.filter { it.range.startMs / MS in s.sourceStart..<s.sourceEnd }.maxOfOrNull { it.range.endMs / MS } ?: s.sourceStart
+                val blocked = words.filter { it.range.startMs / MS in s.sourceEnd..<next.sourceStart }.minOfOrNull { it.range.startMs / MS } ?: next.sourceStart
+                val longest = maxOf(s.sourceEnd, blocked)
+                val shortest = minOf(s.sourceEnd, lastWord + WORD_TAIL_S)
+                if (abs(d) <= window) end = (s.sourceEnd + d.toFloat()).coerceIn(shortest, longest)
+            }
+            out += EditPlan.Segment(s.sourceStart, end, at)
+            at += end - s.sourceStart
+        }
+        val plan = EditPlan(out, edit.opening)
+        return edit.outro?.let { o -> EditPlan(out, edit.opening, o.copy(sourceStart = out.last().sourceEnd)) } ?: plan
     }
 
     // ------------------------------------------------------------------ score
