@@ -2,7 +2,10 @@ package io.trimio.engine.autopilot
 
 import io.trimio.core.model.audio.PcmAudio
 import io.trimio.engine.assets.MusicMood
+import io.trimio.engine.assets.SfxPalette
 import io.trimio.engine.autopilot.judges.SoundJudge
+import io.trimio.engine.motion.recipe.Sfx
+import io.trimio.engine.motion.recipe.SfxKind
 import io.trimio.engine.motion.score.EditPlan
 import kotlin.math.abs
 import kotlin.math.log10
@@ -116,6 +119,46 @@ class SoundtrackTest {
         val end = db(out, edit.duration - 0.1f, edit.duration)
         assertTrue(carried > db(out, 0.5f, 1.5f) - 3f, "the bed carries into the hold: $carried")
         assertTrue(end < carried - 15f, "and fades out by the end: $end")
+    }
+
+    @Test
+    fun aMotionWhooshPeaksExactlyOnItsLanding() {
+        val mix = FloatArray(3 * rate)
+        val landing = 1.5f
+        val cue = Sfx(landing, SfxKind.Whoosh, gain = 1f)
+        soundtrack.addCues(
+            mix, listOf(cue), voicePeak = 1f, palette = SfxPalette.Punchy, words = emptyList(),
+            motions = mapOf(cue to Motion(moveS = 0.5f, speed = 0.9f)),
+        )
+        // The swell's peak (10 ms window) sits on the landing: the whoosh is the move arriving.
+        val w = rate / 100
+        var best = 0
+        var bestEnergy = 0.0
+        for (i in (0.9f * rate).toInt() until (1.7f * rate).toInt() - w) {
+            val e = (i until i + w).sumOf { (mix[it] * mix[it]).toDouble() }
+            if (e > bestEnergy) {
+                bestEnergy = e
+                best = i
+            }
+        }
+        val peakAt = (best + w / 2f) / rate
+        assertTrue(abs(peakAt - landing) < 0.04f, "the whoosh peaks at $peakAt s, the landing is $landing s")
+    }
+
+    @Test
+    fun aWhooshFollowsItsMovesSpeed() {
+        fun render(speed: Float): FloatArray {
+            val mix = FloatArray(3 * rate)
+            val cue = Sfx(1.5f, SfxKind.Whoosh, gain = 1f)
+            soundtrack.addCues(
+                mix, listOf(cue), voicePeak = 1f, palette = SfxPalette.Punchy, words = emptyList(),
+                motions = mapOf(cue to Motion(0.5f, speed)),
+            )
+            return mix
+        }
+        val fast = db(render(0.95f), 1.1f, 1.45f)
+        val slow = db(render(0.15f), 1.1f, 1.45f)
+        assertTrue(fast > slow + 4f, "the faster move is hotter: $fast dB vs $slow dB")
     }
 
     private fun db(x: FloatArray, a: Float, b: Float): Float {
