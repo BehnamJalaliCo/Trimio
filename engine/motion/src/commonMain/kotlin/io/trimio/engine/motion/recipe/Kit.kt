@@ -415,37 +415,101 @@ object Kit {
         val travel = minOf(box.width * TRAVEL_SHARE, TRAVEL_MAX)
         return when (move) {
             Move.Rise -> base.copy(
-                y = cy.anim + Anim.Anticipate(anim(lift, at) { by(0f, enter, Easing.ExpoOut); hold(exitAt); by(-lift * RISE_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                y = cy.anim + Anim.Anticipate(
+                    anim(lift, at) {
+                        by(0f, enter, Easing.ExpoOut)
+                        hold(exitAt)
+                        by(-lift * RISE_EXIT, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
                 blur = trail(at, enter, exitAt),
             ) to null
             Move.Pop -> base.copy(
-                scale = Anim.Anticipate(anim(POP_FROM, at) { by(1f, enter * POP_SPAN, Easing.Spring(POP_DAMPING, POP_FREQUENCY)); hold(exitAt); by(POP_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                scale = Anim.Anticipate(
+                    anim(POP_FROM, at) {
+                        by(1f, enter * POP_SPAN, Easing.Spring(POP_DAMPING, POP_FREQUENCY))
+                        hold(exitAt)
+                        by(POP_EXIT, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
                 blur = trail(at, enter, exitAt, peak = TRAIL_BLUR * POP_TRAIL),
             ) to null
             Move.Slide -> base.copy(
-                x = cx.anim + Anim.Anticipate(anim(-d * travel, at) { by(0f, enter, look.settle.takeIf { it != Easing.SineInOut } ?: Easing.ExpoOut); hold(exitAt); by(d * travel * SLIDE_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                x = cx.anim + Anim.Anticipate(
+                    anim(-d * travel, at) {
+                        by(0f, enter, look.settle.takeIf { it != Easing.SineInOut } ?: Easing.ExpoOut)
+                        hold(exitAt)
+                        by(d * travel * SLIDE_EXIT, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
                 blur = trail(at, enter, exitAt),
             ) to null
             Move.Wipe -> base.copy(
                 opacity = anim(1f, exitAt) { by(0f, EXIT, Easing.Exit) },
-                scale = Anim.Anticipate(anim(WIPE_SCALE, at) { by(1f, enter, Easing.ExpoOut); hold(exitAt); by(WIPE_SCALE_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                scale = Anim.Anticipate(
+                    anim(WIPE_SCALE, at) {
+                        by(1f, enter, Easing.ExpoOut)
+                        hold(exitAt)
+                        by(WIPE_SCALE_EXIT, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
             ) to wipe(b, at, enter, exitAt, d)
             Move.Flip -> base.copy(
-                rotationX = Anim.Anticipate(anim(-FLIP_FROM, at) { by(0f, enter * FLIP_SPAN, Easing.Spring(FLIP_DAMPING, FLIP_FREQUENCY)); hold(exitAt); by(FLIP_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                rotationX = Anim.Anticipate(
+                    anim(-FLIP_FROM, at) {
+                        by(0f, enter * FLIP_SPAN, Easing.Spring(FLIP_DAMPING, FLIP_FREQUENCY))
+                        hold(exitAt)
+                        by(FLIP_EXIT, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
                 blur = trail(at, enter, exitAt),
                 perspective = FLIP_PERSPECTIVE,
             ) to null
             Move.Focus -> base.copy(
-                blur = Anim.Anticipate(anim(FOCUS_BLUR, at) { by(0f, enter * FOCUS_SPAN, Easing.ExpoOut); hold(exitAt); by(EXIT_BLUR, EXIT, Easing.Exit) }, ANTICIPATE),
-                scale = Anim.Follow(anim(FOCUS_SCALE, at) { by(1f, enter * FOCUS_SPAN, Easing.ExpoOut); hold(exitAt); by(FOCUS_SCALE_EXIT, EXIT, Easing.Exit) }, FOLLOW_LAG, FOLLOW_DAMP),
+                blur = Anim.Anticipate(
+                    anim(FOCUS_BLUR, at) {
+                        by(0f, enter * FOCUS_SPAN, Easing.ExpoOut)
+                        hold(exitAt)
+                        by(EXIT_BLUR, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
+                scale = Anim.Follow(
+                    anim(FOCUS_SCALE, at) {
+                        by(1f, enter * FOCUS_SPAN, Easing.ExpoOut)
+                        hold(exitAt)
+                        by(FOCUS_SCALE_EXIT, EXIT, Easing.Exit)
+                    },
+                    FOLLOW_LAG,
+                    FOLLOW_DAMP,
+                ),
             ) to null
             Move.Drop -> base.copy(
-                y = cy.anim + Anim.Anticipate(anim(-lift * DROP_FROM, at) { by(0f, enter, Easing.Spring(DROP_DAMPING, DROP_FREQUENCY)); hold(exitAt); by(lift * DROP_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                y = cy.anim + Anim.Anticipate(
+                    anim(-lift * DROP_FROM, at) {
+                        by(0f, enter, Easing.Spring(DROP_DAMPING, DROP_FREQUENCY))
+                        hold(exitAt)
+                        by(lift * DROP_EXIT, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
                 blur = trail(at, enter, exitAt),
             ) to null
             Move.Unfold -> base.copy(
                 y = (box.top).anim, anchorY = (box.top - b.top) / b.height,
-                scaleY = Anim.Anticipate(anim(UNFOLD_FROM, at) { by(1f, enter, Easing.ExpoOut); hold(exitAt); by(UNFOLD_FROM, EXIT, Easing.Exit) }, ANTICIPATE),
+                scaleY = Anim.Anticipate(
+                    anim(UNFOLD_FROM, at) {
+                        by(1f, enter, Easing.ExpoOut)
+                        hold(exitAt)
+                        by(UNFOLD_FROM, EXIT, Easing.Exit)
+                    },
+                    ANTICIPATE,
+                ),
                 blur = trail(at, enter, exitAt, peak = TRAIL_BLUR * UNFOLD_TRAIL),
             ) to null
         }
@@ -493,12 +557,23 @@ object Kit {
         val t = Transform(x = cx.anim, y = cy.anim, opacity = fade)
         val small = minOf(box.height * 0.5f, ITEM_MAX)
         val tr = when (move) {
-            Move.Rise, Move.Wipe, Move.Unfold -> t.copy(y = cy.anim + Anim.Anticipate(Anim.tween(small, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
-            Move.Pop -> t.copy(scale = Anim.Anticipate(Anim.tween(0.5f, 1f, at, at + ITEM, Easing.Spring(POP_DAMPING, POP_FREQUENCY)), ANTICIPATE))
-            Move.Slide -> t.copy(x = cx.anim + Anim.Anticipate(Anim.tween(-dir * small * 1.6f, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
-            Move.Flip -> t.copy(rotationX = Anim.Anticipate(Anim.tween(-80f, 0f, at, at + ITEM * FLIP_SPAN, Easing.Spring(FLIP_DAMPING, FLIP_FREQUENCY)), ANTICIPATE))
-            Move.Focus -> t.copy(blur = Anim.Anticipate(Anim.tween(10f, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
-            Move.Drop -> t.copy(y = cy.anim + Anim.Anticipate(Anim.tween(-small * 1.4f, 0f, at, at + ITEM, Easing.Spring(DROP_DAMPING, DROP_FREQUENCY)), ANTICIPATE))
+            Move.Rise, Move.Wipe, Move.Unfold ->
+                t.copy(y = cy.anim + Anim.Anticipate(Anim.tween(small, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
+            Move.Pop ->
+                t.copy(scale = Anim.Anticipate(Anim.tween(0.5f, 1f, at, at + ITEM, Easing.Spring(POP_DAMPING, POP_FREQUENCY)), ANTICIPATE))
+            Move.Slide ->
+                t.copy(x = cx.anim + Anim.Anticipate(Anim.tween(-dir * small * 1.6f, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
+            Move.Flip ->
+                t.copy(
+                    rotationX = Anim.Anticipate(
+                        Anim.tween(-80f, 0f, at, at + ITEM * FLIP_SPAN, Easing.Spring(FLIP_DAMPING, FLIP_FREQUENCY)),
+                        ANTICIPATE,
+                    ),
+                )
+            Move.Focus ->
+                t.copy(blur = Anim.Anticipate(Anim.tween(10f, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
+            Move.Drop ->
+                t.copy(y = cy.anim + Anim.Anticipate(Anim.tween(-small * 1.4f, 0f, at, at + ITEM, Easing.Spring(DROP_DAMPING, DROP_FREQUENCY)), ANTICIPATE))
         }
         val inner = Group(children, Transform(x = (-b.left).anim, y = (-b.top).anim, anchorX = 0f, anchorY = 0f), name = "$name-body")
         return Group(listOf(inner), transform = tr, width = b.width, height = b.height, start = at - 0.02f, name = name)
