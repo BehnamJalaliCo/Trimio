@@ -34,8 +34,8 @@ class CraftWordStartsTest {
         assertEquals(spoken[1] - Craft.LEAD + 0.2f, starts[3], TOL, "the tail continues at the stagger cadence after the last spoken word")
     }
 
-    private val AT = 1.0f
-    private val TOL = 1e-4f
+    private const val AT = 1.0f
+    private const val TOL = 1e-4f
 
     private fun cue(wordTimes: List<Float>?) = Cue(
         text = "یک دو سه",
