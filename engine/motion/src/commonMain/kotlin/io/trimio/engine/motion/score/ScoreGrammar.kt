@@ -191,11 +191,98 @@ object ScoreGrammar {
     """.trimIndent()
 
     /**
+     * The story map behind a score: the narrative beats a local model writes before any picture is
+     * chosen — setup, turn, payoff and callback, each with the claim it makes and the reason it
+     * earns its place — plus the object chain carried across them and the banned list nothing may
+     * show (the spec-first contract). [StoryMap] is the model this describes.
+     */
+    val storyGbnf: String = """
+        root ::= ws story ws
+
+        ws ::= [ \t\n\r]*
+
+        story ::= "{" ws story_pairs? ws "}"
+        story_pairs ::= story_pair ("," ws story_pair)*
+        story_pair ::=
+            "\"beats\"" ws ":" ws beats
+          | "\"objects\"" ws ":" ws strings
+          | "\"banned\"" ws ":" ws strings
+
+        beats ::= "[" ws (beat ("," ws beat)*)? ws "]"
+        beat ::= "{" ws beat_pairs? ws "}"
+        beat_pairs ::= beat_pair ("," ws beat_pair)*
+        beat_pair ::=
+            "\"kind\"" ws ":" ws kind
+          | "\"from\"" ws ":" ws number
+          | "\"until\"" ws ":" ws number
+          | "\"claim\"" ws ":" ws string
+          | "\"rationale\"" ws ":" ws string
+          | "\"energy\"" ws ":" ws number
+
+        kind ::= "\"setup\"" | "\"turn\"" | "\"payoff\"" | "\"callback\""
+
+        strings ::= "[" ws (string ("," ws string)*)? ws "]"
+
+        string ::= "\"" char* "\""
+        char ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [a-fA-F0-9] [a-fA-F0-9] [a-fA-F0-9] [a-fA-F0-9])
+
+        number ::= ("-"? ([0-9] | [1-9] [0-9]*)) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
+    """.trimIndent()
+
+    /** The same contract as a draft-07 JSON Schema, for servers that validate instead of decoding. */
+    val storyJsonSchema: String = """
+        {
+          "${'$'}schema": "http://json-schema.org/draft-07/schema#",
+          "title": "StoryMap",
+          "description": "The narrative beats behind a score; every field is optional.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "beats": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": { "type": "string", "enum": ["setup", "turn", "payoff", "callback"] },
+                  "from": { "type": "integer" },
+                  "until": { "type": "integer" },
+                  "claim": { "type": "string" },
+                  "rationale": { "type": "string" },
+                  "energy": { "type": "number" }
+                }
+              }
+            },
+            "objects": { "type": "array", "items": { "type": "string" } },
+            "banned": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+    """.trimIndent()
+
+    /**
+     * A score carrying only its top beats (the spec-first path: the model writes the score of the
+     * moments it ranked highest). The beat shape is the score's own, capped at [maxBeats].
+     */
+    fun topBeatsJsonSchema(maxBeats: Int): String = jsonSchema
+        .replace(
+            """"beats": { "type": "array", "items": { "${'$'}ref": "#/definitions/beatScore" } }""",
+            """"beats": { "type": "array", "maxItems": $maxBeats, "items": { "${'$'}ref": "#/definitions/beatScore" } }""",
+        )
+        .replace(""""title": "Score"""", """"title": "ScoreTop$maxBeats"""")
+
+    /** The same cap for constrained decoding: the model may write at most [maxBeats] beats. */
+    fun topBeatsGbnf(maxBeats: Int): String = gbnf.replace(
+        """(beat ("," ws beat)*)?""",
+        """(beat ("," ws beat){0," + (maxBeats - 1).coerceAtLeast(0) + "})?""",
+    )
+
+    /**
      * Cleans model output down to the JSON object [Score.parse] reads: code fences, the prose
      * around the object, curly quotes and Persian digits JSON cannot parse, commas left before a
      * closer. Quote and comma fixes only fire outside a string — curly quotes inside one are
      * speech and a comma there is content — so the object survives whole; Persian digits go Latin
-     * across the object so numeric fields always read as numbers.
+     * across the object so numeric fields always read as numbers. The story map and the top-beats
+     * score are the same kind of object and clean up through here too.
      */
     fun repair(raw: String): String {
         val text = stripFences(raw)
