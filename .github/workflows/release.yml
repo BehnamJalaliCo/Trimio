@@ -96,7 +96,10 @@ jobs:
           CODE: ${{ needs.version.outputs.code }}
         run: |
           ./gradlew :androidApp:assemblePlayRelease :androidApp:bundlePlayRelease :androidApp:bundleBazaarRelease :androidApp:assembleBazaarRelease \
-            -Ptrimio.versionName="$VERSION" -Ptrimio.versionCode="$CODE" -Ptrimio.bazaarRsaKey="$BAZAAR_RSA_KEY"
+            -Ptrimio.versionName="$VERSION" -Ptrimio.versionCode="$CODE" -Ptrimio.bazaarRsaKey="$BAZAAR_RSA_KEY" 2>&1 | tee /tmp/android.log
+          status=${PIPESTATUS[0]}
+          grep -E "^(e: |FAILURE:|What went wrong|Missing class|\* What went wrong|\* Try:|Caused by)" /tmp/android.log | head -25 | sed 's/^/::error title=android::/'
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
           mkdir -p dist
           cp androidApp/build/outputs/apk/play/release/*.apk "dist/trimio-$VERSION.apk"
           cp androidApp/build/outputs/bundle/playRelease/*.aab "dist/trimio-$VERSION-play.aab"
