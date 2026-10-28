@@ -144,6 +144,6 @@ internal object Contrast {
         return against to hi
     }
 
-    private const val MARGIN = 1.15f
+    private const val MARGIN = 1.3f
     private const val BISECT = 14
 }
