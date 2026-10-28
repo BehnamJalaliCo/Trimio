@@ -420,10 +420,10 @@ object DesignTemplates {
                     x = cue.x.anim, y = (cue.y + f.height * 0.62f).anim,
                     scaleX = Anim.tween(0f, 1f, keyAt + entry * 0.5f, keyAt + entry * 1.5f, Easing.ExpoOut),
                 ),
-                name = "keyword-underline",
+                start = at, end = cue.out + 0.02f, name = "keyword-underline",
             )
             return Built(
-                listOf(Group(listOf(node, underline), name = name)),
+                listOf(Group(listOf(node, underline), start = at - 0.05f, end = cue.out + 0.02f, name = name)),
                 sfx = listOf(Sfx(keyAt + Craft.LEAD, SfxKind.Pop, 0.55f)),
             )
         }
@@ -476,7 +476,7 @@ object DesignTemplates {
                             FOLLOW_LAG, FOLLOW_DAMP,
                         ),
                     ),
-                    name = "word-card-$i",
+                    start = t0 - 0.05f, end = cue.out + 0.02f, name = "word-card-$i",
                 )
                 nodes += block
             }
@@ -694,11 +694,13 @@ object DesignTemplates {
                 val v = values[i]
                 val bh = cue.height * 0.82f * v / maxV
                 val t0 = at + i * STAGGER_SOFT
+                // Each bar's grow runs a slightly different length so no two share one entry.
+                val grow = entry * (2.0f + 0.15f * i)
                 val x = cue.x - cue.width / 2f + bw / 2f + i * (bw + gap)
                 val isBest = i == best
                 val color = if (isBest) look.accent else look.ink.copy(alpha = 0.82f)
                 nodes += ShapeNode(
-                    ShapeSpec.Rect(bw.anim, Anim.tween(0f, bh, t0, t0 + entry * 2.2f, SpringPremium), (bw * 0.14f * look.roundness).anim),
+                    ShapeSpec.Rect(bw.anim, Anim.tween(0f, bh, t0, t0 + grow, SpringPremium), (bw * 0.14f * look.roundness).anim),
                     fill = color.fill(),
                     transform = Transform(x = x.anim, y = base.anim, anchorY = 1f),
                     name = "bar-$i",
@@ -709,10 +711,10 @@ object DesignTemplates {
                         fill = Fill.Radial(listOf(look.accent.copy(alpha = 0.55f), look.accent.copy(alpha = 0.18f), Color.Transparent)),
                         transform = Transform(
                             x = x.anim,
-                            y = base.anim + Anim.tween(0f, -bh, t0, t0 + entry * 2.2f, SpringPremium),
-                            opacity = anim(0f, t0) { by(1f, entry * 0.4f); hold(t0 + entry * 2.2f); by(0f, 0.4f) },
+                            y = base.anim + Anim.tween(0f, -bh, t0, t0 + grow, SpringPremium),
+                            opacity = anim(0f, t0) { by(1f, entry * 0.4f); hold(t0 + grow); by(0f, 0.4f) },
                         ),
-                        start = t0, end = t0 + entry * 2.6f + 0.4f, name = "bar-head",
+                        start = t0, end = t0 + grow + 0.4f, name = "bar-head",
                     )
                 }
                 val label = labels.getOrNull(i)
