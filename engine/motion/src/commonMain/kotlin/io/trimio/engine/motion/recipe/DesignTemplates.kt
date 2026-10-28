@@ -342,7 +342,8 @@ object DesignTemplates {
             }
             val travel = Anim.tween(0f, 0f, at, at + entry, Easing.ExpoOut)
             return Built(listOf(staged(cue, entry, travel, nodes, name, at, trailPeak = 0.6f)), camera = listOf(Craft.punch(at + entry * 0.8f, 0.03f + 0.025f * cue.energy)), sfx =
-                listOf(Sfx(cue.at, SfxKind.Hit, 0.7f), Sfx(at + entry * 0.9f, SfxKind.Shimmer, 0.35f)))
+                listOf(Sfx(cue.at, SfxKind.Hit, 0.7f), Sfx(at + entry * 0.9f, SfxKind.Shimmer, 0.35f)),
+                box = Box.around(cue.x, cue.y, cue.width * 0.95f, cue.height))
         }
     }
 
@@ -445,7 +446,7 @@ object DesignTemplates {
                 }
                 val label = labels.getOrNull(i)
                 if (label != null) {
-                    val lf = fit.fit(label, look.body, minOf(bw * 0.28f, cue.width * Craft.MIN_LABEL), bw * 0.95f, cue.height * 0.12f, maxLines = 1)
+                    val lf = fit.fit(label, look.body, maxOf(bw * 0.28f, cue.width * Craft.MIN_LABEL), bw * 0.95f, cue.height * 0.12f, maxLines = 1)
                     nodes += TextNode(label, lf.type, Craft.secondary(cue, look).fill(), rtl = cue.rtl, shadow = Craft.shadow(cue, look, lf.type.size), animators =
                         listOf(TextAnimator(TextUnit.All, UnitState(dy = 0.25f, opacity = 0f), at = t0 + 0.1f, duration = entry * 1.2f, ease = Easing.ExpoOut)),
                         transform = Transform(x = x.anim, y = (base + cue.height * 0.08f).anim), name = "bar-label-$i")
