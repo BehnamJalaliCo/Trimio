@@ -173,19 +173,20 @@ class RetouchTest {
     fun cutsMoveOntoTheBeat() {
         val words = bench.transcript.words
         val join = base.edit.segments.first().outEnd
-        // A beat 50 ms after the cut: the cut moves onto it, and the pieces after it follow.
+        // The real beat-snap opens the window to half a beat: a cut lands on a beat, not merely
+        // near one. A beat 50 ms after the cut takes it, and the pieces after it follow.
         val near = io.trimio.engine.assets.BeatGrid(60.0, offset = join + 0.05)
-        val snapped = Cuts.snap(base.edit, near, words)
+        val snapped = Retouch.snapCuts(base.edit, near, words)
         assertTrue(abs(snapped.segments.first().outEnd - (join + 0.05f)) < 0.002f, "${snapped.segments}")
         assertEquals(snapped.segments.first().outEnd, snapped.segments[1].outStart)
         assertEquals(base.edit.segments[1].length, snapped.segments[1].length)
-        // A beat 200 ms away is too far: the cut stays where the director put it.
+        // At 60 BPM half a beat is 500 ms: a beat 200 ms away is well inside the window.
         val far = io.trimio.engine.assets.BeatGrid(60.0, offset = join + 0.2)
-        assertEquals(join, Cuts.snap(base.edit, far, words).segments.first().outEnd)
+        assertTrue(abs(Retouch.snapCuts(base.edit, far, words).segments.first().outEnd - (join + 0.2f)) < 0.002f, "the cut moves onto the beat")
         // Never into the last word: a beat before the word's end shortens the piece only to just after it.
         val early = io.trimio.engine.assets.BeatGrid(60.0, offset = join - 0.075)
         val lastWord = words.filter { it.range.startMs / 1000f < base.edit.segments.first().sourceEnd }.maxOf { it.range.endMs / 1000f }
-        assertTrue(Cuts.snap(base.edit, early, words).segments.first().sourceEnd >= lastWord)
+        assertTrue(Retouch.snapCuts(base.edit, early, words).segments.first().sourceEnd >= lastWord)
         // Through the engine: on the arrangement's grid.
         val on = apply(EditChange.BeatCuts(true))
         assertTrue(on.compiled.composition.duration > 0f)
