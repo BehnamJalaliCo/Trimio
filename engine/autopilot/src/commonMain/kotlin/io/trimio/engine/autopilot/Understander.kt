@@ -1,18 +1,23 @@
 package io.trimio.engine.autopilot
 
 import io.trimio.core.model.transcript.Transcript
+import io.trimio.core.model.transcript.Word
 import io.trimio.engine.llm.ChatMessage
 import io.trimio.engine.llm.ChatRole
 import io.trimio.engine.llm.GenerationRequest
 import io.trimio.engine.llm.LanguageModel
 import io.trimio.engine.llm.generateStructured
+import io.trimio.engine.motion.score.ScoreGrammar
+import io.trimio.engine.motion.score.StoryMap
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 
 /**
@@ -84,6 +89,33 @@ class Understander(private val model: LanguageModel) {
         return sanitize(g.copy(lines = lines.indices.map { reads[it] ?: LineRead(show = "none") }), transcript.words.size, lines.size)
     }
 
+    /**
+     * The narrative map behind the edit ([StoryMap]): the beats the story runs through — setup, turn,
+     * payoff and callback — each with the claim it makes and the reason it earns its place, the
+     * objects carried across them and what no beat may show. Written before any picture is chosen,
+     * against [ScoreGrammar.storyJsonSchema]; the story path plans from it ([DesignPass],
+     * [StoryPlanner]) and the rule planner plans without it.
+     */
+    suspend fun story(
+        words: List<Word>,
+        prompt: String,
+        seed: Int = 0,
+        temperature: Float = 0.3f,
+    ): StoryMap = StoryMap.sanitize(
+        model.generateStructured(
+            GenerationRequest(
+                system = STORY_SYSTEM,
+                messages = listOf(ChatMessage(ChatRole.User, storyMessage(words, prompt))),
+                schema = storySchema,
+                maxTokens = if (model.isLocal) STORY_TOKENS else CLOUD_STORY_TOKENS,
+                temperature = temperature,
+                seed = seed,
+            ),
+            StoryMap.serializer(),
+        ),
+        words.size,
+    )
+
     /** How much line [k] needs the model: a figure, a name, the ask, or a graphic the rules would show. */
     private fun weight(k: Int, transcript: Transcript, lines: List<Lines.Line>, rules: List<LineRead>): Int {
         val texts = transcript.words.subList(lines[k].first, lines[k].last + 1).map { it.text }
@@ -129,6 +161,21 @@ class Understander(private val model: LanguageModel) {
                 "each read is about its own LINE only, never about the others. In each read, \"the LINE\" means that read's line.",
         )
 
+        /**
+         * The story map's own question: the narrative beats behind the edit, written before any
+         * picture is chosen — what the story does and why each doing earns its place.
+         */
+        val STORY_SYSTEM = """
+            You are the story editor of a studio that turns talking videos into premium motion-graphics edits.
+            You get the creator's brief and the transcript as numbered words (index:word). Never invent facts.
+
+            Write the narrative map behind the edit — the beats the story runs through, decided before any picture:
+            - beats: two to four, in the order the story runs: setup (what is at stake), turn (the surprise or the verdict), payoff (the promise, paid), callback (the echo of the setup).
+            - Each beat: from and until are word indices in the transcript (until inclusive); claim is 2-6 words of what the beat claims, in the transcript's own language; rationale is why the piece needs this beat here; energy is 0 calm to 1 explosive.
+            - objects: what is carried from beat to beat ("the voucher", "the channel card"): one thread, not a pile of stickers.
+            - banned: what no beat may show ("no countdown", "no stock smiles"): your own restraint.
+        """.trimIndent()
+
         fun linesMessage(
             transcript: Transcript,
             prompt: String,
@@ -148,7 +195,7 @@ class Understander(private val model: LanguageModel) {
                 if (names.isNotEmpty()) append("   names in this line: ").append(names.joinToString(", ")).append('\n')
                 if (k == lines.lastIndex && g.cta != null) append("   this is the last line; the call to action keyword is: ").append(g.cta.keyword).append('\n')
                 val said = words.subList(lines[k].first, lines[k].last + 1).map { it.text }
-                DesignBook.recall(said, book, EXAMPLES, latin = said.none { w -> w.any { it in '\u0600'..'\u06FF' } }).takeIf { it.isNotEmpty() }
+                DesignBook.recall(said, book, EXAMPLES, latin = said.none { w -> w.any { it in '؀'..'ۿ' } }).takeIf { it.isNotEmpty() }
                     ?.let { append(DesignBook.examples(it)).append('\n') }
             }
         }
@@ -160,12 +207,24 @@ class Understander(private val model: LanguageModel) {
             })
         }
 
+        /** The story map's question: the brief and the transcript, in so many numbered words. */
+        fun storyMessage(words: List<Word>, prompt: String): String = buildString {
+            append("Brief:\n").append(prompt.trim().ifEmpty { "(none: decide everything)" }).append("\n\n")
+            append("Words:\n")
+            words.forEachIndexed { i, w -> append(i).append(':').append(w.text).append(' ') }
+        }
+
+        /** [ScoreGrammar.storyJsonSchema] as the structured-output schema the model answers against. */
+        val storySchema: JsonObject = Json.parseToJsonElement(ScoreGrammar.storyJsonSchema).jsonObject
+
         /** Lines per call, and the reply budget per line. */
         private const val GROUP = 3
         private const val LINE_TOKENS = 320
         private const val GLOBAL_TOKENS = 900
+        private const val STORY_TOKENS = 420
         private const val CLOUD_LINE_TOKENS = 2_400
         private const val CLOUD_GLOBAL_TOKENS = 8_000
+        private const val CLOUD_STORY_TOKENS = 2_400
 
         fun userMessage(transcript: Transcript, prompt: String, lines: List<Lines.Line>): String = buildString {
             append("Brief:\n").append(prompt.trim().ifEmpty { "(none: decide everything)" }).append("\n\n")
