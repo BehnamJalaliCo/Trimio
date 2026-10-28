@@ -1,6 +1,7 @@
 package io.trimio.engine.autopilot
 
 import io.trimio.core.model.transcript.Word
+import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Score
 
 /**
@@ -52,7 +53,7 @@ internal object ContactSheet {
     }
 
     private fun hook(lands: List<Float>, graphics: List<BeatScore>) = when {
-        graphics.isEmpty() -> Grade("hook", 0f, "nothing lands — no hook at all")
+        graphics.isEmpty() || lands.isEmpty() -> Grade("hook", 0f, "nothing lands — no hook at all")
         lands.first() <= HOOK_BY -> Grade("hook", 10f, "the first strike is up by ${one(lands.first())}s")
         lands.first() <= LATE_HOOK -> Grade("hook", 6f, "the hook waits until ${one(lands.first())}s")
         else -> Grade("hook", 2f, "the hook is ${one(lands.first())}s in — the thumb is gone")
@@ -109,7 +110,8 @@ internal object ContactSheet {
         val drift = graphics.filter { it.at != null && it.at !in words.indices }.size
         return when {
             drift > 0 -> Grade("sync", 4f, "$drift graphics point outside the transcript")
-            anchored == graphics.size && graphics.isNotEmpty() -> Grade("sync", 10f, "every graphic lands on its words")
+            graphics.isEmpty() -> Grade("sync", 7f, "no graphics to sync")
+            anchored == graphics.size -> Grade("sync", 10f, "every graphic lands on its words")
             else -> Grade("sync", 7f, "${graphics.size - anchored} graphics float free of the voice")
         }
     }

@@ -4,7 +4,7 @@ import io.trimio.core.model.text.Language
 import io.trimio.core.model.time.TimeRange
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.motion.score.BeatScore
-import io.trimio.engine.motion.score.CaptionsScoreUnused
+import io.trimio.engine.motion.score.CaptionScore
 import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
 import kotlin.test.Test
@@ -18,7 +18,7 @@ class ContactSheetTest {
     fun aMadeEditPassesEveryCriterion() {
         val score = Score(
             look = "noir",
-            captions = captionScore(maxWords = 4),
+            captions = CaptionScore(maxWords = 4),
             scenes = listOf(
                 SceneScore(from = 0, camera = "push-in", beats = listOf(BeatScore(recipe = "mask-rise", at = 0, hold = 2f, text = "امروز رفتم"))),
                 SceneScore(from = 4, camera = "drift", beats = listOf(BeatScore(recipe = "meter", at = 4, hold = 3f, label = "پنجاه درصد"))),

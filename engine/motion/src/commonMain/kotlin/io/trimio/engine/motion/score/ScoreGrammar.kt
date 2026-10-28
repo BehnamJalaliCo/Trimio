@@ -268,12 +268,12 @@ object ScoreGrammar {
             """"beats": { "type": "array", "items": { "${'$'}ref": "#/definitions/beatScore" } }""",
             """"beats": { "type": "array", "maxItems": $maxBeats, "items": { "${'$'}ref": "#/definitions/beatScore" } }""",
         )
-        .replace(""""title": "Score"""", """"title": "ScoreTop$maxBeats"""")
+        .replace("\"title\": \"Score\"", "\"title\": \"ScoreTop$maxBeats\"")
 
     /** The same cap for constrained decoding: the model may write at most [maxBeats] beats. */
     fun topBeatsGbnf(maxBeats: Int): String = gbnf.replace(
         """(beat ("," ws beat)*)?""",
-        """(beat ("," ws beat){0," + (maxBeats - 1).coerceAtLeast(0) + "})?""",
+        """(beat ("," ws beat){0,${(maxBeats - 1).coerceAtLeast(0)}})""",
     )
 
     /**

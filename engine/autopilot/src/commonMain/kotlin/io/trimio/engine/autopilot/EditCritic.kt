@@ -2,7 +2,6 @@ package io.trimio.engine.autopilot
 
 import io.trimio.core.model.transcript.Word
 import io.trimio.engine.motion.score.BeatScore
-import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.StoryMap
 import io.trimio.engine.motion.score.Words
@@ -43,8 +42,8 @@ internal object EditCritic {
         val payoff = map?.beatOf("payoff")
         val tensionAt = map?.beatOf("turn")?.let { start(words, it.from) } ?: lands.getOrNull(lands.size / 2)
         val messageWord = message(payoff?.claim, graphics, words)
-        val surprisingHook = lands.firstOrNull()?.let { it <= HOOK_BY } == true && payoff != null &&
-            map.beats.firstOrNull()?.kind == "setup"
+        val setupFirst = map?.beats?.firstOrNull()?.kind == "setup"
+        val surprisingHook = lands.firstOrNull()?.let { it <= HOOK_BY } == true && payoff != null && setupFirst
         val findings = mutableListOf<String>()
         if (lands.isEmpty()) findings += "no graphic at all — the edit is only speech"
         if (payoff == null) findings += "no payoff in the story map — the piece promises nothing"
@@ -66,7 +65,9 @@ internal object EditCritic {
      */
     fun fresh(map: StoryMap, words: List<Word>): StoryMap {
         val said = words.map { it.text }
-        val beats = map.beats.filter { b -> b.claim.isNotBlank() && (b.from..maxOf(b.from, b.until)).any { said.getOrNull(it)?.let(::Words.isContent) == true } }
+        val beats = map.beats.filter { b ->
+            b.claim.isNotBlank() && (b.from..maxOf(b.from, b.until)).any { said.getOrNull(it)?.let(::Words.isContent) == true }
+        }
         return StoryMap(beats = beats, objects = map.objects, banned = map.banned)
     }
 
@@ -95,7 +96,7 @@ internal object EditCritic {
     private fun flow(lands: List<Float>, graphics: List<BeatScore>): Float {
         if (lands.size < 2) return 4f
         val steps = lands.zipWithNext { a, b -> b - a }
-        val even = steps.maxOrNull()!! - steps.minOrNull()!!
+        val even = (steps.maxOrNull() ?: 0f) - (steps.minOrNull() ?: 0f)
         val energies = graphics.map { it.energy ?: 0.6f }
         val rises = energies.zipWithNext().count { (a, b) -> b > a }
         return 5f + (if (even < FLAT_GAP) 2f else 0f) + rises * 0.6f

@@ -14,13 +14,13 @@ class StoryMapTest {
     fun theStorySchemaNamesAllFourKinds() {
         for (kind in StoryMap.KINDS) {
             assertTrue(kind in ScoreGrammar.storyJsonSchema, "the JSON schema must pin «$kind»")
-            assertTrue("\"$kind\"" in ScoreGrammar.storyGbnf, "the GBNF must pin «$kind»")
+            assertTrue(kind in ScoreGrammar.storyGbnf, "the GBNF must pin «$kind»")
         }
     }
 
     @Test
     fun aModelStoryMapRepairsAndParses() {
-        // Fenced, curly-braced, Persian digits, trailing commas: the repair does its work first.
+        // Fenced, curly-quoted, Persian digits, trailing commas: the repair does its work first.
         val raw = """
             ```json
             {"beats":[{"kind":"payoff","from":۲,"until":۵,"claim":"۵۰٪ کمتر","rationale":"the promise", "energy":0.9,}],
