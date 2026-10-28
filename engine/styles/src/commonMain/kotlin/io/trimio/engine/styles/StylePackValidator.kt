@@ -70,8 +70,10 @@ object StylePackValidator {
         check(pack.spec.audioOnly.visualizer in visualizers, "audioOnly.visualizer", "unknown visualizer ${pack.spec.audioOnly.visualizer}")
 
         val f = pack.spec.film
-        check(f.texture == null || idPattern.matches(f.texture), "film.texture", "texture ids must be lowercase-kebab-case")
-        check(f.lut == null || idPattern.matches(f.lut), "film.lut", "LUT ids must be lowercase-kebab-case")
+        val texture = f.texture
+        val lut = f.lut
+        check(texture == null || idPattern.matches(texture), "film.texture", "texture ids must be lowercase-kebab-case")
+        check(lut == null || idPattern.matches(lut), "film.lut", "LUT ids must be lowercase-kebab-case")
         range(f.textureOpacity, 0f, 1f, "film.textureOpacity")
         check(f.preset in filmPresets, "film.preset", "unknown finishing preset ${f.preset}")
         f.grain?.let { range(it, 0f, 0.2f, "film.grain") }
