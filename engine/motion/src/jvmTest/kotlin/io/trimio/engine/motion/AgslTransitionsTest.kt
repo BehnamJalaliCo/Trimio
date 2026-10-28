@@ -5,9 +5,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The catalog must stay a closed set: a name in a recipe either is verified or becomes a verified
- * neighbour, and the same stranger always becomes the same neighbour — a picker that wanders on a
- * typo is worse than one that refuses.
+ * The catalog must stay a closed set over real programs: a name in a recipe either is verified or
+ * becomes a verified neighbour, and the same stranger always becomes the same neighbour.
  */
 class AgslTransitionsTest {
 
@@ -18,14 +17,15 @@ class AgslTransitionsTest {
         assertEquals(v.size, v.toSet().size, "catalog names must be unique")
         for (name in v) {
             assertTrue(name.isNotBlank(), "blank catalog id")
-            assertEquals(name.lowercase(), name, "ids are the lowercase 1.x catalog names")
+            assertEquals(name.lowercase(), name, "ids are lowercase")
+            assertTrue(name in TransitionShaders.programs, "$name must resolve to a shipped program")
         }
     }
 
     @Test
     fun everyFallbackMapsIntoVerified() {
         val v = AgslTransitions.verified
-        val probe = v + listOf("burn", "wind", "swap", "luma", "circleopen", "not-a-transition", "")
+        val probe = v + listOf("burn", "wind", "swap", "luma", "circleopen", "glitch", "ripple", "not-a-transition", "")
         for (name in probe) {
             val landed = AgslTransitions.fallbackFor(name)
             assertTrue(landed in v, "$name -> $landed")
@@ -35,15 +35,22 @@ class AgslTransitionsTest {
     @Test
     fun unknownNameFallsBackDeterministically() {
         val stranger = "not-a-transition"
-        assertEquals(AgslTransitions.fallbackFor(stranger), AgslTransitions.fallbackFor(stranger))
-        assertTrue(AgslTransitions.fallbackFor(stranger) in AgslTransitions.verified)
-        // Verified names come back as themselves; casing is folded, not invented.
-        assertEquals("fade", AgslTransitions.fallbackFor("FADE"))
-        assertEquals("fade", AgslTransitions.fallbackFor("fade"))
-        assertEquals("fadecolor", AgslTransitions.fallbackFor("fadeColor"))
-        // Listed strangers land on their documented neighbour, every time.
-        assertEquals("fadecolor", AgslTransitions.fallbackFor("burn"))
-        assertEquals("directionalwarp", AgslTransitions.fallbackFor("wind"))
-        assertEquals("morph", AgslTransitions.fallbackFor("swap"))
+        assertEquals(AgslTransitions.fallbackFor(stranger), AgslTransitions.fallbackFor(stranger), "the same stranger lands the same way twice")
+        assertTrue(AgslTransitions.fallbackFor(stranger) in AgslTransitions.verified, "a stranger lands inside the pool")
+        assertEquals("fade", AgslTransitions.fallbackFor("FADE"), "casing is folded, not invented")
+        assertEquals("fade", AgslTransitions.fallbackFor("fade"), "a verified name is itself")
+        assertEquals("fadecolor", AgslTransitions.fallbackFor("fadeColor"), "case folding finds the neighbour table")
+        assertEquals("fadecolor", AgslTransitions.fallbackFor("burn"), "a colour wash becomes the coloured fade")
+        assertEquals("directionalwarp", AgslTransitions.fallbackFor("wind"), "a wipe becomes the directional warp")
+        assertEquals("crosswarp", AgslTransitions.fallbackFor("swap"), "a morph becomes the warp family")
+        assertEquals("lumawipe", AgslTransitions.fallbackFor("luma"), "a luma wipe stays a luma dissolve")
+        assertEquals("glitchlite", AgslTransitions.fallbackFor("glitch"), "the glitch cut keeps its picture")
+    }
+
+    @Test
+    fun everyVerifiedNameResolvesToItsOwnProgram() {
+        for (name in AgslTransitions.verified) {
+            assertEquals(name, AgslTransitions.programFor(name).id, "$name resolves to its own program")
+        }
     }
 }
