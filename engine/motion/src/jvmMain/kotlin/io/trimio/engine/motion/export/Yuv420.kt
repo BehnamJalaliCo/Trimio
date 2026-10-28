@@ -40,7 +40,7 @@ class Yuv420(private val width: Int, private val height: Int) {
                 val b = ColorConvert.display(ColorConvert.u16(rgba, o + 4))
                 o += 8
                 val yv = KR * r + KG * g + KB * b
-                out[row + x] = quantize(Y_ZERO + Y_SPAN * yv, dither)
+                out[row + x] = quantize(Y_ZERO + Y_SPAN * yv, dither).toByte()
                 val ci = (y / 2) * cw + (x / 2)
                 cb[ci] += (b - yv) / CB_DEN
                 cr[ci] += (r - yv) / CR_DEN
@@ -49,8 +49,8 @@ class Yuv420(private val width: Int, private val height: Int) {
         val luma = w * h
         val chroma = cw * (h / 2)
         for (i in 0 until chroma) {
-            out[luma + i] = quantize(C_MID + C_SPAN * (cb[i] * 0.25f), dither)
-            out[luma + chroma + i] = quantize(C_MID + C_SPAN * (cr[i] * 0.25f), dither)
+            out[luma + i] = quantize(C_MID + C_SPAN * (cb[i] * 0.25f), dither).toByte()
+            out[luma + chroma + i] = quantize(C_MID + C_SPAN * (cr[i] * 0.25f), dither).toByte()
         }
     }
 
