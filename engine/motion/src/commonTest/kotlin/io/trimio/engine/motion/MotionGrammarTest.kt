@@ -135,18 +135,18 @@ class MotionGrammarTest {
     @Test
     fun overshootStaysInsideItsPerPropertyBand() {
         val overshoot = MotionSpec.Springs.Overshoot
-        val playfulScale = overshoot.springFor(overshoot.Prop.Scale, fraction = 0.10f, playful = true)
+        val playfulScale = overshoot.springFor(MotionSpec.Springs.Overshoot.Prop.Scale, fraction = 0.10f, playful = true)
         val playfulPeak = peakOf(playfulScale) - 1f
         assertTrue(playfulPeak in overshoot.PlayfulMin..overshoot.PlayfulMax, "playful scale in 5–15%: $playfulPeak")
 
-        val premiumScale = overshoot.springFor(overshoot.Prop.Scale, fraction = 0.15f, playful = false)
+        val premiumScale = overshoot.springFor(MotionSpec.Springs.Overshoot.Prop.Scale, fraction = 0.15f, playful = false)
         val premiumPeak = peakOf(premiumScale) - 1f
         assertTrue(premiumPeak <= overshoot.PremiumMax + BAND_EPS, "premium scale clamped to 3%: $premiumPeak")
 
-        val opacity = overshoot.springFor(overshoot.Prop.Opacity, fraction = 0.15f, playful = true)
+        val opacity = overshoot.springFor(MotionSpec.Springs.Overshoot.Prop.Opacity, fraction = 0.15f, playful = true)
         assertTrue(peakOf(opacity) <= 1f + BAND_EPS, "opacity never rings: ${peakOf(opacity)}")
 
-        val position = overshoot.springFor(overshoot.Prop.Position, fraction = 0.02f, playful = false)
+        val position = overshoot.springFor(MotionSpec.Springs.Overshoot.Prop.Position, fraction = 0.02f, playful = false)
         assertTrue(peakOf(position) - 1f in 0f..overshoot.PremiumMax + BAND_EPS, "premium position in 0–3%")
     }
 
