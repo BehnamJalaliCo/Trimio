@@ -141,21 +141,32 @@ class ShaderFxTest {
         }
     }
 
-    /** In compiled pieces no text, caption or number sits under a filter: lenses and cuts bend footage and stages only. */
+    /**
+     * In compiled pieces no text, caption or number sits under a distortion filter: lenses and cuts
+     * bend footage and stages only. The film's finish pass is a look over the whole picture (its
+     * grain and grade sit under type on purpose), not a distortion.
+     */
     @Test
     fun compiledFiltersNeverCoverText() {
         fun covered(n: Node, filtered: Boolean): List<String> = when (n) {
-            is Group -> n.children.flatMap { covered(it, filtered || n.filter != null) }
+            is Group -> n.children.flatMap { covered(it, filtered || distorted(n)) }
             is TextNode, is CounterNode -> if (filtered) listOf(n.name) else emptyList()
             else -> emptyList()
+        }
+        fun bent(n: Node): Boolean = when (n) {
+            is Group -> n.name.startsWith("footage") || n.children.any(::bent)
+            else -> false
         }
         for (f in filters) {
             val cut = f == ShaderFamily.Glitch || f == ShaderFamily.Ripple
             val root = kit(footageScore(if (cut) null else f.id, if (cut) f.id else null), footage = true, duration = 4.2f).composition.root
             assertTrue(covered(root, false).isEmpty(), "${f.id} covers ${covered(root, false)}")
-            assertTrue(root.children.any { it is Group && it.name.startsWith("footage") }, "${f.id} bends the footage")
+            assertTrue(bent(root), "${f.id} bends the footage")
         }
     }
+
+    /** True for the picture-bending filters only: the finish pass grades everything and is not one. */
+    private fun distorted(n: Group): Boolean = n.filter != null && n.filter.family != ShaderFamily.Finish
 
     /** Milliseconds per 1080×1920 frame (mean of [n] after a warm-up). */
     private fun cost(k: MotionTestKit, from: Float, n: Int = 8): Double {
