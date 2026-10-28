@@ -44,7 +44,7 @@ object ColorConvert {
 
     /** The sRGB piecewise curve; its toe keeps the dark ramps smooth. */
     private fun oetf(u: Float): Float =
-        if (u <= KNEE) 12.92f * u else 1.055f * pow(u.toDouble(), 1.0 / 2.4).toFloat() - 0.055f
+        if (u <= KNEE) 12.92f * u else 1.055f * u.toDouble().pow(1.0 / 2.4).toFloat() - 0.055f
 
     private const val KNEE = 0.0031308f
 }
