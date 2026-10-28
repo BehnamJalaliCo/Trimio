@@ -9,10 +9,12 @@ import io.trimio.engine.motion.Anim
 import io.trimio.engine.motion.Camera
 import io.trimio.engine.motion.CaptionMetrics
 import io.trimio.engine.motion.Composition
+import io.trimio.engine.motion.CraftGate
 import io.trimio.engine.motion.Easing
 import io.trimio.engine.motion.Effect
 import io.trimio.engine.motion.EffectNode
 import io.trimio.engine.motion.Filter
+import io.trimio.engine.motion.FinishingPass
 import io.trimio.engine.motion.Fit
 import io.trimio.engine.motion.Grade
 import io.trimio.engine.motion.Group
@@ -26,6 +28,7 @@ import io.trimio.engine.motion.TextAlign
 import io.trimio.engine.motion.TextLayoutEngine
 import io.trimio.engine.motion.TextNormalize
 import io.trimio.engine.motion.Transform
+import io.trimio.engine.motion.TransitionShaders
 import io.trimio.engine.motion.anim
 import io.trimio.engine.motion.fill
 import io.trimio.engine.motion.recipe.BrandLibrary
@@ -261,13 +264,20 @@ class Compiler(
             val sceneGroups = scenes.indices.map { k -> sceneGroup(k, built, transitions, transitionSfx) }
             // Footage already has its own texture: lighter grain and vignette over it.
             val texture = if (input.footage != null) FOOTAGE_TEXTURE else 1f
+            val underText = listOfNotNull(
+                EffectNode(Effect.Grain(look.grain * texture)).takeIf { look.grain > 0f },
+            )
             val overlays = built.values.flatMap { it.overlays } + transitions + listOfNotNull(
                 EffectNode(Effect.Vignette((look.vignette * texture).anim)),
-                EffectNode(Effect.Grain(look.grain * texture)).takeIf { look.grain > 0f },
             )
             // The speaker stands in front of a title set behind them: their cut-out over it, under the captions.
             val people = beats.filter { it.behind }.flatMap { b -> person(b.cue.at - PERSON_LEAD, b.out) }
-            val root = Group(picture(base(), "footage") + sceneGroups + people + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
+            val pictureNodes = FinishingPass.wrap(
+                picture(base(), "footage") + sceneGroups + people,
+                film = look.film,
+                grade = look.finish,
+            )
+            val root = Group(pictureNodes + underText + captionBeats.flatMap { built.getValue(it).nodes } + overlays, name = "root")
             val camera = camera(scenes, sceneStarts, sceneEnds, built.values.flatMap { it.camera }, footage = input.footage != null)
             val sfx = mixSfx(built.values.flatMap { it.sfx } + transitionSfx, duration)
             val order = (beats + captionBeats).sortedBy { it.cue.at }
@@ -281,7 +291,15 @@ class Compiler(
                     c.overMedia, c.variant, it.behind,
                 )
             }
-            return Output(Composition(w, h, input.fps, duration, look.canvas, root, camera), sfx, placed, notes, order.map { built.getValue(it).nodes })
+            val composition = Composition(w, h, input.fps, duration, look.canvas, root, camera)
+            // Craft rules finally run on the real scene graph; findings block the compile until a retry loop exists.
+            val gate = CraftGate.enforce(
+                composition,
+                hasAudio = sfx.isNotEmpty() || input.footage != null,
+                policy = CraftGate.Policy.Reject,
+            )
+            gate.exceptionOrNull()?.let { throw it }
+            return Output(composition, sfx, placed, notes, order.map { built.getValue(it).nodes })
         }
 
         /**
@@ -412,6 +430,7 @@ class Compiler(
             val atIndex = b.at ?: quoted?.first
             val at = snap(b.time ?: atIndex?.let { start(it) } ?: (sceneStarts[k] + 0.2f), recipe, score, notes)
             val lastIndex = b.until ?: quoted?.last ?: atIndex
+            val spoken = atIndex?.let { it..(lastIndex ?: it) }
             val spokenText = if (recipe.kind == Recipe.Kind.Text && atIndex != null) (atIndex..(lastIndex ?: atIndex)).joinToString(" ") { words[it].text } else ""
             val beatText = clean(b.text ?: spokenText)
             val readable = maxOf(MIN_READ, 0.35f + 0.055f * beatText.length, recipe.minHold)
@@ -437,7 +456,7 @@ class Compiler(
                 // A style that sets Latin headlines in capitals does so here; captions stay as said.
                 text = if (recipe.kind == Recipe.Kind.Text) look.cased(beatText) else beatText, at = at, out = out, x = slot.x, y = slot.y, width = slot.w, height = slot.h,
                 energy = (b.energy ?: defaultEnergy(recipe)).coerceIn(0f, 1f), emphasis = emphasisOf(beatText, b.emphasis, quoted, this.words),
-                wordTimes = spokenTimes(b.text, quoted, words, at),
+                wordTimes = spokenTimes(quoted, spoken, words, at),
                 value = b.value, from = b.from, prefix = b.prefix ?: "", suffix = b.suffix ?: "", decimals = b.decimals ?: 0,
                 points = b.points, icon = b.icon, label = b.label, mark = b.mark, overMedia = over,
                 items = b.items,
@@ -490,16 +509,13 @@ class Compiler(
          * Words land as spoken only when they are spoken during this beat (a hook that quotes a
          * line said later keeps its own timing).
          */
-        private fun spokenTimes(text: String?, quoted: IntRange?, count: Int, at: Float): List<Float>? =
-            quoted?.takeIf { q -> q.count() == count && exact(text, q) && start(q.first) in (at - 0.6f)..(at + 1.2f) }?.map { start(it) }
+        private fun spokenTimes(quoted: IntRange?, spoken: IntRange?, count: Int, at: Float): List<Float>? {
+            val q = listOfNotNull(quoted, spoken).firstOrNull { it.count() == count } ?: return null
+            if (start(q.first) !in (at - QUOTE_WINDOW_S)..(at + QUOTE_WINDOW_S)) return null
+            return q.map { start(it) }
+        }
 
         private fun rtlOf(text: String, label: String?) = isRtl(text.ifBlank { label ?: "" }) || (text.isBlank() && words.any { isRtl(it.text) })
-
-        /** Every word of [text] is said, in order, at [range] (a loose match only places the beat). */
-        private fun exact(text: String?, range: IntRange): Boolean {
-            val q = text.orEmpty().split(' ').map(NumberWords::normalize).filter { it.isNotEmpty() }
-            return q.size == range.count() && q.indices.all { j -> norm[range.first + j].trimEnd('.', '،', ',') == q[j].trimEnd('.', '،', ',') }
-        }
 
         /** A designer's template (`template:<id>`) as it was designed: its own colours, or the look's ink when it is a single-colour drawing. */
         private fun template(visual: String): io.trimio.engine.motion.visual.VectorIcon? {
@@ -564,9 +580,8 @@ class Compiler(
             nodes += if (cutout(scene)) cutout(k, s, e) else inset(k, s, e)
             built.filterKeys { it.scene == k }.values.forEach { nodes += it.nodes }
             val enter = entering(k)
-            val (tx, sc, op) = sceneMotion(enter, entering(k + 1), s, e, w.toFloat(), look.settle)
+            val t = sceneMotion(enter, entering(k + 1), s, e, w.toFloat(), h.toFloat(), look.settle)
             transitionOverlay(enter, s, look, transitions, sfx, w.toFloat(), h.toFloat())
-            val t = Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim + tx, y = (h / 2f).anim, scale = sc, opacity = op)
             // A scene stays a moment past its cut for the next one to come in over it; a stage cut back to the speaker
             // ends on the cut, or it stands empty over the footage once its cards and card of the speaker have gone.
             val back = input.footage != null && !overFootage(scene) && scenes.getOrNull(k + 1)?.let(::overFootage) == true
@@ -984,32 +999,18 @@ class Compiler(
         return listOf(look.canvas, mix(look.accent, if (dark) 0.2f else 0.35f), mix(look.hot, if (dark) 0.16f else 0.22f), mix(look.positive, if (dark) 0.1f else 0.15f))
     }
 
-    private fun gradeOf(look: Look) = look.grade ?: when (look.name) {
-        "paper" -> Grade(contrast = 1.04f.anim, saturation = 0.85f.anim)
-        "lumen" -> Grade(contrast = 1.06f.anim, saturation = 0.95f.anim, temperature = (-0.4f).anim)
-        else -> Grade(exposure = 0.04f.anim, contrast = 1.06f.anim, saturation = 1.0f.anim, temperature = 0.15f.anim)
-    }
+    private fun gradeOf(look: Look) = look.grade
+        ?: look.finish?.let { Grade(exposure = it.exposure.anim, contrast = it.contrast.anim, saturation = it.saturation.anim, temperature = it.temperature.anim) }
+        ?: when (look.name) {
+            "paper" -> Grade(contrast = 1.04f.anim, saturation = 0.85f.anim)
+            "lumen" -> Grade(contrast = 1.06f.anim, saturation = 0.95f.anim, temperature = (-0.4f).anim)
+            else -> Grade(exposure = 0.04f.anim, contrast = 1.06f.anim, saturation = 1.0f.anim, temperature = 0.15f.anim)
+        }
 
-    /** Slide/scale/opacity of a scene group for its incoming and outgoing transitions. */
-    private fun sceneMotion(enter: String?, exit: String?, s: Float, e: Float, w: Float, settle: Easing): Triple<Anim, Anim, Anim> {
-        val xKeys = mutableListOf(Anim.Key(s - 1f, 0f, Easing.Hold))
-        val scaleKeys = mutableListOf(Anim.Key(s - 1f, 1f, Easing.Hold))
-        val opKeys = mutableListOf(Anim.Key(s - 1f, 1f, Easing.Hold))
-        when (enter) {
-            "whip" -> { xKeys += Anim.Key(s, w * 1.1f, Easing.Hold); xKeys += Anim.Key(s + 0.24f, 0f, settle) }
-            "zoom" -> {
-                scaleKeys += Anim.Key(s, 0.82f, Easing.Hold); scaleKeys += Anim.Key(s + 0.4f, 1f, settle)
-                opKeys += Anim.Key(s, 0f, Easing.Hold); opKeys += Anim.Key(s + 0.12f, 1f, Easing.Linear)
-            }
-        }
-        when (exit) {
-            "whip" -> { xKeys += Anim.Key(e - 0.16f, 0f, Easing.Hold); xKeys += Anim.Key(e, -w * 1.1f, Easing.ExpoIn) }
-            "zoom" -> {
-                scaleKeys += Anim.Key(e - 0.2f, 1f, Easing.Hold); scaleKeys += Anim.Key(e, 1.4f, Easing.ExpoIn)
-                opKeys += Anim.Key(e - 0.12f, 1f, Easing.Hold); opKeys += Anim.Key(e, 0f, Easing.Linear)
-            }
-        }
-        return Triple(Anim.keys(xKeys), Anim.keys(scaleKeys), Anim.keys(opKeys))
+    /** Slide/scale/opacity/blur of a scene group for its incoming and outgoing transitions. */
+    private fun sceneMotion(enter: String?, exit: String?, s: Float, e: Float, w: Float, h: Float, settle: Easing): Transform {
+        val m = TransitionShaders.move(enter, exit, s, e, w, settle)
+        return Transform(anchorX = 0.5f, anchorY = 0.5f, x = (w / 2f).anim + m.x, y = (h / 2f).anim, scale = m.scale, opacity = m.opacity, blur = m.blur)
     }
 
     /**
@@ -1037,8 +1038,7 @@ class Compiler(
                 overlays += EffectNode(Effect.Flash(Color.White, flash), start = s - 0.01f, end = s + 0.25f)
                 sfx += Sfx(s, SfxKind.Hit, 0.9f)
             }
-            "glitch" -> sfx += Sfx(s - 0.05f, SfxKind.Swish, 0.8f)
-            "ripple" -> sfx += Sfx(s - 0.2f, SfxKind.Shimmer, 0.7f)
+            "glitch", "ripple" -> io.trimio.engine.motion.recipe.Transitions.overlay(kind, s, look, width, height, overlays, sfx)
             "leak" -> {
                 val strength = io.trimio.engine.motion.anim(0f, s - 0.35f) { by(0.85f, 0.35f, Easing.SineInOut); by(0f, 0.8f, Easing.SineInOut) }
                 overlays += EffectNode(Effect.LightLeak(look.hot, Anim.tween(0f, 1f, s - 0.35f, s + 0.8f, Easing.SineInOut), strength), start = s - 0.4f, end = s + 0.9f)
@@ -1211,6 +1211,7 @@ class Compiler(
         private const val MIN_SCENE = 1.2f
         private const val TAIL = 0.8f
         private const val SNAP_WINDOW = 0.1f
+        private const val QUOTE_WINDOW_S = 2f
         private const val MIN_SFX_GAP = 0.12f
         private const val CAPTION_ID_BASE = 100_000
         /** A caption cut short by a stage still shows this long (a shorter one is not clamped). */
