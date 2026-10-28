@@ -188,6 +188,10 @@ jobs:
           ./gradlew :desktopApp:test :engine:models:jvmTest :engine:production:jvmTest
           "-Ptrimio.nativeSmoke=$GITHUB_WORKSPACE/$NATIVE_OUT"
 
+      - name: Annotate junit failures
+        if: failure()
+        run: python3 scripts/ci/annotate_junit.py .
+
       # --- Installers ---------------------------------------------------------------------------------
       # The app image (launcher, runtime, bundled tools), then the Inno Setup installer around it:
       # per-user, upgrades in place, and its uninstaller removes everything the app made
@@ -213,7 +217,7 @@ jobs:
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
           Get-ChildItem desktopApp/build/compose/binaries/main -Recurse -Include *.exe | ForEach-Object {
-            & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+            & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD /fd SHA256 /tr http://timestamp.digert.com /td SHA256 $_.FullName
             if ($LASTEXITCODE -ne 0) { throw "signing $($_.Name) failed" }
           }
           Remove-Item $pfx
