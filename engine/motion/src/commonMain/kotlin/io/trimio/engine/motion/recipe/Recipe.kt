@@ -152,7 +152,7 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 /** All recipes by name, with aliases so loose names from small models still resolve. */
 object Recipes {
     val all: List<Recipe> = TextRecipes.all + ElementRecipes.all + ExplainerRecipes.all + BrandRecipes.all + ObjectRecipes.all + DataRecipes.all + MessageRecipes.all +
-        UiRecipes.all + MediaRecipes.all + YouTubeRecipes.all + Families.all + BoardFamilies.all + io.trimio.engine.motion.art.AnimatedRecipes.all +
+        UiRecipes.all + MediaRecipes.all + YouTubeRecipes.all + Families.all + BoardFamilies.all + DesignTemplates.all + io.trimio.engine.motion.art.AnimatedRecipes.all +
         io.trimio.engine.motion.art.TemplateRecipes.all
 
     private val aliases = mapOf(
@@ -173,11 +173,11 @@ object Recipes {
         "code" to "terminal", "install" to "terminal", "cli" to "terminal", "command" to "terminal", "shell" to "terminal",
         "map" to "network", "nodes" to "network", "graph-map" to "network", "mindmap" to "network", "tree" to "network",
         "usage" to "meter", "compare" to "meter", "saving" to "meter", "savings" to "meter",
-        "cta" to "comment", "comment-cta" to "comment", "keyword" to "comment",
+        "cta" to "comment", "comment-cta" to "comment",
         "sticker" to "object", "emoji" to "object", "illustration" to "object", "prop" to "object",
         "picture" to "object", "visual" to "object",
         "stickers" to "objects", "ingredients" to "objects", "items" to "objects", "things" to "objects",
-        "bar" to "bars", "bar-chart" to "bars", "checklist" to "list",
+        "bar" to "bars", "checklist" to "list",
         "timer" to "countdown", "deadline" to "countdown", "time-left" to "countdown", "hours-left" to "countdown", "urgency" to "countdown",
         "clock" to "countdown", "countdown-timer" to "countdown", "expires" to "countdown", "last-chance" to "countdown",
         "kpi" to "stats", "kpis" to "stats", "metrics" to "stats", "numbers" to "stats", "figures" to "stats", "statistics" to "stats",
@@ -197,11 +197,22 @@ object Recipes {
         "browser" to "ui-browser", "website" to "ui-browser", "web-page" to "ui-browser", "landing" to "ui-browser", "landing-page" to "ui-browser", "site" to "ui-browser",
         "icon-scene" to "ui-scene", "vector" to "ui-scene", "icons" to "ui-scene", "element" to "ui-scene",
         "reward" to "voucher", "bonus" to "voucher", "airdrop" to "voucher", "prize" to "voucher", "promo-code" to "voucher",
+        // Designed template shelf (P2).
+        "lt-simple" to "name-bar", "lower-third-simple" to "name-bar", "namebar" to "name-bar",
+        "lt-mid" to "name-plate", "lower-third-plate" to "name-plate", "nameplate" to "name-plate",
+        "lt-hero" to "name-hero", "lower-third-hero" to "name-hero",
+        "cascade" to "word-cascade", "word-cascade-type" to "word-cascade",
+        "pop-keyword" to "keyword-pop",
+        "text-blocks" to "word-blocks", "word-cards" to "word-blocks",
+        "payoff-first" to "payoff", "hook-payoff" to "payoff", "result-first" to "payoff",
+        "hook-slam" to "title-slam", "title-hit" to "title-slam",
+        "counter-pulse" to "stat-pulse", "stat-micro" to "stat-pulse",
+        "bars-micro" to "stat-bars",
     )
 
     fun named(name: String?): Recipe? {
         val key = name?.trim()?.lowercase()?.replace('_', '-')?.replace(' ', '-') ?: return null
-        val canonical = aliases[key] ?: Families.aliases[key] ?: key
+        val canonical = aliases[key] ?: DesignTemplates.aliases[key] ?: Families.aliases[key] ?: key
         return all.firstOrNull { it.name == canonical }
     }
 }
