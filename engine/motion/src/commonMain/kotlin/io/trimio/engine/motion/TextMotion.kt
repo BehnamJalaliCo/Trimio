@@ -69,7 +69,7 @@ data class TextAnimator(
     val at: Float,
     val duration: Float = 0.5f,
     val stagger: Float = 0.05f,
-    val ease: Easing = Easing.Enter,
+    val ease: Easing = Easing.ExpoOut,
     val order: Order = Order.Forward,
     val shape: Shape = Shape.In,
     /** Absolute start per unit, overriding [at]/[stagger]/[order]. */
@@ -163,7 +163,7 @@ sealed interface Decoration {
         val thickness: Float = 0.08f,
         /** em below the baseline. */
         val offset: Float = 0.14f,
-        val ease: Easing = Easing.Enter,
+        val ease: Easing = Easing.ExpoOut,
     ) : Decoration
 
     /** The words change colour (karaoke ink). */
