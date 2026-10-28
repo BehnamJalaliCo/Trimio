@@ -1,108 +1,115 @@
 package io.trimio.engine.motion
 
 /**
- * The gl-transitions catalog the app ships, as pure data. The picker, the compiler and the export
- * writer all read this object so a name means the same thing everywhere: the 1.x ids from
- * `com.gl-transitions:gl-transitions:1.76.1`, lowercase as the artifact ships them. Nothing here
- * loads a shader — it only decides which names exist and which neighbour a stranger becomes.
+ * The transition catalog the app ships, as pure data over [TransitionShaders]: the lowercase
+ * gl-transitions ids for the eight MIT ports, plus the in-house cuts that give whip, zoom and
+ * glitch their pictures. A name in a recipe either is verified or becomes a verified neighbour —
+ * the picker, the compiler and the export writer read this object so a name means one thing
+ * everywhere. Nothing here draws: it only decides which names exist and which neighbour a
+ * stranger becomes. Below a shader compiler the engine crossfades instead of drawing a program.
  */
 object AgslTransitions {
 
-    /**
-     * The default pool. Curated for a short-form motion studio: dissolves and warps cut, cubes and
-     * page turns travel, a few distortions (ripple, swirl, morph, pixelize, window slices) and one
-     * glitch for energy. Names match the Maven artifact byte for byte so a recipe string is the id.
-     */
+    /** The programs the engine actually runs: the eight ports, then the in-house cuts. */
     val verified: List<String> = listOf(
         "fade",
         "fadecolor",
-        "crosswarp",
         "directionalwarp",
-        "cube",
-        "doorway",
-        "bookflip",
-        "invertedpagecurl",
-        "ripple",
-        "swirl",
-        "morph",
+        "crosswarp",
+        "lumawipe",
         "pixelize",
-        "windowslices",
-        "glitchmemories",
+        "circleopen",
+        "noisedissolve",
+        "whip",
+        "zoom",
+        "glitchlite",
     )
 
     /**
-     * Whether the draw path needs Android 13. The catalog loads on every API the app supports;
-     * TransitionShader draws AGSL and does not. The picker greys previews under 33 instead of
-     * promising a shader the device cannot run.
+     * The program [name] draws after [fallbackFor]. Total — every string has a program, so a
+     * broken recipe can never wander and nothing has to guess at draw time.
      */
-    val needsApi33: Boolean get() = true
+    fun programFor(name: String): TransitionProgram = TransitionShaders.program(fallbackFor(name))
 
     /**
-     * What runs below 33 when AGSL is out of reach: the `glsl3/` sources go through Media3/GLES3,
-     * so the cut still happens — just not through TransitionShader.
-     */
-    const val glsl3FallbackNote: String = "Below API 33 the glsl3/ sources go through Media3/GLES3."
-
-    /**
-     * Neighbours for names a recipe may still ask for: catalog siblings outside the pool, older
-     * spellings, and near-aliases. Same input always maps to the same neighbour — a broken recipe
-     * must never wander. Anything not listed falls to [DEFAULT_FALLBACK].
+     * Neighbours for names a recipe may still ask for: catalogue siblings outside the pool, older
+     * spellings and near-aliases. Same input always maps to the same neighbour; anything not
+     * listed falls to [DEFAULT_FALLBACK].
      */
     private val NEIGHBOURS: Map<String, String> = linkedMapOf(
-        // Colour burns collapse onto the coloured fade; plain luma wipes onto the plain one.
+        // Colour washes collapse onto the fade through colour.
         "burn" to "fadecolor",
         "colorphase" to "fadecolor",
         "filmburn" to "fadecolor",
         "undulatingburnout" to "fadecolor",
-        "luma" to "fade",
-        "lumablack" to "fade",
-        "lumawhite" to "fade",
-        // Warps and wipes share the directional family.
+        "dip" to "fadecolor",
+        "flash" to "fadecolor",
+        "leak" to "fadecolor",
+        "leak-cool" to "fadecolor",
+        // A cut that tears is the glitch's picture; slices are its bands.
+        "slice" to "glitchlite",
+        "glitch" to "glitchlite",
+        "glitchmemories" to "glitchlite",
+        "crazyparametricfun" to "glitchlite",
+        // Luma dissolves.
+        "luma" to "lumawipe",
+        "lumablack" to "lumawipe",
+        "lumawhite" to "lumawipe",
+        // Warps, wipes and page turns share the directional family.
         "wind" to "directionalwarp",
         "wipeleft" to "directionalwarp",
         "wiperight" to "directionalwarp",
         "wipeup" to "directionalwarp",
         "wipedown" to "directionalwarp",
         "directionaleasing" to "directionalwarp",
+        "cube" to "directionalwarp",
+        "doorway" to "directionalwarp",
+        "bookflip" to "directionalwarp",
+        "invertedpagecurl" to "directionalwarp",
+        "bounce" to "directionalwarp",
+        "stereoviewer" to "directionalwarp",
+        // Warps and shape morphs.
         "crosszoom" to "crosswarp",
         "simplezoom" to "crosswarp",
         "squeeze" to "crosswarp",
-        // Round and swirl distortions.
-        "circle" to "ripple",
-        "circleopen" to "ripple",
-        "circleclose" to "ripple",
-        "radial" to "ripple",
-        "waterdrop" to "ripple",
-        "dreamy" to "swirl",
-        "dreamyzoom" to "swirl",
-        "kaleidoscope" to "swirl",
-        "pinwheel" to "swirl",
-        "butterflywavescrawler" to "swirl",
-        // Grid and block breaks.
+        "swap" to "crosswarp",
+        "morph" to "crosswarp",
+        "displacement" to "crosswarp",
+        "heart" to "crosswarp",
+        "dreamy" to "crosswarp",
+        "dreamyzoom" to "crosswarp",
+        "kaleidoscope" to "crosswarp",
+        "pinwheel" to "crosswarp",
+        "butterflywavescrawler" to "crosswarp",
+        // Round cuts: a ripple's ring is an opening circle.
+        "circle" to "circleopen",
+        "circleclose" to "circleopen",
+        "radial" to "circleopen",
+        "waterdrop" to "circleopen",
+        "ripple" to "circleopen",
+        // Grid and block breaks pixelate.
         "crosshatch" to "pixelize",
         "flyeye" to "pixelize",
         "hexagonalize" to "pixelize",
         "mosaic" to "pixelize",
         "polkadots" to "pixelize",
-        "randomsquares" to "windowslices",
-        "squareswire" to "windowslices",
-        "windowblinds" to "windowslices",
-        "doomscreen" to "windowslices",
-        "crazyparametricfun" to "glitchmemories",
-        // Shape morphs and cubes.
-        "displacement" to "morph",
-        "heart" to "morph",
-        "perlin" to "morph",
-        "swap" to "morph",
-        "bounce" to "cube",
-        "stereoviewer" to "cube",
+        "randomsquares" to "pixelize",
+        "squareswire" to "pixelize",
+        "windowblinds" to "pixelize",
+        "doomscreen" to "pixelize",
+        // Noise dissolves.
+        "perlin" to "noisedissolve",
+        "noise" to "noisedissolve",
+        // The whip pan is the slide cut; a plain crossfade is the fade.
+        "slide" to "whip",
+        "crossfade" to "fade",
     )
 
     private const val DEFAULT_FALLBACK = "fade"
 
     /**
-     * The name to draw when [name] is unknown or outside the pool. Verified names come back
-     * unchanged (case-folded); listed strangers become their neighbour; the rest become
+     * The name to draw when [name] is unknown or outside the pool: verified names come back
+     * unchanged (case-folded), listed strangers become their neighbour, the rest become
      * [DEFAULT_FALLBACK]. Pure and total — every string has an answer inside [verified].
      */
     fun fallbackFor(name: String): String {
