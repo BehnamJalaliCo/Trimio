@@ -9,6 +9,9 @@ import kotlinx.serialization.Serializable
  * A design style as data: everything needed to render it plus how to present it in the gallery.
  * Packs contain no executable code (Google Play policy); shaders are GPU programs carried as text
  * inside [StyleSpec.shaders].
+ *
+ * Schema 2 adds the film-texture/LUT fields and the design-token sheet of [StyleSpec] additively;
+ * schema 1 packs decode with both in their defaults and stay valid.
  */
 @Serializable
 data class StylePack(
@@ -28,7 +31,7 @@ data class StylePack(
     val spec: StyleSpec,
 ) {
     companion object {
-        const val SUPPORTED_SCHEMA = 1
+        const val SUPPORTED_SCHEMA = 2
     }
 }
 

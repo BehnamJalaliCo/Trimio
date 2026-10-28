@@ -2,6 +2,7 @@ package io.trimio.engine.motion
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Each craft rule fires on a synthetic violation and stays silent on its clean twin; the last
@@ -11,7 +12,7 @@ class CraftAuditTest {
 
     @Test
     fun briefTextIsUnreadable() {
-        val needed = MotionSpec.holdForLine(3, isLast = false)
+        val needed = MotionSpec.Time.holdForLine(3, isLast = false)
         val brief = timeline(shot(el(words = 3, heightPx = 60f, disappearsAt = needed * 0.5f), el("decoy")))
         val held = timeline(shot(el(words = 3, heightPx = 60f), el("decoy"), end = needed + 1f))
         assertEquals(listOf("line_unread"), rules(brief))
@@ -103,7 +104,8 @@ class CraftAuditTest {
             ),
             duration = 6f,
         )
-        assertEquals(emptyList<String>(), CraftAudit.audit(piece))
+        val findings = CraftAudit.audit(piece)
+        assertTrue(findings.isEmpty(), "clean piece must have no findings, got $findings")
     }
 
     private fun rules(t: CraftAudit.Timeline): List<String> = CraftAudit.audit(t).map { it.rule }

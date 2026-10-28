@@ -19,10 +19,13 @@ import io.trimio.core.designsystem.shader.TrimioShader
 import io.trimio.core.model.style.OverlaySpec
 
 /** Finishing layer: vignette, film grain, letterbox bars. */
-internal class OverlayLayer(private val spec: OverlaySpec, private val options: RenderOptions) {
+internal class OverlayLayer(private val spec: OverlaySpec, @Suppress("UnusedPrivateProperty") private val options: RenderOptions) {
     private val grain: TrimioShader? by lazy { runCatching { TrimioShader(ShaderSources.filmGrain) }.getOrNull() }
 
-    /** CPU rasterisers: grain rendered once into a tile and shifted every film frame (24 fps). */
+    /**
+     * Grain rasterised once into a tile and shifted at 12 Hz: a fresh noise field every frame is
+     * the worst thing an encoder can be fed. Luma-only grey noise, 1–2 code values on a midtone.
+     */
     private val grainTile: ImageBitmap? by lazy {
         val g = grain ?: return@lazy null
         val tile = ImageBitmap(TILE, TILE)
@@ -47,17 +50,22 @@ internal class OverlayLayer(private val spec: OverlaySpec, private val options: 
             )
         }
         if (spec.grain > 0f) {
-            val tile = if (options.shaderScale < 1f) grainTile else null
+            val tile = grainTile
             val g = grain
             if (tile != null) {
-                val frame = (timeMs * 24 / 1000).toInt()
+                val frame = (timeMs * GRAIN_HZ / 1000).toInt()
                 val shift = Offset(((frame * 97) % TILE).toFloat(), ((frame * 53) % TILE).toFloat())
                 translate(-shift.x, -shift.y) {
-                    drawRect(ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated)), topLeft = shift, size = size, alpha = spec.grain)
+                    drawRect(
+                        ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated)),
+                        topLeft = shift,
+                        size = size,
+                        alpha = grainAlpha(spec.grain),
+                    )
                 }
             } else if (g != null) {
                 g.uniform("iResolution", size.width, size.height)
-                g.uniform("iTime", timeMs / 1000f)
+                g.uniform("iTime", grainTime(timeMs))
                 g.uniform("iAmount", spec.grain)
                 drawRect(g.brush())
             }
@@ -71,5 +79,14 @@ internal class OverlayLayer(private val spec: OverlaySpec, private val options: 
 
     private companion object {
         const val TILE = 256
+        const val GRAIN_HZ = 12
+
+        /** 1–2 code values on a midtone: texture, never snow. */
+        fun grainAlpha(amount: Float): Float = (amount * GRAIN_ALPHA_GAIN).coerceIn(0f, 1f)
+
+        /** Grain's time quantised to 12 Hz so consecutive frames share one noise aim. */
+        fun grainTime(timeMs: Long): Float = (timeMs * GRAIN_HZ / 1000).toInt() / GRAIN_HZ.toFloat()
+
+        private const val GRAIN_ALPHA_GAIN = 0.02f
     }
 }

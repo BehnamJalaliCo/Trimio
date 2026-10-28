@@ -134,7 +134,9 @@ class ExplainerStageTest {
         val g = (bg.green * 255).toInt()
         val b = (bg.blue * 255).toInt()
         val safe = f.safe
-        for (y in 0 until minOf(h, px.h)) for (x in 0 until minOf(w, px.w)) {
+        // The exported frame's own outer rim is its edge seam and the glow that pools in it at
+        // export scale - not drawing: the safe area sits far inside it.
+        for (y in 4 until minOf(h, px.h) - 4) for (x in 4 until minOf(w, px.w) - 4) {
             val fx = (x + 0.5f) / scale
             val fy = (y + 0.5f) / scale
             val inSafe = fx >= safe.left && fx <= safe.right && fy >= safe.top && fy <= safe.bottom

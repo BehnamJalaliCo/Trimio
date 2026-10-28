@@ -8,6 +8,7 @@ import io.trimio.core.brand.BrandFonts.Role.Ui
 import io.trimio.engine.motion.Grade
 import io.trimio.engine.motion.Guard
 import io.trimio.engine.motion.anim
+import io.trimio.engine.motion.recipe.FilmTextures
 import io.trimio.engine.motion.recipe.Look
 import io.trimio.engine.motion.recipe.Look.Mark
 import io.trimio.engine.motion.recipe.Look.Voice
@@ -40,7 +41,7 @@ internal object Styles {
         name: String, canvas: Long, aurora: List<Long>, ink: Long, muted: Long, accent: Long, positive: Long, negative: Long,
         hot: Long, card: Long, rim: Long, headline: Voice, caption: Voice, body: Voice, number: Voice, label: Voice,
         grain: Float, vignette: Float, roundness: Float, mark: Mark, caps: Boolean, plate: Boolean, grade: Grade, ease: Ease,
-        backdrop: String?, lens: String?,
+        backdrop: String?, lens: String?, textureId: String, textureOpacity: Float, lutId: String, filmPreset: String,
     ): Look {
         val c = Color(canvas)
         val i = Color(ink)
@@ -53,6 +54,7 @@ internal object Styles {
             textShadow = if (plate) Color.Transparent else Look.Noir.textShadow,
             guard = if (plate) Guard(Guard.Style.Plate, light = c, dark = i, radius = if (roundness == 0f) 0f else PLATE_RADIUS) else Guard(Guard.Style.Halo, light = i, dark = c),
             backdrop = backdrop, lens = lens, grade = grade, settle = ease.curve, caps = caps,
+            texture = FilmTextures.texture(textureId, textureOpacity), lut = lutId, film = FilmTextures.filmLook(filmPreset, textureId),
         )
     }
 
@@ -122,6 +124,7 @@ internal object Styles {
             number = Voice(Display, 1000, 1f), label = Voice(Accent, 700, 1.2f, 0.2f),
             grain = 0f, vignette = 0.05f, roundness = 0f, mark = Mark.Block, caps = true, plate = true,
             grade = Grade(0f.anim, 1.12f.anim, 0.7f.anim, 0f.anim), ease = Ease.Snap, backdrop = null, lens = null,
+            textureId = "paper-kraft", textureOpacity = 0.26f, lutId = "bleach-bypass", filmPreset = "clean",
         ),
         accents = listOf("#FF3B00", "#0047FF", "#FFE500"),
         motion = MotionGrammar(
@@ -148,6 +151,7 @@ internal object Styles {
             number = Voice(Display, 1000, 1f), label = Voice(Accent, 700, 1.2f, 0.18f),
             grain = 0f, vignette = 0.4f, roundness = 0.3f, mark = Mark.Block, caps = true, plate = false,
             grade = Grade(0f.anim, 1.08f.anim, 1.05f.anim, 0.05f.anim), ease = Ease.Back, backdrop = "liquid", lens = null,
+            textureId = "halftone-pop", textureOpacity = 0.16f, lutId = "cross-process", filmPreset = "film",
         ),
         accents = listOf("#FF2E63", "#FFD23F", "#2EC4FF"),
         motion = MotionGrammar(
@@ -174,6 +178,7 @@ internal object Styles {
             number = Voice(Accent, 800, 1f), label = Voice(Ui, 700, 1.2f, 0.12f),
             grain = 0f, vignette = 0f, roundness = 0f, mark = Mark.Block, caps = false, plate = true,
             grade = Grade(0f.anim, 1.04f.anim, 0.9f.anim, 0f.anim), ease = Ease.Snap, backdrop = null, lens = null,
+            textureId = "paper-white", textureOpacity = 0.18f, lutId = "punch", filmPreset = "clean",
         ),
         accents = listOf("#D0021B", "#1F4BFF", "#111111"),
         motion = MotionGrammar(
@@ -200,6 +205,7 @@ internal object Styles {
             number = Voice(Accent, 900, 1f), label = Voice(Accent, 600, 1.2f, 0.2f),
             grain = 0.1f, vignette = 0.55f, roundness = 0.6f, mark = Mark.Block, caps = true, plate = false,
             grade = Grade(0.02f.anim, 1f.anim, 1.15f.anim, 0.2f.anim), ease = Ease.Snap, backdrop = "leaks", lens = "chromatic",
+            textureId = "leak-warm-3", textureOpacity = 0.22f, lutId = "seventies", filmPreset = "film",
         ),
         accents = listOf("#FF4FD8", "#43F2FF", "#FFB000"),
         motion = MotionGrammar(
@@ -226,6 +232,7 @@ internal object Styles {
             number = Voice(Accent, 900, 1f), label = Voice(Accent, 600, 1.2f, 0.24f),
             grain = 0f, vignette = 0.5f, roundness = 0.4f, mark = Mark.Ink, caps = true, plate = false,
             grade = Grade(0f.anim, 1.1f.anim, 1.1f.anim, (-0.5f).anim), ease = Ease.Snap, backdrop = "glow", lens = null,
+            textureId = "bokeh-neon", textureOpacity = 0.16f, lutId = "neon-night", filmPreset = "dream",
         ),
         accents = listOf("#00F0FF", "#FF3DF2", "#39FF88"),
         motion = MotionGrammar(
@@ -252,6 +259,7 @@ internal object Styles {
             number = Voice(Ui, 400, 1f), label = Voice(Ui, 600, 1.2f, 0.2f),
             grain = 0f, vignette = 0f, roundness = 0.2f, mark = Mark.Underline, caps = false, plate = true,
             grade = Grade(0f.anim, 1.02f.anim, 0.8f.anim, 0f.anim), ease = Ease.Sine, backdrop = null, lens = null,
+            textureId = "grain-fine", textureOpacity = 0.08f, lutId = "mono-soft", filmPreset = "clean",
         ),
         accents = listOf("#0E0E0E", "#1F3BFF"),
         motion = MotionGrammar(
@@ -278,6 +286,7 @@ internal object Styles {
             number = Voice(Display, 1000, 1f), label = Voice(Accent, 700, 1.2f, 0.1f),
             grain = 0f, vignette = 0f, roundness = 2f, mark = Mark.Block, caps = false, plate = true,
             grade = Grade(0.03f.anim, 1f.anim, 1.15f.anim, 0.1f.anim), ease = Ease.Spring, backdrop = "liquid", lens = null,
+            textureId = "halftone-pop", textureOpacity = 0.12f, lutId = "pastel", filmPreset = "dream",
         ),
         accents = listOf("#FF5FA2", "#FFC531", "#4FD1FF", "#7CF29A"),
         motion = MotionGrammar(
@@ -304,6 +313,7 @@ internal object Styles {
             number = Voice(Accent, 900, 1f), label = Voice(Accent, 600, 1.2f, 0.22f),
             grain = 0f, vignette = 0.35f, roundness = 0.3f, mark = Mark.Block, caps = true, plate = false,
             grade = Grade(0f.anim, 1.08f.anim, 0.85f.anim, (-0.2f).anim), ease = Ease.Snap, backdrop = null, lens = null,
+            textureId = "grain-fine", textureOpacity = 0.08f, lutId = "cool-film", filmPreset = "clean",
         ),
         accents = listOf("#2BFF88", "#FFB800", "#4DA3FF"),
         motion = MotionGrammar(
@@ -330,6 +340,7 @@ internal object Styles {
             number = Voice(Ui, 900, 1f), label = Voice(Ui, 700, 1.2f, 0.14f),
             grain = 0f, vignette = 0.3f, roundness = 0.25f, mark = Mark.Block, caps = true, plate = false,
             grade = Grade(0f.anim, 1.04f.anim, 0.95f.anim, 0f.anim), ease = Ease.Expo, backdrop = "glow", lens = null,
+            textureId = "grain-fine", textureOpacity = 0.07f, lutId = "punch", filmPreset = "clean",
         ),
         accents = listOf("#D90F28", "#FFC400", "#FFFFFF"),
         motion = MotionGrammar(
@@ -356,6 +367,7 @@ internal object Styles {
             number = Voice(Accent, 700, 1f), label = Voice(Accent, 500, 1.2f, 0.2f),
             grain = 0.08f, vignette = 0.5f, roundness = 0.5f, mark = Mark.Underline, caps = false, plate = false,
             grade = Grade((-0.02f).anim, 1f.anim, 0.8f.anim, 0.25f.anim), ease = Ease.Sine, backdrop = "dust", lens = "halation",
+            textureId = "grain-16mm", textureOpacity = 0.16f, lutId = "warm-film", filmPreset = "film",
         ),
         accents = listOf("#E9C46A", "#E76F51", "#8ECAE6"),
         motion = MotionGrammar(
@@ -382,6 +394,7 @@ internal object Styles {
             number = Voice(Display, 900, 1f), label = Voice(Accent, 500, 1.2f, 0.3f),
             grain = 0.06f, vignette = 0.7f, roundness = 0.3f, mark = Mark.Ink, caps = true, plate = false,
             grade = Grade((-0.03f).anim, 1.12f.anim, 0.9f.anim, 0.1f.anim), ease = Ease.Expo, backdrop = "glow", lens = "halation",
+            textureId = "leak-gold-1", textureOpacity = 0.18f, lutId = "teal-orange", filmPreset = "film",
         ),
         accents = listOf("#F2B33D", "#5FB7FF", "#FF6A1F"),
         motion = MotionGrammar(
@@ -408,6 +421,7 @@ internal object Styles {
             number = Voice(Expressive, 800, 1f), label = Voice(Accent, 500, 1.2f, 0.18f),
             grain = 0f, vignette = 0.1f, roundness = 1.8f, mark = Mark.Underline, caps = false, plate = true,
             grade = Grade(0.04f.anim, 0.98f.anim, 0.92f.anim, 0.15f.anim), ease = Ease.Sine, backdrop = "bokeh", lens = null,
+            textureId = "bokeh-warm", textureOpacity = 0.12f, lutId = "soft-skin", filmPreset = "dream",
         ),
         accents = listOf("#E8A5B5", "#C9B6F2", "#F5C9A8"),
         motion = MotionGrammar(
@@ -434,6 +448,7 @@ internal object Styles {
             number = Voice(Display, 900, 1f), label = Voice(Accent, 600, 1.2f, 0.14f),
             grain = 0f, vignette = 0.12f, roundness = 1.5f, mark = Mark.Circle, caps = false, plate = true,
             grade = Grade(0.03f.anim, 1.02f.anim, 1.1f.anim, 0.45f.anim), ease = Ease.Back, backdrop = "bokeh", lens = null,
+            textureId = "leak-warm-2", textureOpacity = 0.16f, lutId = "golden-hour", filmPreset = "film",
         ),
         accents = listOf("#F2A541", "#8FBF6A", "#F28C6A"),
         motion = MotionGrammar(
@@ -460,6 +475,7 @@ internal object Styles {
             number = Voice(Accent, 800, 1f), label = Voice(Ui, 600, 1.2f, 0.12f),
             grain = 0f, vignette = 0.4f, roundness = 1.6f, mark = Mark.Ink, caps = false, plate = false,
             grade = Grade(0f.anim, 1.05f.anim, 0.95f.anim, (-0.3f).anim), ease = Ease.Expo, backdrop = "liquid", lens = null,
+            textureId = "grain-fine", textureOpacity = 0.06f, lutId = "arctic", filmPreset = "clean",
         ),
         accents = listOf("#5B9CFF", "#5BE49B", "#F5F7FA"),
         motion = MotionGrammar(
@@ -486,6 +502,7 @@ internal object Styles {
             number = Voice(Display, 900, 1f), label = Voice(Accent, 600, 1.2f, 0.14f),
             grain = 0.05f, vignette = 0.45f, roundness = 0.6f, mark = Mark.Circle, caps = false, plate = false,
             grade = Grade(0f.anim, 1.02f.anim, 0.95f.anim, 0.1f.anim), ease = Ease.Back, backdrop = "dust", lens = null,
+            textureId = "dust-light", textureOpacity = 0.16f, lutId = "matte-fade", filmPreset = "film",
         ),
         accents = listOf("#FFE27A", "#9EE6A0", "#8ED6FF", "#FFB3C7"),
         motion = MotionGrammar(
@@ -512,6 +529,7 @@ internal object Styles {
             number = Voice(Display, 1000, 1f), label = Voice(Accent, 800, 1.2f, 0.2f),
             grain = 0f, vignette = 0.45f, roundness = 0.2f, mark = Mark.Block, caps = true, plate = false,
             grade = Grade(0.02f.anim, 1.14f.anim, 1.15f.anim, 0f.anim), ease = Ease.Snap, backdrop = "glow", lens = null,
+            textureId = "grain-35mm", textureOpacity = 0.12f, lutId = "punch", filmPreset = "film",
         ),
         accents = listOf("#C6FF00", "#FF3D00", "#00E5FF"),
         motion = MotionGrammar(
@@ -538,6 +556,7 @@ internal object Styles {
             number = Voice(Display, 1000, 1f), label = Voice(Expressive, 700, 1.2f),
             grain = 0f, vignette = 0f, roundness = 2.2f, mark = Mark.Circle, caps = false, plate = true,
             grade = Grade(0.04f.anim, 1f.anim, 1.2f.anim, 0.05f.anim), ease = Ease.Spring, backdrop = "bokeh", lens = null,
+            textureId = "bokeh-warm", textureOpacity = 0.1f, lutId = "pastel", filmPreset = "dream",
         ),
         accents = listOf("#FFC531", "#7CF29A", "#7FD4FF", "#FF9EC7"),
         motion = MotionGrammar(
@@ -564,6 +583,7 @@ internal object Styles {
             number = Voice(Ui, 900, 1f), label = Voice(Ui, 600, 1.2f, 0.1f),
             grain = 0f, vignette = 0f, roundness = 0.8f, mark = Mark.Block, caps = false, plate = true,
             grade = Grade(0.02f.anim, 1f.anim, 0.95f.anim, (-0.1f).anim), ease = Ease.Expo, backdrop = "liquid", lens = null,
+            textureId = "grain-fine", textureOpacity = 0.05f, lutId = "cool-film", filmPreset = "clean",
         ),
         accents = listOf("#1F5BFF", "#0F7A54", "#5B3FD9"),
         motion = MotionGrammar(
@@ -591,6 +611,7 @@ internal object Styles {
             grain = 0f, vignette = 0.6f, roundness = 0.5f, mark = Mark.Block, caps = true, plate = false,
             // A gold light from above through haze (the owner's black-and-gold references), not motes drifting like stars.
             grade = Grade((-0.02f).anim, 1.04f.anim, 0.9f.anim, 0.3f.anim), ease = Ease.Sine, backdrop = "glow", lens = null,
+            textureId = "leak-gold-2", textureOpacity = 0.2f, lutId = "luxe-gold", filmPreset = "dream",
         ),
         accents = listOf("#D4AF6A", "#E8E1D3", "#C9A27E"),
         motion = MotionGrammar(
@@ -618,6 +639,7 @@ internal object Styles {
             number = Voice(Display, 1000, 1f), label = Voice(Accent, 800, 1.2f, 0.12f),
             grain = 0.05f, vignette = 0.45f, roundness = 0f, mark = Mark.Block, caps = true, plate = false,
             grade = Grade(0f.anim, 1.15f.anim, 1.05f.anim, 0f.anim), ease = Ease.Snap, backdrop = null, lens = "chromatic",
+            textureId = "dust-scratches", textureOpacity = 0.14f, lutId = "cross-process", filmPreset = "film",
         ),
         accents = listOf("#FF6A00", "#FFE600", "#B388FF"),
         motion = MotionGrammar(
@@ -644,6 +666,7 @@ internal object Styles {
             number = Voice(Expressive, 700, 1f), label = Voice(Accent, 500, 1.2f, 0.2f),
             grain = 0f, vignette = 0.08f, roundness = 1.8f, mark = Mark.Underline, caps = false, plate = true,
             grade = Grade(0.03f.anim, 0.97f.anim, 0.9f.anim, 0.1f.anim), ease = Ease.Sine, backdrop = "liquid", lens = null,
+            textureId = "grain-fine", textureOpacity = 0.05f, lutId = "forest", filmPreset = "dream",
         ),
         accents = listOf("#8FB996", "#D9B88F", "#A9C8E0"),
         motion = MotionGrammar(
@@ -670,6 +693,7 @@ internal object Styles {
             number = Voice(Display, 900, 1f), label = Voice(Accent, 600, 1.2f, 0.26f),
             grain = 0.06f, vignette = 0.5f, roundness = 0.8f, mark = Mark.Underline, caps = true, plate = false,
             grade = Grade(0.02f.anim, 1.06f.anim, 1.1f.anim, 0.35f.anim), ease = Ease.Sine, backdrop = "leaks", lens = "halation",
+            textureId = "leak-warm-4", textureOpacity = 0.2f, lutId = "desert", filmPreset = "film",
         ),
         accents = listOf("#FFB347", "#7FD1D8", "#FF8A66"),
         motion = MotionGrammar(
@@ -696,6 +720,7 @@ internal object Styles {
             number = Voice(Accent, 500, 1f), label = Voice(Ui, 600, 1.2f, 0.28f),
             grain = 0f, vignette = 0.15f, roundness = 0.4f, mark = Mark.Underline, caps = true, plate = true,
             grade = Grade(0.03f.anim, 1.03f.anim, 0.92f.anim, 0.2f.anim), ease = Ease.Sine, backdrop = "glow", lens = null,
+            textureId = "paper-white", textureOpacity = 0.16f, lutId = "moonlight", filmPreset = "clean",
         ),
         accents = listOf("#7A5A2E", "#1C1A17", "#3F5A4A"),
         motion = MotionGrammar(
@@ -722,6 +747,7 @@ internal object Styles {
             number = Voice(Display, 1000, 1f), label = Voice(Accent, 700, 1.2f, 0.22f),
             grain = 0f, vignette = 0.5f, roundness = 0.6f, mark = Mark.Block, caps = true, plate = false,
             grade = Grade(0f.anim, 1.1f.anim, 1.2f.anim, (-0.3f).anim), ease = Ease.Back, backdrop = "glow", lens = null,
+            textureId = "bokeh-neon", textureOpacity = 0.14f, lutId = "neon-night", filmPreset = "film",
         ),
         accents = listOf("#A57BFF", "#3DFFB0", "#FF3DF2"),
         motion = MotionGrammar(
@@ -748,6 +774,7 @@ internal object Styles {
             number = Voice(Accent, 800, 1f), label = Voice(Accent, 600, 1.2f, 0.2f),
             grain = 0.04f, vignette = 0.5f, roundness = 1.4f, mark = Mark.Block, caps = false, plate = false,
             grade = Grade(0f.anim, 1.04f.anim, 0.9f.anim, 0.3f.anim), ease = Ease.Sine, backdrop = "dust", lens = null,
+            textureId = "dust-light", textureOpacity = 0.14f, lutId = "sepia", filmPreset = "film",
         ),
         accents = listOf("#FF8A3D", "#FFC56B", "#7FC8F8"),
         motion = MotionGrammar(

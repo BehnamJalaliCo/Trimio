@@ -222,24 +222,112 @@ half4 main(float2 fc) {
     /**
      * Halation: highlights bleed a warm red glow into their surroundings, as on film. The glow is
      * gathered from [bloom], a quarter-resolution copy of the content (wide taps cost little there).
+     * [uRadiusPx] is how far the glow spreads in px; [uThreshLo]/[uThreshHi] gate it to the luma
+     * band of the highlights that actually glow.
      */
     const val halation = FILTER_HEAD + """
 uniform shader bloom;
 uniform float uBloomScale;
+uniform float uRadiusPx;
+uniform float uThreshLo;
+uniform float uThreshHi;
 half4 main(float2 fc) {
     half4 base = content.eval(fc);
     float3 glow = float3(0.0);
     for (int i = 0; i < 8; i++) {
         float fi = float(i);
         float a = fi * 2.39996;
-        float r = uSize.y * (0.004 + 0.016 * sqrt((fi + 0.5) / 8.0));
+        float r = uRadiusPx * (0.15 + 0.85 * sqrt((fi + 0.5) / 8.0));
         float3 s = float3(bloom.eval((fc + float2(cos(a), sin(a)) * r) * uBloomScale).rgb);
-        glow += s * smoothstep(0.55, 0.95, luma(s));
+        glow += s * smoothstep(uThreshLo, uThreshHi, luma(s));
     }
     glow = glow / 8.0;
     float3 col = float3(base.rgb) + glow * float3(1.0, 0.38, 0.16) * uAmount;
     float a = max(float(base.a), clamp(luma(glow) * uAmount, 0.0, 1.0));
     return half4(half3(min(col, float3(a))), half(a));
+}
+"""
+
+    /**
+     * Diffusion: a wide low-pass of the content mixed back over itself — the physical filter's
+     * bloom, `mix(c, c + blur(lowpass(c)), uDiffusion)`. [uDiffusionRadius] is the preset's spread.
+     */
+    const val diffusion = FILTER_HEAD + """
+uniform shader bloom;
+uniform float uBloomScale;
+uniform float uDiffusion;
+uniform float uDiffusionRadius;
+half4 main(float2 fc) {
+    half4 base = content.eval(fc);
+    float3 soft = float3(0.0);
+    for (int i = 0; i < 6; i++) {
+        float fi = float(i);
+        float a = fi * 2.39996;
+        float r = uDiffusionRadius * (0.2 + 0.8 * sqrt((fi + 0.5) / 6.0));
+        soft += float3(bloom.eval((fc + float2(cos(a), sin(a)) * r) * uBloomScale).rgb);
+    }
+    soft = soft / 6.0;
+    float3 col = float3(base.rgb) + soft * uDiffusion;
+    return half4(half3(min(col, float3(base.a))), base.a);
+}
+"""
+
+    /**
+     * One full-frame finishing pass over the composited picture: diffusion, halation, a mild
+     * S-curve grade with a warm/cool tilt, and luma-only grain that ticks at 12 Hz (never a fresh
+     * noise field per frame). Type drawn after this pass stays sharp.
+     */
+    const val finish = FILTER_HEAD + """
+uniform shader bloom;
+uniform float uBloomScale;
+uniform float uHalation;
+uniform float uHalationRadius;
+uniform float uThreshLo;
+uniform float uThreshHi;
+uniform float uDiffusion;
+uniform float uDiffusionRadius;
+uniform float uExposure;
+uniform float uContrast;
+uniform float uSaturation;
+uniform float uTemperature;
+uniform float uGrain;
+float sCurve(float x, float k) {
+    float s = x * x * (3.0 - 2.0 * x);
+    return clamp(x + (s - x) * k, 0.0, 1.0);
+}
+half4 main(float2 fc) {
+    half4 base = content.eval(fc);
+    float3 c = float3(base.rgb);
+    float3 soft = float3(0.0);
+    float3 glow = float3(0.0);
+    for (int i = 0; i < 8; i++) {
+        float fi = float(i);
+        float a = fi * 2.39996;
+        float rd = uDiffusionRadius * (0.2 + 0.8 * sqrt((fi + 0.5) / 8.0));
+        float rh = uHalationRadius * (0.15 + 0.85 * sqrt((fi + 0.5) / 8.0));
+        float3 sd = float3(bloom.eval((fc + float2(cos(a), sin(a)) * rd) * uBloomScale).rgb);
+        float3 sh = float3(bloom.eval((fc + float2(cos(a), sin(a)) * rh) * uBloomScale).rgb);
+        soft += sd;
+        glow += sh * smoothstep(uThreshLo, uThreshHi, luma(sh));
+    }
+    soft = soft / 8.0;
+    glow = glow / 8.0;
+    c = c + soft * uDiffusion;
+    c = c + glow * float3(1.0, 0.38, 0.16) * uHalation;
+    c = c * exp2(uExposure);
+    float k = clamp((uContrast - 1.0) * 4.0, -1.0, 1.0);
+    c = float3(sCurve(c.r, k), sCurve(c.g, k), sCurve(c.b, k));
+    float y = luma(c);
+    c = float3(y) + (c - float3(y)) * uSaturation;
+    c.r = c.r * (1.0 + 0.08 * uTemperature);
+    c.b = c.b * (1.0 - 0.10 * uTemperature);
+    float tick = floor(uTime * 12.0);
+    float g = hash(fc + float2(tick * 17.0, tick * 9.0)) - 0.5;
+    float lum = luma(c);
+    float lift = 0.25 + 0.75 * (1.0 - abs(lum * 2.0 - 1.0));
+    c = c + g * uGrain * lift;
+    float a = float(base.a);
+    return half4(half3(min(c, float3(a))), half(a));
 }
 """
 

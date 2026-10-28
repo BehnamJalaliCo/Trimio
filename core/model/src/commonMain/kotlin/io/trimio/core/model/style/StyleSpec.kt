@@ -1,6 +1,7 @@
 package io.trimio.core.model.style
 
 import io.trimio.core.model.timeline.Anchor
+import kotlin.math.pow
 import kotlinx.serialization.Serializable
 
 /**
@@ -9,6 +10,9 @@ import kotlinx.serialization.Serializable
  *
  * Colours are `#RRGGBB` or `#RRGGBBAA`. Sizes are fractions of the canvas short edge so a style
  * looks identical at 720p and 4K, in portrait and landscape.
+ *
+ * Schema v2 adds [film] (film-texture and LUT packs) and [tokens] (the design-token sheet)
+ * additively: a v1 pack decodes with both in their defaults.
  */
 @Serializable
 data class StyleSpec(
@@ -29,6 +33,10 @@ data class StyleSpec(
      * `shader:<name>` uses one with the standard uniforms (iResolution, iTime, iEnergy, cBase, cA, cB, cC).
      */
     val shaders: Map<String, String> = emptyMap(),
+    /** Which film texture overlay and colour LUT the style wears, and its finishing film preset. */
+    val film: FilmSpec = FilmSpec(),
+    /** The design-token sheet (schema v2): type scale, spacing, radius, semantic colour roles, accent variants. */
+    val tokens: DesignTokens = DesignTokens(),
 )
 
 @Serializable
@@ -141,4 +149,106 @@ data class MotionSpec(
     val energy: Float = 0.6f,
     /** Punch-in zoom on footage at emphasised words. */
     val cameraPunch: Boolean = true,
+)
+
+/**
+ * How the style wears the content packs' film material: which overlay of `overlay.film-textures`
+ * (grain, dust, paper, halftone, light leak, bokeh) lies over the frame, which LUT of
+ * `look.cinematic-luts` grades the footage, and which finishing film preset (the keys of
+ * `Finishing.filmPresets`: clean, film, dream) the pass runs. Null texture or LUT: procedural
+ * grain and the raw grade only.
+ */
+@Serializable
+data class FilmSpec(
+    /** Overlay id of `overlay.film-textures` ("grain-35mm", "paper-kraft", "leak-warm-1", …). */
+    val texture: String? = null,
+    /** How strongly the texture lies over the frame, 0..1. */
+    val textureOpacity: Float = 0.3f,
+    /** LUT id of `look.cinematic-luts` ("teal-orange", "warm-film", …); null grades nothing. */
+    val lut: String? = null,
+    /** Finishing film preset key: "clean", "film" or "dream". */
+    val preset: String = "film",
+    /** Grain the finishing pass adds on top of the preset (null: the preset's own, plus any grain texture). */
+    val grain: Float? = null,
+    /** Halation the finishing pass adds on top of the preset (null: the preset's own). */
+    val halation: Float? = null,
+)
+
+/**
+ * The style's token sheet (schema v2): the type scale, the spacing and radius steps, the semantic
+ * colour roles and the accent variants — the numbers layouts and micro-variation read, so a pack
+ * states its design system as data instead of burying it in presets. Additive: a pack without a
+ * sheet gets these defaults, which match the house numbers.
+ */
+@Serializable
+data class DesignTokens(
+    val type: TypeScale = TypeScale(),
+    val spacing: Spacing = Spacing(),
+    val radius: Radius = Radius(),
+    val colors: ColorRoles = ColorRoles(),
+    /** Accent variants beyond [Palette.accent] (multi-accent); the palette's own accent leads. */
+    val accents: List<String> = emptyList(),
+)
+
+/**
+ * The type scale as a modular scale: display, title, caption and label sit at whole steps of [ratio]
+ * around the caption line (step 0), so the roles never drift apart — a title is always one
+ * `ratio` above its captions whatever the canvas.
+ */
+@Serializable
+data class TypeScale(
+    /** Step-to-step ratio: 1.2 the minor third, 1.25 the major third, 1.333 the perfect fourth. */
+    val ratio: Float = DEFAULT_RATIO,
+    /** Whole steps from the caption line; they must descend display > title > caption > label. */
+    val display: Int = 3,
+    val title: Int = 1,
+    val caption: Int = 0,
+    val label: Int = -1,
+) {
+    /** Size of [step] relative to the caption line: `ratio.pow(step)`. */
+    fun sizeOf(step: Int): Float = ratio.pow(step)
+
+    val displaySize: Float get() = sizeOf(display)
+    val titleSize: Float get() = sizeOf(title)
+    val captionSize: Float get() = sizeOf(caption)
+    val labelSize: Float get() = sizeOf(label)
+
+    companion object {
+        const val DEFAULT_RATIO = 1.25f
+    }
+}
+
+/** The spacing scale, in fractions of the canvas short edge (the same unit as every size). */
+@Serializable
+data class Spacing(val unit: Float = 0.02f) {
+    val xs: Float get() = unit * 0.5f
+    val sm: Float get() = unit
+    val md: Float get() = unit * 2f
+    val lg: Float get() = unit * 3f
+    val xl: Float get() = unit * 4f
+}
+
+/** The radius scale for cards and blocks, in fractions of the canvas short edge (0 = Swiss sharp). */
+@Serializable
+data class Radius(val unit: Float = 0.04f) {
+    val sm: Float get() = unit * 0.5f
+    val md: Float get() = unit
+    val lg: Float get() = unit * 2f
+}
+
+/**
+ * Semantic colour roles over the palette: what a surface is called when a layout asks for one.
+ * Null falls back to the palette ([Palette.background], [Palette.text], …) so a v1 pack keeps
+ * answering; a set value wins. `primary`/`onPrimary` are the accent and its text.
+ */
+@Serializable
+data class ColorRoles(
+    val surface: String? = null,
+    val onSurface: String? = null,
+    val muted: String? = null,
+    val primary: String? = null,
+    val onPrimary: String? = null,
+    val secondary: String? = null,
+    val warning: String? = null,
+    val danger: String? = null,
 )

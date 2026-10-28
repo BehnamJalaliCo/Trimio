@@ -4,6 +4,7 @@ import io.trimio.core.model.audio.PcmAudio
 import io.trimio.core.model.time.TimeRange
 import io.trimio.core.model.transcript.Transcript
 import io.trimio.core.model.transcript.Word
+import io.trimio.engine.asr.WordAligner
 import io.trimio.engine.audio.LoudnessMeter
 import io.trimio.engine.audio.ProsodyAnalyzer
 import io.trimio.engine.audio.VoiceActivityDetector
@@ -29,8 +30,8 @@ class SpeechAnalysis(
     companion object {
         /**
          * Analyses [voice] against the recogniser's [words]. Pauses are judged against the
-         * speaker's own level (a quiet room tone is not speech), recognisers' stretched words are
-         * clipped to speech, and every pause longer than a breath is cut.
+         * speaker's own level, recognisers' stretched words are clipped to speech, and every
+         * pause longer than a breath is cut.
          */
         fun of(voice: PcmAudio, transcript: Transcript, tightenCuts: Boolean = true, strict: Boolean = false): SpeechAnalysis {
             val duration = voice.samples.size / voice.sampleRate.toFloat()
@@ -41,15 +42,18 @@ class SpeechAnalysis(
             val speaking = VoiceActivityDetector(hangoverMs = 70, mergeGapMs = 120, belowSpeechDb = 24f).detect(level)
             // A "pause" that holds a recognised word whole is speech the detector missed: never a cut.
             val pauses = silences(speaking, duration).filter { p -> transcript.words.none { holds(p, it) } }
-            val aligned = EditPlan.alignToSpeech(transcript.words, pauses)
-            val lufs = LoudnessMeter.measure(voice).integratedLufs.toFloat()
             val prosody = ProsodyAnalyzer()
-            val stress = prosody.emphasis(prosody.features(level, speech, LoudnessMeter.measure(level).integratedLufs.toFloat(), 0f), aligned)
+            val features = prosody.features(level, speech, LoudnessMeter.measure(level).integratedLufs.toFloat(), 0f)
+            // Whisper's word bounds drift 50-150 ms; snapping them to the voice's energy before any
+            // cutting or timing keeps the cut list, the captions and the graphics on the same onsets.
+            val onsets = WordAligner().align(transcript.words, features)
+            val aligned = EditPlan.alignToSpeech(onsets, pauses)
+            val lufs = LoudnessMeter.measure(voice).integratedLufs.toFloat()
+            val stress = prosody.emphasis(features, aligned)
             val words = aligned.mapIndexed { i, w -> w.copy(emphasis = stress.getOrElse(i) { 0f }.coerceIn(0f, 1f)) }
-            // Asked to cut every pause («همهٔ سکوت‌ها و مکث‌ها حذف»): the quiet gaps between words go too, not only real silence.
+            // Asked to cut every pause: the quiet gaps between words go too, not only real silence.
             val cuts = if (strict) merge(pauses + quietGaps(words, level)) else pauses
             val tight = EditPlan.tighten(words, cuts, duration, minGap = if (strict) STRICT_GAP else LOOSE_GAP)
-            // Every cut in the quiet between words, no flash shots, no machine-gun run of cuts ([JumpCuts]).
             val edit = if (tightenCuts) JumpCuts.clean(tight, io.trimio.engine.motion.score.CutPoints(level)) else EditPlan.identity(duration)
             return SpeechAnalysis(Transcript(transcript.language, words), edit, pauses, lufs, duration)
         }
@@ -64,7 +68,7 @@ class SpeechAnalysis(
         /** A recognised word this long is a word (shorter is a blip, longer a stretched timing). */
         private val HELD_WORD = 0.12f..1.5f
 
-        /** Whether the brief asks for every pause to go («همهٔ سکوت‌ها و مکث‌ها حذف», "cut all the pauses"). */
+        /** Whether the brief asks for every pause to go. */
         fun strict(prompt: String): Boolean {
             val p = prompt.lowercase().replace("\u200C", " ")
             val pauses = listOf("سکوت", "مکث", "silence", "pause", "dead air").any { it in p }
@@ -74,9 +78,7 @@ class SpeechAnalysis(
 
         /**
          * The quiet stretches of the gaps between two words, each at least [STRICT_GAP] long and
-         * quiet on the voice itself ([QUIET_DB] under the speaker's level, every 20 ms of it): a
-         * pause the activity detector kept as speech (a breath, room noise) but nobody would miss.
-         * A gap with a breath in its middle loses the quiet on either side of it.
+         * quiet on the voice itself: a pause the activity detector kept as speech but nobody would miss.
          */
         private fun quietGaps(words: List<Word>, voice: PcmAudio): List<ClosedFloatingPointRange<Float>> {
             val cuts = io.trimio.engine.motion.score.CutPoints(voice)

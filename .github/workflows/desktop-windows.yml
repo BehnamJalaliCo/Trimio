@@ -188,6 +188,10 @@ jobs:
           ./gradlew :desktopApp:test :engine:models:jvmTest :engine:production:jvmTest
           "-Ptrimio.nativeSmoke=$GITHUB_WORKSPACE/$NATIVE_OUT"
 
+      - name: Annotate junit failures
+        if: failure()
+        run: python3 scripts/ci/annotate_junit.py .
+
       # --- Installers ---------------------------------------------------------------------------------
       # The app image (launcher, runtime, bundled tools), then the Inno Setup installer around it:
       # per-user, upgrades in place, and its uninstaller removes everything the app made

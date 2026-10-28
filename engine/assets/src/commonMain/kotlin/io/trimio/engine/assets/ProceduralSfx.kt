@@ -3,6 +3,7 @@ package io.trimio.engine.assets
 import io.trimio.core.model.audio.PcmAudio
 import kotlin.math.PI
 import kotlin.math.floor
+import kotlin.math.pow
 import kotlin.math.sin
 
 /**
@@ -67,6 +68,43 @@ class ProceduralSfx(private val rate: Int = 48_000) {
         return PcmAudio(Synth.normalize(fadeOut(samples, s)), rate)
     }
 
+    /**
+     * A move's sound, derived from the motion curve itself: the buffer is exactly the move's length
+     * ([durationMs] clamped to [MIN_MOVE_MS]..[MAX_MOVE_MS]), the band-pass sweep and the level
+     * follow [speed] (0..1) and the swell peaks at [MOTION_PEAK] of the buffer — the caller slides
+     * that sample onto the landing or the cut. [variant] (taken modulo [MOTION_VARIANTS]) picks one
+     * of the takes and [seed] adds a small pitch (±[JITTER_SEMITONES]) and gain (±[JITTER_DB])
+     * jitter, so the third whoosh of an edit never sounds like the first. [palette] colours the
+     * take like every other cue. Ids: `whoosh`, `swoosh`.
+     */
+    fun generateMotion(
+        id: String,
+        seed: Int,
+        durationMs: Int,
+        speed: Float,
+        variant: Int = 0,
+        palette: SfxPalette? = null,
+    ): PcmAudio? {
+        val s = Synth(rate)
+        val sp = speed.coerceIn(0f, 1f)
+        val ms = durationMs.coerceIn(MIN_MOVE_MS, MAX_MOVE_MS)
+        val swoosh = when (id) {
+            "whoosh" -> false
+            "swoosh" -> true
+            else -> return null
+        }
+        val rnd = kotlin.random.Random(seed)
+        val pitch = 2f.pow((rnd.nextFloat() * 2f - 1f) * JITTER_SEMITONES / 12f)
+        val jitterDb = (rnd.nextFloat() * 2f - 1f) * JITTER_DB
+        val v = palette?.v
+        val quick = (sp * (if (swoosh) SWISH_BRIGHT else 1f)).coerceAtMost(1f)
+        val voice = pitch * (v?.pitch ?: 1f) * (if (swoosh) SWISH_PITCH else 1f)
+        val samples = motionWhoosh(ms, quick, variant.mod(MOTION_VARIANTS), voice, v)
+        // A faster move is hotter: the level follows the speed (the clip gain comes from the mixer).
+        val peakDb = PEAK_DB - (1f - quick) * SPEED_RANGE_DB + jitterDb
+        return PcmAudio(Synth.normalize(fadeOut(samples, s), peakDb), rate)
+    }
+
     /** Bubble pop: sine with a fast downward pitch sweep and a tiny click on top. */
     private fun pop(s: Synth): FloatArray {
         val out = s.buffer(140)
@@ -107,6 +145,32 @@ class ProceduralSfx(private val rate: Int = 48_000) {
             val e = s.swell(i, out.size, peak)
             val cutoff = 250f + (top - 250f) * e * e
             out[i] = bp.process(noise.pink(), cutoff, 1.6f).band * e
+        }
+        return out
+    }
+
+    /**
+     * Air past the lens, shaped by the move: a resonant band-pass sweeping up to a height set by
+     * [speed] and back down over a low 'push' whose weight is the move's mass. The swell peaks at
+     * [MOTION_PEAK] so the caller lands that instant on the cut; each [take] voices the sweep its
+     * own way (tight and bright, deep, glassy).
+     */
+    private fun motionWhoosh(ms: Int, speed: Float, take: Int, pitch: Float, v: SfxPalette.Voicing?): FloatArray {
+        val s = Synth(rate)
+        val out = s.buffer(ms)
+        val noise = Synth.Noise(take + 1)
+        val bp = Synth.Svf(rate)
+        val lp = Synth.Svf(rate)
+        val bright = (v?.bright ?: 1f) * TAKE_BRIGHT[take]
+        val weight = (v?.weight ?: 1f) * TAKE_WEIGHT[take]
+        for (i in out.indices) {
+            val e = s.swell(i, out.size, MOTION_PEAK)
+            val top = (LOW_CUT + (HIGH_CUT - LOW_CUT) * speed * speed) * bright * pitch
+            val cutoff = LOW_CUT + (top - LOW_CUT) * e * e
+            val n = noise.pink()
+            val air = bp.process(n, cutoff, TAKE_Q[take]).band * e
+            val push = lp.process(n, LOW_CUT + PUSH_LIFT * e).low * e * weight
+            out[i] = (air + push) * (BASE_LEVEL + SPEED_LEVEL * speed)
         }
         return out
     }
@@ -255,5 +319,29 @@ class ProceduralSfx(private val rate: Int = 48_000) {
         /** Where the rewind peaks (the cut it leads into), ms from its start. */
         const val REWIND_PEAK_MS = 360
         private const val REWIND_TAIL_MS = 150
+
+        /** Distinct takes of a move's sound; repeats cycle through them (the research asks for 3–5). */
+        const val MOTION_VARIANTS = 4
+        /** Where in the buffer the swell peaks: the instant the caller lands on the cut. */
+        const val MOTION_PEAK = 0.78f
+        /** A move shorter than this is a flick, not a whoosh; past the longest the air runs out. */
+        const val MIN_MOVE_MS = 90
+        const val MAX_MOVE_MS = 1_200
+        /** ±1–2 semitone and ±1–2 dB of variation per take: two moves never sound cloned. */
+        const val JITTER_SEMITONES = 1.5f
+        const val JITTER_DB = 1.5f
+        /** A faster move is this much louder at the top of its speed, in dB. */
+        const val SPEED_RANGE_DB = 10f
+        private const val PEAK_DB = -2.5f
+        private const val LOW_CUT = 250f
+        private const val HIGH_CUT = 5_200f
+        private const val PUSH_LIFT = 220f
+        private const val BASE_LEVEL = 0.35f
+        private const val SPEED_LEVEL = 0.65f
+        private const val SWISH_BRIGHT = 1.25f
+        private const val SWISH_PITCH = 1.15f
+        private val TAKE_BRIGHT = floatArrayOf(1f, 1.3f, 0.72f, 1.1f)
+        private val TAKE_WEIGHT = floatArrayOf(1f, 0.55f, 1.5f, 0.7f)
+        private val TAKE_Q = floatArrayOf(1.5f, 2.4f, 1.1f, 3.2f)
     }
 }

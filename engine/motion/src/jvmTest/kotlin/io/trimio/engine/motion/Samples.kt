@@ -34,6 +34,17 @@ object Samples {
         "tape" to { c -> c.copy(items = listOf("BTC", "ETH", "SOL", "XRP", "BNB"), points = listOf(2.4f, -1.1f, 5.6f, -0.4f, 1.2f)) },
         "wallet" to { c -> c.copy(label = "تتر · شبکه TRC20", text = "TQ7f3aB9xLmN2pK8vR4sD1c21e", value = 2500f, prefix = "$") },
         "order" to { c -> c.copy(label = "BTC/USDT", items = listOf("لانگ"), value = 64250f, points = listOf(62300f, 68100f, 0.25f)) },
+        // Designed template shelf.
+        "name-bar" to { c -> c.copy(text = "علی رضایی", label = "تریدر ارز دیجیتال") },
+        "name-plate" to { c -> c.copy(text = "سارا محمدی", label = "مربی معامله‌گری") },
+        "name-hero" to { c -> c.copy(text = "محمد کریمی", label = "بنیان‌گذار آکادمی") },
+        "word-cascade" to { c -> c.copy(text = "سود خود را چند برابر کن", emphasis = setOf(1)) },
+        "keyword-pop" to { c -> c.copy(text = "همین امروز شروع کن", emphasis = setOf(0)) },
+        "word-blocks" to { c -> c.copy(text = "ریسک مدیریت شده") },
+        "payoff" to { c -> c.copy(text = "۲۳۰٪ سود در یک ماه", label = "نتیجه واقعی", value = 230f, suffix = "٪") },
+        "title-slam" to { c -> c.copy(text = "راز موفقیت در بازار") },
+        "stat-pulse" to { c -> c.copy(value = 68f, label = "وین ریت این ماه", suffix = "٪") },
+        "stat-bars" to { c -> c.copy(points = listOf(42f, 68f, 55f, 91f), items = listOf("ژانویه", "فوریه", "مارس", "آوریل")) },
     )
 
     private fun faDefault(c: Cue): Cue = c.copy(text = "بیت‌کوین", label = "نمونه", items = listOf("یک", "دو", "سه"), value = 42f, points = listOf(3f, 5f, 4f, 7f))
@@ -64,6 +75,17 @@ object Samples {
         "tape" to { c -> c.copy(items = listOf("BTC", "ETH", "SOL", "XRP", "BNB"), points = listOf(2.4f, -1.1f, 5.6f, -0.4f, 1.2f)) },
         "wallet" to { c -> c.copy(label = "USDT · TRC20", text = "TQ7f3aB9xLmN2pK8vR4sD1c21e", value = 2500f, prefix = "$") },
         "order" to { c -> c.copy(label = "BTC/USDT", items = listOf("long"), value = 64250f, points = listOf(62300f, 68100f, 0.25f)) },
+        // Designed template shelf.
+        "name-bar" to { c -> c.copy(text = "Sam Rivera", label = "Crypto trader") },
+        "name-plate" to { c -> c.copy(text = "Alex Chen", label = "Trading coach") },
+        "name-hero" to { c -> c.copy(text = "Jordan Lee", label = "Academy founder") },
+        "word-cascade" to { c -> c.copy(text = "Multiply your profits today", emphasis = setOf(1)) },
+        "keyword-pop" to { c -> c.copy(text = "Start right now", emphasis = setOf(0)) },
+        "word-blocks" to { c -> c.copy(text = "Managed risk wins") },
+        "payoff" to { c -> c.copy(text = "230% gain in one month", label = "Real result", value = 230f, suffix = "%") },
+        "title-slam" to { c -> c.copy(text = "The market success secret") },
+        "stat-pulse" to { c -> c.copy(value = 68f, label = "Win rate this month", suffix = "%") },
+        "stat-bars" to { c -> c.copy(points = listOf(42f, 68f, 55f, 91f), items = listOf("Jan", "Feb", "Mar", "Apr")) },
     )
 
     private fun enDefault(c: Cue): Cue = c.copy(text = "Bitcoin", label = "Sample", items = listOf("One", "Two", "Three"), value = 42f, points = listOf(3f, 5f, 4f, 7f))

@@ -97,6 +97,7 @@ internal class FxPrograms {
         ShaderFamily.Glitch -> FxSources.glitch
         ShaderFamily.Ripple -> FxSources.ripple
         ShaderFamily.Halation -> FxSources.halation
+        ShaderFamily.Finish -> FxSources.finish
     }
 
     companion object {
@@ -167,9 +168,28 @@ internal fun DrawScope.drawFiltered(content: ImageBitmap, filter: Filter, t: Flo
     val program = fx.of(filter.family)?.takeIf { it.drawsOn(drawContext.canvas) }
     if (program == null) return filterFallback(content, filter.family, amount, t, alpha)
     program.child("content", ImageShader(content, TileMode.Clamp, TileMode.Clamp))
-    if (filter.family == ShaderFamily.Halation) {
+    val film = filter.film
+    if (filter.family == ShaderFamily.Halation || filter.family == ShaderFamily.Finish) {
         program.child("bloom", ImageShader(fx.bloom(this, content), TileMode.Clamp, TileMode.Clamp))
         program.uniform("uBloomScale", 1f / FxPrograms.BLOOM_SCALE)
+        val look = film ?: Finishing.FilmLook(halationStrength = amount)
+        program.uniform("uRadiusPx", look.halationRadiusPx)
+        program.uniform("uThreshLo", FinishingPass.HALATION_LO)
+        program.uniform("uThreshHi", FinishingPass.HALATION_HI)
+    }
+    if (filter.family == ShaderFamily.Finish) {
+        val look = film ?: Finishing.FilmLook()
+        val diffusion = FinishingPass.diffusionOf(look.diffusion)
+        val grade = filter.grade ?: Finishing.Grade(exposure = 0f, contrast = 1f, saturation = 1f, temperature = 0f)
+        program.uniform("uHalation", look.halationStrength)
+        program.uniform("uHalationRadius", look.halationRadiusPx)
+        program.uniform("uDiffusion", diffusion.mix)
+        program.uniform("uDiffusionRadius", diffusion.radiusPx)
+        program.uniform("uExposure", grade.exposure)
+        program.uniform("uContrast", grade.contrast)
+        program.uniform("uSaturation", grade.saturation)
+        program.uniform("uTemperature", grade.temperature)
+        program.uniform("uGrain", FinishingPass.grainOverlayAlpha(look.grainAmount))
     }
     program.uniform("uSize", size.width, size.height)
     program.uniform("uTime", t)

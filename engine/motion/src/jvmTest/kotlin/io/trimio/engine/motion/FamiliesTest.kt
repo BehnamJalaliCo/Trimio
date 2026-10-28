@@ -121,7 +121,8 @@ class FamiliesTest {
     private fun edges(f: Family, layout: Int, over: Boolean, out: File?, problems: MutableList<String>) {
         val v = layout + (layout % f.moves.size) * f.layouts
         val cue = FamilyLab.cue(f.name, true, over, v)
-        for (dt in listOf(0.12f, 0.3f, 2.2f)) {
+        // +0.3 onward: the first frames of an entrance are its motion trail, not where it sits.
+        for (dt in listOf(0.3f, 2.2f)) {
             val img = FamilyLab.alone(f.name, Look.Noir, cue, cue.at + dt)
             edge(img)?.let { problems += "${f.name} L$layout${if (over) " over" else ""} at +${dt}s: $it" }
             if (dt == 2.2f && !over && out != null) out.resolve("${f.name}-L$layout.png").writeBytes(FamilyLab.frame(f.name, Look.Noir, cue, cue.at + dt).encodeToData(EncodedImageFormat.PNG)!!.bytes)

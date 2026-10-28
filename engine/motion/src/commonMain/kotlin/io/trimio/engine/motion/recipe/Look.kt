@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import io.trimio.core.brand.BrandFonts
 import io.trimio.engine.motion.Contrast
 import io.trimio.engine.motion.Easing
+import io.trimio.engine.motion.Finishing
 import io.trimio.engine.motion.Grade
 import io.trimio.engine.motion.Guard
 import io.trimio.engine.motion.TypeSpec
@@ -63,6 +64,26 @@ data class Look(
     val lens: String? = null,
     /** The footage grade; null keeps the compiler's grade for the original three looks. */
     val grade: Grade? = null,
+    /**
+     * The finishing film look (halation, diffusion, grain — see [Finishing.FilmLook] /
+     * [Finishing.filmPresets]); null keeps the digital path with no finishing pass.
+     */
+    val film: Finishing.FilmLook? = null,
+    /**
+     * Finishing-grade parameters for the full-frame pass (S-curve, temperature); null keeps
+     * [grade] and the named per-look defaults.
+     */
+    val finish: Finishing.Grade? = null,
+    /**
+     * A film texture of `overlay.film-textures` over the frame (grain, dust, paper, halftone,
+     * light leak, bokeh), by its pack id; null keeps the procedural grain of [grain].
+     */
+    val texture: FilmTexture? = null,
+    /**
+     * A colour LUT of `look.cinematic-luts` ("teal-orange", "warm-film", …) grading the footage;
+     * null keeps [grade] alone.
+     */
+    val lut: String? = null,
     /** The curve scene moves (whip, zoom) settle with: the style's easing family. */
     val settle: Easing = Easing.ExpoOut,
     /** Latin letters in headlines set in capitals (Persian has no case and is never touched). */
@@ -95,6 +116,15 @@ data class Look(
 
     enum class Mark { Block, Ink, Underline, Circle }
 
+    /** A film-texture overlay of the `overlay.film-textures` pack: its id, its blend and how strongly it lies on. */
+    data class FilmTexture(
+        val id: String,
+        /** How the pack draws it: "overlay", "screen" or "multiply". */
+        val blend: String,
+        /** How strongly it lies over the frame, 0..1. */
+        val opacity: Float,
+    )
+
     companion object {
         /** The signature look: warm black, bone ink, lime emphasis, ember heat. */
         val Noir = Look(
@@ -118,6 +148,9 @@ data class Look(
             grain = 0f,
             vignette = 0.5f,
             roundness = 1f,
+            texture = FilmTextures.texture("grain-35mm", 0.22f),
+            lut = "warm-film",
+            film = FilmTextures.filmLook("film", "grain-35mm"),
         )
 
         /** Swiss paper: bone white, black ink, lime blocks, sharp corners, a grid underneath. */
@@ -144,6 +177,9 @@ data class Look(
             roundness = 0f,
             textShadow = Color.Transparent,
             guard = Guard(Guard.Style.Plate, light = Color(0xFFEFEDE6), dark = Color(0xFF111111), radius = 0.06f),
+            texture = FilmTextures.texture("paper-white", 0.3f),
+            lut = "matte-fade",
+            film = FilmTextures.filmLook("clean", "paper-white"),
         )
 
         /** Cool, luminous and calm: iridescent light on deep blue, soft blur entrances. */
@@ -170,6 +206,9 @@ data class Look(
             roundness = 1.4f,
             mark = Mark.Ink,
             guard = Guard(Guard.Style.Halo, light = Color(0xFFF4F6FF), dark = Color(0xFF070B14)),
+            texture = FilmTextures.texture("leak-cool-1", 0.16f),
+            lut = "arctic",
+            film = FilmTextures.filmLook("dream", "leak-cool-1"),
         )
 
         val all = listOf(Noir, Paper, Lumen)
@@ -194,4 +233,60 @@ data class Look(
             return if (Contrast.ratio(l, Contrast.luminance(DARK_TEXT)) >= Contrast.ratio(l, Contrast.luminance(LIGHT_TEXT))) DARK_TEXT else LIGHT_TEXT
         }
     }
+}
+
+/**
+ * The `overlay.film-textures` and `look.cinematic-luts` packs as the engine wears them: every
+ * overlay and LUT id, the grain each grain tile was made with (so a look wearing "grain-16mm"
+ * reads heavier than one wearing "grain-fine"), and the blend each overlay is drawn with.
+ */
+object FilmTextures {
+    /** Grain the finishing pass gains from a grain overlay, by id (other overlays leave grain alone). */
+    val grainOf: Map<String, Float> = mapOf(
+        "grain-fine" to 0.02f,
+        "grain-35mm" to 0.04f,
+        "grain-16mm" to 0.07f,
+    )
+
+    private val dust = setOf("dust-light", "dust-scratches")
+    private val paper = setOf("paper-white", "paper-kraft", "paper-newsprint")
+    private val halftone = setOf("halftone-fine", "halftone-pop")
+    private val leaks = (1..6).map { "leak-warm-$it" } + (1..4).map { "leak-cool-$it" } + (1..3).map { "leak-gold-$it" }
+    private val bokeh = setOf("bokeh-warm", "bokeh-neon", "bokeh-gold")
+
+    /** Every overlay id of `overlay.film-textures` (26). */
+    val overlays: Set<String> = grainOf.keys + dust + paper + halftone + leaks + bokeh
+
+    /** Every LUT id of `look.cinematic-luts` (20). */
+    val luts: Set<String> = setOf(
+        "teal-orange", "warm-film", "cool-film", "bleach-bypass", "matte-fade", "noir", "mono-soft", "sepia",
+        "golden-hour", "moonlight", "pastel", "neon-night", "forest", "desert", "punch", "soft-skin",
+        "cross-process", "seventies", "arctic", "luxe-gold",
+    )
+
+    /** The overlay as the look wears it: the pack's own blend for its kind. */
+    fun texture(id: String, opacity: Float): Look.FilmTexture = Look.FilmTexture(id, blendOf(id), opacity)
+
+    /** How an overlay is drawn: paper and halftone darken ("multiply"), grain lays over, light adds ("screen"). */
+    fun blendOf(id: String): String = when {
+        id in paper || id in halftone -> "multiply"
+        id in grainOf -> "overlay"
+        else -> "screen"
+    }
+
+    /**
+     * The finishing film look of a style asking for [preset] ("clean", "film", "dream") and wearing
+     * [textureId]: the preset's measured numbers with the grain the texture was made with folded in.
+     * [grain] and [halation] override the result when the style sets its own numbers.
+     */
+    fun filmLook(preset: String, textureId: String? = null, grain: Float? = null, halation: Float? = null): Finishing.FilmLook {
+        val base = Finishing.filmPresets[preset] ?: Finishing.filmPresets.getValue(FALLBACK_PRESET)
+        val worn = textureId?.let { grainOf[it] } ?: 0f
+        return base.copy(
+            grainAmount = (grain ?: (base.grainAmount + worn)).coerceIn(0f, 1f),
+            halationStrength = (halation ?: base.halationStrength).coerceIn(0f, 1f),
+        )
+    }
+
+    private const val FALLBACK_PRESET = "film"
 }

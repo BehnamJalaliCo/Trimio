@@ -1,6 +1,9 @@
 package io.trimio.engine.motion
 
+import kotlin.math.PI
+import kotlin.math.ln
 import kotlin.math.round
+import kotlin.math.sqrt
 
 /**
  * The craft rulebook as code: the measured numbers behind every motion decision — which curve a
@@ -34,7 +37,7 @@ object MotionSpec {
 
     /**
      * Spring characters. Only position and size may bounce — opacity and colour never, so they
-     * always ride a monotone curve.
+     * always ride a monotone curve. [Overshoot] holds the per-property bands.
      */
     object Springs {
         /** Critical damping: lands with weight and never rings. */
@@ -48,6 +51,45 @@ object MotionSpec {
 
         /** Exaggerated ring — cartoon moments only. */
         val Cartoon: Easing.Spring = Easing.Spring(damping = 0.25f)
+
+        /**
+         * Per-property overshoot bands. Opacity is pinned to zero (Generated.OpacityBounce);
+         * scale and position take a band — premium a whisper (0–3%), playful a real ring (5–15%).
+         */
+        object Overshoot {
+            enum class Prop { Position, Scale, Opacity }
+
+            const val PremiumMin = 0f
+            const val PremiumMax = 0.03f
+            const val PlayfulMin = 0.05f
+            const val PlayfulMax = 0.15f
+            const val OpacityMax = 0f
+
+            /** The overshoot band [prop] may ring in: playful rings more; opacity is pinned. */
+            fun band(prop: Prop, playful: Boolean): ClosedFloatingPointRange<Float> = when (prop) {
+                Prop.Opacity -> 0f..OpacityMax
+                else -> if (playful) PlayfulMin..PlayfulMax else PremiumMin..PremiumMax
+            }
+
+            /** A spring that peaks about [fraction] past 1 (0 for a clean land). */
+            fun spring(fraction: Float, frequency: Float = 2f): Easing {
+                if (fraction <= 0f) return NoBounce
+                // Invert the underdamped overshoot os = exp(-πζ / sqrt(1-ζ²)) for the damping.
+                val os = fraction.coerceIn(MIN_OVERSHOOT, MAX_OVERSHOOT)
+                val ell = ln(os)
+                val z = (-ell) / sqrt((PI * PI) + ell * ell)
+                return Easing.Spring(damping = z.toFloat(), frequency = frequency)
+            }
+
+            /** [spring] clamped to [prop]'s band — never past what the craft allows. */
+            fun springFor(prop: Prop, fraction: Float, playful: Boolean = false, frequency: Float = 2f): Easing {
+                val allowed = band(prop, playful)
+                return spring(fraction.coerceIn(allowed.start, allowed.endInclusive), frequency)
+            }
+
+            private const val MIN_OVERSHOOT = 0.001f
+            private const val MAX_OVERSHOOT = 0.5f
+        }
     }
 
     /** Timing bands, in seconds unless the name says otherwise. */

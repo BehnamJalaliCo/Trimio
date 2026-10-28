@@ -16,6 +16,12 @@ import kotlin.math.sqrt
 sealed interface Easing {
     fun at(x: Float): Float
 
+    /** Slope just inside the start — for matching speeds across a key joint. */
+    fun startSpeed(eps: Float = 1e-3f): Float = (at(2f * eps) - at(eps)) / eps
+
+    /** Slope just inside the end (the landing speed of the curve). */
+    fun endSpeed(eps: Float = 1e-3f): Float = (at(1f - eps) - at(1f - 2f * eps)) / eps
+
     data object Linear : Easing { override fun at(x: Float) = x }
 
     /** Holds the start value, then jumps (for cuts, flashes and frame-accurate switches). */

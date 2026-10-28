@@ -132,11 +132,11 @@ internal object Contrast {
         val lightInk = ratio(li, dark) >= ratio(li, light)
         val against = if (lightInk) guard.dark else guard.light
         val bg = if (lightInk) tone.light else tone.dark
+        val gl = if (lightInk) dark else light
         val target = guard.floor * MARGIN
         if (ratio(li, bg) >= target) return against to 0f
-        val vb = encode(bg)
-        val vg = encode(if (lightInk) dark else light)
-        fun reached(s: Float) = ratio(li, decode(vb + (vg - vb) * s)) >= target
+        // The picture mixes in linear light (the F16 composite): the guard lands on that same curve.
+        fun reached(s: Float) = ratio(li, bg + (gl - bg) * s) >= target
         if (!reached(1f)) return against to 1f
         var lo = 0f
         var hi = 1f
@@ -144,6 +144,6 @@ internal object Contrast {
         return against to hi
     }
 
-    private const val MARGIN = 1.15f
+    private const val MARGIN = 1.3f
     private const val BISECT = 14
 }

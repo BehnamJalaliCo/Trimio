@@ -2,11 +2,13 @@ package io.trimio.engine.motion
 
 import io.trimio.core.model.style.DesignStyle
 import io.trimio.engine.assets.SoundPresets
+import io.trimio.engine.motion.recipe.FilmTextures
 import io.trimio.engine.motion.recipe.Look
 import io.trimio.engine.motion.recipe.Recipes
 import io.trimio.engine.motion.style.StyleBook
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** The 28 design languages: complete, distinct, and every one inside the craft floors. */
@@ -32,6 +34,20 @@ class StyleLanguageTest {
     fun everyStyleKeepsTheContrastFloorAndReadableType() {
         val problems = all.flatMap(StyleBook::check)
         assertTrue(problems.isEmpty(), problems.joinToString("\n"))
+    }
+
+    @Test
+    fun everyStyleWearsMeaningfulFilmMaterial() {
+        // A texture from the overlay pack, a LUT from the look pack and a finishing film look: every
+        // one of the 28 styles wears its own material, not just the original three.
+        for (s in all) {
+            val tex = assertNotNull(s.look.texture, "${s.id}: no film texture")
+            assertTrue(tex.id in FilmTextures.overlays, "${s.id}: texture «${tex.id}» is not in overlay.film-textures")
+            assertTrue(tex.opacity > 0f && tex.opacity <= 1f, "${s.id}: texture opacity ${tex.opacity} is not worn")
+            val lut = assertNotNull(s.look.lut, "${s.id}: no colour LUT")
+            assertTrue(lut in FilmTextures.luts, "${s.id}: lut «$lut» is not in look.cinematic-luts")
+            assertNotNull(s.look.film, "${s.id}: no finishing film look")
+        }
     }
 
     @Test

@@ -1,9 +1,14 @@
 package io.trimio.engine.motion.style
 
 import androidx.compose.ui.graphics.Color
+import io.trimio.core.brand.BrandFonts
 import io.trimio.core.model.style.DesignStyle
+import io.trimio.core.model.style.DesignTokens
+import io.trimio.core.model.style.StyleSpec
 import io.trimio.engine.motion.Contrast
 import io.trimio.engine.motion.Easing
+import io.trimio.engine.motion.Finishing
+import io.trimio.engine.motion.recipe.FilmTextures
 import io.trimio.engine.motion.recipe.Look
 
 /**
@@ -17,7 +22,8 @@ import io.trimio.engine.motion.recipe.Look
  *
  * Hooks for the other layers: [background] names a shader family ([io.trimio.engine.motion.ShaderFamily])
  * and [lens] a distortion, both carried by the [look]; [sound] is a mood tag the audio layer maps
- * to music and an SFX palette (`SoundPresets.forTag`).
+ * to music and an SFX palette (`SoundPresets.forTag`). [tokens] is the style's design-token sheet
+ * (type scale, spacing, radius, colour roles): what layouts and micro-variation read.
  */
 data class StyleLanguage(
     /** Stable id: the score's `look` ("noir", "retro-vhs"). The first three are the original looks. */
@@ -46,6 +52,8 @@ data class StyleLanguage(
     /** Music and SFX mood tag (one of the audio layer's preset tags). */
     val sound: String,
     val fit: Fit,
+    /** The design-token sheet (schema v2): type scale, spacing, radius, semantic colour roles, accent variants. */
+    val tokens: DesignTokens = DesignTokens(),
 ) {
     /** The shader family its graphic stages are drawn with, or null for the drifting aurora. */
     val background: String? get() = look.backdrop
@@ -202,7 +210,23 @@ object StyleBook {
         need(s.rhythm.stages.isNotEmpty() && s.rhythm.stages.keys.all { it in STAGES }, "stages ${s.rhythm.stages.keys}")
         need(s.rhythm.density in RHYTHM && s.rhythm.takeover in RHYTHM, "density/takeover out of range")
         need(s.motion.energy < 0f || s.motion.energy in 0f..1f, "energy ${s.motion.energy}")
+        addAll(material(s))
         need(s.fit.domains.isNotEmpty() && s.fit.moods.isNotEmpty(), "fits nothing")
+    }
+
+    /**
+     * What in [s]'s film material and token sheet falls outside the packs and the house bands: a
+     * texture or LUT the packs do not carry, a type scale that does not descend, units off band.
+     */
+    private fun material(s: StyleLanguage): List<String> = buildList {
+        fun need(ok: Boolean, what: String) { if (!ok) add("${s.id}: $what") }
+        val tex = s.look.texture
+        need(tex == null || (tex.id in FilmTextures.overlays && tex.opacity in 0f..1f), "texture ${tex?.id}")
+        need(s.look.lut == null || s.look.lut in FilmTextures.luts, "lut ${s.look.lut}")
+        val type = s.tokens.type
+        need(type.ratio in TYPE_RATIO, "type ratio ${type.ratio}")
+        need(type.display > type.title && type.title > type.caption && type.caption > type.label, "type steps ${type.display}/${type.title}/${type.caption}/${type.label}")
+        need(s.tokens.spacing.unit in TOKEN_UNIT && s.tokens.radius.unit in TOKEN_UNIT, "spacing/radius unit ${s.tokens.spacing.unit}/${s.tokens.radius.unit}")
     }
 
     /** The compiler's stage for a graphic scene over footage: the canvas lit by the accent, heat and up colours. */
@@ -232,9 +256,105 @@ object StyleBook {
     private val LINE_HEIGHTS = 0.9f..1.45f
     private val CAPTION_WORDS = 2..6
     private val RHYTHM = 0.6f..1.4f
+    private val TYPE_RATIO = 1.1f..1.6f
+    private val TOKEN_UNIT = 0f..0.1f
     val TONES = setOf("noir", "paper", "lumen")
     val ENTRANCES = setOf("mask-rise", "slam", "stack", "spread", "flip", "type-on", "blur-in", "glitch")
     val TRANSITIONS = setOf("cut", "whip", "zoom", "flash", "leak", "glitch", "ripple") + io.trimio.engine.motion.recipe.Transitions.KINDS
     val MARKS = setOf("block", "ink", "underline", "circle") + io.trimio.engine.motion.recipe.Craft.HAND_MARKS
     val STAGES = setOf("aurora", "grid", "plain")
+}
+
+/**
+ * The one direction the two style systems are joined: a [StyleSpec] JSON pack resolved into the
+ * design language the director speaks. Palette, film texture/LUT and the token sheet all land on
+ * [StyleLanguage.look] and [StyleLanguage.tokens]; what a pack cannot say (motion weights, caption
+ * marks, rhythm, sound, fit) stays the language's own — [gaps] names it, so the dual truth is
+ * written down rather than pretended away.
+ */
+object StyleBridge {
+
+    /**
+     * The look [spec] paints: palette → colours, captions → voices, overlay → grain and vignette,
+     * film → texture, LUT and the finishing film look ([Finishing.FilmLook], its grain folded with
+     * the texture's own).
+     */
+    fun lookOf(spec: StyleSpec): Look {
+        val palette = spec.palette
+        val tokens = spec.tokens
+        val canvas = hex(tokens.colors.surface ?: palette.background.first(), Look.Noir.canvas)
+        val ink = hex(tokens.colors.onSurface ?: palette.text, Look.Noir.ink)
+        val accent = hex(tokens.colors.primary ?: palette.accent, Look.Noir.accent)
+        return Look(
+            name = spec.id,
+            canvas = canvas,
+            aurora = palette.background.map { hex(it, canvas) },
+            ink = ink,
+            muted = tokens.colors.muted?.let { hex(it, ink) } ?: mix(ink, canvas, 0.45f),
+            accent = accent,
+            onAccent = tokens.colors.onPrimary?.let { hex(it, Look.textOn(accent)) } ?: Look.textOn(accent),
+            positive = tokens.colors.secondary?.let { hex(it, accent) } ?: hex(palette.accent2, accent),
+            negative = tokens.colors.danger?.let { hex(it, accent) } ?: hex(palette.accent2, accent),
+            hot = tokens.colors.warning?.let { hex(it, accent) } ?: hex(palette.accent2, accent),
+            card = Color.White.copy(alpha = 0.14f),
+            cardRim = Color.White.copy(alpha = 0.28f),
+            headline = Look.Voice(BrandFonts.Role.Display, 900, lineHeight = 1.05f),
+            caption = Look.Voice(BrandFonts.Role.Expressive, spec.captions.weight.coerceIn(600, 900), lineHeight = 1.28f),
+            body = Look.Voice(BrandFonts.Role.Ui, 600, lineHeight = 1.34f),
+            number = Look.Voice(BrandFonts.Role.Accent, 800, lineHeight = 1f),
+            label = Look.Voice(BrandFonts.Role.Accent, 600, lineHeight = 1.2f, tracking = 0.16f),
+            grain = spec.overlay.grain,
+            vignette = spec.overlay.vignette,
+            roundness = spec.elements.cornerRadius / RADIUS_UNIT,
+            texture = spec.film.texture?.let { FilmTextures.texture(it, spec.film.textureOpacity) },
+            lut = spec.film.lut,
+            film = FilmTextures.filmLook(spec.film.preset, spec.film.texture, spec.film.grain, spec.film.halation),
+        )
+    }
+
+    /** [base] wearing [spec]'s palette, film and token sheet; its motion, rhythm, sound and fit stay its own ([gaps]). */
+    fun languageOf(spec: StyleSpec, base: StyleLanguage): StyleLanguage = base.copy(
+        look = lookOf(spec),
+        tokens = spec.tokens,
+        accents = listOf(tokensPrimary(spec)) + spec.tokens.accents,
+    )
+
+    /** What a [StyleSpec] cannot express and the language keeps owning — the honest dual list. */
+    fun gaps(): List<String> = listOf(
+        "motion grammar (entrance/transition weights, push/still) lives in Styles.kt only",
+        "caption treatment (marks, words per line) lives in Styles.kt only",
+        "rhythm (density, takeover, stages) lives in Styles.kt only",
+        "sound mood tag lives in Styles.kt only",
+        "fit (domains, moods), tones and style words live in Styles.kt only",
+        "finishing grade ([Look.finish]) has no StyleSpec numbers yet",
+    )
+
+    /** What in [spec] cannot be carried into the language: unknown pack ids and presets. */
+    fun faults(spec: StyleSpec): List<String> = buildList {
+        val texture = spec.film.texture
+        if (texture != null && texture !in FilmTextures.overlays) add("film.texture $texture is not in overlay.film-textures")
+        val lut = spec.film.lut
+        if (lut != null && lut !in FilmTextures.luts) add("film.lut $lut is not in look.cinematic-luts")
+        if (spec.film.preset !in Finishing.filmPresets) add("film.preset ${spec.film.preset} is not a finishing preset")
+    }
+
+    /** The accent [spec] leads with: its semantic primary role, else the palette's accent. */
+    private fun tokensPrimary(spec: StyleSpec): String = spec.tokens.colors.primary ?: spec.palette.accent
+
+    private const val RADIUS_UNIT = 0.04f
+
+    /** `#RRGGBB`/`#RRGGBBAA` as a compose colour, or [fallback] when it does not parse. */
+    private fun hex(value: String, fallback: Color): Color {
+        val digits = value.removePrefix("#")
+        val parsed = digits.toLongOrNull(16) ?: return fallback
+        return when (digits.length) {
+            6 -> Color(0xFF000000 or parsed)
+            8 -> Color((((parsed and 0xFF).toInt()) shl 24) or (parsed ushr 8).toInt())
+            else -> fallback
+        }
+    }
+
+    private fun mix(a: Color, b: Color, t: Float) = Color(
+        a.red + (b.red - a.red) * t, a.green + (b.green - a.green) * t, a.blue + (b.blue - a.blue) * t,
+    )
 }

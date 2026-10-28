@@ -4,17 +4,20 @@ import io.trimio.core.model.transcript.Word
 import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.NumberWords
 import io.trimio.engine.motion.score.SceneScore
+import io.trimio.engine.motion.score.Score
 import io.trimio.engine.motion.score.Words
 
 /**
- * The planner's sense of rhythm. Over the speaker, a visual event at least every [gap] seconds:
- * a beat landing or a cut. Where a stretch would hold only captions (the "empty stretches" an
- * editor notices at once), one event is added, rotating between a picture of what is named, a
- * pop of what the line means (its title, or a noun phrase — never a lone verb, adverb or time
- * word), a punch-in cut and (rarely, on high energy) a stamp — never a third graphic on screen,
- * never the same text treatment three times running, never a graphic that lives under 1.5 s. The hook, a call
- * to action and a list of names landing one by one keep the screen alive on their own while up;
- * full-frame scenes are graphics already and are left alone.
+ * The planner's sense of rhythm. Over the speaker, a visual event at least every [gap] seconds
+ * (the energy curve's pace, not a metronome): a beat landing or a cut. Where a stretch would hold
+ * only captions (the "empty stretches" an editor notices at once), one event is added, rotating
+ * between a picture of what is named, a pop of what the line means (its title, or a noun phrase —
+ * never a lone verb, adverb or time word), a punch-in cut and (rarely, on high energy) a stamp —
+ * never a third graphic on screen, never the same text treatment three times running, never a
+ * graphic that lives under 1.5 s. The hook, a call to action and a list of names landing one by one
+ * keep the screen alive on their own while up; full-frame scenes are graphics already and are left
+ * alone. The silence a big strike earns ([EnergyCurve.calm]) is left empty — it is what gives the
+ * strike its force.
  *
  * [rng] is the planner's own stream for this, so the rest of a seed's edit does not move.
  */
@@ -39,13 +42,15 @@ internal class Rhythm(
     val notes = mutableListOf<String>()
     private val texts = words.map { it.text }
 
-    /** The longest a footage stretch may go without an event: wider for a sparse taste, tighter for a dense one. */
-    val gap: Float = (RHYTHM_GAP / taste.density.coerceIn(0.5f, 1.5f)).coerceIn(MIN_RHYTHM_GAP, MAX_RHYTHM_GAP)
+    /** The keep-alive gap at the piece's own energy (where the clock stands, the local energy rules). */
+    val gap: Float = gapAt(energy)
     private var lastFill: String? = null
     private var lastStampAt = -100f
 
     /** Fills the quiet stretches of footage scenes in [scenes] (a punch-in may split a scene in two). */
     fun keepAlive(scenes: MutableList<SceneScore>) {
+        // The silence a big strike earns: computed once from the designed beats, before any fill lands.
+        val calm = EnergyCurve.calm(Score(scenes = scenes.toList()), words)
         val counts = mutableMapOf<String, Int>()
         var k = 0
         var from = 0f
@@ -57,12 +62,13 @@ internal class Rhythm(
                 from = 0f
                 continue
             }
-            val kind = fillAt(scenes, k, hole)
+            val kind = fillAt(scenes, k, hole, calm)
             if (kind != null) counts[kind] = (counts[kind] ?: 0) + 1
             // Nothing fits (two graphics up, no word to land on): look a little later.
             from = if (kind == null) hole + RETRY_STEP else hole
         }
-        if (counts.isNotEmpty()) notes += "rhythm: every ${kotlin.math.round(gap * 10f) / 10f}s — " + counts.entries.joinToString { "${it.value} ${it.key}" }
+        if (calm.isNotEmpty()) notes += "rhythm: ${calm.size} silence of ${EnergyCurve.SILENCE}s before a strike left empty"
+        if (counts.isNotEmpty()) notes += "rhythm: every ${kotlin.math.round(gap * 10f) / 10f}s on the energy curve — " + counts.entries.joinToString { "${it.value} ${it.key}" }
     }
 
     /** A text treatment used three times running is swapped for a neighbour (the critic's rule, kept upfront). */
@@ -165,7 +171,7 @@ internal class Rhythm(
     /** Until when a beat keeps the screen alive by itself: the hook, the call to action, names landing one by one. */
     private fun aliveUntil(b: BeatScore, start: Float, sceneEnd: Float) = if (b.recipe in SELF_PACED || b.time != null) beatEnd(b, start, sceneEnd) else start
 
-    /** The start of the first stretch in scene [k] after [from] longer than [gap] with no event, or null. */
+    /** The start of the first stretch in scene [k] after [from] longer than the gap there with no event, or null. */
     private fun firstHole(scenes: List<SceneScore>, k: Int, from: Float): Float? {
         val e = sceneEnd(scenes, k)
         val range = sceneWords(scenes, k)
@@ -173,10 +179,10 @@ internal class Rhythm(
         val speechEnd = minOf(e, endOf(range.last))
         var t = maxOf(sceneStart(scenes, k), from)
         for ((a, alive) in scenes[k].beats.map { b -> beatStart(b, scenes, k).let { it to aliveUntil(b, it, e) } }.sortedBy { it.first }) {
-            if (a - t > gap) return t
+            if (a - t > gapNear(t)) return t
             t = maxOf(t, a, alive)
         }
-        return if (speechEnd - t > gap) t else null
+        return if (speechEnd - t > gapNear(t)) t else null
     }
 
     // ------------------------------------------------------------ filling
@@ -187,9 +193,9 @@ internal class Rhythm(
     }
 
     /** Adds one event in scene [k] soon after [t0]; returns its kind, or null when nothing fits. */
-    private fun fillAt(scenes: MutableList<SceneScore>, k: Int, t0: Float): String? {
+    private fun fillAt(scenes: MutableList<SceneScore>, k: Int, t0: Float, calm: List<ClosedFloatingPointRange<Float>>): String? {
         // Where nothing fits, look again a little earlier and allow a quicker cut.
-        val spots = spots(scenes, k, t0, relaxed = false)?.takeIf { it.any } ?: spots(scenes, k, t0, relaxed = true) ?: return null
+        val spots = spots(scenes, k, t0, relaxed = false, calm = calm)?.takeIf { it.any } ?: spots(scenes, k, t0, relaxed = true, calm = calm) ?: return null
         // Over a talking head a quiet stretch takes a cut to a closer frame, the way an editor keeps it alive; a lone word
         // or a generic icon popping up («روبات», a person, a star) read as noise on the owner's reel.
         val options = listOfNotNull(
@@ -234,13 +240,17 @@ internal class Rhythm(
     }
 
     /** The words an event could land on soon after [t0], or null when there are none. */
-    private fun spots(scenes: List<SceneScore>, k: Int, t0: Float, relaxed: Boolean): Spots? {
+    private fun spots(scenes: List<SceneScore>, k: Int, t0: Float, relaxed: Boolean, calm: List<ClosedFloatingPointRange<Float>>): Spots? {
         val e = sceneEnd(scenes, k)
         val s = sceneStart(scenes, k)
-        val target = t0 + gap * (if (relaxed) 0.5f else 0.7f)
+        val here = gapNear(t0)
+        val target = t0 + here * (if (relaxed) 0.5f else 0.7f)
         val shot = if (relaxed) MIN_SHOT * 0.7f else MIN_SHOT
-        // A graphic must have room to live: no landing in the last moments of a scene.
-        val candidates = sceneWords(scenes, k).filter { i -> startOf(i) in (t0 + if (relaxed) MIN_LEAD / 2 else MIN_LEAD)..(t0 + gap) && startOf(i) < e - shot }
+        // A graphic must have room to live (no landing in the last moments of a scene), and the silence
+        // a strike earns stays silent: no landing inside a calm window.
+        val candidates = sceneWords(scenes, k)
+            .filter { i -> startOf(i) in (t0 + if (relaxed) MIN_LEAD / 2 else MIN_LEAD)..(t0 + here) && startOf(i) < e - shot }
+            .filter { i -> !EnergyCurve.inCalm(startOf(i), calm) }
         if (candidates.isEmpty()) return null
         val spans = scenes[k].beats.map { b -> beatStart(b, scenes, k).let { it to beatEnd(b, it, e) } }
         // At most two graphics at once.
@@ -323,6 +333,22 @@ internal class Rhythm(
         return (read.energy * 0.6f + energy * 0.4f).coerceIn(0.2f, 1f)
     }
 
+    /**
+     * The keep-alive gap where the energy is [e]: the curve sets the pace ([EnergyCurve.gap] —
+     * a hot stretch gets its events sooner), and a dense taste tightens it.
+     */
+    private fun gapAt(e: Float): Float =
+        (EnergyCurve.gap(e) / taste.density.coerceIn(0.5f, 1.5f)).coerceIn(MIN_RHYTHM_GAP, MAX_RHYTHM_GAP)
+
+    /** The gap where the clock stands [t]. */
+    private fun gapNear(t: Float): Float = gapAt(energyNear(t))
+
+    /** The energy where the clock stands [t]: the line said there, mixed with the piece's own. */
+    private fun energyNear(t: Float): Float {
+        val i = words.indices.minByOrNull { kotlin.math.abs(startOf(it) - t) } ?: return energy
+        return lineEnergy(i)
+    }
+
     /** A short text treatment for one word, never the third of a kind in a row. */
     private fun popRecipe(e: Float, at: Float, scenes: List<SceneScore>): String {
         val options = when {
@@ -372,7 +398,6 @@ internal class Rhythm(
         private val NOT_PICTURES = listOf("logo", "icon", "interface", "overlay", "screen showing")
 
         private val UNCAPPED = setOf("message", "comment", "endcard")
-        private const val RHYTHM_GAP = 2.5f
         private const val MIN_RHYTHM_GAP = 1.8f
         private const val MAX_RHYTHM_GAP = 4.5f
         private const val MIN_LEAD = 0.8f

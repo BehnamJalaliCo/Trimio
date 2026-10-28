@@ -48,6 +48,12 @@ data class BeatGrid(
     /** [t] moved onto the nearest beat when one is within [window] seconds. */
     fun snap(t: Double, window: Double): Double = nearestBeat(t).let { if (abs(it - t) <= window) it else t }
 
+    /** Half a beat: how far a cut or a landing moves to sit on the grid (the real beat-snap). */
+    val halfBeat: Double get() = period / 2
+
+    /** [t] as an animation's landing on the grid: the beat it belongs on (at most [halfBeat] away). */
+    fun snapLanding(t: Double): Double = snap(t, halfBeat)
+
     /** The Score's beat offset: the first beat at or after zero (the Compiler's phase). */
     val scoreOffset: Float get() = (offset - floor(offset / period) * period).toFloat()
 

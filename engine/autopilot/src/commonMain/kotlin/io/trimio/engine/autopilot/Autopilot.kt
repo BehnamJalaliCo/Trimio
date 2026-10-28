@@ -12,6 +12,7 @@ import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.score.EditPlan
 import io.trimio.engine.motion.score.Score
+import io.trimio.engine.motion.score.StoryMap
 import io.trimio.engine.motion.score.Subject
 import io.trimio.engine.motion.visual.VectorIcon
 import io.trimio.engine.motion.visual.VisualLibrary
@@ -24,7 +25,8 @@ import kotlin.time.Duration.Companion.minutes
  * 1. listen — pauses, stress, the cut list ([SpeechAnalysis]);
  * 2. understand — the model reads the brief and the transcript ([Understander]), or the rules do;
  * 3. look things up — brand marks and pictures the packs lack, from the web ([Knowledge]);
- * 4. plan — the seed's edit, by the craft rules ([Planner]), with the creator's [Taste];
+ * 4. plan — the seed's edit: the story the model mapped ([DesignPass] → [StoryPlanner]), or by the
+ *    craft rules ([Planner]) when no map came, with the creator's [Taste];
  * 5. pick pictures — candidates proposed, the model chooses ([VisualPicker]);
  * 6. compile and critique — until the supervising [Critic] has nothing left to fix;
  * 7. the [Jury]: ten judges score the edit; until every one gives 10 it is revised with their
@@ -81,6 +83,8 @@ class Autopilot(
         val matte: Boolean = false,
         /** The top of the speaker's head (a share of the frame's height), found through the matte: where a title stands behind them. */
         val crown: Float? = null,
+        /** The narrative map to plan from (a creator's own, or a checkpoint's); null: the model writes one, else the rules plan. */
+        val story: StoryMap? = null,
     )
 
     data class Production(
@@ -182,13 +186,16 @@ class Autopilot(
         val marks = research(understanding, report, Glossary.read(request.prompt).sites.map { it.substringBefore('.') })
         val brandLibrary = if (marks.isEmpty()) brands else brands.withMarks(marks)
         // The creator's own media: what each one is (the eyes, or the rules), read once for every variation.
-        val persian = transcript.words.count { w -> w.text.any { it in '\u0600'..'\u06FF' } } * 2 > transcript.words.size
+        val persian = transcript.words.count { w -> w.text.any { it in '؀'..'ۿ' } } * 2 > transcript.words.size
         val readings = AssetReader(eyes).read(request.assets, request.prompt, persian) { report += it }
         rest(eyes)
 
         onStage("plan", 0.55f)
         val cut = onOwnBeat(story.edit, request.sourceTempo, report)
-        val reading = Reading(request, cut, transcript, story.lines, story.understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks, story.shown)
+        // The narrative map the story path plans from (the request's own, or the model's): null, and
+        // the rule planner plans.
+        val narrative = storyMap(request, transcript, report)
+        val reading = Reading(request, cut, transcript, story.lines, story.understanding, brandLibrary, lexicon, UserMedia(request.assets, readings, request.prompt), marks, story.shown, narrative)
         val first = draft(reading, request.seed, look = true, onStage) { report += it }
         // Every judge gives 10, or the jury revises the edit and tries other variations (within its budget).
         // Whatever goes wrong inside the jury, the edit is still delivered (the first cut), and the report says why.
@@ -298,6 +305,8 @@ class Autopilot(
         val marks: Map<String, BrandLibrary.Entry> = emptyMap(),
         /** The words as the screen shows them: what is no word blanked, Persian digits ([OnScreenSpelling]). */
         val shown: Transcript = transcript,
+        /** The narrative map the story path plans from; null, and the rule planner plans. */
+        val storyMap: StoryMap? = null,
     )
 
     /** One seed's edit, compiled and through the critics. */
@@ -328,18 +337,21 @@ class Autopilot(
         val edit = open?.applyTo(r.cut, COLD_OPEN_GAP) ?: r.cut
         open?.let { log("cold open: «${texts.slice(it.words).joinToString(" ")}» ${round1(it.length)}s") }
         val output = edit.remap(transcript).words
-        val planned = Planner(taste, request.prompt, r.media.reference).plan(
+        val ruled = Planner(taste, request.prompt, r.media.reference).plan(
             output, r.lines, r.understanding, seed, footage = request.footage != null,
             opening = open?.let { Planner.Opening(edit.preludeLength, it.line, it.words) },
         )
+        // The story path when a map is in hand ([DesignPass] → [StoryPlanner]); the rule plan is the
+        // fallback when no map came — two ways through, never a broken run.
+        val planned = storyPlan(r.storyMap, output, ruled)
         planned.notes.forEach(log)
         // The cue is composed to this edit; the score takes its grid, so hits snap to the music's beats.
         val music = MusicEdit.arrange(planned.music, edit, output, r.lines, r.understanding)
         // No music of ours over the video's own: its beat is the grid the hits snap to.
         val own = request.sourceTempo?.takeIf { music == null }
-        // A talking head is told in cards over the speaker, never on full-frame stages ([Storyboard]).
-        val boarded = Storyboard.wanted(request.prompt, request.footage != null)
-        val told = if (boarded) Storyboard.board(planned.score, output, r.lines, r.understanding.lines, r.understanding.cta?.keyword, log) else planned.score
+        // A talking head is told in cards over the speaker, never on full-frame stages ([Storyboard]);
+        // a story map's treatments stand as designed — the cards would say them in their own tongue.
+        val told = if (toldInCards(r)) Storyboard.board(planned.score, output, r.lines, r.understanding.lines, r.understanding.cta?.keyword, log) else planned.score
         val base = own?.let { (bpm, first) -> told.copy(bpm = bpm, beatOffset = first) } ?: told
         own?.let { (bpm, _) -> log("music: the video's own, ${round1(bpm)} bpm (none added)") }
         val plan = planned.copy(score = MusicEdit.gridded(base, music))
@@ -366,8 +378,9 @@ class Autopilot(
         var compiled = compile(compiler, score, r.shown, edit, request)
         val critic = Critic()
         repeat(CRITIC_PASSES) { pass ->
-            val review = critic.review(score, compiled, output, r.lines, r.understanding.cta)
+            val review = critic.review(score, compiled, output, r.lines, r.understanding.cta, r.understanding, r.storyMap)
             review.issues.forEach { log("critic ${pass + 1}: ${it.kind} at ${round1(it.at)}s — ${it.detail}") }
+            review.findings.forEach { log("critic ${pass + 1}: $it") }
             val revised = review.revised ?: return@repeat
             score = speller.check(revised, log)
             compiled = compile(compiler, score, r.shown, edit, request)
@@ -389,6 +402,49 @@ class Autopilot(
         }
         val relevance = picked.second.let { p -> p.picks.mapNotNull { (q, id) -> id?.let { i -> p.relevance[q]?.let { i to it } } }.toMap() }
         return Draft(seed, plan, score, compiled, edit, output, compiler, looks, music, picked.second.found + accents, relevance)
+    }
+
+    /**
+     * This seed's plan: the story map's when one is in hand — every beat earns one treatment and one
+     * reason ([DesignPass]), laid out in time ([StoryPlanner]) over [words]; else the rule planner's
+     * own ([Planner]). Either way the rule plan dresses the piece (its look, captions and music) and
+     * carries its notes; a map's scenes stand down for the story's.
+     */
+    private fun storyPlan(map: StoryMap?, words: List<Word>, ruled: Planner.Plan): Planner.Plan {
+        val story = map ?: return ruled
+        val design = DesignPass.design(story, words)
+        val planned = StoryPlanner.plan(story, words, design)
+        val notes = ruled.notes + design.notes + planned.notes +
+            "story: carries ${story.objects.joinToString().ifEmpty { "nothing" }}, never shows ${story.banned.joinToString().ifEmpty { "nothing" }}"
+        return ruled.copy(score = ruled.score.copy(scenes = planned.score.scenes), notes = notes)
+    }
+
+    /** Whether this piece is told in cards: a talking head with footage, and no story map to plan it. */
+    private fun toldInCards(r: Reading): Boolean =
+        Storyboard.wanted(r.request.prompt, r.request.footage != null) && r.storyMap == null
+
+    /**
+     * The narrative map the story path plans from: one the request carries (a creator's, or a
+     * checkpoint's), else one the model writes ([Understander.story]); null without a model or
+     * without beats inside the transcript — the rule planner plans then, so a run never fails for
+     * want of a story.
+     */
+    private suspend fun storyMap(request: Request, transcript: Transcript, report: MutableList<String>): StoryMap? {
+        val given = request.story
+        val written = given ?: model?.let { m ->
+            runCatching { Understander(m).story(transcript.words, request.prompt, request.seed.toInt()) }
+                .getOrElse { e ->
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    report += "story: model failed (${e.message}); the rule planner plans"
+                    null
+                }
+        }
+        val map = written?.let { StoryMap.sanitize(it, transcript.words.size) }?.takeIf { it.beats.isNotEmpty() }
+        when {
+            map != null -> report += "story: ${map.beats.size} beats (${map.beats.joinToString { b -> b.kind }})"
+            given != null -> report += "story: the given map has no beat inside the transcript; the rule planner plans"
+        }
+        return map
     }
 
     /** [score] dressed by the [Dresser] with accents from the shelf (none on a lean run or with nothing kept or reachable); and the accents worn. */
@@ -534,14 +590,14 @@ class Autopilot(
      */
     private fun real(word: String, lexicon: PersianSpelling, prompt: String): Boolean {
         val core = word.trim { !it.isLetterOrDigit() && it != '\u200C' }
-        if (core.none { it in '\u0600'..'\u06FF' }) return true
+        if (core.none { it in '؀'..'ۿ' }) return true
         val said = prompt.replace("\u200C", "").split(Regex("[^\\p{L}\\p{N}]+")).toSet()
         return lexicon.count(core) > 0 || core.replace("\u200C", "") in said
     }
 
     /** A word said in Persian («تتر») respelled in Latin letters («Tether»): a translation, not a spelling fix. */
     private fun latinised(heard: String, fixed: String): Boolean =
-        heard.any { it in '\u0600'..'\u06FF' } && fixed.none { it in '\u0600'..'\u06FF' } && fixed.any { it.isLetter() }
+        heard.any { it in '؀'..'ۿ' } && fixed.none { it in '؀'..'ۿ' } && fixed.any { it.isLetter() }
 
     /**
      * The eyes after they looked: the director's own (its vision projector, about 1 GB, freed; the model stays) or a

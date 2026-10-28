@@ -132,12 +132,14 @@ private fun DrawScope.aurora(e: Effect.Aurora, t: Float, alpha: Float, size: Siz
 }
 
 /**
- * Film grain: a dense noise tile made once, re-positioned every 1/24 s (grain "boils" like film),
- * blended with overlay so it lives in the midtones instead of floating on top as dust.
+ * Film grain: a dense noise tile made once, re-positioned every grain frame (12 Hz — grain
+ * "boils" like film, never a fresh noise field per frame), blended with overlay so it lives in
+ * the midtones instead of floating on top as dust. Timing and strength come from
+ * [FinishingPass.grainFrame] and [FinishingPass.grainOverlayAlpha].
  */
 private fun DrawScope.grain(e: Effect.Grain, t: Float, alpha: Float, size: Size, soft: SoftFields) {
     val tile = soft.grainTile ?: GrainTile.make().also { soft.grainTile = it }
-    val frame = (t * 24f).toInt()
+    val frame = FinishingPass.grainFrame(t)
     var seed = (frame * 7919 + e.seed * 104729) or 1
     fun rnd(): Float {
         seed = seed xor (seed shl 13); seed = seed xor (seed ushr 17); seed = seed xor (seed shl 5)
@@ -147,7 +149,13 @@ private fun DrawScope.grain(e: Effect.Grain, t: Float, alpha: Float, size: Size,
     val dx = rnd() * GrainTile.SIZE
     val dy = rnd() * GrainTile.SIZE
     withTransform({ scale(GRAIN_SCALE, GRAIN_SCALE, Offset.Zero); translate(-dx, -dy) }) {
-        drawRect(brush, topLeft = Offset(dx, dy), size = Size(size.width / GRAIN_SCALE, size.height / GRAIN_SCALE), alpha = (e.amount * 9f * alpha).coerceIn(0f, 1f), blendMode = BlendMode.Overlay)
+        drawRect(
+            brush,
+            topLeft = Offset(dx, dy),
+            size = Size(size.width / GRAIN_SCALE, size.height / GRAIN_SCALE),
+            alpha = (FinishingPass.grainOverlayAlpha(e.amount) * alpha).coerceIn(0f, 1f),
+            blendMode = BlendMode.Overlay,
+        )
     }
 }
 

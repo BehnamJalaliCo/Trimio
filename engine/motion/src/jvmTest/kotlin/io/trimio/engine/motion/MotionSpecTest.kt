@@ -55,12 +55,12 @@ class MotionSpecTest {
     @Test
     fun holdsScaleWithWordsAndProtectTheLastLine() {
         val t = MotionSpec.Time
-        assertEquals(0.5f, t.HoldBase)
-        assertEquals(1.7f, t.holdFor(4), absoluteTolerance = 1e-5f)
-        assertEquals(2f, t.holdForLine(2, isLast = true), absoluteTolerance = 1e-5f)
-        assertEquals(3.5f, t.holdForLine(10, isLast = true), absoluteTolerance = 1e-4f)
+        assertEquals(0.5, t.HoldBase.toDouble(), absoluteTolerance = 1e-6)
+        assertEquals(1.7, t.holdFor(4).toDouble(), absoluteTolerance = 1e-5)
+        assertEquals(2.0, t.holdForLine(2, isLast = true).toDouble(), absoluteTolerance = 1e-5)
+        assertEquals(3.5, t.holdForLine(10, isLast = true).toDouble(), absoluteTolerance = 1e-4)
         assertTrue(t.holdForLine(10, isLast = true) >= t.LastLineMinHold)
-        assertEquals(t.holdFor(4), t.holdForLine(4, isLast = false), absoluteTolerance = 1e-5f)
+        assertEquals(t.holdFor(4).toDouble(), t.holdForLine(4, isLast = false).toDouble(), absoluteTolerance = 1e-5)
     }
 
     @Test
@@ -110,7 +110,7 @@ class MotionSpecTest {
     fun textStaysAboveTheReadabilityFloor() {
         val l = MotionSpec.Legibility
         assertEquals(28f, l.MinTextPxAt1080)
-        assertEquals(1080f * l.MinTextFractionOfShortSide, l.minTextPx(1080), absoluteTolerance = 1e-3f)
+        assertEquals(28.08, l.minTextPx(1080).toDouble(), absoluteTolerance = 1e-3)
         assertTrue(l.minTextPx(1080) >= l.MinTextPxAt1080)
         assertTrue(l.TitleHeightFractionMin in 0.03f..0.1f && l.TitleHeightFractionMax > l.TitleHeightFractionMin)
     }

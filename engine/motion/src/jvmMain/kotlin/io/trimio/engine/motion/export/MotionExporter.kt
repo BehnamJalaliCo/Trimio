@@ -52,10 +52,12 @@ data class Delivery(
 ) {
     fun videoArgs(fps: Int, width: Int = HD_SHORT, height: Int = HD_LONG): List<String> = videoArgs(fps, Level.of(width, height, fps))
 
-    private fun videoArgs(fps: Int, level: Level): List<String> = listOf(
-        // 16-bit RGB in, converted once to 8-bit 4:2:0 with the BT.709 matrix and dithering.
-        "-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp,format=yuv420p",
-    ) + Encoders.args(
+    /**
+     * What ffmpeg gets after the frame pipe: the picture is already display-encoded BT.709 limited
+     * 4:2:0 (converted and dithered once, in [Yuv420]), so these are just the encoder settings and
+     * the tags that tell players what they are looking at.
+     */
+    private fun videoArgs(fps: Int, level: Level): List<String> = Encoders.args(
         listOf(
             "-c:v", "libx264", "-preset", preset, "-crf", "$crf", "-maxrate", "${maxrateMbps * level.rate}M", "-bufsize", "${maxrateMbps * level.rate * 2}M",
             "-profile:v", "high", "-level:v", level.label, "-g", "${fps * 2}", "-keyint_min", "$fps", "-sc_threshold", "0",
@@ -107,9 +109,10 @@ data class Delivery(
 }
 
 /**
- * Renders a [Composition] to MP4. Frames are composited in half-float precision (no banding
- * through stacked translucent layers), read out as 16-bit RGB and reduced to 8 bits only once,
- * inside the colour conversion.
+ * Renders a [Composition] to MP4. Frames are composited in half-float precision and linear light
+ * (strokes, blurs and glows mix physically; no banding through stacked translucent layers), read
+ * out as 16-bit linear RGB and reduced to 8 bits only once — in the display conversion of [Yuv420]
+ * (BT.709 limited range, TPDF dither at its rounding).
  *
  * [scale] sets the output size against the composition's own (1080 on the short side): 2 renders
  * a 4K file, 2/3 a 720p one. Everything is drawn at the output size (text, shapes and footage
@@ -146,7 +149,9 @@ class MotionExporter(
     ) : AutoCloseable {
         val width: Int = even(composition.width * scale)
         val height: Int = even(composition.height * scale)
-        private val info = ImageInfo(width, height, ColorType.RGBA_F16, ColorAlphaType.PREMUL, ColorSpace.sRGB)
+
+        /** Linear light: the frame mixes physically and takes the display curve only at the output. */
+        private val info = ImageInfo(width, height, ColorType.RGBA_F16, ColorAlphaType.PREMUL, ColorSpace.sRGBLinear)
         private val timed = TimedMedia(media)
         private val gpuCanvas: GpuCanvas? = if (gpu) GpuCanvas.open(info) else null
         private val surface = gpuCanvas?.surface ?: Surface.makeRaster(info)
@@ -157,11 +162,10 @@ class MotionExporter(
         /**
          * The frame read out in half floats (the graphics layer un-premultiplied by Skia), then turned
          * into 16-bit integers through a table. (Skia's own 16-bit integer read-out writes white in
-         * this Skiko build, so it is not used.)
+         * this Skiko build, so it is not used.) The values are linear light.
          */
         private val half = Bitmap().also {
-            // (Not inside `apply`: a Bitmap has its own width and height.)
-            check(it.allocPixels(ImageInfo(width, height, ColorType.RGBA_F16, if (transparent) ColorAlphaType.UNPREMUL else ColorAlphaType.PREMUL, ColorSpace.sRGB)))
+            check(it.allocPixels(ImageInfo(width, height, ColorType.RGBA_F16, if (transparent) ColorAlphaType.UNPREMUL else ColorAlphaType.PREMUL, ColorSpace.sRGBLinear)))
         }
         private val halves: ShortBuffer = BufferUtil.getByteBufferFromPointer(half.peekPixels()!!.addr, width * height * PIXEL)
             .order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
@@ -188,7 +192,7 @@ class MotionExporter(
             return surface.makeImageSnapshot()
         }
 
-        /** The painted frame into [into] ([frameBytes]) as little-endian 16-bit RGBA, straight alpha. */
+        /** The painted frame into [into] ([frameBytes]) as little-endian 16-bit RGBA, straight alpha, linear light. */
         fun read(into: ByteArray) {
             check(surface.readPixels(half, 0, 0)) { "frame read failed" }
             halves.rewind()
@@ -198,7 +202,7 @@ class MotionExporter(
             ByteBuffer.wrap(into, 0, frameBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(scratch)
         }
 
-        /** The frame at [t] as little-endian 16-bit RGBA, straight (not premultiplied) alpha. */
+        /** The frame at [t] as little-endian 16-bit RGBA, straight (not premultiplied) alpha, linear light. */
         fun rgba64(t: Float): ByteArray = ByteArray(frameBytes).also {
             paint(t)
             read(it)
@@ -270,7 +274,6 @@ class MotionExporter(
         profile.width = width
         profile.height = height
         val ext = if (graphics) "mov" else "mp4"
-        // Work files have plain names: ffmpeg's arguments may not survive a non-UTF-8 locale; only Java renames to the real name.
         val stem = ".trimio-" + Integer.toHexString(file.absolutePath.hashCode()) + "-" + System.nanoTime()
         val parts = (0 until workers).map { File(file.absoluteFile.parentFile, "$stem.part$it.$ext") }
         val done = AtomicInteger()
@@ -303,7 +306,8 @@ class MotionExporter(
     /**
      * One worker: frames [a, b) drawn and read on this thread, written to ffmpeg by a second one
      * (two frame buffers between them), so drawing never waits for the pipe unless the encoder
-     * is the slower side.
+     * is the slower side. The video path converts each frame to display-encoded, dithered 4:2:0
+     * ([Yuv420]); the graphics path keeps 16-bit RGBA but takes the display curve here.
      */
     private fun encode(part: File, a: Int, b: Int, graphics: Boolean, gpu: Boolean, onFrame: () -> Unit) {
         val fps = composition.fps
@@ -313,13 +317,17 @@ class MotionExporter(
             ?: Frames(scene, source, scale, transparent = graphics)
         profile.canvas = if (frames.onGpu) "gpu" else "raster"
         val codec = if (graphics) prores() else delivery.videoArgs(fps, width, height)
+        val yuv = Yuv420(width, height)
+        val dither = Tpdf(seed = a.toLong() + 1L)
+        val outSize = if (graphics) frames.frameBytes else width * height * 3 / 2
         val process = ProcessBuilder(
-            listOf(MediaTools.ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba64le", "-s", "${width}x$height", "-r", "$fps", "-i", "-") +
+            listOf(MediaTools.ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", if (graphics) "rgba64le" else "yuv420p", "-s", "${width}x$height", "-r", "$fps", "-i", "-") +
                 codec + listOf("-threads", "2", "-an", part.absolutePath),
         ).redirectErrorStream(true).start()
         val log = StringBuilder()
         val logger = thread(isDaemon = true, name = "motion-export-log") { runCatching { log.append(process.inputStream.bufferedReader().readText()) } }
-        val writer = Writer(process.outputStream, frames.frameBytes)
+        val writer = Writer(process.outputStream, outSize)
+        val linear = ByteArray(if (graphics) 0 else frames.frameBytes)
         try {
             for (f in a until b) {
                 val waited = System.nanoTime()
@@ -329,7 +337,13 @@ class MotionExporter(
                 frames.paint(f.toFloat() / fps)
                 profile.drawCpuNs.addAndGet(cpuClock.currentThreadCpuTime - cpu)
                 val read = System.nanoTime()
-                frames.read(buffer)
+                if (graphics) {
+                    frames.read(buffer)
+                    ColorConvert.toDisplayRgba64(buffer)
+                } else {
+                    frames.read(linear)
+                    yuv.convert(linear, dither, buffer)
+                }
                 profile.encodeWaitNs.addAndGet(drawn - waited)
                 profile.drawNs.addAndGet(read - drawn)
                 profile.readNs.addAndGet(System.nanoTime() - read)
@@ -386,7 +400,6 @@ class MotionExporter(
                 while (true) {
                     val buffer = full.take()
                     if (buffer === END) break
-                    // After a failure the frames are dropped, not written, so the drawing side never blocks.
                     if (failure == null) runCatching { out.write(buffer) }.onFailure { failure = it }
                     free.put(buffer)
                 }
@@ -428,7 +441,7 @@ class MotionExporter(
             addAll(listOf(MediaTools.ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list.absolutePath))
             if (audio != null) addAll(listOf("-i", audio.absolutePath))
             addAll(listOf("-map", "0:v"))
-            if (audio != null) addAll(listOf("-map", "1:a", "-c:a", "aac", "-b:a", "${delivery.audioKbps}k", "-ar", "48000", "-shortest"))
+            if (audio != null) addAll(listOf("-map", "1:a", "-c:a", "aac", "-b:a", "${delivery.audioKbps}k", "-ar", "$AUDIO_RATE", "-shortest"))
             addAll(listOf("-c:v", "copy", "-movflags", "+faststart", file.absolutePath))
         }
         val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
@@ -462,6 +475,9 @@ class MotionExporter(
         const val MIN_FRAMES_PER_WORKER = 45
         const val PIXEL = 8
         const val LOG_WAIT_MS = 5_000L
+
+        /** Both paths master at 48 kHz (the phone's AAC encoder matches this). */
+        const val AUDIO_RATE = 48_000
     }
 }
 

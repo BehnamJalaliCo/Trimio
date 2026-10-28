@@ -40,8 +40,18 @@ jobs:
       - name: Static analysis (detekt, new findings only)
         run: ./gradlew detekt
 
+      - name: engine.motion tests first (annotated)
+        run: |
+          ./gradlew :engine:motion:jvmTest --continue 2>&1 | tee /tmp/motion.log || true
+          grep -E "^e: " /tmp/motion.log | head -15 | sed 's/^/::error title=motion::/'
+          grep -E "> .*FAILED" /tmp/motion.log | head -15 | sed 's/^/::error title=motion::/'
+
       - name: Unit, shader, screenshot and golden-frame tests
-        run: ./gradlew jvmTest :server:test
+        run: ./gradlew jvmTest :server:test --continue
+
+      - name: Annotate junit failures
+        if: failure()
+        run: python3 scripts/ci/annotate_junit.py .
 
       - name: Compile web target
         run: ./gradlew compileKotlinWasmJs
