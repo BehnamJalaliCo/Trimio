@@ -66,7 +66,7 @@ internal object EditCritic {
     fun fresh(map: StoryMap, words: List<Word>): StoryMap {
         val said = words.map { it.text }
         val beats = map.beats.filter { b ->
-            b.claim.isNotBlank() && (b.from..maxOf(b.from, b.until)).any { said.getOrNull(it)?.let(::Words.isContent) == true }
+            b.claim.isNotBlank() && (b.from..maxOf(b.from, b.until)).any { said.getOrNull(it)?.let { w -> Words.isContent(w) } == true }
         }
         return StoryMap(beats = beats, objects = map.objects, banned = map.banned)
     }
