@@ -195,7 +195,7 @@ object CraftGate {
     }
 
     private fun unitsOf(a: TextAnimator, node: TextNode, words: Int): Int = when (a.unit) {
-        TextUnit.Char -> node.text.count { !it.isWhitespace() && it != ZWNJ }
+        TextUnit.Char -> node.text.count { !it.isWhitespace() && it != ZWNJ[0] }
         TextUnit.Word -> words
         TextUnit.Line -> lineWordCounts(node.text).size
         TextUnit.All -> 1
@@ -373,6 +373,6 @@ object CraftGate {
     private const val SettleEps = 0.01f
     private const val OvershootEps = 0.02f
     private const val LinearTol = 0.15f
-    private const val ZWNJ = '\u200C'
+    private const val ZWNJ = "\u200C"
     private val sceneName = Regex("scene-(\\d+)")
 }
