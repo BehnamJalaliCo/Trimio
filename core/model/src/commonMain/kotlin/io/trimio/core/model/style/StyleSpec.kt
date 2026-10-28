@@ -24,7 +24,9 @@ data class StyleSpec(
     val overlay: OverlaySpec = OverlaySpec(),
     val elements: ElementSpec = ElementSpec(),
     val motion: MotionSpec = MotionSpec(),
+    /** Sound design per event, e.g. "caption.emphasis" → "sfx/pop". */
     val sfx: Map<String, String> = emptyMap(),
+    /** Layout changes when there is no footage and the style paints the whole picture. */
     val audioOnly: AudioOnlySpec = AudioOnlySpec(),
     /**
      * Extra SkSL/AGSL runtime shaders shipped with the pack, by name. A background preset
@@ -40,7 +42,9 @@ data class StyleSpec(
 @Serializable
 data class AudioOnlySpec(
     val captionAnchor: Anchor = Anchor.Center,
+    /** Multiplies caption size: with no footage, type is the picture. */
     val captionScale: Float = 1.25f,
+    /** ring, bars or none. */
     val visualizer: String = "ring",
 )
 
@@ -56,30 +60,47 @@ data class Palette(
 
 @Serializable
 enum class CaptionMode {
+    /** Words appear one by one as spoken and stay until the line ends. */
     BuildUp,
+
+    /** The whole phrase appears; the spoken word is highlighted. */
     Phrase,
+
+    /** The whole phrase appears; colour fills each word in reading direction as it is spoken. */
     Karaoke,
+
+    /** One big word at a time, centre screen (kinetic typography). */
     SingleWord,
 }
 
 @Serializable
 enum class BoxStyle {
     None,
+
+    /** Rounded solid pill behind the line. */
     Pill,
+
+    /** Hard offset shadow, thick border, flat fill (neobrutalism). */
     Brutal,
+
+    /** Frosted translucent card with light rim. */
     Glass,
+
+    /** Highlighter stroke behind emphasised words only. */
     Highlight,
 }
 
 @Serializable
 data class CaptionSpec(
     val mode: CaptionMode = CaptionMode.BuildUp,
+    /** Text size as a fraction of the canvas short edge. */
     val size: Float = 0.10f,
     val weight: Int = 800,
     val uppercase: Boolean = false,
     val letterSpacingEm: Float = -0.01f,
     val maxWordsPerLine: Int = 4,
     val anchor: Anchor = Anchor.BottomCenter,
+    /** Entry preset: pop, rise, slam, wipe, flip, fade. */
     val entry: String = "pop",
     val exit: String = "fade",
     val box: BoxStyle = BoxStyle.None,
@@ -93,13 +114,16 @@ data class CaptionSpec(
 @Serializable
 data class EmphasisSpec(
     val scale: Float = 1.18f,
+    /** "accent", "accent2" or "text". */
     val colorRole: String = "accent",
     val box: BoxStyle = BoxStyle.None,
+    /** Emphasis threshold on [io.trimio.core.model.transcript.Word.emphasis]. */
     val threshold: Float = 0.6f,
 )
 
 @Serializable
 data class BackgroundSpec(
+    /** aurora, gradient, mesh, grid, solid, waves. */
     val preset: String = "aurora",
     val audioReactive: Boolean = true,
     val params: Map<String, Float> = emptyMap(),
@@ -114,13 +138,16 @@ data class OverlaySpec(
 
 @Serializable
 data class ElementSpec(
+    /** glass, solid, brutal, outline. */
     val card: String = "glass",
     val cornerRadius: Float = 0.04f,
 )
 
 @Serializable
 data class MotionSpec(
+    /** 0 calm … 1 hyper. Scales overshoot and speed of every preset. */
     val energy: Float = 0.6f,
+    /** Punch-in zoom on footage at emphasised words. */
     val cameraPunch: Boolean = true,
 )
 
@@ -133,11 +160,17 @@ data class MotionSpec(
  */
 @Serializable
 data class FilmSpec(
+    /** Overlay id of `overlay.film-textures` ("grain-35mm", "paper-kraft", "leak-warm-1", …). */
     val texture: String? = null,
+    /** How strongly the texture lies over the frame, 0..1. */
     val textureOpacity: Float = 0.3f,
+    /** LUT id of `look.cinematic-luts` ("teal-orange", "warm-film", …); null grades nothing. */
     val lut: String? = null,
+    /** Finishing film preset key: "clean", "film" or "dream". */
     val preset: String = "film",
+    /** Grain the finishing pass adds on top of the preset (null: the preset's own, plus any grain texture). */
     val grain: Float? = null,
+    /** Halation the finishing pass adds on top of the preset (null: the preset's own). */
     val halation: Float? = null,
 )
 
@@ -153,6 +186,7 @@ data class DesignTokens(
     val spacing: Spacing = Spacing(),
     val radius: Radius = Radius(),
     val colors: ColorRoles = ColorRoles(),
+    /** Accent variants beyond [Palette.accent] (multi-accent); the palette's own accent leads. */
     val accents: List<String> = emptyList(),
 )
 
@@ -163,12 +197,15 @@ data class DesignTokens(
  */
 @Serializable
 data class TypeScale(
+    /** Step-to-step ratio: 1.2 the minor third, 1.25 the major third, 1.333 the perfect fourth. */
     val ratio: Float = DEFAULT_RATIO,
+    /** Whole steps from the caption line; they must descend display > title > caption > label. */
     val display: Int = 3,
     val title: Int = 1,
     val caption: Int = 0,
     val label: Int = -1,
 ) {
+    /** Size of [step] relative to the caption line: `ratio.pow(step)`. */
     fun sizeOf(step: Int): Float = ratio.pow(step)
 
     val displaySize: Float get() = sizeOf(display)
@@ -181,6 +218,7 @@ data class TypeScale(
     }
 }
 
+/** The spacing scale, in fractions of the canvas short edge (the same unit as every size). */
 @Serializable
 data class Spacing(val unit: Float = 0.02f) {
     val xs: Float get() = unit * 0.5f
@@ -190,6 +228,7 @@ data class Spacing(val unit: Float = 0.02f) {
     val xl: Float get() = unit * 4f
 }
 
+/** The radius scale for cards and blocks, in fractions of the canvas short edge (0 = Swiss sharp). */
 @Serializable
 data class Radius(val unit: Float = 0.04f) {
     val sm: Float get() = unit * 0.5f

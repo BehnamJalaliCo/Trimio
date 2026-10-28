@@ -20,6 +20,7 @@ object StylePackValidator {
     val visualizers = setOf("ring", "bars", "none")
     val cards = setOf("glass", "solid", "brutal", "outline")
     val colorRoles = setOf("accent", "accent2", "text", "emphasisText")
+    val filmPresets = setOf("clean", "film", "dream")
 
     fun validate(pack: StylePack): List<Issue> = buildList {
         fun check(ok: Boolean, field: String, message: String) { if (!ok) add(Issue(field, message)) }
@@ -67,5 +68,27 @@ object StylePackValidator {
         range(pack.spec.motion.energy, 0f, 1f, "motion.energy")
         range(pack.spec.audioOnly.captionScale, 0.5f, 2f, "audioOnly.captionScale")
         check(pack.spec.audioOnly.visualizer in visualizers, "audioOnly.visualizer", "unknown visualizer ${pack.spec.audioOnly.visualizer}")
+
+        val f = pack.spec.film
+        check(f.texture == null || idPattern.matches(f.texture), "film.texture", "texture ids must be lowercase-kebab-case")
+        check(f.lut == null || idPattern.matches(f.lut), "film.lut", "LUT ids must be lowercase-kebab-case")
+        range(f.textureOpacity, 0f, 1f, "film.textureOpacity")
+        check(f.preset in filmPresets, "film.preset", "unknown finishing preset ${f.preset}")
+        f.grain?.let { range(it, 0f, 0.2f, "film.grain") }
+        f.halation?.let { range(it, 0f, 1f, "film.halation") }
+
+        val t = pack.spec.tokens
+        range(t.type.ratio, 1.05f, 1.6f, "tokens.type.ratio")
+        check(t.type.display > t.type.title && t.type.title > t.type.caption && t.type.caption > t.type.label, "tokens.type", "steps must descend display > title > caption > label")
+        check(t.type.display in TYPE_STEP && t.type.label in TYPE_STEP, "tokens.type", "steps ${t.type.display}..${t.type.label} out of range")
+        range(t.spacing.unit, 0f, 0.1f, "tokens.spacing.unit")
+        range(t.radius.unit, 0f, 0.1f, "tokens.radius.unit")
+        color(t.colors.surface, "tokens.colors.surface"); color(t.colors.onSurface, "tokens.colors.onSurface")
+        color(t.colors.muted, "tokens.colors.muted"); color(t.colors.primary, "tokens.colors.primary")
+        color(t.colors.onPrimary, "tokens.colors.onPrimary"); color(t.colors.secondary, "tokens.colors.secondary")
+        color(t.colors.warning, "tokens.colors.warning"); color(t.colors.danger, "tokens.colors.danger")
+        t.accents.forEachIndexed { i, c -> color(c, "tokens.accents[$i]") }
     }
+
+    private val TYPE_STEP = -6..6
 }
