@@ -21,6 +21,7 @@ kotlin {
             api(projects.engine.llm)
             api(projects.engine.audio)
             implementation(projects.engine.assets)
+            implementation(projects.engine.asr) // WordAligner: word onsets snapped to the voice (SpeechAnalysis)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
         }
