@@ -7,7 +7,6 @@ import io.trimio.core.model.timeline.MusicClip
 import io.trimio.core.model.timeline.SfxClip
 import io.trimio.core.model.timeline.Timeline
 import kotlin.math.abs
-import kotlin.math.exp
 import kotlin.math.pow
 import kotlin.math.tanh
 
@@ -173,7 +172,6 @@ class AudioMixer(
         }
     }
 
-    private fun coefficient(ms: Int) = exp(-1.0 / (outputRate * ms / 1000.0)).toFloat()
     private fun equalPower(p: Float) = kotlin.math.sin(p.coerceIn(0f, 1f) * kotlin.math.PI / 2).toFloat()
     private fun index(ms: Long) = (ms * outputRate / 1000).toInt()
     private fun dbToGain(db: Float) = 10.0.pow(db / 20.0).toFloat()
