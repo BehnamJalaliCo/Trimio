@@ -42,10 +42,12 @@ class WordAlignerTest {
         assertTrue(aligned.all { it.range.endMs - it.range.startMs >= MIN_WORD_MS }, "no word is squeezed out of existence")
     }
 
-    private const val FRAMES = 25
-    private const val QUIET_DB = -50f
-    private const val LOUD_DB = -10f
-    private const val MIN_WORD_MS = 60L
+    private companion object {
+        const val FRAMES = 25
+        const val QUIET_DB = -50f
+        const val LOUD_DB = -10f
+        const val MIN_WORD_MS = 60L
+    }
 
     private fun features(energy: FloatArray) = AudioFeatures(
         hopMs = 10,
