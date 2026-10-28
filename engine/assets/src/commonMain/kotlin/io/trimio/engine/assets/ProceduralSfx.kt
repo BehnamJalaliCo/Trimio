@@ -97,8 +97,8 @@ class ProceduralSfx(private val rate: Int = 48_000) {
         val pitch = 2f.pow((rnd.nextFloat() * 2f - 1f) * JITTER_SEMITONES / 12f)
         val jitterDb = (rnd.nextFloat() * 2f - 1f) * JITTER_DB
         val v = palette?.v
-        val quick = (sp * if (swoosh) SWISH_BRIGHT else 1f).coerceAtMost(1f)
-        val voice = pitch * (v?.pitch ?: 1f) * if (swoosh) SWISH_PITCH else 1f
+        val quick = (sp * (if (swoosh) SWISH_BRIGHT else 1f)).coerceAtMost(1f)
+        val voice = pitch * (v?.pitch ?: 1f) * (if (swoosh) SWISH_PITCH else 1f)
         val samples = motionWhoosh(ms, quick, variant.mod(MOTION_VARIANTS), voice, v)
         // A faster move is hotter: the level follows the speed (the clip gain comes from the mixer).
         val peakDb = PEAK_DB - (1f - quick) * SPEED_RANGE_DB + jitterDb
