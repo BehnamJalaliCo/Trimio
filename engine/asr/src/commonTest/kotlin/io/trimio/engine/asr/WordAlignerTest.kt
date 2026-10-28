@@ -12,7 +12,6 @@ class WordAlignerTest {
 
     @Test
     fun onsetSnapsToTheFirstVoicedFrameInsideTheWindow() {
-        // Quiet floor with speech from 50 ms to 150 ms; the recogniser guessed the start at 30 ms.
         val features = features(FloatArray(FRAMES) { i -> if (i in 5..15) LOUD_DB else QUIET_DB })
         val aligned = WordAligner().align(listOf(word("hello", 30L, 120L)), features)
         assertEquals(50L, aligned.single().range.startMs, "the word starts on the voice's onset (50 ms), not on the recogniser's guess")
@@ -20,7 +19,6 @@ class WordAlignerTest {
 
     @Test
     fun alignedWordsStayOrderedAndNeverOverlap() {
-        // No voiced frames at all: both words keep their guesses and the overlap resolves at the boundary.
         val features = features(FloatArray(FRAMES) { QUIET_DB })
         val words = listOf(word("first", 100L, 200L), word("second", 150L, 300L))
         val aligned = WordAligner().align(words, features)
@@ -36,7 +34,6 @@ class WordAlignerTest {
 
     @Test
     fun outputIsMonotonicWhenOnsetsPullWordsTogether() {
-        // One continuous burst of speech: every guess falls inside it, so onsets collide and must be split.
         val features = features(FloatArray(FRAMES) { i -> if (i in 3..20) LOUD_DB else QUIET_DB })
         val words = listOf(word("one", 40L, 80L), word("two", 90L, 140L), word("three", 150L, 220L))
         val aligned = WordAligner().align(words, features)
@@ -45,10 +42,10 @@ class WordAlignerTest {
         assertTrue(aligned.all { it.range.endMs - it.range.startMs >= MIN_WORD_MS }, "no word is squeezed out of existence")
     }
 
-    private val FRAMES = 25
-    private val QUIET_DB = -50f
-    private val LOUD_DB = -10f
-    private val MIN_WORD_MS = 60L
+    private const val FRAMES = 25
+    private const val QUIET_DB = -50f
+    private const val LOUD_DB = -10f
+    private const val MIN_WORD_MS = 60L
 
     private fun features(energy: FloatArray) = AudioFeatures(
         hopMs = 10,
