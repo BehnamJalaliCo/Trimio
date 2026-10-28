@@ -30,9 +30,9 @@ class ExportReadoutTest {
     )
 
     /** The sRGB/BT.709-family curve and its inverse as the standards write them (independent of the exporter). */
-    private fun oetf(u: Double): Double = if (u <= 0.0031308) 12.92 * u else 1.055 * pow(u, 1 / 2.4) - 0.055
+    private fun oetf(u: Double): Double = if (u <= 0.0031308) 12.92 * u else 1.055 * u.pow(1 / 2.4) - 0.055
 
-    private fun inverseOetf(u: Double): Double = if (u <= 0.04045) u / 12.92 else pow((u + 0.055) / 1.055, 2.4)
+    private fun inverseOetf(u: Double): Double = if (u <= 0.04045) u / 12.92 else ((u + 0.055) / 1.055).pow(2.4)
 
     @Test
     fun framesReadOutLinearAndReachTheEncoderInDisplayCodes() {
