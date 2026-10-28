@@ -186,7 +186,7 @@ class DesignTemplatesTest {
             for (t in templates) {
                 val cue = cueFor(t.name, rtl = true, over = true)
                 runCatching { t.build(cue, look, FamilyLab.fitter) }
-                    .onFailure { problems += "${t.name} in ${style.name}: ${it.message}" }
+                    .onFailure { problems += "${t.name} in ${style.id}: ${it.message}" }
             }
         }
         assertTrue(problems.isEmpty(), problems.take(20).joinToString("\n"))
