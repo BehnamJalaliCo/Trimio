@@ -16,7 +16,7 @@ class CraftWordStartsTest {
 
     @Test
     fun wordStartsFallBackToAnEvenStaggerWhenNothingWasSpoken() {
-        for (wordTimes in listOf(null, emptyList())) {
+        for (wordTimes in listOf<List<Float>?>(null, emptyList())) {
             val starts = Craft.wordStarts(cue(wordTimes), count = 3, stagger = 0.12f)
             for (i in 0 until 3) {
                 assertEquals(AT - Craft.LEAD + i * 0.12f, starts[i], TOL, "word $i staggers evenly from the beat when wordTimes is $wordTimes")
