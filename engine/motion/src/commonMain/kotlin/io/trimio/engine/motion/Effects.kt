@@ -149,7 +149,13 @@ private fun DrawScope.grain(e: Effect.Grain, t: Float, alpha: Float, size: Size,
     val dx = rnd() * GrainTile.SIZE
     val dy = rnd() * GrainTile.SIZE
     withTransform({ scale(GRAIN_SCALE, GRAIN_SCALE, Offset.Zero); translate(-dx, -dy) }) {
-        drawRect(brush, topLeft = Offset(dx, dy), size = Size(size.width / GRAIN_SCALE, size.height / GRAIN_SCALE), alpha = (FinishingPass.grainOverlayAlpha(e.amount) * alpha).coerceIn(0f, 1f), blendMode = BlendMode.Overlay)
+        drawRect(
+            brush,
+            topLeft = Offset(dx, dy),
+            size = Size(size.width / GRAIN_SCALE, size.height / GRAIN_SCALE),
+            alpha = (FinishingPass.grainOverlayAlpha(e.amount) * alpha).coerceIn(0f, 1f),
+            blendMode = BlendMode.Overlay,
+        )
     }
 }
 
