@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 class ColorConvertTest {
 
     /** The sRGB/BT.709-family curve as the standard writes it (independent of the exporter's LUT). */
-    private fun oetf(u: Double): Double = if (u <= 0.0031308) 12.92 * u else 1.055 * pow(u, 1 / 2.4) - 0.055
+    private fun oetf(u: Double): Double = if (u <= 0.0031308) 12.92 * u else 1.055 * u.pow(1 / 2.4) - 0.055
 
     private fun u16(bytes: ByteArray, pixel: Int, channel: Int): Int {
         val i = pixel * 8 + channel * 2
