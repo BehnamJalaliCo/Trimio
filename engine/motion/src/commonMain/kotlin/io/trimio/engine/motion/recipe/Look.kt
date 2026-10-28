@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import io.trimio.core.brand.BrandFonts
 import io.trimio.engine.motion.Contrast
 import io.trimio.engine.motion.Easing
+import io.trimio.engine.motion.Finishing
 import io.trimio.engine.motion.Grade
 import io.trimio.engine.motion.Guard
 import io.trimio.engine.motion.TypeSpec
@@ -63,6 +64,16 @@ data class Look(
     val lens: String? = null,
     /** The footage grade; null keeps the compiler's grade for the original three looks. */
     val grade: Grade? = null,
+    /**
+     * The finishing film look (halation, diffusion, grain — see [Finishing.FilmLook] /
+     * [Finishing.filmPresets]); null keeps the digital path with no finishing pass.
+     */
+    val film: Finishing.FilmLook? = null,
+    /**
+     * Finishing-grade parameters for the full-frame pass (S-curve, temperature); null keeps
+     * [grade] and the named per-look defaults.
+     */
+    val finish: Finishing.Grade? = null,
     /** The curve scene moves (whip, zoom) settle with: the style's easing family. */
     val settle: Easing = Easing.ExpoOut,
     /** Latin letters in headlines set in capitals (Persian has no case and is never touched). */
