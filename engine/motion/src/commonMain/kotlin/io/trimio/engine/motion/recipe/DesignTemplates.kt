@@ -241,7 +241,7 @@ object DesignTemplates {
             val textEdge = stripeX + d * (stripeW / 2f + pad * 0.6f)
             val ground = if (cue.overMedia) Kit.over(look.canvas.copy(alpha = 0.92f), look.canvas) else s.ground
             nodes += TextNode(
-                name, nameF.type, if (cue.overMedia) look.ink else ink, rtl = cue.rtl,
+                name, nameF.type, (if (cue.overMedia) look.ink else ink).fill(), rtl = cue.rtl,
                 animators = listOf(
                     TextAnimator(TextUnit.Word, UnitState(dy = 1.2f), at = at + 0.08f, duration = entry * 1.3f, stagger = STAGGER_TIGHT, ease = Easing.ExpoOut, clipToLine = true),
                 ),
@@ -310,7 +310,7 @@ object DesignTemplates {
             )
             val nameCx = if (cue.rtl) left + blockW - pad - nameF.width / 2f else left + pad + nameF.width / 2f
             nodes += TextNode(
-                name, nameF.type, Kit.inkOn(look, accent.ground), rtl = cue.rtl,
+                name, nameF.type, Kit.inkOn(look, accent.ground).fill(), rtl = cue.rtl,
                 animators = listOf(
                     TextAnimator(TextUnit.Word, UnitState(scale = 1.35f, opacity = 0f), at = at + 0.04f, duration = entry * 1.4f, stagger = STAGGER_TIGHT, ease = SpringPlayful),
                 ),
@@ -410,7 +410,7 @@ object DesignTemplates {
                 times = listOf(starts.getOrElse(key) { at }),
             )
             val leave = Craft.exit(TextUnit.Word, cue, words.size)
-            val marks = Craft.marks(cue, look, setOf(key), entry * 0.7f)
+            val marks = Craft.marks(cue.copy(emphasis = setOf(key)), look, starts, entry * 0.7f)
             val node = Craft.text(cue, f.type, look.ink, look, listOf(quiet, pop, leave), marks, name = name)
             val lineWidth = f.width * 0.22f
             val keyAt = starts.getOrElse(key) { at }
