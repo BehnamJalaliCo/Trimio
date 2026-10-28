@@ -10,6 +10,7 @@ import io.trimio.engine.assets.ProceduralSfx
 import io.trimio.engine.assets.SfxPalette
 import io.trimio.engine.assets.SoundPresets
 import io.trimio.engine.assets.packs.ContentPacks
+import io.trimio.engine.audio.Ducking
 import io.trimio.engine.audio.LoudnessMeter
 import io.trimio.engine.motion.recipe.Sfx
 import io.trimio.engine.motion.recipe.SfxKind
@@ -30,9 +31,10 @@ import kotlin.math.sqrt
  * The mastered soundtrack (research report, audio): the voice cut to the edit with short
  * equal-power crossfades, cleaned (high-pass) and levelled (gentle compression); a cue composed to
  * the edit ([MusicArrangement]: the drop on the payoff or the restart, a breakdown under the call to
- * action, the final hit on a downbeat) that ducks 8 dB while words are spoken and breathes up in
- * the gaps; the sound cues, voiced by the style's [SfxPalette] and staged under the voice; then the
- * whole mix brought to -14 LUFS with peaks held under -1 dBTP.
+ * action, the final hit on a downbeat) that ducks under words and breathes up in the gaps; the sound
+ * cues — the whooshes and swishes derived from the moves they follow, the rest voiced by the style's
+ * [SfxPalette] — staged under the voice; then the whole mix brought to -14 LUFS with peaks held
+ * under -1 dBTP.
  */
 class Soundtrack(private val rate: Int = 48_000) {
 
@@ -66,6 +68,8 @@ class Soundtrack(private val rate: Int = 48_000) {
         arrangement: MusicArrangement? = null,
         /** How the cues sound; null: the palette that suits [music]. */
         palette: SfxPalette? = null,
+        /** The motion behind any cue that has one; the rest read their move off their params ([Motion.of]). */
+        motions: Map<Sfx, Motion> = emptyMap(),
     ): Result {
         require(voice.sampleRate == rate) { "voice must be at $rate Hz" }
         val n = (duration * rate).toInt()
@@ -79,7 +83,7 @@ class Soundtrack(private val rate: Int = 48_000) {
             )
             addMusic(mix, arr, musicSeed, words, n, levels, voiceRms(mix, words), enter = edit.preludeLength, fade = maxOf(FADE_OUT_S, edit.outro?.length ?: 0f))
         }
-        addCues(mix, cues, voicePeak, palette ?: SoundPresets.paletteFor(music), words)
+        addCues(mix, cues, voicePeak, palette ?: SoundPresets.paletteFor(music), words, motions)
         val out = PcmAudio(loudnessAndPeak(mix, levels), rate)
         val m = LoudnessMeter.measure(out)
         return Result(out, m.integratedLufs, m.samplePeakDb)
@@ -188,12 +192,13 @@ class Soundtrack(private val rate: Int = 48_000) {
     }
 
     /**
-     * Music ducked under words (40 ms attack, 400 ms release), out over the last [fade] seconds
-     * (0.8 s; an end hold's whole length: the bed carries the held frame, then lets go). With a
-     * cold open it [enter]s on the restart: the flash-forward plays dry, and the cue drops with
-     * the rewind's hit. The cue is composed on the output clock, so beats snapped to its grid stay
-     * on it. Its level is set from its body (start to final hit), so the quiet intro and breakdown
-     * stay quieter than the drop: the arrangement's dynamics survive the mix.
+     * Music ducked under words — [Ducking]'s look-ahead shape (down before each onset, held past
+     * the phrase, back over a breath), keyed by the voice's own envelope — out over the last [fade]
+     * seconds (0.8 s; an end hold's whole length: the bed carries the held frame, then lets go).
+     * With a cold open it [enter]s on the restart: the flash-forward plays dry, and the cue drops
+     * with the rewind's hit. The cue is composed on the output clock, so beats snapped to its grid
+     * stay on it. Its level is set from its body (start to final hit), so the quiet intro and
+     * breakdown stay quieter than the drop: the arrangement's dynamics survive the mix.
      */
     private fun addMusic(mix: FloatArray, arr: MusicArrangement, seed: Int, words: List<Word>, n: Int, levels: Levels, voiceRms: Float, enter: Float, fade: Float) {
         val bed = MusicComposer(rate).compose(arr, seed).samples
@@ -201,29 +206,58 @@ class Soundtrack(private val rate: Int = 48_000) {
         val body = (arr.start * rate).toInt().coerceIn(0, bed.size - 1) until (arr.ending * rate).toInt().coerceIn(1, bed.size)
         val bodyN = maxOf(1, body.last - body.first + 1)
         val bedRms = sqrt(body.sumOf { (bed[it] * bed[it]).toDouble() } / bodyN).toFloat().coerceAtLeast(1e-4f)
-        val spoken = BooleanArray(n)
-        for (w in words) for (i in ((w.range.startMs - 60) * rate / 1000).toInt() until ((w.range.endMs + 120) * rate / 1000).toInt()) if (i in spoken.indices) spoken[i] = true
         val under = voiceRms / bedRms * db(levels.musicUnderDb)
         val gap = voiceRms / bedRms * db(levels.musicGapDb)
-        val attack = exp(-1.0 / (rate * 0.04)).toFloat()
-        val release = exp(-1.0 / (rate * 0.4)).toFloat()
-        var gain = gap
+        val duck = Ducking.envelope(rate, voiceEnvelope(mix, words, voiceRms), under, gap)
         for (i in 0 until n) {
-            val target = if (spoken[i]) under else gap
-            val c = if (target < gain) attack else release
-            gain = target + (gain - target) * c
             val tail = sin(((n - i) / (rate * fade)).coerceIn(0f, 1f) * HALF_PI)
             val head = ((i - enter * rate) / (rate * 0.03f)).coerceIn(0f, 1f)
-            if (i < bed.size) mix[i] += bed[i] * gain * tail * head
+            if (i < bed.size) mix[i] += bed[i] * duck[i] * tail * head
         }
+    }
+
+    /**
+     * The voice's envelope — the ducking's sidechain: a follower of the spliced voice where words
+     * are said (a breath is not speech), at the word's level against the voice's RMS.
+     */
+    private fun voiceEnvelope(x: FloatArray, words: List<Word>, norm: Float): FloatArray {
+        val env = FloatArray(x.size)
+        val said = BooleanArray(x.size)
+        for (w in words) {
+            val a = (w.range.startMs * rate / 1000).toInt().coerceIn(0, x.size)
+            val b = (w.range.endMs * rate / 1000).toInt().coerceIn(a, x.size)
+            for (i in a until b) said[i] = true
+        }
+        val smooth = exp(-1.0 / (rate * ENV_FOLLOW_S)).toFloat()
+        var e = 0f
+        for (i in x.indices) {
+            val v = abs(x[i])
+            e = if (said[i]) v + (e - v) * smooth else 0f
+            env[i] = (e / norm).coerceIn(0f, 1f)
+        }
+        return env
     }
 
     /**
      * The cues, gain-staged under the voice: each kind's level is relative to the voice's peak,
      * a decoration that lands on a word comes down [UNDER_WORD_DB] (an accent — hit, boom, rewind —
      * keeps its weight), and never more than [MAX_CUES_PER_2S] sound in any two seconds.
+     *
+     * A cue that rides a [Motion] (whoosh, swish) is synthesised from the move itself: the sound is
+     * the move's length, its level and filter sweep follow the move's speed, and its swell's peak
+     * sits exactly on [Sfx.at] (the landing or the cut). The take cycles through
+     * [ProceduralSfx.MOTION_VARIANTS] with a small pitch and gain jitter, so the third whoosh of an
+     * edit never sounds like the first. Other cues keep their palette voice and start on their time
+     * (a transient belongs on the frame).
      */
-    private fun addCues(mix: FloatArray, cues: List<Sfx>, voicePeak: Float, palette: SfxPalette, words: List<Word>) {
+    internal fun addCues(
+        mix: FloatArray,
+        cues: List<Sfx>,
+        voicePeak: Float,
+        palette: SfxPalette,
+        words: List<Word>,
+        motions: Map<Sfx, Motion> = emptyMap(),
+    ) {
         val sfx = ProceduralSfx(rate)
         val scale = voicePeak.coerceIn(0.05f, 1f)
         val played = mutableListOf<Float>()
@@ -231,12 +265,20 @@ class Soundtrack(private val rate: Int = 48_000) {
         val kept = sorted.withIndex().filter { (_, cue) -> (played.count { cue.at - it < 2f } < MAX_CUES_PER_2S).also { ok -> if (ok) played += cue.at } }
         for ((i, cue) in kept) {
             val (base, g) = VOICES.getValue(cue.kind)
-            val id = if (base in SfxPalette.CUES) "$base@${palette.id}" else base
-            // A recorded take from an installed sound pack voices the cue when there is one; otherwise it is synthesised.
-            val pcm = ContentPacks.sfx(base, palette.id, i + 1, rate) ?: sfx.generate(id, seed = i + 1) ?: sfx.generate(base, seed = i + 1) ?: continue
             val spoken = cue.kind !in ACCENTS && words.any { w -> cue.at * 1000 >= w.range.startMs && cue.at * 1000 < w.range.endMs }
             val stage = g * cue.gain * scale * (if (spoken) db(UNDER_WORD_DB) else 1f)
-            val start = (cue.at * rate).toInt()
+            val moving = cue.kind in MOVING
+            val pcm = if (moving) {
+                val m = motions[cue] ?: Motion.of(cue)
+                sfx.generateMotion(base, seed = i + 1, durationMs = (m.moveS * MS_PER_S).toInt(), speed = m.speed, variant = i, palette = palette)
+            } else {
+                val id = if (base in SfxPalette.CUES) "$base@${palette.id}" else base
+                ContentPacks.sfx(base, palette.id, i + 1, rate) ?: sfx.generate(id, seed = i + 1) ?: sfx.generate(base, seed = i + 1)
+            }
+            if (pcm == null) continue
+            val at = (cue.at * rate).toInt()
+            // A motion sound's swell peaks on the landing; a transient starts on it.
+            val start = if (moving) at - (pcm.size * ProceduralSfx.MOTION_PEAK).toInt() else at
             for (j in pcm.samples.indices) if (start + j in mix.indices) mix[start + j] += pcm.samples[j] * stage
         }
     }
@@ -257,7 +299,12 @@ class Soundtrack(private val rate: Int = 48_000) {
         const val JOIN_S = 0.002f
         const val UNDER_WORD_DB = -3f
         const val MAX_CUES_PER_2S = 4
+        /** A word's window widened for the follower's lag. */
+        const val ENV_FOLLOW_S = 0.02f
+        const val MS_PER_S = 1_000f
         val ACCENTS = setOf(SfxKind.Hit, SfxKind.Boom, SfxKind.Rewind)
+        /** Cues that ride a move (their sound is derived from its curve, see [Motion]). */
+        val MOVING = setOf(SfxKind.Whoosh, SfxKind.Swish)
         /** Each kind's cue (voiced by the palette when it is one of [SfxPalette.CUES]) and its level against the voice's peak. */
         val VOICES = mapOf(
             SfxKind.Whoosh to ("whoosh" to 0.32f), SfxKind.Swish to ("swoosh" to 0.22f), SfxKind.Hit to ("impact" to 0.3f),
@@ -265,6 +312,30 @@ class Soundtrack(private val rate: Int = 48_000) {
             SfxKind.Riser to ("riser" to 0.2f), SfxKind.Tick to ("tick" to 0.18f), SfxKind.Shimmer to ("shimmer" to 0.22f),
             SfxKind.Rewind to ("rewind" to 0.26f),
         )
+    }
+}
+
+/**
+ * The move behind a sound cue: [moveS] is how long it travels (the whoosh's length) and [speed]
+ * its peak speed, 0..1 (the whoosh's level and filter sweep follow it). The caller places the
+ * sound so its swell's peak sits on the cue's landing — the whoosh is heard as the move arriving.
+ */
+data class Motion(val moveS: Float, val speed: Float) {
+    companion object {
+        /**
+         * The move a cue implies when nothing describes one: swishes ride short, quick gestures and
+         * whooshes longer, heavier ones. Recipe-side motion reaches
+         * [Soundtrack.master] through its cue's params.
+         */
+        fun of(cue: Sfx): Motion = when (cue.kind) {
+            SfxKind.Swish -> Motion(MOVE_SWISH_S, SPEED_SWISH)
+            else -> Motion(MOVE_WHOOSH_S, SPEED_WHOOSH)
+        }
+
+        private const val MOVE_WHOOSH_S = 0.42f
+        private const val MOVE_SWISH_S = 0.24f
+        private const val SPEED_WHOOSH = 0.65f
+        private const val SPEED_SWISH = 0.8f
     }
 }
 
