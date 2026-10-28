@@ -164,7 +164,16 @@ class Group(
  * through [family] (a filter family). [amount] 0 leaves it untouched (and costs nothing);
  * [progress] drives travelling distortions such as a ripple's ring.
  */
-data class Filter(val family: ShaderFamily, val amount: Anim, val progress: Anim = Anim.Zero, val seed: Int = 1)
+data class Filter(
+    val family: ShaderFamily,
+    val amount: Anim,
+    val progress: Anim = Anim.Zero,
+    val seed: Int = 1,
+    /** Film-look parameters the finishing pass consumes; null keeps the family's defaults. */
+    val film: Finishing.FilmLook? = null,
+    /** Finishing grade (S-curve, temperature) applied in the same pass. */
+    val grade: Finishing.Grade? = null,
+)
 
 /**
  * The shader families: stage backgrounds (light, particles, waves) and distortions of what is
@@ -188,6 +197,8 @@ enum class ShaderFamily(val id: String, val filter: Boolean) {
     Ripple("ripple", true),
     /** Film halation: highlights bleed red. */
     Halation("halation", true),
+    /** Full-frame finishing: diffusion, halation, grade and luma grain in one pass. */
+    Finish("finish", true),
     ;
 
     companion object {
