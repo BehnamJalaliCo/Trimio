@@ -273,7 +273,7 @@ object ScoreGrammar {
     /** The same cap for constrained decoding: the model may write at most [maxBeats] beats. */
     fun topBeatsGbnf(maxBeats: Int): String = gbnf.replace(
         """(beat ("," ws beat)*)?""",
-        """(beat ("," ws beat){0,${(maxBeats - 1).coerceAtLeast(0)}})""",
+        """(beat ("," ws beat){0,${(maxBeats - 1).coerceAtLeast(0)}})?""",
     )
 
     /**
