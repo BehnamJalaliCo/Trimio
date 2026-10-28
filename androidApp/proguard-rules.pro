@@ -10,9 +10,11 @@
 -keep interface io.trimio.engine.illustration.generate.SdNative$StepListener { *; }
 -keepclassmembers class * implements io.trimio.engine.illustration.generate.SdNative$StepListener { *; }
 
-# --- kotlinx.serialization (projects, timelines, style packs, plans) --------------------------
+# --- kotlinx.serialization (projects, timelines, style packs, plans, story maps) --------------
 -keepattributes *Annotation*, InnerClasses, Signature, EnclosingMethod
--keepclassmembers class io.trimio.** { *** Companion; }
+# Companion (and the INSTANCE of a serializable object) carries serializer(); R8 full mode drops
+# the name without this and decodeFromString dies at runtime on StoryMap/StoryBeat and friends.
+-keepclassmembers class io.trimio.** { *** Companion; *** INSTANCE; }
 -keepclasseswithmembers class io.trimio.** { kotlinx.serialization.KSerializer serializer(...); }
 -keep,includedescriptorclasses class io.trimio.**$$serializer { *; }
 
