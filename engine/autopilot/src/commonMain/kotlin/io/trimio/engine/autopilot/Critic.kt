@@ -5,26 +5,29 @@ import io.trimio.engine.motion.score.BeatScore
 import io.trimio.engine.motion.score.Compiler
 import io.trimio.engine.motion.score.SceneScore
 import io.trimio.engine.motion.score.Score
+import io.trimio.engine.motion.score.StoryMap
 import io.trimio.engine.motion.score.Words
 
 /**
  * Watches the compiled edit the way a supervising editor would and sends it back with fixes:
- * a hook must land in the first 1.5 s, nothing may sit still for more than ~3.5 s, no more than
- * two graphics share the screen, a text treatment is not used three times running, and the call
- * to action holds the last screen. Each pass returns the issues it found and a revised score;
- * the autopilot recompiles until the critic is satisfied (or two passes are spent).
+ * a hook must land in the first 1.5 s, no stretch sits still longer than the energy there allows
+ * ([EnergyCurve.gap], never inside the calm a big strike earns), no more than two graphics share
+ * the screen, a text treatment is not used three times running, and the call to action holds the
+ * last screen. Each pass returns the issues it found and a revised score; the autopilot recompiles
+ * until the critic is satisfied (or two passes are spent). What the self-critique loop grades
+ * ([ContactSheet], [EditCritic]) comes back as [Review.findings] — reported, never a veto.
  */
 class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5f) {
 
     data class Issue(val at: Float, val kind: String, val detail: String)
 
-    data class Review(val issues: List<Issue>, val revised: Score?) {
+    data class Review(val issues: List<Issue>, val revised: Score?, val findings: List<String> = emptyList()) {
         val clean: Boolean get() = issues.isEmpty()
     }
 
     // Five checks in the order an editor makes them, each with its fix.
     @Suppress("CyclomaticComplexMethod")
-    fun review(score: Score, out: Compiler.Output, words: List<Word>, lines: List<Lines.Line>, cta: Cta?): Review {
+    fun review(score: Score, out: Compiler.Output, words: List<Word>, lines: List<Lines.Line>, cta: Cta?, u: Understanding? = null, map: StoryMap? = null): Review {
         val issues = mutableListOf<Issue>()
         var scenes = score.scenes
         val graphics = out.beats.filter { it.recipe != CAPTIONS }
@@ -38,9 +41,13 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
         }
 
         // 2. Stillness: stretches with no graphic on screen and no cut; long ones get a punch-in cut.
-        // (A graphic on screen is alive — its own choreography is the change.)
+        // (A graphic on screen is alive — its own choreography is the change. The energy curve sizes
+        // the stretch ([EnergyCurve.gap]: a hot stretch breathes shorter), and the calm a big strike
+        // earns is never called dead air ([EnergyCurve.calm]).)
+        val impulses = EnergyCurve.impulses(score, words)
+        val calm = EnergyCurve.calm(score, words)
         val changes = (graphics.flatMap { listOf(it.at, it.out) } + sceneStarts(score, words) + 0f + duration).sorted()
-        val quiet = changes.zipWithNext().filter { (a, b) -> b - a > maxStill && graphics.none { g -> g.at < b - 0.05f && g.out > a + 0.05f } }
+        val quiet = changes.zipWithNext().filter { (a, b) -> deadAir(a, b, impulses, calm) && graphics.none { g -> g.at < b - 0.05f && g.out > a + 0.05f } }
         for ((a, b) in quiet) {
             val mid = (a + b) / 2f
             // A cut on the speaker, never inside a stage (it would cut its graphic before it lands) nor a chat thread still
@@ -83,8 +90,23 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
             }
         }
 
+        // 6. What the self-critique loop grades: the contact sheet's six numbers and the editorial
+        // critic's three questions — reported to the editor, never gating (the panel is young).
+        val sheet = ContactSheet.grade(score, words, u)
+        val editorial = EditCritic.review(score, words, map)
+        val findings = listOf("contact sheet: ${sheet.summary()}") + sheet.findings.map { "contact sheet: $it" } +
+            listOf("edit critic: ${editorial.virality.summary()}") + editorial.findings.map { "edit critic: $it" }
+
         val changed = scenes != score.scenes
-        return Review(issues, if (changed) score.copy(scenes = scenes) else null)
+        return Review(issues, if (changed) score.copy(scenes = scenes) else null, findings)
+    }
+
+    /** Whether [a, b] is dead air: longer than the curve allows there, and not the calm before a strike. */
+    private fun deadAir(a: Float, b: Float, impulses: List<EnergyCurve.Impulse>, calm: List<ClosedFloatingPointRange<Float>>): Boolean {
+        val mid = (a + b) / 2f
+        if (EnergyCurve.inCalm(mid, calm)) return false
+        val e = impulses.minByOrNull { kotlin.math.abs(it.at - mid) }?.energy ?: MID_ENERGY
+        return b - a > minOf(maxStill, EnergyCurve.gap(e))
     }
 
     private fun List<SceneScore>.addBeat(k: Int, beat: BeatScore) = mapIndexed { i, s -> if (i == k) s.copy(beats = listOf(beat) + s.beats) else s }
@@ -102,6 +124,9 @@ class Critic(private val maxStill: Float = 3.5f, private val hookBy: Float = 1.5
 
         /** A cut keeps this far from either end of the still stretch it breaks. */
         const val EDGE = 0.8f
+
+        /** The energy where nothing was said about one: the ordinary gap. */
+        const val MID_ENERGY = 0.6f
         val TEXT_RECIPES = setOf("slam", "mask-rise", "type-on", "blur-in", "flip", "spread", "stack", "glitch")
         val ALTERNATE = mapOf(
             "slam" to "stack", "mask-rise" to "flip", "type-on" to "mask-rise", "blur-in" to "mask-rise",
