@@ -4,10 +4,12 @@ import androidx.compose.ui.graphics.Color
 import io.trimio.core.brand.BrandFonts
 import io.trimio.core.model.text.Numerals
 import io.trimio.engine.motion.Anim
+import io.trimio.engine.motion.Anticipate
 import io.trimio.engine.motion.Contrast
 import io.trimio.engine.motion.CounterNode
 import io.trimio.engine.motion.Easing
 import io.trimio.engine.motion.Fill
+import io.trimio.engine.motion.Follow
 import io.trimio.engine.motion.Group
 import io.trimio.engine.motion.Mask
 import io.trimio.engine.motion.Node
@@ -400,41 +402,72 @@ object Kit {
 
     private val Cue.dir: Float get() = if (rtl) -1f else 1f
 
-    /** The outer transform (and wipe mask) of [move] for a padded box [b] around [box]. */
+    /**
+     * The outer transform (and wipe mask) of [move] for a padded box [b] around [box].
+     * Each move is layered, not a flat preset: the primary travel anticipates (a small wind-up
+     * against the move), a secondary channel follows through with a lagged trail, and the fade
+     * overlaps the travel so the pieces never start on the same frame.
+     */
     private fun motion(move: Move, b: Box, box: Box, at: Float, enter: Float, exitAt: Float, d: Float, look: Look): Pair<Transform, Mask?> {
-        val fade = anim(0f, at) { by(1f, FADE_IN); hold(exitAt); by(0f, EXIT, Easing.Exit) }
+        val fade = anim(0f, at - OVERLAP) { by(1f, FADE_IN); hold(exitAt); by(0f, EXIT, Easing.Exit) }
         val cx = b.centerX
         val cy = b.centerY
         val base = Transform(x = cx.anim, y = cy.anim, anchorX = 0.5f, anchorY = 0.5f, opacity = fade)
-        val lift = box.height * 0.08f
-        val travel = minOf(box.width * 0.16f, 140f)
+        val lift = box.height * LIFT_SHARE
+        val travel = minOf(box.width * TRAVEL_SHARE, TRAVEL_MAX)
         return when (move) {
             Move.Rise -> base.copy(
-                y = cy.anim + anim(lift, at) { by(0f, enter, Easing.ExpoOut); hold(exitAt); by(-lift * 0.6f, EXIT, Easing.Exit) },
-                blur = anim(0f, exitAt) { by(3f, EXIT, Easing.Exit) },
+                y = cy.anim + Anticipate(anim(lift, at) { by(0f, enter, Easing.ExpoOut); hold(exitAt); by(-lift * RISE_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                blur = trail(at, enter, exitAt),
             ) to null
-            Move.Pop -> base.copy(scale = anim(0.72f, at) { by(1f, enter * 0.9f, Easing.Spring(0.52f, 2.1f)); hold(exitAt); by(0.86f, EXIT, Easing.Exit) }) to null
+            Move.Pop -> base.copy(
+                scale = Anticipate(anim(POP_FROM, at) { by(1f, enter * POP_SPAN, Easing.Spring(POP_DAMPING, POP_FREQUENCY)); hold(exitAt); by(POP_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                blur = trail(at, enter, exitAt, peak = TRAIL_BLUR * POP_TRAIL),
+            ) to null
             Move.Slide -> base.copy(
-                x = cx.anim + anim(-d * travel, at) { by(0f, enter, look.settle.takeIf { it != Easing.SineInOut } ?: Easing.ExpoOut); hold(exitAt); by(d * travel * 0.8f, EXIT, Easing.Exit) },
+                x = cx.anim + Anticipate(anim(-d * travel, at) { by(0f, enter, look.settle.takeIf { it != Easing.SineInOut } ?: Easing.ExpoOut); hold(exitAt); by(d * travel * SLIDE_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                blur = trail(at, enter, exitAt),
             ) to null
-            Move.Wipe -> base.copy(opacity = anim(1f, exitAt) { by(0f, EXIT, Easing.Exit) }) to wipe(b, at, enter, exitAt, d)
+            Move.Wipe -> base.copy(
+                opacity = anim(1f, exitAt) { by(0f, EXIT, Easing.Exit) },
+                scale = Anticipate(anim(WIPE_SCALE, at) { by(1f, enter, Easing.ExpoOut); hold(exitAt); by(WIPE_SCALE_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+            ) to wipe(b, at, enter, exitAt, d)
             Move.Flip -> base.copy(
-                rotationX = anim(-72f, at) { by(0f, enter * 1.1f, Easing.Spring(0.64f, 1.6f)); hold(exitAt); by(55f, EXIT, Easing.Exit) },
-                perspective = 1600f,
+                rotationX = Anticipate(anim(-FLIP_FROM, at) { by(0f, enter * FLIP_SPAN, Easing.Spring(FLIP_DAMPING, FLIP_FREQUENCY)); hold(exitAt); by(FLIP_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                blur = trail(at, enter, exitAt),
+                perspective = FLIP_PERSPECTIVE,
             ) to null
             Move.Focus -> base.copy(
-                blur = anim(18f, at) { by(0f, enter * 1.2f, Easing.ExpoOut); hold(exitAt); by(12f, EXIT, Easing.Exit) },
-                scale = anim(1.07f, at) { by(1f, enter * 1.2f, Easing.ExpoOut) },
+                blur = Anticipate(anim(FOCUS_BLUR, at) { by(0f, enter * FOCUS_SPAN, Easing.ExpoOut); hold(exitAt); by(EXIT_BLUR, EXIT, Easing.Exit) }, ANTICIPATE),
+                scale = Follow(anim(FOCUS_SCALE, at) { by(1f, enter * FOCUS_SPAN, Easing.ExpoOut); hold(exitAt); by(FOCUS_SCALE_EXIT, EXIT, Easing.Exit) }, FOLLOW_LAG, FOLLOW_DAMP),
             ) to null
             Move.Drop -> base.copy(
-                y = cy.anim + anim(-lift * 2.6f, at) { by(0f, enter, Easing.Spring(0.45f, 2.2f)); hold(exitAt); by(lift * 1.5f, EXIT, Easing.Exit) },
+                y = cy.anim + Anticipate(anim(-lift * DROP_FROM, at) { by(0f, enter, Easing.Spring(DROP_DAMPING, DROP_FREQUENCY)); hold(exitAt); by(lift * DROP_EXIT, EXIT, Easing.Exit) }, ANTICIPATE),
+                blur = trail(at, enter, exitAt),
             ) to null
             Move.Unfold -> base.copy(
                 y = (box.top).anim, anchorY = (box.top - b.top) / b.height,
-                scaleY = anim(0.04f, at) { by(1f, enter, Easing.ExpoOut); hold(exitAt); by(0.04f, EXIT, Easing.Exit) },
+                scaleY = Anticipate(anim(UNFOLD_FROM, at) { by(1f, enter, Easing.ExpoOut); hold(exitAt); by(UNFOLD_FROM, EXIT, Easing.Exit) }, ANTICIPATE),
+                blur = trail(at, enter, exitAt, peak = TRAIL_BLUR * UNFOLD_TRAIL),
             ) to null
         }
     }
+
+    /**
+     * A smear that swells with the move and then trails it (follow-through on a secondary
+     * channel): the primary has landed, the blur is still catching up.
+     */
+    private fun trail(at: Float, enter: Float, exitAt: Float, peak: Float = TRAIL_BLUR, exitPeak: Float = EXIT_BLUR): Anim =
+        Follow(
+            anim(0f, at) {
+                by(peak, enter * TRAIL_IN, Easing.ExpoOut)
+                by(0f, enter * (1f - TRAIL_IN), Easing.ExpoOut)
+                hold(exitAt)
+                by(exitPeak, EXIT, Easing.Exit)
+            },
+            FOLLOW_LAG,
+            FOLLOW_DAMP,
+        )
 
     /** A rectangle mask that grows in reading order over [enter], and shrinks the same way at [exitAt]. */
     private fun wipe(b: Box, at: Float, enter: Float, exitAt: Float, d: Float): Mask {
@@ -460,14 +493,14 @@ object Kit {
         val cy = b.centerY
         val fade = Anim.tween(0f, 1f, at, at + FADE_IN)
         val t = Transform(x = cx.anim, y = cy.anim, opacity = fade)
-        val small = minOf(box.height * 0.5f, 60f)
+        val small = minOf(box.height * 0.5f, ITEM_MAX)
         val tr = when (move) {
-            Move.Rise, Move.Wipe, Move.Unfold -> t.copy(y = cy.anim + Anim.tween(small, 0f, at, at + ITEM, Easing.ExpoOut))
-            Move.Pop -> t.copy(scale = Anim.tween(0.5f, 1f, at, at + ITEM, Easing.Spring(0.5f, 2.3f)))
-            Move.Slide -> t.copy(x = cx.anim + Anim.tween(-dir * small * 1.6f, 0f, at, at + ITEM, Easing.ExpoOut))
-            Move.Flip -> t.copy(rotationX = Anim.tween(-80f, 0f, at, at + ITEM * 1.2f, Easing.Spring(0.62f, 1.8f)))
-            Move.Focus -> t.copy(blur = Anim.tween(10f, 0f, at, at + ITEM, Easing.ExpoOut))
-            Move.Drop -> t.copy(y = cy.anim + Anim.tween(-small * 1.4f, 0f, at, at + ITEM, Easing.Spring(0.45f, 2.2f)))
+            Move.Rise, Move.Wipe, Move.Unfold -> t.copy(y = cy.anim + Anticipate(Anim.tween(small, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
+            Move.Pop -> t.copy(scale = Anticipate(Anim.tween(0.5f, 1f, at, at + ITEM, Easing.Spring(POP_DAMPING, POP_FREQUENCY)), ANTICIPATE))
+            Move.Slide -> t.copy(x = cx.anim + Anticipate(Anim.tween(-dir * small * 1.6f, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
+            Move.Flip -> t.copy(rotationX = Anticipate(Anim.tween(-80f, 0f, at, at + ITEM * FLIP_SPAN, Easing.Spring(FLIP_DAMPING, FLIP_FREQUENCY)), ANTICIPATE))
+            Move.Focus -> t.copy(blur = Anticipate(Anim.tween(10f, 0f, at, at + ITEM, Easing.ExpoOut), ANTICIPATE))
+            Move.Drop -> t.copy(y = cy.anim + Anticipate(Anim.tween(-small * 1.4f, 0f, at, at + ITEM, Easing.Spring(DROP_DAMPING, DROP_FREQUENCY)), ANTICIPATE))
         }
         val inner = Group(children, Transform(x = (-b.left).anim, y = (-b.top).anim, anchorX = 0f, anchorY = 0f), name = "$name-body")
         return Group(listOf(inner), transform = tr, width = b.width, height = b.height, start = at - 0.02f, name = name)
@@ -548,5 +581,42 @@ object Kit {
     const val EXIT = 0.3f
     private const val FADE_IN = 0.18f
     private const val ITEM = 0.5f
+    private const val ITEM_MAX = 60f
     private const val MIN_STAGGER = 0.12f
+    private const val ANTICIPATE = 0.1f
+    private const val FOLLOW_LAG = 0.08f
+    private const val FOLLOW_DAMP = 0.65f
+    private const val OVERLAP = 0.06f
+    private const val LIFT_SHARE = 0.08f
+    private const val TRAVEL_SHARE = 0.16f
+    private const val TRAVEL_MAX = 140f
+    private const val RISE_EXIT = 0.6f
+    private const val POP_FROM = 0.72f
+    private const val POP_SPAN = 0.9f
+    private const val POP_EXIT = 0.86f
+    private const val POP_DAMPING = 0.52f
+    private const val POP_FREQUENCY = 2.1f
+    private const val POP_TRAIL = 0.5f
+    private const val SLIDE_EXIT = 0.8f
+    private const val WIPE_SCALE = 0.98f
+    private const val WIPE_SCALE_EXIT = 1.02f
+    private const val FLIP_FROM = 72f
+    private const val FLIP_SPAN = 1.1f
+    private const val FLIP_EXIT = 55f
+    private const val FLIP_DAMPING = 0.64f
+    private const val FLIP_FREQUENCY = 1.6f
+    private const val FLIP_PERSPECTIVE = 1600f
+    private const val FOCUS_BLUR = 18f
+    private const val FOCUS_SPAN = 1.2f
+    private const val FOCUS_SCALE = 1.07f
+    private const val FOCUS_SCALE_EXIT = 1.02f
+    private const val DROP_FROM = 2.6f
+    private const val DROP_EXIT = 1.5f
+    private const val DROP_DAMPING = 0.45f
+    private const val DROP_FREQUENCY = 2.2f
+    private const val UNFOLD_FROM = 0.04f
+    private const val UNFOLD_TRAIL = 0.4f
+    private const val TRAIL_BLUR = 1.2f
+    private const val EXIT_BLUR = 3f
+    private const val TRAIL_IN = 0.45f
 }
