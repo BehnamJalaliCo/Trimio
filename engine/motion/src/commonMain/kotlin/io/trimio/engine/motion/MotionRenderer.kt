@@ -126,8 +126,9 @@ class MotionRenderer(
 
     private fun DrawScope.drawNode(node: Node, t: Float, motionBlur: Boolean) {
         if (!node.isAlive(t)) return
-        if (motionBlur && isMoving(node, t)) {
-            val k = composition.shutterSamples.coerceAtLeast(2)
+        val travel = if (motionBlur) motionTravel(node, t) else 0f
+        if (travel > MOTION_THRESHOLD_PX) {
+            val k = FinishingPass.shutterSamples(travel, composition.shutterAngle)
             val times = List(k) { i -> t + (i / (k - 1f) - 0.5f) * shutter }
             val area = times.fold(Rect.Zero) { acc, ti -> union(acc, matrixOf(node, ti).mapBounds(paddedBounds(node, ti))) }
             if (area.isEmpty) return
@@ -200,18 +201,22 @@ class MotionRenderer(
         withTransform({ transform(inverse.toCompose()) }) { drawFiltered(image, filter, t, 1f, frame.size, soft.fx) }
     }
 
-    /** True when the node visibly moves within one shutter interval (worth motion blur). */
-    private fun isMoving(node: Node, t: Float): Boolean {
+    /**
+     * How far the node travels across one shutter interval, in px; 0 when it earns no blur.
+     * Footage counts (a punch-in's smear is the camera's); counters and full-frame effects never.
+     */
+    private fun motionTravel(node: Node, t: Float): Float {
         // Counters change digits every frame: averaging frames would stack different numbers.
-        if (node is EffectNode || node is MediaNode || node is CounterNode) return false
+        if (node is EffectNode || node is CounterNode) return 0f
         val a = t - shutter / 2f
         val b = t + shutter / 2f
-        if (!node.isAlive(a) || !node.isAlive(b)) return false
+        if (!node.isAlive(a) || !node.isAlive(b)) return 0f
         val r = Rect(Offset.Zero, bounds(node, t))
         val pa = matrixOf(node, a).mapBounds(r)
         val pb = matrixOf(node, b).mapBounds(r)
-        val moved = abs(pa.left - pb.left) + abs(pa.top - pb.top) + abs(pa.right - pb.right) + abs(pa.bottom - pb.bottom)
-        return moved > MOTION_THRESHOLD_PX * 2 || (node is TextNode && unitsMoving(node, a, b))
+        val moved = MotionBlurDecide.travel(pa, pb)
+        val units = node is TextNode && unitsMoving(node, a, b)
+        return if (MotionBlurDecide.isMoving(moved, units, MOTION_THRESHOLD_PX)) maxOf(moved, MOTION_THRESHOLD_PX) else 0f
     }
 
     private fun unitsMoving(node: TextNode, a: Float, b: Float): Boolean {
